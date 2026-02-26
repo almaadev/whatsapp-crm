@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f8fafc; /* Slate-50 */
+  --foreground: #0f172a; /* Slate-900 */
+  --primary: #059669; /* Emerald-600 */
+  --sidebar-bg: #0f172a; /* Slate-900 */
+}
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+    overflow: hidden; 
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Premium Slim Scrollbar */
+  .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 hover:bg-slate-400 rounded-full transition-colors;
+  }
+}
