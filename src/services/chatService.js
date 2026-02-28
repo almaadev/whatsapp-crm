@@ -23,7 +23,10 @@ export const chatService = {
           // FIX: If message is empty but media exists, show a placeholder
           let displayText = msg.message;
           if (!displayText && msg.mediaUrl) {
-              displayText = msg.mediaType?.includes("video") ? "🎥 Video" : "📷 Photo";
+              if (msg.mediaType?.includes("video")) displayText = "🎥 Video";
+              else if (msg.mediaType?.includes("audio")) displayText = "🎵 Audio";
+              else if (msg.mediaType?.includes("pdf") || msg.mediaType?.includes("document")) displayText = "📄 Document";
+              else displayText = "📷 Photo";
           }
 
           uniqueConversations[msg.phone].message = displayText;

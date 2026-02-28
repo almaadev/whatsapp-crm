@@ -8,7 +8,7 @@ import ForwardLeadModal from "./ForwardLeadModal";
 import ReminderModal from "./ReminderModal";
 import { toast } from "react-toastify";
 
-import { Send, Info, ChevronDown, Check, ChevronLeft, MessageSquare, ArrowDown, Share2, X, Clock, Flag, AlertCircle, User, History, Bell } from "lucide-react";
+import { Send, Info, ChevronDown, Check, ChevronLeft, MessageSquare, ArrowDown, Share2, X, Clock, Flag, AlertCircle, User, History, Bell, FileText } from "lucide-react";
 
 export default function ChatArea() {
     const { data: session } = useSession();
@@ -333,12 +333,18 @@ export default function ChatArea() {
                 </div>
             )}
 
-            {/* MEDIA VIEWER */}
+           {/* MEDIA VIEWER */}
             {selectedMedia && (
                 <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 animate-in fade-in" onClick={() => setSelectedMedia(null)}>
                     <button className="absolute top-4 right-4 text-white p-2" onClick={() => setSelectedMedia(null)}> <X size={24} /> </button>
-                    <div className="relative max-w-5xl max-h-full" onClick={e => e.stopPropagation()}>
-                        {selectedMedia.type?.includes("video") ? <video src={selectedMedia.url} controls autoPlay className="max-w-full max-h-[90vh] rounded shadow-2xl" /> : <img src={selectedMedia.url} alt="Full View" className="max-w-full max-h-[90vh] object-contain rounded shadow-2xl" />}
+                    <div className="relative max-w-5xl max-h-full w-full flex justify-center" onClick={e => e.stopPropagation()}>
+                        {selectedMedia.type?.includes("video") ? (
+                            <video src={selectedMedia.url} controls autoPlay className="max-w-full max-h-[90vh] rounded shadow-2xl" />
+                        ) : selectedMedia.type?.includes("pdf") || selectedMedia.type?.includes("document") ? (
+                            <iframe src={selectedMedia.url} className="w-[90vw] md:w-[80vw] h-[90vh] bg-white rounded shadow-2xl" />
+                        ) : (
+                            <img src={selectedMedia.url} alt="Full View" className="max-w-full max-h-[90vh] object-contain rounded shadow-2xl" />
+                        )}
                     </div>
                 </div>
             )}
@@ -409,10 +415,27 @@ export default function ChatArea() {
                             <div className={`flex ${isMe ? "justify-end" : "justify-start"} group mb-1`}>
                                 <div className={`relative px-3 py-1.5 max-w-[80%] md:max-w-[60%] rounded-lg shadow-sm text-sm leading-relaxed ${isMe ? "bg-[#d9fdd3] text-slate-900 rounded-tr-none" : "bg-white text-slate-900 rounded-tl-none"}`}>
 
-                                    {/* Media */}
+                                   {/* Media */}
                                     {msg.mediaUrl && msg.mediaUrl.startsWith("http") && (
-                                        <div className="mb-1 rounded overflow-hidden cursor-pointer" onClick={() => setSelectedMedia({ url: msg.mediaUrl, type: msg.mediaType })}>
-                                            {msg.mediaType?.includes("video") ? <video src={msg.mediaUrl} className="max-w-full max-h-[300px]" /> : <img src={msg.mediaUrl} alt="Attachment" className="max-w-full max-h-[300px] object-cover" />}
+                                        <div className="mb-1 rounded overflow-hidden">
+                                            {msg.mediaType?.includes("video") ? (
+                                                <div className="cursor-pointer" onClick={() => setSelectedMedia({ url: msg.mediaUrl, type: msg.mediaType })} title="Play Video">
+                                                    <video src={msg.mediaUrl} className="max-w-full max-h-[300px]" />
+                                                </div>
+                                            ) : msg.mediaType?.includes("audio") ? (
+                                                <div className="pt-1" title="Play audio">
+                                                    <audio src={msg.mediaUrl} controls className="max-w-full w-[240px] h-10" />
+                                                </div>
+                                            ) : msg.mediaType?.includes("pdf") || msg.mediaType?.includes("document") ? (
+                                                <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-white/60 border border-slate-200 rounded-lg hover:bg-white/90 transition-colors cursor-pointer" title="Open Document">
+                                                    <div className="p-2 bg-red-100 text-red-600 rounded-lg" ><FileText size={20} /></div>
+                                                   
+                                                </a>
+                                            ) : (
+                                                <div className="cursor-pointer" onClick={() => setSelectedMedia({ url: msg.mediaUrl, type: msg.mediaType })} title="Open Image">
+                                                    <img src={msg.mediaUrl} alt="Attachment" className="max-w-full max-h-[300px] object-cover" />
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
