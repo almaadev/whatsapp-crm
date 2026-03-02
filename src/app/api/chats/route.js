@@ -160,20 +160,27 @@ export async function POST(req) {
     const { phone, message, name, role, skipSave } = await req.json();
     if (!phone || !message) return NextResponse.json({ error: "Required fields missing" }, { status: 400 });
 
-    // Twilio Send
+    // --- TWILIO SEND LOGIC ---
     let twilioSid = "sys_msg";
-    const myTwilioNumber = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER;
+    const myTwilioNumber = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER || process.env.TWILIO_PHONE_NUMBER;
+    
+    // FIX: Compulsory add "whatsapp:" prefix to your from number
+    const twilioFrom = myTwilioNumber?.startsWith("whatsapp:") 
+      ? myTwilioNumber 
+      : `whatsapp:${myTwilioNumber}`;
 
     try {
       const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
       const sent = await client.messages.create({
         body: message,
-        from: myTwilioNumber,
+        from: twilioFrom, // Updated this line!
         to: phone.startsWith("whatsapp:") ? phone : `whatsapp:${phone}`,
       });
       twilioSid = sent.sid;
+      console.log("✅ Twilio Message Sent Successfully:", sent.sid);
     } catch (e) {
-      console.error("Twilio Error:", e.message);
+      // This will exactly show why WhatsApp failed in your terminal
+      console.error("❌ Twilio Error:", e.message); 
     }
 
     // Google Sheet Save

@@ -2,6 +2,7 @@
 import { useState, useMemo } from "react"; 
 import { useChatStore } from "@/store/chatStore";
 import { useSession } from "next-auth/react";
+import Link from "next/link"; // Added Next.js Link
 import { Search, PlusCircle, CheckCheck, Flag } from "lucide-react"; 
 
 export default function ChatList({ role, loading }) { 
@@ -66,7 +67,6 @@ export default function ChatList({ role, loading }) {
   };
 
   const handleChatClick = async (chat) => {
-    
     setSelectedChat(chat);
     if (chat.direction === "INBOUND" && chat.read === "FALSE") {
         updateChatDetails(chat.phone, { read: "TRUE" });
@@ -122,8 +122,6 @@ export default function ChatList({ role, loading }) {
             {chats.map((chat, index) => {
                 const isSelected = selectedChat?.phone === chat.phone;
 
-                
-                
                 // FIX: If chat is selected, NEVER treat as unread (prevents highlight/red dot)
                 const isUnread = !isSelected && chat.direction === "INBOUND" && chat.read === "FALSE";
                 
@@ -193,10 +191,10 @@ export default function ChatList({ role, loading }) {
     <div className="flex flex-col h-full w-full bg-white border-r border-slate-200">
       <div className="h-16 px-5 flex items-center justify-between border-b border-slate-100 shrink-0 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
         <h2 className="text-lg font-bold text-slate-800 tracking-tight">Messages</h2>
-        <button className="text-slate-400 hover:text-emerald-600 transition">
-            
-             <a href="chat/new-customer"><PlusCircle size={20} /></a>
-        </button>
+        {/* FIXED: Replaced <button><a> with proper <Link> */}
+        <Link href="/dashboard/chat/new-customer" className="text-slate-400 hover:text-emerald-600 transition">
+             <PlusCircle size={20} />
+        </Link>
       </div>
 
       <div className="p-3 bg-white shrink-0">
