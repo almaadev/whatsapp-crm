@@ -491,6 +491,7 @@ const ChatInput = memo(function ChatInput({ currentLeadStatus, followUpLabel, ge
     const [text, setText] = useState("");
     const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
     const statusMenuRef = useRef(null);
+    const textareaRef = useRef(null);
 
     useEffect(() => {
         function handleClickOutside(event) {
@@ -502,10 +503,21 @@ const ChatInput = memo(function ChatInput({ currentLeadStatus, followUpLabel, ge
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+        }
+    }, [text]);
+
     const handleSendClick = () => {
         if (text.trim() && !sending) {
             onSendMessage(text);
             setText("");
+            // மெசேஜ் அனுப்பியதும் பழைய உயரத்திற்கு மாற்றுதல்
+            if (textareaRef.current) {
+                textareaRef.current.style.height = 'auto';
+            }
         }
     };
 
@@ -517,8 +529,10 @@ const ChatInput = memo(function ChatInput({ currentLeadStatus, followUpLabel, ge
     };
 
     return (
-        <div className="bg-[#f0f2f5] p-3 px-4 border-t border-slate-200 flex items-center gap-3 z-20">
-            <div className={`relative mb-0.5 ${text ? "hidden lg:block" : ""}`} ref={statusMenuRef}>
+        // 🔴 FIX: items-center என்பதை items-end என்று மாற்றியுள்ளோம். அப்போதுதான் பாக்ஸ் பெரிதாகும் போது Send பட்டன் கீழே நிற்கும்.
+        <div className="bg-[#f0f2f5] p-3 px-4 border-t border-slate-200 flex items-end gap-3 z-20">
+            
+            <div className={`relative mb-1 ${text ? "hidden lg:block" : ""}`} ref={statusMenuRef}>
                 <button onClick={() => setIsStatusMenuOpen(!isStatusMenuOpen)} className={`h-10 px-4 rounded-full border border-slate-300 flex items-center gap-2 text-xs font-bold transition-all shadow-sm bg-white hover:bg-slate-50 text-slate-700`}>
                     {currentLeadStatus === "Follow Up" ? followUpLabel : currentLeadStatus} <ChevronDown size={14} />
                 </button>
@@ -531,9 +545,13 @@ const ChatInput = memo(function ChatInput({ currentLeadStatus, followUpLabel, ge
                 )}
             </div>
 
-            <div className="flex-1 bg-white border border-slate-200 rounded-full flex items-center px-4 py-1.5 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all shadow-sm">
+            {/* 🔴 FIX: rounded-full-ஐ rounded-2xl ஆக மாற்றியுள்ளோம் (பெரிதாகும் போது அழகாக இருக்க) */}
+            <div className="flex-1 bg-white border border-slate-200 rounded-2xl flex items-center px-4 py-1.5 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all shadow-sm min-h-[44px]">
                 <textarea
-                    className="w-full bg-transparent border-none text-sm outline-none placeholder:text-slate-400 resize-none max-h-24 py-2 text-slate-800"
+                    ref={textareaRef}
+                    // 🔴 FIX: Custom Scrollbar மற்றும் Max Height சேர்க்கப்பட்டுள்ளது
+                    className="w-full bg-transparent border-none text-sm outline-none placeholder:text-slate-400 resize-none py-1.5 text-slate-800 custom-scrollbar"
+                    style={{ maxHeight: '150px' }} // 150px வரை பெரிதாகும், அதற்கு மேல் Scroll ஆகும்
                     placeholder="Type a message"
                     rows={1}
                     value={text}
@@ -542,7 +560,8 @@ const ChatInput = memo(function ChatInput({ currentLeadStatus, followUpLabel, ge
                 />
             </div>
 
-            <button onClick={handleSendClick} disabled={sending || !text.trim()} className={`p-3 rounded-full shadow transition-all flex-shrink-0 ${text.trim() ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-slate-200 text-slate-400"}`}>
+            {/* 🔴 FIX: mb-0.5 சேர்க்கப்பட்டுள்ளது (Send பட்டனை சமமாக வைக்க) */}
+            <button onClick={handleSendClick} disabled={sending || !text.trim()} className={`p-3 rounded-full shadow transition-all flex-shrink-0 mb-0.5 ${text.trim() ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-slate-200 text-slate-400"}`}>
                 {sending ? <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" /> : <Send size={20} className={text.trim() ? "ml-0.5" : ""} />}
             </button>
         </div>
