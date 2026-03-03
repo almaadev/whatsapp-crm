@@ -12,7 +12,6 @@ import Sidebar from "@/components/layout/Sidebar";
 import ChatList from "@/components/features/chat/ChatList";
 import ChatArea from "@/components/features/chat/ChatArea";
 
-// 1. Rename your original function to ChatPageContent
 function ChatPageContent() {
   const { data: session } = useSession();
   const login = useAuthStore((s) => s.login);
@@ -22,7 +21,7 @@ function ChatPageContent() {
   const messages = useChatStore((s) => s.messages);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const searchParams = useSearchParams(); // This is what triggers the build error
+  const searchParams = useSearchParams();
 
   const userRole = session?.user?.role;
 
@@ -57,11 +56,12 @@ function ChatPageContent() {
           <button onClick={() => setMobileMenuOpen(true)} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-md">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
-          <span className="font-semibold text-gray-700">
+          {/* FIX: Changed <span> to <div> to prevent Turbopack crash */}
+          <div className="font-semibold text-gray-700">
             <div className=" w-20 flex items-center justify-center shrink-0 p-1">
               <img src={AlmaaLogo.src} alt="Almaa" className="w-full h-full object-contain" />
             </div>
-          </span>
+          </div>
           <div className="w-8"></div>
         </div>
 
@@ -91,7 +91,6 @@ function ChatPageContent() {
   );
 }
 
-// 2. Export a default component that wraps your exact code inside <Suspense>
 export default function ChatPage() {
   return (
     <Suspense fallback={<div className="flex h-[100dvh] bg-gray-100 items-center justify-center">Loading Chat...</div>}>
