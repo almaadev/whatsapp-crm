@@ -51,8 +51,8 @@ export const chatService = {
     }
   },
 
-  sendMessage: async (payload) => {
-     await axios.post("/api/chats", payload);
-     return { success: true };
+sendMessage: async (payload) => {
+     const response = await axios.post("/api/chats", payload);
+     return response.data; 
   }
 };

@@ -8,7 +8,7 @@ import ForwardLeadModal from "./ForwardLeadModal";
 import ReminderModal from "./ReminderModal";
 import { toast } from "react-toastify";
 
-import { Send, Info, ChevronDown, Check, ChevronLeft, MessageSquare, ArrowDown, Share2, X, Clock, Flag, AlertCircle, User, History, Bell, FileText } from "lucide-react";
+import { Send, Info, ChevronDown, Check, CheckCheck, ChevronLeft, MessageSquare, ArrowDown, Share2, X, Clock, Flag, AlertCircle, User, History, Bell, FileText } from "lucide-react";
 
 export default function ChatArea() {
     const { data: session } = useSession();
@@ -37,6 +37,7 @@ export default function ChatArea() {
     const currentLeadStatus = activeChat?.status || "New";
     const isNewHandler = activeChat?.lastClosedBy && activeChat?.lastClosedBy !== session?.user?.name;
     const messages = activeChat?.history || (activeChat ? [activeChat] : []);
+
 
     // --- REMINDER LOGIC ---
     const handleSetReminder = async ({ date, time, message }) => {
@@ -243,12 +244,15 @@ export default function ChatArea() {
 
             if (!navigator.onLine) throw new Error("Offline");
 
-            await chatService.sendMessage(newMessage);
-            updateMessageStatus(activeChat.phone, tempId, "Sent");
+            // FIX: Backend-ல் இருந்து வரும் Response-ஐ ஒரு variable-ல் வாங்குகிறோம்
+            const res = await chatService.sendMessage(newMessage);
+
+            // FIX: Twilio SID-ஐ store-க்கு அனுப்புகிறோம். அப்போதுதான் Webhook அதை கண்டுபிடிக்க முடியும்!
+            updateMessageStatus(activeChat.phone, tempId, "SENT", res?.twilioSid);
 
         } catch (error) {
             console.error("Failed to send", error);
-            updateMessageStatus(activeChat.phone, tempId, "Failed");
+            updateMessageStatus(activeChat.phone, tempId, "FAILED");
             toast.error("Message failed to send.");
         } finally {
             setSending(false);
@@ -333,7 +337,7 @@ export default function ChatArea() {
                 </div>
             )}
 
-           {/* MEDIA VIEWER */}
+            {/* MEDIA VIEWER */}
             {selectedMedia && (
                 <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 animate-in fade-in" onClick={() => setSelectedMedia(null)}>
                     <button className="absolute top-4 right-4 text-white p-2" onClick={() => setSelectedMedia(null)}> <X size={24} /> </button>
@@ -415,7 +419,7 @@ export default function ChatArea() {
                             <div className={`flex ${isMe ? "justify-end" : "justify-start"} group mb-1`}>
                                 <div className={`relative px-3 py-1.5 max-w-[80%] md:max-w-[60%] rounded-lg shadow-sm text-sm leading-relaxed ${isMe ? "bg-[#d9fdd3] text-slate-900 rounded-tr-none" : "bg-white text-slate-900 rounded-tl-none"}`}>
 
-                                   {/* Media */}
+                                    {/* Media */}
                                     {msg.mediaUrl && msg.mediaUrl.startsWith("http") && (
                                         <div className="mb-1 rounded overflow-hidden">
                                             {msg.mediaType?.includes("video") ? (
@@ -429,7 +433,7 @@ export default function ChatArea() {
                                             ) : msg.mediaType?.includes("pdf") || msg.mediaType?.includes("document") ? (
                                                 <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-white/60 border border-slate-200 rounded-lg hover:bg-white/90 transition-colors cursor-pointer" title="Open Document">
                                                     <div className="p-2 bg-red-100 text-red-600 rounded-lg" ><FileText size={20} /></div>
-                                                   
+
                                                 </a>
                                             ) : (
                                                 <div className="cursor-pointer" onClick={() => setSelectedMedia({ url: msg.mediaUrl, type: msg.mediaType })} title="Open Image">
@@ -442,16 +446,24 @@ export default function ChatArea() {
                                     {/* Message Text */}
                                     {msg.message && <p className="whitespace-pre-wrap break-words pr-2 pb-1">{msg.message}</p>}
 
-                                    {/* Time & Status */}
+                                   {/* Time & Status */}
                                     <div className="flex justify-end items-center gap-1 float-right mt-1 ml-2">
                                         <span className="text-[10px] text-slate-500 min-w-fit">{formatBubbleTime(currentMsgDate)}</span>
                                         {isMe && (
-                                            <>
-                                                {msg.status === "Sent" && <Check size={14} className="text-blue-500" />}
-                                                {msg.status === "Sending" && <Clock size={12} className="text-slate-400" />}
-                                                {msg.status === "Failed" && <AlertCircle size={12} className="text-red-500" />}
-                                            </>
-                                        ) }
+                                            (() => {
+                                                
+                                                const msgStat = (msg.messageStatus || msg.status || "").toUpperCase();
+                                                return (
+                                                    <>
+                                                        {msgStat === "SENDING" && <Clock size={14} className="text-slate-400" />}
+                                                        {msgStat === "SENT" && <Check size={16} className="text-slate-400" />}
+                                                        {msgStat === "DELIVERED" && <CheckCheck size={16} className="text-slate-400" />}
+                                                        {msgStat === "READ" && <CheckCheck size={16} className="text-blue-500" />}
+                                                        {msgStat === "FAILED" && <AlertCircle size={14} className="text-red-500" />}
+                                                    </>
+                                                );
+                                            })()
+                                        )}
                                     </div>
                                 </div>
                             </div>

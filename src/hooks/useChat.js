@@ -8,9 +8,8 @@ export function useChat(role) {
   const [loading, setLoading] = useState(true);
   const setMessages = useChatStore((s) => s.setMessages);
   const addMessage = useChatStore((s) => s.addMessage); 
-  const updateChatDetails = useChatStore((s) => s.updateChatDetails);
+  const updateMessageStatus = useChatStore((s) => s.updateMessageStatus); // FIX: Added this
   
-  // Connect to the Notification Store Action
   const addNotification = useChatStore((s) => s.addNotification);
 
   const selectedChat = useChatStore((s) => s.selectedChat);
@@ -22,12 +21,10 @@ export function useChat(role) {
 
   const socketRef = useRef(null);
 
-  // --- NEW HELPER: Safely play audio without console errors ---
   const playSafeAudio = (path) => {
     try {
         const audio = new Audio(path);
         audio.play().catch((err) => {
-            // Ignore 'NotAllowedError' (Browser Autoplay Policy)
             if (err.name !== "NotAllowedError") {
                 console.error("Audio playback error:", err);
             }
@@ -36,12 +33,10 @@ export function useChat(role) {
         console.error("Audio setup error:", e);
     }
   };
-  // ------------------------------------------------------------
 
   useEffect(() => {
     if (!role) return;
 
-    // 1. Initial Load
     const fetchChats = async () => {
       try {
         const data = await chatService.getMessages(role);
@@ -58,7 +53,6 @@ export function useChat(role) {
 
     fetchChats();
 
-    // 2. Setup Socket
     const socket = io(); 
     socketRef.current = socket;
 
@@ -66,7 +60,6 @@ export function useChat(role) {
         console.log("✅ Socket Connected to Server");
     });
 
-    // 3. Listen for Real-time Messages
     socket.on("new_message", (newMessage) => {
         
         addMessage(newMessage);
@@ -75,10 +68,8 @@ export function useChat(role) {
              try {
                 const isCurrentChat = selectedChatRef.current?.phone === newMessage.phone;
 
-                // Name Logic: Default to formatted number
                 let displayName = newMessage.phone.replace("whatsapp:", "");
 
-                // Check store for saved contact name
                 const currentMessages = useChatStore.getState().messages;
                 const contact = currentMessages.find(c => c.phone === newMessage.phone);
 
@@ -89,16 +80,11 @@ export function useChat(role) {
                 }
 
                 if (isCurrentChat) {
-                    // Scenario 1: Open Chat -> Just Sound (Safe Play)
                     playSafeAudio("/audio/incoming_message.mp3");
                 } else {
-                    // Scenario 2: Background -> Notification Sound + Toast + Panel
                     playSafeAudio("/audio/notification.wav");
-                    
-                    // Show Toast
                     toast.info(`Message from ${displayName}`);
 
-                    // Add to Notification Panel
                     if (addNotification) {
                         addNotification({
                             id: Date.now(),
@@ -117,13 +103,35 @@ export function useChat(role) {
         }
     });
 
+    // =========================================================
+    // FIX: Listen for Real-time Message Status Updates (Ticks)
+    // =========================================================
+    socket.on("message_status_update", ({ sid, status }) => {
+        console.log(`📡 Status Update Received for SID ${sid}: ${status}`);
+        
+        // Find the message in the store that matches this SID and update its status
+        const state = useChatStore.getState();
+        const allChats = state.messages;
+        
+        allChats.forEach(chat => {
+            if (chat.history) {
+                const msgToUpdate = chat.history.find(m => m.twilioSid === sid);
+                if (msgToUpdate) {
+                    // Update by passing phone, temporary ID (which acts as unique id here) and new status
+                    updateMessageStatus(chat.phone, msgToUpdate.tempId || msgToUpdate.id, status);
+                }
+            }
+        });
+    });
+    // =========================================================
+
     return () => {
         if (socketRef.current) {
             socketRef.current.disconnect();
         }
     };
     
-  }, [role, setMessages, addMessage, addNotification]); 
+  }, [role, setMessages, addMessage, updateMessageStatus, addNotification]); 
 
   return { loading };
 }

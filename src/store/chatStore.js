@@ -13,7 +13,7 @@ export const useChatStore = create((set, get) => ({
       if (!serverHist || serverHist.length === 0) return localHist;
 
       const merged = [...serverHist];
-      
+
       localHist.forEach(localMsg => {
         if (!localMsg.tempId) return;
 
@@ -22,7 +22,7 @@ export const useChatStore = create((set, get) => ({
           const isSameDirection = serverMsg.direction === localMsg.direction;
           const localTime = new Date(localMsg.timestamp).getTime();
           const serverTime = new Date(serverMsg.timestamp).getTime();
-          const isCloseInTime = Math.abs(serverTime - localTime) < 15000; 
+          const isCloseInTime = Math.abs(serverTime - localTime) < 15000;
 
           return isSameText && isSameDirection && isCloseInTime;
         });
@@ -40,7 +40,7 @@ export const useChatStore = create((set, get) => ({
       if (serverVersion) {
         const localHist = state.selectedChat.history || [];
         const serverHist = serverVersion.history || [];
-        
+
         updatedSelectedChat = {
           ...serverVersion,
           history: deduplicateHistory(localHist, serverHist)
@@ -59,9 +59,9 @@ export const useChatStore = create((set, get) => ({
       return serverChat;
     });
 
-    return { 
-      messages: processedMessages, 
-      selectedChat: updatedSelectedChat 
+    return {
+      messages: processedMessages,
+      selectedChat: updatedSelectedChat
     };
   }),
 
@@ -88,28 +88,31 @@ export const useChatStore = create((set, get) => ({
     });
   },
 
-  updateMessageStatus: (phone, tempId, newStatus) => {
+  updateMessageStatus: (phone, tempId, newStatus, twilioSid = null) => {
     set((state) => {
       const updateHistory = (history) => {
         if (!history) return [];
-        return history.map(msg => 
-          msg.tempId === tempId ? { ...msg, status: newStatus } : msg
+        return history.map(msg =>
+          // FIX: tempId, id அல்லது twilioSid மேட்ச் ஆனால் இரண்டு ஸ்டேட்டஸும் மாறும்
+          (msg.tempId === tempId || msg.id === tempId || (twilioSid && msg.twilioSid === twilioSid))
+            ? { ...msg, status: newStatus, messageStatus: newStatus, ...(twilioSid && { twilioSid }) }
+            : msg
         );
       };
 
       const updatedMessages = state.messages.map((chat) => {
         if (chat.phone === phone) {
-           return { ...chat, history: updateHistory(chat.history) };
+          return { ...chat, history: updateHistory(chat.history) };
         }
         return chat;
       });
 
       let updatedSelectedChat = state.selectedChat;
       if (state.selectedChat?.phone === phone) {
-          updatedSelectedChat = { 
-            ...state.selectedChat, 
-            history: updateHistory(state.selectedChat.history) 
-          };
+        updatedSelectedChat = {
+          ...state.selectedChat,
+          history: updateHistory(state.selectedChat.history)
+        };
       }
 
       return { messages: updatedMessages, selectedChat: updatedSelectedChat };
@@ -119,7 +122,7 @@ export const useChatStore = create((set, get) => ({
   // FIXED: Deduplication logic directly inside addMessage
   addMessage: (newMessage) => {
     set((state) => {
-      
+
       // Smart checker to block duplicate socket messages
       const isDuplicateMessage = (history) => {
         if (!history) return false;
@@ -128,7 +131,7 @@ export const useChatStore = create((set, get) => ({
           const sameMedia = existing.mediaUrl === newMessage.mediaUrl;
           const sameDirection = existing.direction === newMessage.direction;
           const timeDiff = Math.abs(new Date(existing.timestamp) - new Date(newMessage.timestamp));
-          
+
           return (sameText || sameMedia) && sameDirection && (timeDiff < 15000); // 15 seconds window
         });
       };
@@ -140,15 +143,15 @@ export const useChatStore = create((set, get) => ({
 
           // BLOCK DUPLICATE
           if (isDuplicateMessage(chat.history)) {
-             return chat; 
+            return chat;
           }
 
           const updatedHistory = chat.history ? [...chat.history, newMessage] : [newMessage];
-          return { 
-            ...chat, 
-            message: newMessage.message, 
-            lastSeenAt: newMessage.timestamp || new Date().toISOString(), 
-            history: updatedHistory 
+          return {
+            ...chat,
+            message: newMessage.message,
+            lastSeenAt: newMessage.timestamp || new Date().toISOString(),
+            history: updatedHistory
           };
         }
         return chat;
@@ -162,7 +165,7 @@ export const useChatStore = create((set, get) => ({
           lastSeenAt: newMessage.timestamp || new Date().toISOString(),
           status: newMessage.status || "New",
           role: newMessage.role || "sales",
-          history: [newMessage] 
+          history: [newMessage]
         };
         updatedMessages.unshift(newChat);
       }

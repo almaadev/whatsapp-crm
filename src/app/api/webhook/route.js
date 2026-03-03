@@ -10,14 +10,26 @@ const getFormattedDate = () => {
   return `${date} ${time}`;
 };
 
-// --- HELPER: RETRY LOGIC FOR GOOGLE SHEETS ---
 async function appendWithRetry(sheets, params, retries = 3, delay = 1000) {
     for (let i = 0; i < retries; i++) {
         try {
             return await sheets.spreadsheets.values.append(params);
         } catch (error) {
             if ((error.code === 429 || error.code === 503) && i < retries - 1) {
-                console.warn(`⚠️ Google Sheet Busy (Attempt ${i + 1}). Retrying...`);
+                await new Promise(res => setTimeout(res, delay * (i + 1)));
+                continue;
+            }
+            throw error;
+        }
+    }
+}
+
+async function updateWithRetry(sheets, params, retries = 3, delay = 1000) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await sheets.spreadsheets.values.update(params);
+        } catch (error) {
+            if ((error.code === 429 || error.code === 503) && i < retries - 1) {
                 await new Promise(res => setTimeout(res, delay * (i + 1)));
                 continue;
             }
@@ -27,28 +39,22 @@ async function appendWithRetry(sheets, params, retries = 3, delay = 1000) {
 }
 
 export async function POST(req) {
-  try {
+ try {
     let body;
-    try {
+    const contentType = req.headers.get("content-type") || "";
+
+    if (contentType.includes("application/json")) {
         body = await req.json();
-    } catch (e) {
+    } else {
         const formData = await req.formData();
         body = Object.fromEntries(formData.entries());
     }
 
-    const rawFrom = body.from || body.From || "";
-    const rawTo   = body.to   || body.To   || "";
-    
-    const phone     = rawFrom;
-    const messageTo = rawTo;
-    const message   = body.body || body.Body || "";
-    const twilioSID = body.sid  || body.MessageSid || body.Sid || "";
-    const numMedia  = parseInt(body.numMedia || body.NumMedia || "0");
-    const profileName = body.ProfileName || "Unknown";
-
-    if (!phone) {
-      return NextResponse.json({ error: "Invalid Request: 'from' field missing" }, { status: 400 });
-    }
+    console.log("==========================================");
+    console.log("🔔 WEBHOOK RECEIVED FROM TWILIO!");
+    console.log("STATUS:", body.MessageStatus || body.SmsStatus || "No Status");
+    console.log("SID:", body.MessageSid || body.SmsSid || "No SID");
+    console.log("==========================================");
 
     const auth = new google.auth.GoogleAuth({
       credentials: {
@@ -61,34 +67,68 @@ export async function POST(req) {
     const sheets = google.sheets({ version: "v4", auth });
     const MSG_SHEET_ID = process.env.GOOGLE_SHEETS_ID;
     
+    const twilioSID = body.MessageSid || body.SmsSid || body.Sid || "";
+    const messageStatus = body.MessageStatus || body.SmsStatus || "";
+
+    const statusTypes = ['sent', 'delivered', 'read', 'failed'];
+    if (messageStatus && statusTypes.includes(messageStatus.toLowerCase())) {
+        const formattedStatus = messageStatus.toUpperCase();
+
+        if (global.io) {
+            global.io.emit("message_status_update", { 
+                sid: twilioSID, 
+                status: formattedStatus 
+            });
+        }
+
+        const sidCheck = await sheets.spreadsheets.values.get({
+            spreadsheetId: MSG_SHEET_ID,
+            range: `${SHEET_NAMES.MESSAGES}!H:H`
+        });
+
+        const sids = sidCheck.data.values ? sidCheck.data.values.flat() : [];
+        const rowIndex = sids.indexOf(twilioSID);
+
+        if (rowIndex !== -1) {
+            const sheetRowNumber = rowIndex + 1;
+            await updateWithRetry(sheets, {
+                spreadsheetId: MSG_SHEET_ID,
+                range: `${SHEET_NAMES.MESSAGES}!E${sheetRowNumber}`,
+                valueInputOption: "USER_ENTERED",
+                requestBody: { values: [[ formattedStatus ]] }
+            });
+        }
+
+        return NextResponse.json({ success: true, updated: formattedStatus });
+    }
+
+    const rawFrom = body.from || body.From || "";
+    const rawTo   = body.to   || body.To   || "";
+    const phone     = rawFrom;
+    const messageTo = rawTo;
+    const message   = body.body || body.Body || "";
+    const numMedia  = parseInt(body.numMedia || body.NumMedia || "0");
+    const profileName = body.ProfileName || "Unknown";
+
+    if (!phone) {
+      return NextResponse.json({ error: "Invalid Request" }, { status: 400 });
+    }
+    
     const timestamp = getFormattedDate();
     const isoTimestamp = new Date().toISOString(); 
     
-    // --- REDIS CACHE INVALIDATION ---
     if (redis.status !== 'disabled') {
-        try {
-            await redis.del("chats:all_data");
-        } catch (e) {
-            console.error("Redis Clear Failed", e);
-        }
+        try { await redis.del("chats:all_data"); } catch (e) { }
     }
     
-    // --- EMIT SOCKET EVENT (Real-time update) ---
     if (global.io) {
         global.io.emit("new_message", { 
-            phone: phone, 
-            message: message, 
-            direction: "INBOUND", 
-            timestamp: isoTimestamp,
-            name: profileName || phone,
-            status: "RECEIVED",
-            read: "FALSE"
+            phone: phone, message: message, direction: "INBOUND", 
+            timestamp: isoTimestamp, name: profileName || phone,
+            status: "RECEIVED", read: "FALSE"
         });
-        console.log("📡 Socket Event Emitted: INBOUND Message");
     }
-    // ---------------------------------------------
 
-    // Save New Customer Logic
     const userCheck = await sheets.spreadsheets.values.get({
       spreadsheetId: MSG_SHEET_ID,
       range: `${SHEET_NAMES.SHEET4}!A:A` 
@@ -101,24 +141,16 @@ export async function POST(req) {
         spreadsheetId: MSG_SHEET_ID,
         range: `${SHEET_NAMES.SHEET4}!A:D`,
         valueInputOption: "USER_ENTERED",
-        requestBody: {
-          values: [[ phone, timestamp, "New" ]]
-        }
+        requestBody: { values: [[ phone, timestamp, "New" ]] }
       });
     }
 
-    // Save Message Logic
     const msgRows = [];
-    const baseRow = [
-        phone, messageTo, message, "INBOUND", "RECEIVED", "FALSE", 
-        timestamp, twilioSID, "", ""
-    ];
+    const baseRow = [phone, messageTo, message, "INBOUND", "RECEIVED", "FALSE", timestamp, twilioSID, "", ""];
 
     if (numMedia > 0) {
       for (let i = 0; i < numMedia; i++) {
-        const mediaUrl  = body[`MediaUrl${i}`] || body[`mediaUrl${i}`] || "";
-        const mediaType = body[`MediaContentType${i}`] || body[`mediaContentType${i}`] || "";
-        msgRows.push([...baseRow, mediaUrl, mediaType]);
+        msgRows.push([...baseRow, body[`MediaUrl${i}`] || "", body[`MediaContentType${i}`] || ""]);
       }
     } else {
       msgRows.push([...baseRow, "", ""]);

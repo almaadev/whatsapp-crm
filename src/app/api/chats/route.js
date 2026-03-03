@@ -108,11 +108,15 @@ export async function GET(request) {
       });
     });
 
-    const chats = chatRows.map((row) => {
+const chats = chatRows.map((row) => {
       const sender = row[0]?.toString().trim() || "";
       const receiver = row[1]?.toString().trim() || "";
       const message = row[2] || "";
       const direction = row[3] || "INBOUND";
+      
+      // FIX: Message Delivery Status-ஐ தனியாக எடுக்கிறோம் (Column E)
+      const messageStatus = row[4] || ""; 
+      
       const customerPhone = direction === "OUTBOUND" ? receiver : sender;
       const contactInfo = contactMap.get(customerPhone) || {};
 
@@ -121,7 +125,8 @@ export async function GET(request) {
         name: contactInfo.name || row[8] || customerPhone,
         message,
         direction,
-        status: contactInfo.status || "New",
+        status: contactInfo.status || "New", // இது Lead Status
+        messageStatus: messageStatus, // FIX: இது Message Delivery Status (Sent/Delivered)
         read: row[5] || "FALSE",
         timestamp: row[6] || new Date().toISOString(),
         twilioSid: row[7] || "",
@@ -206,7 +211,7 @@ export async function POST(req) {
       memoryCache.lastUpdated = 0;
     }
 
-    return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, twilioSid });
   } catch (error) {
     return NextResponse.json({ error: "Failed" }, { status: 500 });
   }
