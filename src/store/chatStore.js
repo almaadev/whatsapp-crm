@@ -93,7 +93,6 @@ export const useChatStore = create((set, get) => ({
       const updateHistory = (history) => {
         if (!history) return [];
         return history.map(msg =>
-          // FIX: tempId, id அல்லது twilioSid மேட்ச் ஆனால் இரண்டு ஸ்டேட்டஸும் மாறும்
           (msg.tempId === tempId || msg.id === tempId || (twilioSid && msg.twilioSid === twilioSid))
             ? { ...msg, status: newStatus, messageStatus: newStatus, ...(twilioSid && { twilioSid }) }
             : msg
@@ -102,7 +101,11 @@ export const useChatStore = create((set, get) => ({
 
       const updatedMessages = state.messages.map((chat) => {
         if (chat.phone === phone) {
-          return { ...chat, history: updateHistory(chat.history) };
+          return { 
+            ...chat, 
+            messageStatus: newStatus, 
+            history: updateHistory(chat.history) 
+          };
         }
         return chat;
       });
@@ -111,6 +114,7 @@ export const useChatStore = create((set, get) => ({
       if (state.selectedChat?.phone === phone) {
         updatedSelectedChat = {
           ...state.selectedChat,
+          messageStatus: newStatus, 
           history: updateHistory(state.selectedChat.history)
         };
       }
@@ -119,11 +123,9 @@ export const useChatStore = create((set, get) => ({
     });
   },
 
-  // FIXED: Deduplication logic directly inside addMessage
   addMessage: (newMessage) => {
     set((state) => {
 
-      // Smart checker to block duplicate socket messages
       const isDuplicateMessage = (history) => {
         if (!history) return false;
         return history.some(existing => {
@@ -132,16 +134,24 @@ export const useChatStore = create((set, get) => ({
           const sameDirection = existing.direction === newMessage.direction;
           const timeDiff = Math.abs(new Date(existing.timestamp) - new Date(newMessage.timestamp));
 
-          return (sameText || sameMedia) && sameDirection && (timeDiff < 15000); // 15 seconds window
+          return (sameText || sameMedia) && sameDirection && (timeDiff < 15000); 
         });
       };
+
+      // 🔥 FIX: இமேஜ் அல்லது வீடியோ அனுப்பினால், Chat List-ல் "📷 Photo" என்று காட்டும் லாஜிக்
+      let displayText = newMessage.message;
+      if (!displayText && newMessage.mediaUrl) {
+          if (newMessage.mediaType?.includes("video")) displayText = "🎥 Video";
+          else if (newMessage.mediaType?.includes("audio")) displayText = "🎵 Audio";
+          else if (newMessage.mediaType?.includes("pdf") || newMessage.mediaType?.includes("document")) displayText = "📄 Document";
+          else displayText = "📷 Photo";
+      }
 
       let chatExists = false;
       const updatedMessages = state.messages.map((chat) => {
         if (chat.phone === newMessage.phone) {
           chatExists = true;
 
-          // BLOCK DUPLICATE
           if (isDuplicateMessage(chat.history)) {
             return chat;
           }
@@ -149,7 +159,10 @@ export const useChatStore = create((set, get) => ({
           const updatedHistory = chat.history ? [...chat.history, newMessage] : [newMessage];
           return {
             ...chat,
-            message: newMessage.message,
+            message: displayText, 
+            direction: newMessage.direction, // 🔥 FIX: INBOUND / OUTBOUND லைவ்வாக அப்டேட் ஆகும்
+            read: newMessage.direction === "INBOUND" ? "FALSE" : chat.read, // 🔥 FIX: புது மெசேஜ் வந்தால் பச்சை நிற புள்ளி (Unread) காட்டும்
+            messageStatus: newMessage.status, 
             lastSeenAt: newMessage.timestamp || new Date().toISOString(),
             history: updatedHistory
           };
@@ -161,9 +174,12 @@ export const useChatStore = create((set, get) => ({
         const newChat = {
           phone: newMessage.phone,
           name: newMessage.name || newMessage.phone,
-          message: newMessage.message,
+          message: displayText,
+          direction: newMessage.direction,
+          read: newMessage.direction === "INBOUND" ? "FALSE" : "TRUE",
+          messageStatus: newMessage.status, 
           lastSeenAt: newMessage.timestamp || new Date().toISOString(),
-          status: newMessage.status || "New",
+          status: "New",
           role: newMessage.role || "sales",
           history: [newMessage]
         };
@@ -172,11 +188,13 @@ export const useChatStore = create((set, get) => ({
 
       let updatedSelectedChat = state.selectedChat;
       if (state.selectedChat?.phone === newMessage.phone) {
-        // BLOCK DUPLICATE FOR OPEN CHAT WINDOW
         if (!isDuplicateMessage(state.selectedChat.history)) {
           updatedSelectedChat = {
             ...state.selectedChat,
-            message: newMessage.message,
+            message: displayText,
+            direction: newMessage.direction,
+            read: newMessage.direction === "INBOUND" ? "FALSE" : state.selectedChat.read,
+            messageStatus: newMessage.status, 
             lastSeenAt: newMessage.timestamp || new Date().toISOString(),
             history: state.selectedChat.history ? [...state.selectedChat.history, newMessage] : [newMessage]
           };

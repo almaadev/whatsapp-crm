@@ -2,8 +2,8 @@
 import { useState, useMemo } from "react"; 
 import { useChatStore } from "@/store/chatStore";
 import { useSession } from "next-auth/react";
-import Link from "next/link"; // Added Next.js Link
-import { Search, PlusCircle, CheckCheck, Flag } from "lucide-react"; 
+import Link from "next/link"; 
+import { Search, PlusCircle, CheckCheck, Check, Clock, AlertCircle } from "lucide-react"; 
 
 export default function ChatList({ role, loading }) { 
   const messages = useChatStore((s) => s.messages); 
@@ -19,14 +19,6 @@ export default function ChatList({ role, loading }) {
         case 'medium': return "bg-amber-50/30 border-l-amber-400/50 hover:bg-amber-50/50";
         default: return "bg-white border-l-transparent hover:bg-slate-50";
     }
-  };
-
-  const getPriorityIconColor = (priority) => {
-      switch (priority?.toLowerCase()) {
-          case 'high': return "text-red-500";
-          case 'medium': return "text-amber-500";
-          default: return "text-slate-300";
-      }
   };
 
   const parseDate = (dateString) => {
@@ -121,8 +113,6 @@ export default function ChatList({ role, loading }) {
             </div>
             {chats.map((chat, index) => {
                 const isSelected = selectedChat?.phone === chat.phone;
-
-                // FIX: If chat is selected, NEVER treat as unread (prevents highlight/red dot)
                 const isUnread = !isSelected && chat.direction === "INBOUND" && chat.read === "FALSE";
                 
                 const cleanPhone = chat.phone ? chat.phone.replace("whatsapp:", "") : "";
@@ -162,20 +152,26 @@ export default function ChatList({ role, loading }) {
                             </div>
                             
                             <div className="flex justify-between items-center">
+                                {/* FIX: "You:" மீண்டும் சேர்க்கப்பட்டுள்ளது */}
                                 <p className={`text-xs truncate pr-3 max-w-[180px] ${isUnread ? "text-slate-900 font-bold" : "text-slate-500"}`}>
                                     {chat.direction === "OUTBOUND" && <span className="text-emerald-600 mr-1">You:</span>}
                                     {chat.message}
                                 </p>
                                 
-                                {chat.status === 'Closed' ? (
-                                    <div className="flex items-center gap-1 bg-emerald-50 px-1.5 py-0.5 rounded text-[9px] text-emerald-700 font-bold border border-emerald-100">
-                                        <CheckCheck size={10} />
-                                    </div>
-                                ) : chat.status === 'Follow Up' ? (
-                                    <div className="flex items-center gap-1">
-                                        <Flag size={12} className={getPriorityIconColor(chat.priority)} fill="currentColor" />
-                                    </div>
-                                ) : null}
+                                {/* FIX: பழைய Lead Status ஐகானுக்கு பதிலாக Delivery Status டிக் மார்க் இங்கே வைக்கப்பட்டுள்ளது */}
+                                <div className="flex items-center gap-1 shrink-0">
+                                    {chat.direction === "OUTBOUND" && (
+                                        (() => {
+                                            const msgStat = (chat.messageStatus || "").toUpperCase();
+                                            if (msgStat === "SENDING") return <Clock size={14} className="text-slate-400" />;
+                                            if (msgStat === "SENT") return <Check size={16} className="text-slate-400" />;
+                                            if (msgStat === "DELIVERED") return <CheckCheck size={16} className="text-slate-400" />;
+                                            if (msgStat === "READ") return <CheckCheck size={16} className="text-blue-500" />;
+                                            if (msgStat === "FAILED") return <AlertCircle size={14} className="text-red-500" />;
+                                            return null;
+                                        })()
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -191,7 +187,6 @@ export default function ChatList({ role, loading }) {
     <div className="flex flex-col h-full w-full bg-white border-r border-slate-200">
       <div className="h-16 px-5 flex items-center justify-between border-b border-slate-100 shrink-0 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
         <h2 className="text-lg font-bold text-slate-800 tracking-tight">Messages</h2>
-        {/* FIXED: Replaced <button><a> with proper <Link> */}
         <Link href="/dashboard/chat/new-customer" className="text-slate-400 hover:text-emerald-600 transition">
              <PlusCircle size={20} />
         </Link>
