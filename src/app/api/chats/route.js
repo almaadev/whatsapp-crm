@@ -6,14 +6,6 @@ import { getSheetData, appendSheetData } from "@/lib/googleSheets";
 import { SHEET_NAMES, CONTACT_COLUMNS, FORWARD_COLUMNS } from "@/lib/constants";
 import twilio from "twilio";
 
-// --- MEMORY CACHE CONFIGURATION ---
-let memoryCache = {
-  data: null,
-  lastUpdated: 0
-};
-
-// Reduced cache duration significantly since we rely on Sockets for live updates
-const MEMORY_CACHE_DURATION = 10 * 1000; 
 const REDIS_CACHE_TTL = 30;
 
 export async function GET(request) {
@@ -21,26 +13,17 @@ export async function GET(request) {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const now = Date.now();
-
     // 1. CHECK REDIS FIRST
-    if (redis.status === 'ready') {
+    if (redis && redis.status === 'ready') {
       try {
         const cachedData = await redis.get("chats:all_data");
         if (cachedData) {
-          const parsedData = JSON.parse(cachedData);
-          memoryCache = { data: parsedData, lastUpdated: now };
-          return NextResponse.json(parsedData);
+          return NextResponse.json(JSON.parse(cachedData));
         }
       } catch (e) { console.error("Redis Read Error", e); }
     }
 
-    // 2. CHECK MEMORY CACHE
-    if (memoryCache.data && (now - memoryCache.lastUpdated < MEMORY_CACHE_DURATION)) {
-      return NextResponse.json(memoryCache.data);
-    }
-
-    // 3. FETCH FROM GOOGLE SHEETS
+    // 2. FETCH FROM GOOGLE SHEETS
     const [chatRows, contactRows, forwardedRows] = await Promise.all([
       getSheetData(`${SHEET_NAMES.MESSAGES}!A2:L`),
       getSheetData(`${SHEET_NAMES.CONTACTS}!A:Q`),
@@ -49,7 +32,7 @@ export async function GET(request) {
 
     // --- PROCESSING LOGIC ---
     const forwardedMap = new Map();
-    forwardedRows.forEach(row => {
+    (forwardedRows || []).forEach(row => {
       if (row?.[FORWARD_COLUMNS.TO_CUSTOMER]) {
         forwardedMap.set(row[FORWARD_COLUMNS.TO_CUSTOMER], {
           forwardedBy: row[FORWARD_COLUMNS.BY],
@@ -65,7 +48,7 @@ export async function GET(request) {
     const contactMap = new Map();
     const visitCounts = new Map();
 
-    contactRows.forEach(row => {
+    (contactRows || []).forEach(row => {
       const phone = row[CONTACT_COLUMNS.PHONE]?.toString().trim();
       if (!phone) return;
 
@@ -90,31 +73,20 @@ export async function GET(request) {
       contactMap.set(phone, {
         date: row[CONTACT_COLUMNS.DATE] || "",
         name: row[CONTACT_COLUMNS.NAME] || "",
-        city: row[CONTACT_COLUMNS.CITY] || "",
-        currentHandler: row[CONTACT_COLUMNS.HANDLER] || "",
-        source: row[CONTACT_COLUMNS.SOURCE] || "",
-        enquiredFor: row[CONTACT_COLUMNS.ENQUIRED_FOR] || "",
         status: currentStatus,
-        saleAmount: row[CONTACT_COLUMNS.SALE_AMOUNT] || "",
-        remarks: row[CONTACT_COLUMNS.REMARKS] || "",
-        lastClosedBy: row[CONTACT_COLUMNS.LAST_CLOSED_BY] || "",
-        followUpStartDate: row[CONTACT_COLUMNS.FOLLOW_UP_START] || "",
-        day1Note: row[CONTACT_COLUMNS.DAY_1] || "",
-        day2Note: row[CONTACT_COLUMNS.DAY_2] || "",
-        day3Note: row[CONTACT_COLUMNS.DAY_3] || "",
         priority: row[CONTACT_COLUMNS.PRIORITY] || "Low",
         isClosed: row[CONTACT_COLUMNS.IS_CLOSED] || "FALSE",
         ...fw
       });
     });
 
-const chats = chatRows.map((row) => {
+    const chats = (chatRows || []).map((row) => {
       const sender = row[0]?.toString().trim() || "";
       const receiver = row[1]?.toString().trim() || "";
       const message = row[2] || "";
       const direction = row[3] || "INBOUND";
       
-      // FIX: Message Delivery Status-ஐ தனியாக எடுக்கிறோம் (Column E)
+      // FIX: Message Delivery Status-ஐ சரியாக எடுக்கிறோம் (Column E)
       const messageStatus = row[4] || ""; 
       
       const customerPhone = direction === "OUTBOUND" ? receiver : sender;
@@ -125,8 +97,8 @@ const chats = chatRows.map((row) => {
         name: contactInfo.name || row[8] || customerPhone,
         message,
         direction,
-        status: contactInfo.status || "New", // இது Lead Status
-        messageStatus: messageStatus, // FIX: இது Message Delivery Status (Sent/Delivered)
+        status: contactInfo.status || "New", // Lead Status
+        messageStatus: messageStatus, // Message Delivery Status
         read: row[5] || "FALSE",
         timestamp: row[6] || new Date().toISOString(),
         twilioSid: row[7] || "",
@@ -140,9 +112,8 @@ const chats = chatRows.map((row) => {
       };
     }).filter(chat => chat.phone && !chat.phone.includes("whatsapp:+14155238886"));
 
-    // 4. Update Caches
-    memoryCache = { data: chats, lastUpdated: Date.now() };
-    if (redis.status === 'ready') {
+    // 3. Update Redis Cache
+    if (redis && redis.status === 'ready') {
       await redis.set("chats:all_data", JSON.stringify(chats), "EX", REDIS_CACHE_TTL);
     }
 
@@ -150,9 +121,6 @@ const chats = chatRows.map((row) => {
 
   } catch (error) {
     console.error("Chats API Error:", error.message);
-    if (error.message.includes("Quota") && memoryCache.data) {
-      return NextResponse.json(memoryCache.data);
-    }
     return NextResponse.json({ error: "Server Error" }, { status: 500 });
   }
 }
@@ -165,7 +133,6 @@ export async function POST(req) {
     const { phone, message, name, role, skipSave } = await req.json();
     if (!phone || !message) return NextResponse.json({ error: "Required fields missing" }, { status: 400 });
 
-    // Twilio Send
     let twilioSid = "sys_msg";
     const myTwilioNumber = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER;
 
@@ -181,7 +148,6 @@ export async function POST(req) {
       console.error("Twilio Error:", e.message);
     }
 
-    // Google Sheet Save
     if (!skipSave) {
       const now = new Date();
       const timestamp = `${now.toLocaleDateString("en-US")} ${now.toLocaleTimeString("en-US", { hour12: false })}`;
@@ -192,7 +158,6 @@ export async function POST(req) {
         timestamp, twilioSid, name || phone, role || "sales", "", ""
       ]]);
 
-      // --- EMIT SOCKET EVENT ---
       if (global.io) {
         global.io.emit("new_message", { 
             phone: phone, 
@@ -203,15 +168,12 @@ export async function POST(req) {
             role: role || "sales",
             name: name || phone
         });
-        console.log("📡 Socket Event Emitted: OUTBOUND Message");
       }
-      // -------------------------
 
-      if (redis.status === 'ready') await redis.del("chats:all_data");
-      memoryCache.lastUpdated = 0;
+      if (redis && redis.status === 'ready') await redis.del("chats:all_data");
     }
 
-  return NextResponse.json({ success: true, twilioSid });
+    return NextResponse.json({ success: true, twilioSid });
   } catch (error) {
     return NextResponse.json({ error: "Failed" }, { status: 500 });
   }

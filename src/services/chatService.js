@@ -20,7 +20,6 @@ export const chatService = {
           uniqueConversations[msg.phone].history.push(msg);
           
           // ALWAYS UPDATE THESE TO REFLECT THE LATEST MESSAGE
-          // FIX: If message is empty but media exists, show a placeholder
           let displayText = msg.message;
           if (!displayText && msg.mediaUrl) {
               if (msg.mediaType?.includes("video")) displayText = "🎥 Video";
@@ -31,9 +30,11 @@ export const chatService = {
 
           uniqueConversations[msg.phone].message = displayText;
           uniqueConversations[msg.phone].lastSeenAt = msg.timestamp;
-          uniqueConversations[msg.phone].status = msg.status;
           
-          // FIX: Update direction and READ STATUS so UI knows the latest state
+          // FIX: Message Delivery Status-ஐயும் லேட்டஸ்ட்டாக அப்டேட் செய்கிறோம் (Chat List-ல் டிக் தெரிய)
+          uniqueConversations[msg.phone].status = msg.status; 
+          uniqueConversations[msg.phone].messageStatus = msg.messageStatus; 
+          
           uniqueConversations[msg.phone].direction = msg.direction; 
           uniqueConversations[msg.phone].read = msg.read;
           
@@ -51,7 +52,7 @@ export const chatService = {
     }
   },
 
-sendMessage: async (payload) => {
+  sendMessage: async (payload) => {
      const response = await axios.post("/api/chats", payload);
      return response.data; 
   }

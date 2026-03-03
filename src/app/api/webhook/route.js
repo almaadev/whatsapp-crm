@@ -1,7 +1,7 @@
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
 import redis from "@/lib/redis";
-import { SHEET_NAMES } from "@/lib/constants"; 
+import { SHEET_NAMES } from "@/lib/constants";
 
 const getFormattedDate = () => {
   const now = new Date();
@@ -11,50 +11,44 @@ const getFormattedDate = () => {
 };
 
 async function appendWithRetry(sheets, params, retries = 3, delay = 1000) {
-    for (let i = 0; i < retries; i++) {
-        try {
-            return await sheets.spreadsheets.values.append(params);
-        } catch (error) {
-            if ((error.code === 429 || error.code === 503) && i < retries - 1) {
-                await new Promise(res => setTimeout(res, delay * (i + 1)));
-                continue;
-            }
-            throw error;
-        }
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await sheets.spreadsheets.values.append(params);
+    } catch (error) {
+      if ((error.code === 429 || error.code === 503) && i < retries - 1) {
+        await new Promise(res => setTimeout(res, delay * (i + 1)));
+        continue;
+      }
+      throw error;
     }
+  }
 }
 
 async function updateWithRetry(sheets, params, retries = 3, delay = 1000) {
-    for (let i = 0; i < retries; i++) {
-        try {
-            return await sheets.spreadsheets.values.update(params);
-        } catch (error) {
-            if ((error.code === 429 || error.code === 503) && i < retries - 1) {
-                await new Promise(res => setTimeout(res, delay * (i + 1)));
-                continue;
-            }
-            throw error;
-        }
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await sheets.spreadsheets.values.update(params);
+    } catch (error) {
+      if ((error.code === 429 || error.code === 503) && i < retries - 1) {
+        await new Promise(res => setTimeout(res, delay * (i + 1)));
+        continue;
+      }
+      throw error;
     }
+  }
 }
 
 export async function POST(req) {
- try {
+  try {
     let body;
     const contentType = req.headers.get("content-type") || "";
 
     if (contentType.includes("application/json")) {
-        body = await req.json();
+      body = await req.json();
     } else {
-        const formData = await req.formData();
-        body = Object.fromEntries(formData.entries());
+      const formData = await req.formData();
+      body = Object.fromEntries(formData.entries());
     }
-
-    console.log("==========================================");
-    console.log("🔔 WEBHOOK RECEIVED FROM TWILIO!");
-    console.log("STATUS:", body.MessageStatus || body.SmsStatus || "No Status");
-    console.log("SID:", body.MessageSid || body.SmsSid || "No SID");
-    console.log("==========================================");
 
     const auth = new google.auth.GoogleAuth({
       credentials: {
@@ -66,82 +60,87 @@ export async function POST(req) {
 
     const sheets = google.sheets({ version: "v4", auth });
     const MSG_SHEET_ID = process.env.GOOGLE_SHEETS_ID;
-    
+
     const twilioSID = body.MessageSid || body.SmsSid || body.Sid || "";
     const messageStatus = body.MessageStatus || body.SmsStatus || "";
 
     const statusTypes = ['sent', 'delivered', 'read', 'failed'];
     if (messageStatus && statusTypes.includes(messageStatus.toLowerCase())) {
-        const formattedStatus = messageStatus.toUpperCase();
+      const formattedStatus = messageStatus.toUpperCase();
 
-        if (global.io) {
-            global.io.emit("message_status_update", { 
-                sid: twilioSID, 
-                status: formattedStatus 
-            });
-        }
-
-        const sidCheck = await sheets.spreadsheets.values.get({
-            spreadsheetId: MSG_SHEET_ID,
-            range: `${SHEET_NAMES.MESSAGES}!H:H`
+      if (global.io) {
+        global.io.emit("message_status_update", {
+          sid: twilioSID,
+          status: formattedStatus
         });
+      }
 
-        const sids = sidCheck.data.values ? sidCheck.data.values.flat() : [];
-        const rowIndex = sids.indexOf(twilioSID);
+      const sidCheck = await sheets.spreadsheets.values.get({
+        spreadsheetId: MSG_SHEET_ID,
+        range: `${SHEET_NAMES.MESSAGES}!H:H`
+      });
 
-        if (rowIndex !== -1) {
-            const sheetRowNumber = rowIndex + 1;
-            await updateWithRetry(sheets, {
-                spreadsheetId: MSG_SHEET_ID,
-                range: `${SHEET_NAMES.MESSAGES}!E${sheetRowNumber}`,
-                valueInputOption: "USER_ENTERED",
-                requestBody: { values: [[ formattedStatus ]] }
-            });
-        }
+      // 🔴 FIX: `.flat()` பயன்படுத்தாமல் பாதுகாப்பாக துல்லியமான Index-ஐ எடுக்கிறோம்!
+      const sidRows = sidCheck.data.values || [];
+      const rowIndex = sidRows.findIndex(row => row[0] === twilioSID);
 
-        return NextResponse.json({ success: true, updated: formattedStatus });
+      if (rowIndex !== -1) {
+        const sheetRowNumber = rowIndex + 1;
+        await updateWithRetry(sheets, {
+          spreadsheetId: MSG_SHEET_ID,
+          range: `${SHEET_NAMES.MESSAGES}!E${sheetRowNumber}`,
+          valueInputOption: "USER_ENTERED",
+          requestBody: { values: [[formattedStatus]] }
+        });
+      }
+
+      if (redis && redis.status !== 'disabled') {
+        try { await redis.del("chats:all_data"); } catch (e) { }
+      }
+
+      return NextResponse.json({ success: true, updated: formattedStatus });
     }
 
     const rawFrom = body.from || body.From || "";
-    const rawTo   = body.to   || body.To   || "";
-    const phone     = rawFrom;
+    const rawTo = body.to || body.To || "";
+    const phone = rawFrom;
     const messageTo = rawTo;
-    const message   = body.body || body.Body || "";
-    const numMedia  = parseInt(body.numMedia || body.NumMedia || "0");
+    const message = body.body || body.Body || "";
+    const numMedia = parseInt(body.numMedia || body.NumMedia || "0");
     const profileName = body.ProfileName || "Unknown";
 
     if (!phone) {
       return NextResponse.json({ error: "Invalid Request" }, { status: 400 });
     }
-    
+
     const timestamp = getFormattedDate();
-    const isoTimestamp = new Date().toISOString(); 
-    
-    if (redis.status !== 'disabled') {
-        try { await redis.del("chats:all_data"); } catch (e) { }
+    const isoTimestamp = new Date().toISOString();
+
+    if (redis && redis.status !== 'disabled') {
+      try { await redis.del("chats:all_data"); } catch (e) { }
     }
-    
+
     if (global.io) {
-        global.io.emit("new_message", { 
-            phone: phone, message: message, direction: "INBOUND", 
-            timestamp: isoTimestamp, name: profileName || phone,
-            status: "RECEIVED", read: "FALSE"
-        });
+      global.io.emit("new_message", {
+        phone: phone, message: message, direction: "INBOUND",
+        timestamp: isoTimestamp, name: profileName || phone,
+        status: "RECEIVED", read: "FALSE"
+      });
     }
 
     const userCheck = await sheets.spreadsheets.values.get({
       spreadsheetId: MSG_SHEET_ID,
-      range: `${SHEET_NAMES.SHEET4}!A:A` 
+      range: `${SHEET_NAMES.SHEET4}!A:A`
     });
 
     const existingPhones = userCheck.data.values ? userCheck.data.values.flat() : [];
-    
+
     if (!existingPhones.includes(phone)) {
       await appendWithRetry(sheets, {
         spreadsheetId: MSG_SHEET_ID,
         range: `${SHEET_NAMES.SHEET4}!A:D`,
         valueInputOption: "USER_ENTERED",
-        requestBody: { values: [[ phone, timestamp, "New" ]] }
+        requestBody: { values: [[phone, timestamp, "New"]] }
       });
     }
 
@@ -157,12 +156,12 @@ export async function POST(req) {
     }
 
     if (msgRows.length > 0) {
-        await appendWithRetry(sheets, {
-            spreadsheetId: MSG_SHEET_ID,
-            range: `${SHEET_NAMES.MESSAGES}!A:L`, 
-            valueInputOption: "USER_ENTERED",
-            requestBody: { values: msgRows }
-        });
+      await appendWithRetry(sheets, {
+        spreadsheetId: MSG_SHEET_ID,
+        range: `${SHEET_NAMES.MESSAGES}!A:L`,
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values: msgRows }
+      });
     }
 
     return NextResponse.json({ success: true });
