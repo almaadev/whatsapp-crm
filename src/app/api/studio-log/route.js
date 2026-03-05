@@ -15,10 +15,6 @@ export async function POST(req) {
     // நேராக JSON-ஆக படிக்கும் முறை (JSON Body Only)
     const body = await req.json();
 
-    console.log("==========================================");
-    console.log("🤖 JSON DATA FROM TWILIO STUDIO:", body);
-    console.log("==========================================");
-
     let phone = body.phone || body.To || body.From || "";
     const message = body.message || body.Body || "Automated Message";
     const twilioSID = body.twilioSid || body.MessageSid || "auto_" + Date.now();
