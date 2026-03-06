@@ -1,7 +1,6 @@
 import CredentialsProvider from "next-auth/providers/credentials";
 import { google } from "googleapis";
 
-// Helper to fetch users from Google Sheets
 async function getUserByEmail(email) {
   try {
     const spreadsheetId = process.env.GOOGLE_SHEETS_ID
@@ -61,8 +60,8 @@ export const authOptions = {
 
         // 2. Check Hardcoded Admin (Fallback)
         if (credentials.email === process.env.ADMIN_EMAIL && credentials.password === process.env.ADMIN_PASSWORD) {
-   return { id: "0", name: "Super Admin", email: credentials.email, role: "admin" };
-}
+          return { id: "0", name: "Super Admin", email: credentials.email, role: "admin" };
+        }
 
         // 3. Validate Sheet User
         if (user && user.password === credentials.password) {
@@ -86,5 +85,5 @@ export const authOptions = {
   pages: {
     signIn: '/',
   },
-  secret: process.env.NEXTAUTH_SECRET ,
+  secret: process.env.NEXTAUTH_SECRET,
 };

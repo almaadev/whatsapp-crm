@@ -103,9 +103,6 @@ export function useChat(role) {
         }
     });
 
-    // =========================================================
-    // FIX: Listen for Real-time Message Status Updates (Ticks)
-    // =========================================================
     socket.on("message_status_update", ({ sid, status }) => {
         console.log(`📡 Status Update Received for SID ${sid}: ${status}`);
         

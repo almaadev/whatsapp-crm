@@ -101,10 +101,10 @@ export const useChatStore = create((set, get) => ({
 
       const updatedMessages = state.messages.map((chat) => {
         if (chat.phone === phone) {
-          return { 
-            ...chat, 
-            messageStatus: newStatus, 
-            history: updateHistory(chat.history) 
+          return {
+            ...chat,
+            messageStatus: newStatus,
+            history: updateHistory(chat.history)
           };
         }
         return chat;
@@ -114,7 +114,7 @@ export const useChatStore = create((set, get) => ({
       if (state.selectedChat?.phone === phone) {
         updatedSelectedChat = {
           ...state.selectedChat,
-          messageStatus: newStatus, 
+          messageStatus: newStatus,
           history: updateHistory(state.selectedChat.history)
         };
       }
@@ -134,17 +134,16 @@ export const useChatStore = create((set, get) => ({
           const sameDirection = existing.direction === newMessage.direction;
           const timeDiff = Math.abs(new Date(existing.timestamp) - new Date(newMessage.timestamp));
 
-          return (sameText || sameMedia) && sameDirection && (timeDiff < 15000); 
+          return (sameText || sameMedia) && sameDirection && (timeDiff < 15000);
         });
       };
 
-      // 🔥 FIX: இமேஜ் அல்லது வீடியோ அனுப்பினால், Chat List-ல் "📷 Photo" என்று காட்டும் லாஜிக்
       let displayText = newMessage.message;
       if (!displayText && newMessage.mediaUrl) {
-          if (newMessage.mediaType?.includes("video")) displayText = "🎥 Video";
-          else if (newMessage.mediaType?.includes("audio")) displayText = "🎵 Audio";
-          else if (newMessage.mediaType?.includes("pdf") || newMessage.mediaType?.includes("document")) displayText = "📄 Document";
-          else displayText = "📷 Photo";
+        if (newMessage.mediaType?.includes("video")) displayText = "🎥 Video";
+        else if (newMessage.mediaType?.includes("audio")) displayText = "🎵 Audio";
+        else if (newMessage.mediaType?.includes("pdf") || newMessage.mediaType?.includes("document")) displayText = "📄 Document";
+        else displayText = "📷 Photo";
       }
 
       let chatExists = false;
@@ -159,10 +158,10 @@ export const useChatStore = create((set, get) => ({
           const updatedHistory = chat.history ? [...chat.history, newMessage] : [newMessage];
           return {
             ...chat,
-            message: displayText, 
-            direction: newMessage.direction, // 🔥 FIX: INBOUND / OUTBOUND லைவ்வாக அப்டேட் ஆகும்
-            read: newMessage.direction === "INBOUND" ? "FALSE" : chat.read, // 🔥 FIX: புது மெசேஜ் வந்தால் பச்சை நிற புள்ளி (Unread) காட்டும்
-            messageStatus: newMessage.status, 
+            message: displayText,
+            direction: newMessage.direction,
+            read: newMessage.direction === "INBOUND" ? "FALSE" : chat.read,
+            messageStatus: newMessage.status,
             lastSeenAt: newMessage.timestamp || new Date().toISOString(),
             history: updatedHistory
           };
@@ -177,7 +176,7 @@ export const useChatStore = create((set, get) => ({
           message: displayText,
           direction: newMessage.direction,
           read: newMessage.direction === "INBOUND" ? "FALSE" : "TRUE",
-          messageStatus: newMessage.status, 
+          messageStatus: newMessage.status,
           lastSeenAt: newMessage.timestamp || new Date().toISOString(),
           status: "New",
           role: newMessage.role || "sales",
@@ -194,7 +193,7 @@ export const useChatStore = create((set, get) => ({
             message: displayText,
             direction: newMessage.direction,
             read: newMessage.direction === "INBOUND" ? "FALSE" : state.selectedChat.read,
-            messageStatus: newMessage.status, 
+            messageStatus: newMessage.status,
             lastSeenAt: newMessage.timestamp || new Date().toISOString(),
             history: state.selectedChat.history ? [...state.selectedChat.history, newMessage] : [newMessage]
           };
@@ -202,6 +201,9 @@ export const useChatStore = create((set, get) => ({
       }
 
       return { messages: updatedMessages, selectedChat: updatedSelectedChat };
+
     });
+
   },
+
 }));

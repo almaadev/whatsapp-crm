@@ -514,7 +514,6 @@ const ChatInput = memo(function ChatInput({ currentLeadStatus, followUpLabel, ge
         if (text.trim() && !sending) {
             onSendMessage(text);
             setText("");
-            // மெசேஜ் அனுப்பியதும் பழைய உயரத்திற்கு மாற்றுதல்
             if (textareaRef.current) {
                 textareaRef.current.style.height = 'auto';
             }
@@ -529,7 +528,6 @@ const ChatInput = memo(function ChatInput({ currentLeadStatus, followUpLabel, ge
     };
 
     return (
-        // 🔴 FIX: items-center என்பதை items-end என்று மாற்றியுள்ளோம். அப்போதுதான் பாக்ஸ் பெரிதாகும் போது Send பட்டன் கீழே நிற்கும்.
         <div className="bg-[#f0f2f5] p-3 px-4 border-t border-slate-200 flex items-end gap-3 z-20">
             
             <div className={`relative mb-1 ${text ? "hidden lg:block" : ""}`} ref={statusMenuRef}>
@@ -545,7 +543,6 @@ const ChatInput = memo(function ChatInput({ currentLeadStatus, followUpLabel, ge
                 )}
             </div>
 
-            {/* 🔴 FIX: rounded-full-ஐ rounded-2xl ஆக மாற்றியுள்ளோம் (பெரிதாகும் போது அழகாக இருக்க) */}
             <div className="flex-1 bg-white border border-slate-200 rounded-2xl flex items-center px-4 py-1.5 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all shadow-sm min-h-[44px]">
                 <textarea
                     ref={textareaRef}
@@ -560,7 +557,6 @@ const ChatInput = memo(function ChatInput({ currentLeadStatus, followUpLabel, ge
                 />
             </div>
 
-            {/* 🔴 FIX: mb-0.5 சேர்க்கப்பட்டுள்ளது (Send பட்டனை சமமாக வைக்க) */}
             <button onClick={handleSendClick} disabled={sending || !text.trim()} className={`p-3 rounded-full shadow transition-all flex-shrink-0 mb-0.5 ${text.trim() ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-slate-200 text-slate-400"}`}>
                 {sending ? <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" /> : <Send size={20} className={text.trim() ? "ml-0.5" : ""} />}
             </button>
