@@ -52,7 +52,7 @@ export async function POST(req) {
       requestBody: {
         values: [[
           myTwilioNumber, phone, message, "OUTBOUND", "DELIVERED", "TRUE",
-          timestamp, twilioSID, "Admin", "Twilio bot", "", ""
+          timestamp, twilioSID, "", "Twilio bot", "", ""
         ]]
       }
     });

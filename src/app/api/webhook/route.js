@@ -80,7 +80,6 @@ export async function POST(req) {
         range: `${SHEET_NAMES.MESSAGES}!H:H`
       });
 
-      // 🔴 FIX: `.flat()` பயன்படுத்தாமல் பாதுகாப்பாக துல்லியமான Index-ஐ எடுக்கிறோம்!
       const sidRows = sidCheck.data.values || [];
       const rowIndex = sidRows.findIndex(row => row[0] === twilioSID);
 
@@ -107,7 +106,7 @@ export async function POST(req) {
     const messageTo = rawTo;
     const message = body.body || body.Body || "";
     const numMedia = parseInt(body.numMedia || body.NumMedia || "0");
-    const profileName = body.ProfileName || "Unknown";
+    const profileName = body.ProfileName || rawFrom;
 
     if (!phone) {
       return NextResponse.json({ error: "Invalid Request" }, { status: 400 });
