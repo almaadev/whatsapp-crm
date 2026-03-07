@@ -1,147 +1,121 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getSheetData, appendSheetData, updateSheetData, batchUpdateSheet } from "@/lib/googleSheets";
-import { SHEET_NAMES } from "@/lib/constants";
+import connectDB from "@/lib/mongodb";
+import Reminder from "@/models/Reminder";
+import Message from "@/models/Message";
 import twilio from "twilio";
-
-const nowStr = () => new Date().toISOString();
+import redis from "@/lib/redis";
 
 export async function POST(req) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    await connectDB();
     const body = await req.json();
 
     // --- 1. SET NEW REMINDER ---
     if (body.action === "SET") {
         const { phone, message, date, time } = body;
-        const scheduledTime = new Date(`${date}T${time}`).toISOString();
-        
-        // Cancel any existing pending reminders for this phone first (Policy: One active reminder per lead)
-        // ideally we should check, but appending is safer, we can filter latest.
-        // For cleaner logic, let's mark previous PENDING as CANCELLED before adding new.
-        
-        // (Optional: You can skip this cleanup if you want multiple reminders)
+        const scheduledTime = new Date(`${date}T${time}`);
 
-        const row = [
-            nowStr(),
-            session.user.name,
-            phone,
-            message,
-            scheduledTime,
-            "PENDING"
-        ];
+        // ஏற்கனவே இருக்கும் Pending Reminders-ஐ கேன்சல் செய்துவிடு
+        await Reminder.updateMany({ phone, status: "PENDING" }, { status: "CANCELLED" });
 
-        await appendSheetData(`${SHEET_NAMES.REMINDERS}!A:F`, [row]);
+        await Reminder.create({
+            associate: session.user.name,
+            phone: phone,
+            message: message,
+            scheduledTime: scheduledTime,
+            status: "PENDING"
+        });
+
         return NextResponse.json({ success: true, message: "Reminder Set" });
     }
 
     // --- 2. GET ACTIVE REMINDER ---
     if (body.action === "GET") {
         const { phone } = body;
-        const remindersData = await getSheetData(`${SHEET_NAMES.REMINDERS}!A:F`);
+        const activeReminder = await Reminder.findOne({ phone, status: "PENDING" }).sort({ createdAt: -1 }).lean();
         
-        // Find the latest PENDING reminder for this phone
-        let activeReminder = null;
-        
-        // Loop backwards to find latest
-        for (let i = remindersData.length - 1; i >= 0; i--) {
-            const row = remindersData[i];
-            if (row[2] === phone && row[5] === "PENDING") {
-                activeReminder = {
-                    date: row[4], // ScheduledTime
-                    message: row[3],
-                    associate: row[1]
-                };
-                break; 
-            }
+        if (activeReminder) {
+            return NextResponse.json({ 
+                success: true, 
+                reminder: {
+                    date: activeReminder.scheduledTime,
+                    message: activeReminder.message,
+                    associate: activeReminder.associate
+                } 
+            });
         }
-        
-        return NextResponse.json({ success: true, reminder: activeReminder });
+        return NextResponse.json({ success: true, reminder: null });
     }
 
     // --- 3. CANCEL REMINDER ---
     if (body.action === "CANCEL") {
         const { phone } = body;
-        const remindersData = await getSheetData(`${SHEET_NAMES.REMINDERS}!A:F`);
-        const updates = [];
-
-        // Find ALL PENDING reminders for this phone and Cancel them
-        for (let i = 0; i < remindersData.length; i++) {
-            const row = remindersData[i];
-            if (row[2] === phone && row[5] === "PENDING") {
-                // Update Column F (Index 5) to CANCELLED
-                // Row in sheet is i + 1
-                updates.push({
-                    range: `${SHEET_NAMES.REMINDERS}!F${i + 1}`,
-                    values: [["CANCELLED"]]
-                });
-            }
-        }
-
-        if (updates.length > 0) {
-            await batchUpdateSheet(updates);
-        }
-
+        await Reminder.updateMany({ phone, status: "PENDING" }, { status: "CANCELLED" });
         return NextResponse.json({ success: true, message: "Reminder Cancelled" });
     }
 
-    // --- 4. CHECK & PROCESS DUE (Existing Logic) ---
+    // --- 4. CHECK & PROCESS DUE ---
     if (body.action === "CHECK") {
-        const remindersData = await getSheetData(`${SHEET_NAMES.REMINDERS}!A:F`);
-        const dueReminders = [];
         const now = new Date();
-        const updates = [];
+        // Time ஆகிவிட்ட Reminders-ஐ மட்டும் கண்டுபிடி
+        const dueReminders = await Reminder.find({ status: "PENDING", scheduledTime: { $lte: now } });
+
+        if (dueReminders.length === 0) return NextResponse.json({ success: true, processed: [] });
 
         const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
         const myTwilioNumber = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER;
+        const processed = [];
 
-        for (let i = 0; i < remindersData.length; i++) {
-            const row = remindersData[i];
-            // Safe check for row length
-            if (!row || row.length < 6) continue;
-
-            const [createdAt, associate, phone, msg, scheduledTimeStr, status] = row;
-
-            if (status === "PENDING" && scheduledTimeStr) {
-                const scheduledTime = new Date(scheduledTimeStr);
+        for (const reminder of dueReminders) {
+            try {
+                const formattedPhone = reminder.phone.startsWith("whatsapp:") ? reminder.phone : `whatsapp:${reminder.phone}`;
                 
-                if (scheduledTime <= now) {
-                    try {
-                        await client.messages.create({
-                            body: `[Reminder]: ${msg}`,
-                            from: myTwilioNumber,
-                            to: phone.startsWith("whatsapp:") ? phone : `whatsapp:${phone}`
-                        });
+                const sent = await client.messages.create({
+                    body: `[Reminder]: ${reminder.message}`,
+                    from: myTwilioNumber,
+                    to: formattedPhone
+                });
 
-                        const timestamp = new Date().toLocaleDateString("en-US") + " " + new Date().toLocaleTimeString("en-US", { hour12: false });
-                        await appendSheetData(`${SHEET_NAMES.MESSAGES}!A:L`, [[
-                            myTwilioNumber, phone, msg, "OUTBOUND", "SENT", "TRUE", 
-                            timestamp, "reminder_auto", associate, "sales", "", ""
-                        ]]);
+                // Message DB-ல் சேவ் செய்
+                await Message.create({
+                    phone: reminder.phone,
+                    message: `[Reminder]: ${reminder.message}`,
+                    direction: "OUTBOUND",
+                    status: "SENT",
+                    twilioSid: sent.sid,
+                    senderName: reminder.associate
+                });
 
-                        // Collect update for batch
-                        updates.push({
-                            range: `${SHEET_NAMES.REMINDERS}!F${i + 1}`,
-                            values: [["DONE"]]
-                        });
-
-                        dueReminders.push({ phone, message: msg, associate });
-
-                    } catch (e) {
-                        console.error("Reminder Send Failed", e);
-                    }
+                // UI-க்கு லைவ்வாக அனுப்பு
+                if (global.io) {
+                    global.io.emit("new_message", { 
+                        phone: reminder.phone, 
+                        message: `[Reminder]: ${reminder.message}`, 
+                        direction: "OUTBOUND", 
+                        timestamp: new Date().toISOString(),
+                        status: "SENT",
+                        role: "sales",
+                        name: reminder.associate
+                    });
                 }
+
+                reminder.status = "DONE";
+                await reminder.save();
+
+                processed.push({ phone: reminder.phone, message: reminder.message, associate: reminder.associate });
+            } catch (e) {
+                console.error(`Reminder Send Failed for ${reminder.phone}`, e);
             }
         }
+        
+        if (redis && redis.status === 'ready') await redis.del("chats:all_data");
 
-        if (updates.length > 0) {
-            await batchUpdateSheet(updates);
-        }
-
-        return NextResponse.json({ success: true, processed: dueReminders });
+        return NextResponse.json({ success: true, processed });
     }
 
     return NextResponse.json({ error: "Invalid Action" }, { status: 400 });

@@ -1,97 +1,69 @@
-import { google } from "googleapis";
 import { NextResponse } from "next/server";
+import connectDB from "@/lib/mongodb";
+import Customer from "@/models/Customer";
+import Message from "@/models/Message";
 import redis from "@/lib/redis";
-import { SHEET_NAMES } from "@/lib/constants";
-
-const getFormattedDate = () => {
-  const now = new Date();
-  const date = now.toLocaleDateString("en-US", { year: 'numeric', month: 'numeric', day: 'numeric' });
-  const time = now.toLocaleTimeString("en-US", { hour12: false });
-  return `${date} ${time}`;
-};
-
-async function appendWithRetry(sheets, params, retries = 3, delay = 1000) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await sheets.spreadsheets.values.append(params);
-    } catch (error) {
-      if ((error.code === 429 || error.code === 503) && i < retries - 1) {
-        await new Promise(res => setTimeout(res, delay * (i + 1)));
-        continue;
-      }
-      throw error;
-    }
-  }
-}
-
-async function updateWithRetry(sheets, params, retries = 3, delay = 1000) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await sheets.spreadsheets.values.update(params);
-    } catch (error) {
-      if ((error.code === 429 || error.code === 503) && i < retries - 1) {
-        await new Promise(res => setTimeout(res, delay * (i + 1)));
-        continue;
-      }
-      throw error;
-    }
-  }
-}
 
 export async function POST(req) {
   try {
-    let body;
-    const contentType = req.headers.get("content-type") || "";
+    // 1. Connect to MongoDB
+    await connectDB();
 
-    if (contentType.includes("application/json")) {
-      body = await req.json();
-    } else {
-      const formData = await req.formData();
-      body = Object.fromEntries(formData.entries());
+    let body = {};
+    const contentType = req.headers.get("content-type") || "";
+    const rawText = await req.text();
+
+    // Safe Parser logic (same as before)
+    if (rawText) {
+      if (contentType.includes("application/json")) {
+        try { 
+          body = JSON.parse(rawText); 
+        } catch (e) { 
+          const extract = (key) => {
+             const regex = new RegExp(`"${key}"\\s*:\\s*"([\\s\\S]*?)"(?:\\s*,|\\s*})`, "i");
+             const match = rawText.match(regex);
+             return match ? match[1].trim() : "";
+          };
+          body = {
+            from: extract("from") || extract("From"),
+            to: extract("to") || extract("To"),
+            body: extract("body") || extract("Body"),
+            sid: extract("sid") || extract("MessageSid"),
+            status: extract("status") || extract("MessageStatus"),
+            numMedia: extract("numMedia") || extract("NumMedia"),
+          };
+          for(let i=0; i<10; i++) {
+             body[`MediaUrl${i}`] = extract(`MediaUrl${i}`);
+             body[`MediaContentType${i}`] = extract(`MediaContentType${i}`);
+          }
+        }
+      } else {
+        body = Object.fromEntries(new URLSearchParams(rawText).entries());
+      }
     }
 
-    const auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: process.env.GOOGLE_CLIENT_EMAIL,
-        private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-      },
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-    });
+    if (Object.keys(body).length === 0) {
+      const url = new URL(req.url);
+      body = Object.fromEntries(url.searchParams.entries());
+    }
 
-    const sheets = google.sheets({ version: "v4", auth });
-    const MSG_SHEET_ID = process.env.GOOGLE_SHEETS_ID;
-
-    const twilioSID = body.MessageSid || body.SmsSid || body.Sid || "";
-    const messageStatus = body.MessageStatus || body.SmsStatus || "";
-
+    // 2. DELIVERY STATUS UPDATE LOGIC (Updated to MongoDB)
+    const twilioSID = body.MessageSid || body.SmsSid || body.sid || body.Sid || "";
+    const messageStatus = body.MessageStatus || body.SmsStatus || body.status || "";
     const statusTypes = ['sent', 'delivered', 'read', 'failed'];
+
     if (messageStatus && statusTypes.includes(messageStatus.toLowerCase())) {
       const formattedStatus = messageStatus.toUpperCase();
 
       if (global.io) {
-        global.io.emit("message_status_update", {
-          sid: twilioSID,
-          status: formattedStatus
-        });
+        global.io.emit("message_status_update", { sid: twilioSID, status: formattedStatus });
       }
 
-      const sidCheck = await sheets.spreadsheets.values.get({
-        spreadsheetId: MSG_SHEET_ID,
-        range: `${SHEET_NAMES.MESSAGES}!H:H`
-      });
-
-      const sidRows = sidCheck.data.values || [];
-      const rowIndex = sidRows.findIndex(row => row[0] === twilioSID);
-
-      if (rowIndex !== -1) {
-        const sheetRowNumber = rowIndex + 1;
-        await updateWithRetry(sheets, {
-          spreadsheetId: MSG_SHEET_ID,
-          range: `${SHEET_NAMES.MESSAGES}!E${sheetRowNumber}`,
-          valueInputOption: "USER_ENTERED",
-          requestBody: { values: [[formattedStatus]] }
-        });
-      }
+      // MongoDB Update Status
+      await Message.findOneAndUpdate(
+        { twilioSid: twilioSID },
+        { status: formattedStatus }
+      );
 
       if (redis && redis.status !== 'disabled') {
         try { await redis.del("chats:all_data"); } catch (e) { }
@@ -100,73 +72,91 @@ export async function POST(req) {
       return NextResponse.json({ success: true, updated: formattedStatus });
     }
 
-    const rawFrom = body.from || body.From || "";
-    const rawTo = body.to || body.To || "";
-    const phone = rawFrom;
-    const messageTo = rawTo;
-    const message = body.body || body.Body || "";
-    const numMedia = parseInt(body.numMedia || body.NumMedia || "0");
-    const profileName = body.ProfileName || rawFrom;
+    // 3. INCOMING MESSAGE & MEDIA LOGIC
+    let phone = body.From || body.from || "";
+    let messageText = body.Body || body.body || ""; 
+    let numMedia = parseInt(body.NumMedia || body.numMedia || "0");
+    if (isNaN(numMedia)) numMedia = 0;
+    const profileName = body.From || body.from || null;
 
-    if (!phone) {
-      return NextResponse.json({ error: "Invalid Request" }, { status: 400 });
+    if (phone && !phone.startsWith("whatsapp:")) phone = `whatsapp:${phone}`;
+
+    if (!phone || (!messageText && numMedia === 0)) {
+      return NextResponse.json({ success: true, ignored: true });
     }
 
-    const timestamp = getFormattedDate();
+    messageText = messageText.replace(/\\n/g, "\n");
     const isoTimestamp = new Date().toISOString();
+
+    // MongoDB: Create Customer if not exists (Upsert)
+    await Customer.findOneAndUpdate(
+      { phone: phone },
+      { 
+        $setOnInsert: { name: profileName, status: "New", assignedTo: "unassigned" },
+        $inc: { unreadCount: 1 } // Increase unread message count
+      },
+      { upsert: true, new: true }
+    );
+
+    const newMessages = [];
+
+    // MongoDB: Save Media Messages
+    if (numMedia > 0) {
+      for (let i = 0; i < numMedia; i++) {
+        const mediaUrl = body[`MediaUrl${i}`] || body[`mediaUrl${i}`] || "";
+        const mediaType = body[`MediaContentType${i}`] || body[`mediaContentType${i}`] || "";
+        
+        newMessages.push({
+          phone: phone,
+          message: messageText,
+          direction: "INBOUND",
+          status: "RECEIVED",
+          twilioSid: twilioSID,
+          mediaUrl: mediaUrl,
+          mediaType: mediaType,
+          senderName: profileName
+        });
+
+        if (global.io) {
+            global.io.emit("new_message", {
+              phone: phone, message: messageText, direction: "INBOUND",
+              timestamp: isoTimestamp, name: profileName, status: "RECEIVED",
+              read: "FALSE", mediaUrl: mediaUrl, mediaType: mediaType
+            });
+        }
+      }
+    } else {
+      // MongoDB: Save Text Messages
+      newMessages.push({
+        phone: phone,
+        message: messageText,
+        direction: "INBOUND",
+        status: "RECEIVED",
+        twilioSid: twilioSID,
+        senderName: profileName
+      });
+
+      if (global.io) {
+        global.io.emit("new_message", {
+          phone: phone, message: messageText, direction: "INBOUND",
+          timestamp: isoTimestamp, name: profileName, status: "RECEIVED", read: "FALSE"
+        });
+      }
+    }
+
+    // Insert to DB
+    if (newMessages.length > 0) {
+      await Message.insertMany(newMessages);
+    }
 
     if (redis && redis.status !== 'disabled') {
       try { await redis.del("chats:all_data"); } catch (e) { }
     }
 
-    if (global.io) {
-      global.io.emit("new_message", {
-        phone: phone, message: message, direction: "INBOUND",
-        timestamp: isoTimestamp, name: profileName || phone,
-        status: "RECEIVED", read: "FALSE"
-      });
-    }
-
-    const userCheck = await sheets.spreadsheets.values.get({
-      spreadsheetId: MSG_SHEET_ID,
-      range: `${SHEET_NAMES.SHEET4}!A:A`
-    });
-
-    const existingPhones = userCheck.data.values ? userCheck.data.values.flat() : [];
-
-    if (!existingPhones.includes(phone)) {
-      await appendWithRetry(sheets, {
-        spreadsheetId: MSG_SHEET_ID,
-        range: `${SHEET_NAMES.SHEET4}!A:D`,
-        valueInputOption: "USER_ENTERED",
-        requestBody: { values: [[phone, timestamp, "New"]] }
-      });
-    }
-
-    const msgRows = [];
-    const baseRow = [phone, messageTo, message, "INBOUND", "RECEIVED", "FALSE", timestamp, twilioSID, "", ""];
-
-    if (numMedia > 0) {
-      for (let i = 0; i < numMedia; i++) {
-        msgRows.push([...baseRow, body[`MediaUrl${i}`] || "", body[`MediaContentType${i}`] || ""]);
-      }
-    } else {
-      msgRows.push([...baseRow, "", ""]);
-    }
-
-    if (msgRows.length > 0) {
-      await appendWithRetry(sheets, {
-        spreadsheetId: MSG_SHEET_ID,
-        range: `${SHEET_NAMES.MESSAGES}!A:L`,
-        valueInputOption: "USER_ENTERED",
-        requestBody: { values: msgRows }
-      });
-    }
-
     return NextResponse.json({ success: true });
 
   } catch (error) {
-    console.error("Webhook Error:", error);
+    console.error("Webhook DB Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
