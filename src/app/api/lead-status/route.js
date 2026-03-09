@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Customer from "@/models/Customer";
+import Lead from "@/models/Lead";
 import redis from "@/lib/redis";
 
 export async function POST(req) {
@@ -11,50 +12,74 @@ export async function POST(req) {
     let cleanPhone = phone.toString().trim();
     if (!cleanPhone.startsWith("whatsapp:")) cleanPhone = `whatsapp:${cleanPhone}`;
 
-    const customer = await Customer.findOne({ phone: cleanPhone });
-    if (!customer) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    const isClosed = status === "Closed";
 
-    let updates = {
-      status: status,
-      assignedTo: associateName,
-      isClosed: status === "Closed"
-    };
-
-    if (priority) updates.priority = priority;
-
-    // Follow Up Date Logic
-    if (status === "Follow Up") {
-       let startDate = customer.followUpStart;
-       if (!startDate) {
-           startDate = new Date();
-           updates.followUpStart = startDate;
-       }
-
-       const now = new Date();
-       const dayDiff = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
-
-       if (notes) {
-           if (dayDiff <= 1) updates.day1Remarks = notes;
-           else if (dayDiff === 2) updates.day2Remarks = notes;
-           else updates.day3Remarks = notes;
-       }
-    } else {
-       // Reset follow up data if status is changed to something else
-       updates.day1Remarks = "";
-       updates.day2Remarks = "";
-       updates.day3Remarks = "";
-       updates.followUpStart = null;
+    // 1. Update overall Customer status
+    let customer = await Customer.findOne({ phone: cleanPhone });
+    if (customer) {
+        customer.status = status;
+        customer.assignedTo = associateName;
+        customer.isClosed = isClosed;
+        if (priority) customer.priority = priority;
+        if (notes) customer.remarks = notes;
+        await customer.save();
     }
 
-    if (notes && status !== "Follow Up") {
-       updates.remarks = notes;
-    }
+    // 2. Find the LATEST Lead for this customer
+    let latestLead = await Lead.findOne({ $or: [{ phone: cleanPhone }, { customerPhone: cleanPhone }] }).sort({ createdAt: -1 });
+    
+    if (latestLead && !latestLead.isClosed) {
+        // Update the ACTIVE lead
+        latestLead.status = status;
+        latestLead.assignedTo = associateName;
+        latestLead.isClosed = isClosed;
+        if (priority) latestLead.priority = priority;
 
-    if (status === "Closed") {
-       updates.lastClosedBy = associateName;
-    }
+        if (status === "Follow Up") {
+            let startDate = latestLead.followUpStart;
+            if (!startDate) {
+                startDate = new Date();
+                latestLead.followUpStart = startDate;
+            }
 
-    await Customer.findOneAndUpdate({ phone: cleanPhone }, { $set: updates });
+            const now = new Date();
+            const dayDiff = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
+
+            if (notes) {
+                if (dayDiff <= 1) latestLead.day1Remarks = notes;
+                else if (dayDiff === 2) latestLead.day2Remarks = notes;
+                else latestLead.day3Remarks = notes;
+            }
+        } 
+        
+        if (notes) {
+            latestLead.remarks = notes; 
+        }
+
+        await latestLead.save();
+
+    } else if (latestLead && latestLead.isClosed && status !== "Closed") {
+        // Create a NEW lead if they reopened a closed customer via status dropdown
+        if (customer) {
+            customer.visitCount += 1;
+            await customer.save();
+        }
+        
+        await Lead.create({
+            phone: cleanPhone,
+            name: customer?.name || cleanPhone,
+            city: customer?.city || "",
+            address: customer?.address || "",
+            source: customer?.source || "Whatsapp",
+            enquiredFor: customer?.enquiredFor || "",
+            priority: priority || customer?.priority || "Medium",
+            status: status,
+            assignedTo: associateName,
+            remarks: notes || "",
+            isClosed: false,
+            followUpStart: status === "Follow Up" ? new Date() : null
+        });
+    }
 
     if (redis && redis.status === 'ready') await redis.del("chats:all_data");
     

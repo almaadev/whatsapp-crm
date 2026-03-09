@@ -279,7 +279,6 @@ export default function AdminDashboard() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm">
                   {associates.map((associate) => {
-                    console.log(associate);
                     
                     const percentage = associate.target > 0 ? Math.min(100, Math.round((associate.closedCount / associate.target) * 100)) : 0;
                     return (

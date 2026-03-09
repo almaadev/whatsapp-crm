@@ -29,7 +29,6 @@ export default function CustomerDetailPage({ params }) {
 
     const lastPath = usePathStore((state) => state.lastpath);
 
-
     const { data: session } = useSession();
 
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -39,8 +38,9 @@ export default function CustomerDetailPage({ params }) {
     const [isEditing, setIsEditing] = useState(false);
     const [saving, setSaving] = useState(false);
 
+    // 1. ADDED ADDRESS TO INITIAL STATE
     const [formData, setFormData] = useState({
-        name: "", city: "", associate: "", source: "",
+        name: "", city: "", address: "", associate: "", source: "",
         enquiredFor: "", status: "New", saleAmount: "", remarks: ""
     });
 
@@ -65,9 +65,11 @@ export default function CustomerDetailPage({ params }) {
                 const found = data.find(c => c.phone === phone);
                 if (found) {
                     setCustomer(found);
+                    // 2. ADDED ADDRESS TO FETCHED DATA
                     setFormData({
                         name: found.name || "",
                         city: found.city || "",
+                        address: found.address || "",
                         associate: found.currentHandler || "",
                         source: found.source || "",
                         enquiredFor: found.enquiredFor || "",
@@ -233,7 +235,11 @@ export default function CustomerDetailPage({ params }) {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
                                 <InfoField label="Full Name" value={formData.name} onChange={v => setFormData({ ...formData, name: v })} isEditing={isEditing} icon={<User size={14} />} />
+                                
                                 <InfoField label="City / Location" value={formData.city} onChange={v => setFormData({ ...formData, city: v })} isEditing={isEditing} icon={<MapPin size={14} />} />
+
+                                {/* 3. ADDED ADDRESS INFOFIELD USING EXISTING COMPONENT */}
+                                <InfoField label="Address" value={formData.address} onChange={v => setFormData({ ...formData, address: v })} isEditing={isEditing} icon={<MapPin size={14} />} />
 
                                 <InfoField label="Associate" value={formData.associate} onChange={v => setFormData({ ...formData, associate: v })} isEditing={isEditing} readOnly={!isEditing} icon={<User size={14} />} />
 

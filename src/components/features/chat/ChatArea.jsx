@@ -7,7 +7,7 @@ import CustomerInfoPanel from "./CustomerInfoPanel";
 import ForwardLeadModal from "./ForwardLeadModal";
 import ReminderModal from "./ReminderModal";
 import { toast } from "react-toastify";
-
+import { getStatusColor } from "@/utils/colorUtils";
 import { Send, Info, ChevronDown, Check, CheckCheck, ChevronLeft, MessageSquare, ArrowDown, Share2, X, Clock, Flag, AlertCircle, User, History, Bell, FileText } from "lucide-react";
 
 export default function ChatArea() {
@@ -284,12 +284,6 @@ export default function ChatArea() {
 
     if (!activeChat) return <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 h-full text-slate-300"><MessageSquare size={40} className="mb-4" /><h1 className="text-2xl font-light">Select a conversation</h1></div>;
 
-    const getStatusColor = (s) => {
-        if (s === "Closed") return "bg-emerald-100 text-emerald-700 border-emerald-200";
-        if (s === "Not Closed") return "bg-red-50 text-red-700 border-red-100";
-        if (s === "Follow Up") return "bg-amber-50 text-amber-700 border-amber-100";
-        return "bg-slate-100 text-slate-700 border-slate-200";
-    };
 
     const displayName = activeChat.name || activeChat.phone.replace("whatsapp:", "");
 
@@ -326,7 +320,7 @@ export default function ChatArea() {
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm transition-opacity">
                     <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95">
                         <div className="px-6 pt-6 pb-2 flex items-center justify-between">
-                            <div><h3 className="text-xl font-bold text-emerald-700">Deal Closed! 🎉</h3><p className="text-sm text-slate-500 mt-1">Add a quick note.</p></div>
+                            <div><h3 className="text-xl font-bold text-emerald-700">Lead Closed! 🎉</h3><p className="text-sm text-slate-500 mt-1">Add a quick note.</p></div>
                             <button onClick={() => setShowClosingModal(false)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20} /></button>
                         </div>
                         <div className="p-6 space-y-4">
