@@ -1,7 +1,8 @@
 import mongoose from "mongoose";
 
 const LeadSchema = new mongoose.Schema({
-  phone: { type: String, required: true, index: true },
+  phone: { type: String, required: true, index: true }, 
+  customerPhone: { type: String }, 
   
   name: { type: String, default: "Unknown" }, 
   city: { type: String, default: "" },
@@ -14,6 +15,7 @@ const LeadSchema = new mongoose.Schema({
   
   status: { type: String, default: "New" },
   assignedTo: { type: String, default: "unassigned" },
+  associateId: { type: String, default: "" },
   
   followUpStart: { type: Date },
   day1Remarks: { type: String, default: "" },

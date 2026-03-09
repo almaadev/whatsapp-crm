@@ -6,19 +6,8 @@ import Sidebar from "@/components/layout/Sidebar";
 import CreateUserForm from "@/components/features/admin/CreateUserForm";
 import Link from "next/link";
 import {
-  Users,
-  TrendingUp,
-  Briefcase,
-  Edit2,
-  Save,
-  XCircle,
-  ChevronRight,
-  Shield,
-  Menu,
-  Filter,
-  BarChart3,
-  Clock,
-  CheckCircle
+  Users, TrendingUp, Briefcase, Edit2, Save, XCircle, 
+  ChevronRight, Shield, Menu, Filter, Clock, CheckCircle
 } from "lucide-react";
 
 export default function AdminDashboard() {
@@ -29,93 +18,33 @@ export default function AdminDashboard() {
   const [editingId, setEditingId] = useState(null);
   const [tempTarget, setTempTarget] = useState(0);
 
-  // New State for Analytics
   const [analytics, setAnalytics] = useState({
-    followUp: { total: 0, converted: 0, pending: 0, dropped: 0 },
-    monthlyTrends: []
+    totalPending: 0, totalFollowUp: 0, totalAchieved: 0
   });
-
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [usersRes, chatsRes] = await Promise.all([
-          fetch("/api/users"),
-          fetch("/api/chats")
-        ]);
+        const res = await fetch("/api/admin/roster");
+        const data = await res.json();
 
-        const usersData = await usersRes.json();
-        const chatsData = await chatsRes.json();
+        if (data.success) {
+            setAssociates(data.roster);
 
-        // Unique Leads Map
-        const uniqueLeads = Object.values(chatsData.reduce((acc, msg) => {
-          if (!acc[msg.phone]) acc[msg.phone] = msg;
-          return acc;
-        }, {}));
+            // Global totals
+            let tPending = 0, tFollowUp = 0, tAchieved = 0;
+            data.roster.forEach(a => {
+                tPending += a.pendingCount;
+                tFollowUp += a.followUpCount;
+                tAchieved += a.achievedCount;
+            });
 
-        // --- GLOBAL ANALYTICS LOGIC ---
-        // const followUpStats = { total: 0, converted: 0, pending: 0, dropped: 0 };
-        // const trendMap = {};
-        
-        // // Initialize last 6 months
-        // for (let i = 5; i >= 0; i--) {
-        //     const d = new Date();
-        //     d.setMonth(now.getMonth() - i);
-        //     const key = `${d.toLocaleString('default', { month: 'short' })}`;
-        //     trendMap[key] = { month: key, followUps: 0, closed: 0 };
-        // }
-
-        // uniqueLeads.forEach(lead => {
-        //     // Check Follow-up Status (Column Q existence logic)
-        //     if (lead.followUpStartDate) {
-        //         followUpStats.total++;
-        //         if (lead.status === "Closed") followUpStats.converted++;
-        //         else if (lead.status === "Follow Up") followUpStats.pending++;
-        //         else if (lead.status === "Not Interested") followUpStats.dropped++;
-
-        //         // Trend Graph Data
-        //         const fuDate = new Date(lead.followUpStartDate);
-        //         const fuMonth = fuDate.toLocaleString('default', { month: 'short' });
-                
-        //         if (trendMap[fuMonth]) {
-        //             trendMap[fuMonth].followUps++;
-        //             if (lead.status === "Closed") trendMap[fuMonth].closed++;
-        //         }
-        //     }
-        // });
-
-        // setAnalytics({
-        //     followUp: followUpStats,
-        //     monthlyTrends: Object.values(trendMap)
-        // });
-
-        // --- ASSOCIATE LIST PROCESSING ---
-        const processedAssociates = usersData
-          .filter(u => u.role !== 'admin')
-          .map(user => {
-            const userLeads = uniqueLeads.filter(l => l.currentHandler === user.name);
-            const monthlyClosed = userLeads.filter(l => {
-              if (l.status !== "Closed") return false;
-              const d = l.timestamp ? new Date(l.timestamp) : new Date();
-              return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-            }).length;
-
-            return {
-              ...user,
-              pendingCount: userLeads.filter(l => l.status === "New").length,
-              followUpCount: userLeads.filter(l => l.status === "Follow Up").length,
-              closedCount: monthlyClosed,
-              // Calculate Conversion Rate for this associate
-              conversionRate: userLeads.length > 0 
-                ? Math.round((userLeads.filter(l => l.status === "Closed").length / userLeads.length) * 100) 
-                : 0
-            };
-          });
-
-        setAssociates(processedAssociates);
+            setAnalytics({
+                totalPending: tPending,
+                totalFollowUp: tFollowUp,
+                totalAchieved: tAchieved
+            });
+        }
       } catch (err) {
         console.error("Dashboard Data Error:", err);
       } finally {
@@ -123,7 +52,7 @@ export default function AdminDashboard() {
       }
     }
     fetchData();
-  }, [currentMonth, currentYear]);
+  }, []);
 
   const saveEdit = async (id) => {
     const associate = associates.find(a => a.id === id);
@@ -145,15 +74,7 @@ export default function AdminDashboard() {
   if (!session) return null;
 
   const totalTarget = associates.reduce((sum, a) => sum + (a.target || 0), 0);
-  const totalAchieved = associates.reduce((sum, a) => sum + (a.closedCount || 0), 0);
-  const companyProgress = totalTarget > 0 ? Math.round((totalAchieved / totalTarget) * 100) : 0;
-  
-  // Helper for Chart Height
-  const getMaxVal = () => {
-      const max = Math.max(...analytics.monthlyTrends.map(t => Math.max(t.followUps, t.closed)));
-      return max === 0 ? 10 : max;
-  };
-  const maxChartVal = getMaxVal();
+  const companyProgress = totalTarget > 0 ? Math.round((analytics.totalAchieved / totalTarget) * 100) : 0;
 
   return (
     <div className="flex h-[100dvh] bg-slate-50">
@@ -187,9 +108,9 @@ export default function AdminDashboard() {
           <div className="bg-slate-900 rounded-2xl shadow-xl p-8 text-white relative overflow-hidden">
             <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
               <div>
-                <h2 className="text-sm font-medium text-slate-400 uppercase tracking-widest mb-2">Company Performance (Feb)</h2>
+                <h2 className="text-sm font-medium text-slate-400 uppercase tracking-widest mb-2">Total Company Achieved</h2>
                 <div className="flex items-baseline gap-4">
-                  <span className="text-5xl font-bold text-white tracking-tight">{totalAchieved}</span>
+                  <span className="text-5xl font-bold text-white tracking-tight">{analytics.totalAchieved}</span>
                   <span className="text-xl text-slate-500 font-light">/ {totalTarget} Target</span>
                 </div>
               </div>
@@ -198,57 +119,36 @@ export default function AdminDashboard() {
                   <TrendingUp size={32} />
                   <span className="text-4xl font-bold">{companyProgress}%</span>
                 </div>
-                <p className="text-xs text-slate-500 uppercase tracking-widest">Efficiency Rate</p>
+                <p className="text-xs text-slate-500 uppercase tracking-widest">Global Progress</p>
               </div>
             </div>
             <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/5 rounded-full blur-3xl -ml-10 -mb-10 pointer-events-none"></div>
           </div>
 
-          {/* 2. FOLLOW UP ANALYTICS & TRENDS */}
-          <div className="grid lg:grid-cols-3 gap-6">
-             {/* Pipeline Stats */}
-             <div className="lg:col-span-1 space-y-4">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0"><Clock size={24} /></div>
-                    <div>
-                        <p className="text-2xl font-bold text-slate-900">{analytics.followUp.pending}</p>
-                        <p className="text-xs text-slate-500 font-medium uppercase">Active Pending</p>
-                    </div>
-                </div>
-                <div className="bg-white p-5 rounded-2xl border border-emerald-100 shadow-sm flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0"><CheckCircle size={24} /></div>
-                    <div>
-                        <p className="text-2xl font-bold text-emerald-700">{analytics.followUp.converted}</p>
-                        <p className="text-xs text-slate-500 font-medium uppercase">Converted</p>
-                    </div>
-                </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0"><Filter size={24} /></div>
-                    <div>
-                        <p className="text-2xl font-bold text-slate-900">{analytics.followUp.total}</p>
-                        <p className="text-xs text-slate-500 font-medium uppercase">Total Initiated</p>
-                    </div>
-                </div>
+          {/* 2. FOLLOW UP ANALYTICS */}
+          <div className="grid lg:grid-cols-3 gap-6"> 
+             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 has-tooltip cursor-pointer" data-tooltip="Leads inactive for over 48 hours will be marked as pending.">
+                 <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0"><Clock size={24} /></div>
+                 <div>
+                     <p className="text-2xl font-bold text-slate-900">{analytics.totalPending}</p>
+                     <p className="text-xs text-slate-500 font-medium uppercase" >Pending</p>
+                 </div>
              </div>
-
-             {/* Trends Graph */}
-             {/* <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-                <h3 className="text-md font-bold text-slate-800 flex items-center gap-2 mb-2">
-                    <BarChart3 size={18} className="text-slate-400" /> Monthly Trends
-                </h3>
-                <div className="flex-1 flex items-end justify-between gap-2 mt-4">
-                    {analytics.monthlyTrends.map((data, i) => (
-                        <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                            <div className="relative w-full max-w-[40px] flex items-end justify-center h-full gap-1">
-                                <div className="w-1/2 bg-amber-200 rounded-t-sm hover:bg-amber-300 transition-all" style={{ height: `${(data.followUps / maxChartVal) * 100}%`, minHeight: '4px' }} title={`Follow Ups: ${data.followUps}`}></div>
-                                <div className="w-1/2 bg-emerald-500 rounded-t-sm hover:bg-emerald-600 transition-all" style={{ height: `${(data.closed / maxChartVal) * 100}%`, minHeight: '4px' }} title={`Closed: ${data.closed}`}></div>
-                            </div>
-                            <span className="text-[10px] font-bold text-slate-400 uppercase">{data.month}</span>
-                        </div>
-                    ))}
-                </div>
-             </div> */}
+             <div className="bg-white p-5 rounded-2xl border border-amber-100 shadow-sm flex items-center gap-4">
+                 <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0"><Filter size={24} /></div>
+                 <div>
+                     <p className="text-2xl font-bold text-amber-700">{analytics.totalFollowUp}</p>
+                     <p className="text-xs text-slate-500 font-medium uppercase">Active Follow Ups</p>
+                 </div>
+             </div>
+             <div className="bg-white p-5 rounded-2xl border border-emerald-100 shadow-sm flex items-center gap-4">
+                 <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0"><CheckCircle size={24} /></div>
+                 <div>
+                     <p className="text-2xl font-bold text-emerald-700">{analytics.totalAchieved}</p>
+                     <p className="text-xs text-slate-500 font-medium uppercase">Converted (Closed)</p>
+                 </div>
+             </div>
           </div>
 
           {/* 3. ASSOCIATE ROSTER */}
@@ -269,7 +169,7 @@ export default function AdminDashboard() {
                   <tr>
                     <th className="px-6 py-4">Associate</th>
                     <th className="px-6 py-4 text-center">Pending</th>
-                    <th className="px-6 py-4 text-center">Follow Up</th>
+                    <th className="px-6 py-4 text-center">Active Follow Up</th>
                     <th className="px-6 py-4 text-center">Achieved</th>
                     <th className="px-6 py-4 text-center">Conv. Rate</th>
                     <th className="px-6 py-4 text-center">Target</th>
@@ -279,8 +179,6 @@ export default function AdminDashboard() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm">
                   {associates.map((associate) => {
-                    
-                    const percentage = associate.target > 0 ? Math.min(100, Math.round((associate.closedCount / associate.target) * 100)) : 0;
                     return (
                       <tr key={associate.id} className="hover:bg-slate-50/80 transition-colors group">
                         <td className="px-6 py-4">
@@ -294,11 +192,11 @@ export default function AdminDashboard() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-center font-medium text-slate-600">{associate.pendingCount}</td>
+                        <td className="px-6 py-4 text-center font-medium text-rose-600">{associate.pendingCount}</td>
                         <td className="px-6 py-4 text-center font-medium text-amber-600">{associate.followUpCount}</td>
                         <td className="px-6 py-4 text-center">
                           <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full font-bold text-xs border border-emerald-200">
-                            {associate.closedCount}
+                            {associate.achievedCount}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-center text-slate-500 text-xs font-bold">
@@ -320,9 +218,9 @@ export default function AdminDashboard() {
 
                         <td className="px-6 py-4">
                           <div className="w-24 bg-slate-200 rounded-full h-1.5 mx-auto mb-1 overflow-hidden">
-                            <div className={`h-full rounded-full transition-all duration-1000 ${percentage >= 100 ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ width: `${percentage}%` }}></div>
+                            <div className={`h-full rounded-full transition-all duration-1000 ${associate.progress >= 100 ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ width: `${associate.progress}%` }}></div>
                           </div>
-                          <p className="text-center text-[10px] text-slate-400">{percentage}%</p>
+                          <p className="text-center text-[10px] text-slate-400">{associate.progress}%</p>
                         </td>
 
                         <td className="px-6 py-4 text-right">

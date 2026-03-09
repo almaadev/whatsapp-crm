@@ -68,7 +68,7 @@ export default function LeadsPage() {
 
     const handleCustomerRedirect = (phone) => {
         setPath(pathname)
-        router.push(`/dashboard/customers/${phone}`)
+        router.push(`/dashboard/leads/${phone}`)
     }
 
     const handleChatSelect = (lead) => {

@@ -1,242 +1,180 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
-import Sidebar from "@/components/layout/Sidebar";
-import { Search, User, MapPin, Eye, ChevronLeft, ChevronRight, Menu } from "lucide-react";
-import { usePathname } from 'next/navigation';
-import { usePathStore } from "@/store/pathStore";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { usePathStore } from "@/store/pathStore";
+import { usePathname } from 'next/navigation';
+
+import Sidebar from "@/components/layout/Sidebar";
+import { Search, User, MapPin, Eye, Loader2, Menu } from "lucide-react";
+import { getStatusColor } from "@/utils/colorUtils";
 
 export default function CustomersPage() {
     const { data: session } = useSession();
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const [customers, setCustomers] = useState([]);
-    const [searchTerm, setSearchTerm] = useState("");
-    const [loading, setLoading] = useState(true);
-    const { setPath } = usePathStore()
+    const router = useRouter();
+    const { setPath } = usePathStore();
     const pathname = usePathname();
-    const router = useRouter()
-    // --- PAGINATION STATE ---
-    const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 5;
 
-    // Helper Date Parser
-    const parseDate = (dateString) => {
-        if (!dateString) return new Date(0);
-        if (dateString.includes("T") || (dateString.includes("-") && dateString.includes(":"))) return new Date(dateString);
-        const parts = dateString.split(" ");
-        if (parts.length >= 2) {
-            const dateParts = parts[0].split("/");
-            const timeParts = parts[1].split(":");
-            if (dateParts.length === 3) {
-                return new Date(
-                    parseInt(dateParts[2]),
-                    parseInt(dateParts[0]) - 1,
-                    parseInt(dateParts[1]),
-                    parseInt(timeParts[0] || 0),
-                    parseInt(timeParts[1] || 0),
-                    parseInt(timeParts[2] || 0)
-                );
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [rawCustomers, setRawCustomers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState("");
+
+    useEffect(() => {
+        const fetchCustomers = async () => {
+            try {
+                const res = await fetch("/api/contacts");
+                const data = await res.json();
+                if (res.ok && Array.isArray(data)) {
+                    setRawCustomers(data);
+                }
+            } catch (error) {
+                console.error("Failed to fetch customers", error);
+            } finally {
+                setLoading(false);
             }
+        };
+        fetchCustomers();
+    }, []);
+
+    // Grouping logic to show unique customers with their latest data
+    const processedCustomers = useMemo(() => {
+        const grouped = {};
+        rawCustomers.forEach(item => {
+            const cleanPhone = item.phone?.replace(/\D/g, '') || "unknown";
+            // Keeps the newest record because API returns sorted by date
+            if (!grouped[cleanPhone]) {
+                grouped[cleanPhone] = item;
+            }
+        });
+        
+        let arr = Object.values(grouped).sort((a,b) => new Date(b.date) - new Date(a.date));
+
+        if (searchTerm) {
+            const lower = searchTerm.toLowerCase();
+            arr = arr.filter(c => 
+                (c.name && c.name.toLowerCase().includes(lower)) || 
+                (c.phone && c.phone.includes(lower))
+            );
         }
-        return new Date(dateString);
+        return arr;
+    }, [rawCustomers, searchTerm]);
+
+    const handleCustomerClick = (phone) => {
+        setPath(pathname);
+        router.push(`/dashboard/customers/${phone.replace(/\D/g, '')}`);
     };
 
-    useEffect(() => {
-        if (!session) return;
-        fetch("/api/chats")
-            .then(res => res.json())
-            .then(data => {
-                const unique = data.reduce((acc, current) => {
-                    if (!acc[current.phone]) acc[current.phone] = current;
-                    return acc;
-                }, {});
-
-                const sorted = Object.values(unique).sort((a, b) =>
-                    parseDate(b.timestamp) - parseDate(a.timestamp)
-                );
-                setCustomers(sorted);
-                setLoading(false);
-            });
-    }, [session]);
-
-    // Reset to page 1 when search changes
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [searchTerm]);
-
-    const handleRedirect =(phone)=>{        
-        setPath(pathname)
-        router.push(`/dashboard/customers/${phone}`)
-    }
-    // 1. FILTER
-    const filtered = customers.filter(c =>
-        (c.name && c.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (c.phone && c.phone.includes(searchTerm)) ||
-        (c.city && c.city.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-
-    // 2. PAGINATE
-    const indexOfLastItem = currentPage * itemsPerPage;
-    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentItems = filtered.slice(indexOfFirstItem, indexOfLastItem);
-    const totalPages = Math.ceil(filtered.length / itemsPerPage);
-
-    const paginate = (pageNumber) => setCurrentPage(pageNumber);
+    if (!session) return null;
 
     return (
-        <div className="flex h-[100dvh] bg-slate-50">
+        <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
             <Sidebar role={session?.user?.role || "sales"} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
-
-            <main className="flex-1 p-6 md:p-10 overflow-y-auto">
-                <button
-                    onClick={() => setMobileMenuOpen(true)}
-                    className="md:hidden mb-6 p-2 text-slate-600 bg-white rounded-lg shadow-sm border border-slate-200 hover:bg-slate-50 transition-all"
-                >
-                    <Menu size={24} />
-                </button>
-
-                <div className="max-w-7xl mx-auto">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                        <div>
-                            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Customer Database</h1>
-                            <p className="text-slate-500 text-sm mt-1">Manage and track all customer interactions in one place.</p>
-                        </div>
-
-                        <div className="relative w-full md:w-80 group">
-                            <Search className="absolute left-3 top-3 text-slate-400 group-focus-within:text-emerald-600 transition-colors" size={18} />
-                            <input
-                                type="text"
-                                placeholder="Search by name, phone, city..."
-                                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white shadow-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-sm transition-all placeholder:text-slate-400"
+            
+            <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                <header className="h-16 px-4 md:px-8 py-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 z-10 shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <button onClick={() => setMobileMenuOpen(true)} className="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-700">
+                            <Menu size={24} />
+                        </button>
+                        <h1 className="text-xl font-bold text-slate-800">Customer Directory</h1>
+                    </div>
+                    
+                    <div className="flex items-center gap-4">
+                        <div className="hidden md:flex items-center bg-slate-100 rounded-xl px-3 py-2 border border-slate-200 focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all w-64 lg:w-80">
+                            <Search size={16} className="text-slate-400" />
+                            <input 
+                                type="text" 
+                                placeholder="Search by name or phone..." 
+                                className="bg-transparent border-none outline-none text-sm ml-2 w-full text-slate-700 placeholder:text-slate-400"
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={e => setSearchTerm(e.target.value)}
                             />
                         </div>
                     </div>
+                </header>
 
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                                <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase font-semibold">
-                                    <tr>
-                                        <th className="px-6 py-4">Customer</th>
-                                        <th className="px-6 py-4">Contact</th>
-                                        <th className="px-6 py-4">Location</th>
-                                        <th className="px-6 py-4">Associate</th>
-                                        <th className="px-6 py-4 text-center">Status</th>
-                                        <th className="px-6 py-4 text-right">View Detail</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 text-sm">
-                                    {loading ? (
-                                        <tr><td colSpan="6" className="p-10 text-center text-slate-400 animate-pulse">Loading customer records...</td></tr>
-                                    ) : filtered.length === 0 ? (
-                                        <tr><td colSpan="6" className="p-10 text-center text-slate-400">No customers found matching your search.</td></tr>
-                                    ) : (
-                                        currentItems.map((c, i) => (
-                                            <tr key={i} className="hover:bg-slate-50 transition-colors group">
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-[#f8fafc]">
+                    <div className="md:hidden mb-4 flex items-center bg-white rounded-xl px-3 py-2 border border-slate-200 shadow-sm">
+                        <Search size={16} className="text-slate-400" />
+                        <input 
+                            type="text" 
+                            placeholder="Search by name or phone..." 
+                            className="bg-transparent border-none outline-none text-sm ml-2 w-full text-slate-700"
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+                            <Loader2 size={32} className="animate-spin text-emerald-500 mb-4" />
+                            <p className="text-sm font-medium">Loading customers...</p>
+                        </div>
+                    ) : processedCustomers.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+                            <User size={48} className="mb-4 opacity-20" />
+                            <p className="text-sm font-medium">No customers found.</p>
+                        </div>
+                    ) : (
+                        <div className="container mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase font-semibold border-b border-slate-200">
+                                        <tr>
+                                            <th className="px-6 py-4">Customer</th>
+                                            <th className="px-6 py-4">Contact</th>
+                                            <th className="px-6 py-4">Enquired For</th>
+                                            <th className="px-6 py-4">Status</th>
+                                            <th className="px-6 py-4">Visits</th>
+                                            <th className="px-6 py-4 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 text-sm">
+                                        {processedCustomers.map((customer, idx) => (
+                                            <tr key={idx} className="hover:bg-slate-50/80 transition-colors group cursor-pointer" onClick={() => handleCustomerClick(customer.phone)}>
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shadow-sm">
-                                                            {c.name ? c.name.charAt(0).toUpperCase() : <User size={14} />}
+                                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center text-emerald-700 font-bold shadow-inner shrink-0">
+                                                            {customer.name && customer.name !== "Unknown" ? customer.name.charAt(0).toUpperCase() : "#"}
                                                         </div>
                                                         <div>
-                                                            <div className="font-bold text-slate-900">{c.name || "Unknown"}</div>
-                                                            <div className="text-[12px] text-slate-400">
-                                                                Joined : {c.timestamp
-                                                                    ? new Date(c.timestamp).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).replace(/ /g, '/')
-                                                                    : "N/A"
-                                                                }
+                                                            <div className="font-bold text-slate-900 line-clamp-1">{customer.name || "Unknown"}</div>
+                                                            <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                                                                <MapPin size={10} /> {customer.city || "N/A"}
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 text-slate-600 font-mono text-xs">{c.phone}</td>
-                                                <td className="px-6 py-4 text-slate-600">
-                                                    {c.city ? <div className="flex items-center gap-1.5"><MapPin size={14} className="text-slate-400" /> {c.city}</div> : <span className="text-slate-300">-</span>}
+                                                <td className="px-6 py-4">
+                                                    <div className="font-mono font-medium text-slate-700">{customer.phone}</div>
+                                                </td>
+                                                <td className="px-6 py-4 text-slate-600 max-w-[200px] truncate">
+                                                    {customer.enquiredFor || "-"}
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className={`text-xs font-medium px-2 py-1 rounded-md ${c.currentHandler ? "bg-slate-100 text-slate-600" : "text-slate-400 italic"}`}>
-                                                        {c.currentHandler || "Unassigned"}
+                                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border ${getStatusColor(customer.status)}`}>
+                                                        {customer.status}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 text-center">
-                                                    <StatusBadge status={c.status} />
+                                                <td className="px-6 py-4 font-bold text-slate-700">
+                                                    {customer.visitCount || 1}
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
-                                                    <div onClick={()=>handleRedirect(encodeURIComponent(c.phone))}
-                                                        
-                                                        className="text-slate-400 hover:text-emerald-600 transition-colors inline-block p-2 rounded-full hover:bg-emerald-50 opacity-95 group-hover:opacity-100"
-                                                    >
+                                                    <button className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all">
                                                         <Eye size={18} />
-                                                    </div>
+                                                    </button>
                                                 </td>
                                             </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* --- PAGINATION CONTROLS --- */}
-                        {filtered.length > itemsPerPage && (
-                            <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/50">
-                                <span className="text-xs text-slate-500 font-medium">
-                                    Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filtered.length)} of {filtered.length} customers
-                                </span>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => paginate(currentPage - 1)}
-                                        disabled={currentPage === 1}
-                                        className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
-                                    >
-                                        <ChevronLeft size={16} />
-                                    </button>
-
-                                    <div className="flex items-center gap-1">
-                                        {Array.from({ length: totalPages }, (_, i) => (
-                                            <button
-                                                key={i + 1}
-                                                onClick={() => paginate(i + 1)}
-                                                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === i + 1
-                                                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-200"
-                                                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-                                                    }`}
-                                            >
-                                                {i + 1}
-                                            </button>
                                         ))}
-                                    </div>
-
-                                    <button
-                                        onClick={() => paginate(currentPage + 1)}
-                                        disabled={currentPage === totalPages}
-                                        className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
-                                    >
-                                        <ChevronRight size={16} />
-                                    </button>
-                                </div>
+                                    </tbody>
+                                </table>
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
             </main>
         </div>
-    );
-}
-
-function StatusBadge({ status }) {
-    const styles = {
-        "New": "bg-blue-100 text-blue-700 border-blue-200",
-        "Follow Up": "bg-amber-100 text-amber-700 border-amber-200",
-        "Closed": "bg-emerald-100 text-emerald-700 border-emerald-200",
-        "Not Closed": "bg-red-50 text-red-700 border-red-100"
-    };
-    return (
-        <span className={`px-2.5 py-1 rounded-full text-xs font-bold tracking-wide border ${styles[status] || "bg-slate-100 text-slate-600 border-slate-200"}`}>
-            {status}
-        </span>
     );
 }

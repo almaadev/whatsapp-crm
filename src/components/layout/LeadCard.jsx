@@ -26,7 +26,7 @@ export default function LeadCard({ lead, handleCustomerRedirect, handleCopyPhone
                     </div>
                 </div>
                 <Link
-                    href={`/dashboard/leads/${lead.phone?.replace(/\D/g, '')}`}
+                    href={`/dashboard/customers/${lead.phone}`}
                     className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors bg-slate-50"
                     title="View Full Profile"
                 >

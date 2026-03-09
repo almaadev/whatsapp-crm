@@ -8,19 +8,8 @@ import { usePathStore } from "@/store/pathStore";
 
 import Sidebar from "@/components/layout/Sidebar";
 import {
-    ChevronLeft,
-    Edit2,
-    Save,
-    X,
-    User,
-    MapPin,
-    Phone,
-    Globe,
-    Briefcase,
-    Calendar,
-    DollarSign,
-    FileText,
-    Menu
+    ChevronLeft, Edit2, Save, User, MapPin, Globe, 
+    Briefcase, FileText, Menu
 } from "lucide-react";
 
 export default function CustomerDetailPage({ params }) {
@@ -28,56 +17,56 @@ export default function CustomerDetailPage({ params }) {
     const phone = decodeURIComponent(unwrappedParams.phone);
 
     const lastPath = usePathStore((state) => state.lastpath);
-
     const { data: session } = useSession();
 
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
     const [customer, setCustomer] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [saving, setSaving] = useState(false);
 
-    // 1. ADDED ADDRESS TO INITIAL STATE
     const [formData, setFormData] = useState({
         name: "", city: "", address: "", associate: "", source: "",
         enquiredFor: "", status: "New", saleAmount: "", remarks: ""
     });
 
-    // --- HELPER: Calculate Follow Up Label ---
     const getFollowUpLabel = (cust) => {
         if (!cust?.followUpStartDate) return "Follow Up";
-
         const start = new Date(cust.followUpStartDate);
         const now = new Date();
         const diffTime = Math.abs(now - start);
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
         return `Day ${diffDays} Follow Up`;
     };
 
     useEffect(() => {
         if (!session) return;
 
-        fetch("/api/chats")
+        // Fetching from /api/contacts instead of /api/chats to get ALL profiles
+        fetch("/api/contacts")
             .then(res => res.json())
             .then(data => {
-                const found = data.find(c => c.phone === phone);
+                const targetPhone = phone.replace(/\D/g, '');
+                const found = data.find(c => c.phone?.replace(/\D/g, '') === targetPhone);
+                
                 if (found) {
                     setCustomer(found);
-                    // 2. ADDED ADDRESS TO FETCHED DATA
                     setFormData({
                         name: found.name || "",
                         city: found.city || "",
                         address: found.address || "",
-                        associate: found.currentHandler || "",
+                        associate: found.associate || "",
                         source: found.source || "",
                         enquiredFor: found.enquiredFor || "",
                         status: found.status || "New",
                         saleAmount: found.saleAmount || "",
-                        remarks: found.lastClosedNote || ""
+                        remarks: found.remarks || ""
                     });
                 }
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error(err);
                 setLoading(false);
             });
     }, [phone, session]);
@@ -88,9 +77,9 @@ export default function CustomerDetailPage({ params }) {
             await fetch("/api/contacts", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ mobile: phone, ...formData }),
+                body: JSON.stringify({ mobile: phone, ...formData, checkDuplicates: false }),
             });
-            setCustomer(prev => ({ ...prev, ...formData, currentHandler: formData.associate, lastClosedNote: formData.remarks }));
+            setCustomer(prev => ({ ...prev, ...formData }));
             setIsEditing(false);
         } catch (e) {
             alert("Failed to save changes");
@@ -122,7 +111,6 @@ export default function CustomerDetailPage({ params }) {
             <Sidebar role={session?.user?.role || "sales"} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
 
             <main className="flex-1 p-4 md:p-8 lg:p-10 overflow-y-auto">
-                {/* Mobile Menu Button */}
                 <button
                     onClick={() => setMobileMenuOpen(true)}
                     className="md:hidden mb-4 p-2 text-slate-600 bg-white rounded-lg shadow-sm border border-slate-200 hover:bg-slate-50 transition-all"
@@ -131,11 +119,9 @@ export default function CustomerDetailPage({ params }) {
                 </button>
 
                 <div className="max-w-6xl mx-auto">
-
-                    {/* Header */}
                     <div className="flex flex-col md:flex-row md:items-center gap-4 mb-6 md:mb-8">
                         <div className="flex items-center gap-3">
-                            <Link href={lastPath ? lastPath : "dashboard/customers"} className="p-2.5 bg-white rounded-xl hover:bg-slate-100 text-slate-500 shadow-sm border border-slate-200 transition-all shrink-0">
+                            <Link href={lastPath ? lastPath : "/dashboard/customers"} className="p-2.5 bg-white rounded-xl hover:bg-slate-100 text-slate-500 shadow-sm border border-slate-200 transition-all shrink-0">
                                 <ChevronLeft size={20} />
                             </Link>
                             <div>
@@ -144,12 +130,10 @@ export default function CustomerDetailPage({ params }) {
                             </div>
                         </div>
 
-                        {/* Actions */}
                         <div className="md:ml-auto mt-2 md:mt-0">
                             {!isEditing ? (
                                 <button onClick={() => setIsEditing(true)} className="w-full md:w-auto bg-white text-slate-600 px-4 py-2.5 rounded-xl font-medium hover:bg-slate-50 border border-slate-200 shadow-sm flex items-center justify-center gap-2 transition-all text-sm">
-                                    <Edit2 size={16} />
-                                    Edit Details
+                                    <Edit2 size={16} /> Edit Details
                                 </button>
                             ) : (
                                 <div className="flex gap-3 w-full md:w-auto">
@@ -162,15 +146,12 @@ export default function CustomerDetailPage({ params }) {
                         </div>
                     </div>
 
-                    {/* Responsive Grid: Stacks on mobile/tablet, 3 cols on Large screens */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-
-                        {/* Left Column: Identity & Quick Actions */}
                         <div className="lg:col-span-1 space-y-6">
                             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8 text-center relative overflow-hidden">
                                 <div className="relative z-10">
                                     <div className="w-20 h-20 md:w-24 md:h-24 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-full flex items-center justify-center text-3xl md:text-4xl font-bold text-emerald-700 mx-auto mb-4 border-[6px] border-slate-50 shadow-inner">
-                                        {customer.name ? customer.name.charAt(0).toUpperCase() : "#"}
+                                        {customer.name && customer.name !== "Unknown" ? customer.name.charAt(0).toUpperCase() : "#"}
                                     </div>
                                     <h2 className="text-xl font-bold text-slate-900 truncate px-2">{customer.name || "Unknown"}</h2>
                                     <p className="text-slate-500 text-sm mt-1 font-mono">{customer.phone}</p>
@@ -178,21 +159,19 @@ export default function CustomerDetailPage({ params }) {
                                     <div className="mt-6 md:mt-8 pt-6 border-t border-slate-100 grid grid-cols-2 gap-4">
                                         <div>
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Duration</p>
-                                            <p className="text-sm font-bold text-emerald-600">{getDuration(customer.timestamp)}</p>
+                                            <p className="text-sm font-bold text-emerald-600">{getDuration(customer.date)}</p>
                                         </div>
                                         <div>
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Joined</p>
-
                                             <p className="text-sm font-semibold text-slate-700">
-                                                {customer.timestamp
-                                                    ? new Date(customer.timestamp).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).replace(/ /g, '/')
+                                                {customer.date
+                                                    ? new Date(customer.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).replace(/ /g, '/')
                                                     : "N/A"
                                                 }
                                             </p>
                                         </div>
                                     </div>
                                 </div>
-                                {/* Background Deco */}
                                 <div className="absolute top-0 left-0 w-full h-24 bg-slate-50 z-0"></div>
                             </div>
 
@@ -226,7 +205,6 @@ export default function CustomerDetailPage({ params }) {
                             </div>
                         </div>
 
-                        {/* Right Column: Detailed Form */}
                         <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8">
                             <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
                                 <Briefcase size={20} className="text-emerald-600" />
@@ -234,18 +212,12 @@ export default function CustomerDetailPage({ params }) {
                             </h3>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
-                                <InfoField label="Full Name" value={formData.name} onChange={v => setFormData({ ...formData, name: v })} isEditing={isEditing} icon={<User size={14} />} />
-                                
-                                <InfoField label="City / Location" value={formData.city} onChange={v => setFormData({ ...formData, city: v })} isEditing={isEditing} icon={<MapPin size={14} />} />
-
-                                {/* 3. ADDED ADDRESS INFOFIELD USING EXISTING COMPONENT */}
-                                <InfoField label="Address" value={formData.address} onChange={v => setFormData({ ...formData, address: v })} isEditing={isEditing} icon={<MapPin size={14} />} />
-
-                                <InfoField label="Associate" value={formData.associate} onChange={v => setFormData({ ...formData, associate: v })} isEditing={isEditing} readOnly={!isEditing} icon={<User size={14} />} />
-
-                                <InfoField label="Source" value={formData.source} onChange={v => setFormData({ ...formData, source: v })} isEditing={isEditing} type="select" icon={<Globe size={14} />} options={["Facebook", "Instagram", "Google", "Referral", "Walk-in"]} />
-
-                                <InfoField label="Enquired For" value={formData.enquiredFor} onChange={v => setFormData({ ...formData, enquiredFor: v })} isEditing={isEditing} icon={<Briefcase size={14} />} />
+                                <InfoField type="text" label="Full Name" value={formData.name} onChange={v => setFormData({ ...formData, name: v })} isEditing={isEditing} icon={<User size={14} />} />
+                                <InfoField type="text" label="City / Location" value={formData.city} onChange={v => setFormData({ ...formData, city: v })} isEditing={isEditing} icon={<MapPin size={14} />} />
+                                <InfoField type="textArea" label="Address" value={formData.address} onChange={v => setFormData({ ...formData, address: v })} isEditing={isEditing} icon={<MapPin size={14} />} />
+                                <InfoField type="text" label="Associate" value={formData.associate}  isEditing={isEditing} readOnly={!isEditing} icon={<User size={14} />} />
+                                <InfoField type="select" label="Source" value={formData.source} onChange={v => setFormData({ ...formData, source: v })} isEditing={isEditing} icon={<Globe size={14} />} options={["Facebook", "Instagram", "Google", "Referral", "Walk-in", "Whatsapp", "Manual Entry"]} />
+                                <InfoField type="text" label="Enquired For" value={formData.enquiredFor} onChange={v => setFormData({ ...formData, enquiredFor: v })} isEditing={isEditing} icon={<Briefcase size={14} />} />
                             </div>
 
                             <div className="mt-8">
@@ -272,17 +244,26 @@ export default function CustomerDetailPage({ params }) {
     );
 }
 
-function InfoField({ label, value, onChange, isEditing, type = "text", options = [], readOnly = false, icon }) {
+function InfoField({ label, value, onChange, isEditing, type, options = [], readOnly = false, icon }) {
     return (
         <div className="group">
             <label className="text-xs font-bold text-slate-400 uppercase mb-1.5 flex items-center gap-1.5">{icon} {label}</label>
             {isEditing && !readOnly ? (
                 type === "select" ? (
                     <select value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-sm text-slate-700 transition-all bg-white">
-                        {options.map(o => <option key={o}>{o}</option>)}
+                        {options.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
+                ) : type === "textArea" ?   
+                
+                (
+                    <textarea
+                        value={value}
+                        onChange={e => onChange(e.target.value)}
+                        className="w-full p-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-sm bg-slate-50 transition-all"
+                        placeholder="Enter value here..."
+                    />
                 ) : (
-                    <input type={type} value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-sm text-slate-800 transition-all bg-white font-medium" />
+                    <input type={type} value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-sm text-slate-800 transition-all bg-white font-medium" disabled={label==="Associate"} />
                 )
             ) : (
                 <div className="border-b border-slate-100 py-2.5 text-slate-800 font-medium text-sm group-hover:border-emerald-100 transition-colors break-words">
