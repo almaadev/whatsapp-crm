@@ -40,10 +40,12 @@ export async function GET() {
                 }
             });
 
-            const totalLeads = userLeads.length;
-            const conversionRate = totalLeads > 0 ? Math.round((achievedCount / totalLeads) * 100) : 0;
-            
             const totalTarget = user.target || 0;
+            
+            // 1. Conversion Rate calculated based on Target
+            const conversionRate = totalTarget > 0 ? Math.round((achievedCount / totalTarget) * 100) : 0;
+            
+            // 2. Progress calculated based on Target (capped at 100%)
             const progress = totalTarget > 0 ? Math.min(100, Math.round((achievedCount / totalTarget) * 100)) : 0;
 
             return {

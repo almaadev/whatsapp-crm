@@ -22,7 +22,7 @@ export async function POST(req) {
     }
 
     if (!phone) {
-      console.log("❌ Missing Phone Number in JSON");
+      
       return NextResponse.json({ error: "Missing phone" }, { status: 400 });
     }
 

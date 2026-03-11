@@ -31,7 +31,6 @@ export default function AdminDashboard() {
         if (data.success) {
             setAssociates(data.roster);
 
-            // Global totals
             let tPending = 0, tFollowUp = 0, tAchieved = 0;
             data.roster.forEach(a => {
                 tPending += a.pendingCount;
@@ -57,12 +56,21 @@ export default function AdminDashboard() {
   const saveEdit = async (id) => {
     const associate = associates.find(a => a.id === id);
     if (!associate) return;
+    
     setAssociates(prev => prev.map(a => a.id === id ? { ...a, target: Number(tempTarget) } : a));
     setEditingId(null);
+    
+    const totalLeads = associate.pendingCount + associate.followUpCount + associate.achievedCount;
+    
     await fetch("/api/users", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rowId: id, target: tempTarget, leads: associate.leads, achieved: associate.achieved }),
+      body: JSON.stringify({ 
+          rowId: id, 
+          target: tempTarget, 
+          leads: totalLeads, 
+          achieved: associate.achievedCount 
+      }),
     });
   };
 
@@ -104,7 +112,6 @@ export default function AdminDashboard() {
             </Link>
           </div>
 
-          {/* 1. COMPANY PERFORMANCE CARD */}
           <div className="bg-slate-900 rounded-2xl shadow-xl p-8 text-white relative overflow-hidden">
             <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
               <div>
@@ -126,7 +133,6 @@ export default function AdminDashboard() {
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/5 rounded-full blur-3xl -ml-10 -mb-10 pointer-events-none"></div>
           </div>
 
-          {/* 2. FOLLOW UP ANALYTICS */}
           <div className="grid lg:grid-cols-3 gap-6"> 
              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 has-tooltip cursor-pointer" data-tooltip="Leads inactive for over 48 hours will be marked as pending.">
                  <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0"><Clock size={24} /></div>
@@ -151,7 +157,6 @@ export default function AdminDashboard() {
              </div>
           </div>
 
-          {/* 3. ASSOCIATE ROSTER */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white/50 backdrop-blur-sm">
               <h3 className="font-bold text-slate-800 flex items-center gap-2">

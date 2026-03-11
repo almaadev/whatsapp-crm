@@ -24,7 +24,7 @@ export default function CustomersPage() {
     useEffect(() => {
         const fetchCustomers = async () => {
             try {
-                const res = await fetch("/api/contacts");
+                const res = await fetch("/api/leads");
                 const data = await res.json();
                 if (res.ok && Array.isArray(data)) {
                     setRawCustomers(data);
@@ -38,12 +38,10 @@ export default function CustomersPage() {
         fetchCustomers();
     }, []);
 
-    // Grouping logic to show unique customers with their latest data
     const processedCustomers = useMemo(() => {
         const grouped = {};
         rawCustomers.forEach(item => {
             const cleanPhone = item.phone?.replace(/\D/g, '') || "unknown";
-            // Keeps the newest record because API returns sorted by date
             if (!grouped[cleanPhone]) {
                 grouped[cleanPhone] = item;
             }
@@ -55,7 +53,8 @@ export default function CustomersPage() {
             const lower = searchTerm.toLowerCase();
             arr = arr.filter(c => 
                 (c.name && c.name.toLowerCase().includes(lower)) || 
-                (c.phone && c.phone.includes(lower))
+                (c.phone && c.phone.includes(lower)) ||
+                (c.city && c.city.toLowerCase().includes(lower))
             );
         }
         return arr;
@@ -86,7 +85,8 @@ export default function CustomersPage() {
                             <Search size={16} className="text-slate-400" />
                             <input 
                                 type="text" 
-                                placeholder="Search by name or phone..." 
+                                placeholder="Search customers..."
+                                title="Search customers by name, phone, or city" 
                                 className="bg-transparent border-none outline-none text-sm ml-2 w-full text-slate-700 placeholder:text-slate-400"
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
@@ -100,7 +100,8 @@ export default function CustomersPage() {
                         <Search size={16} className="text-slate-400" />
                         <input 
                             type="text" 
-                            placeholder="Search by name or phone..." 
+                            placeholder="Search customers..." 
+                            title="Search customers by name, phone, or city"
                             className="bg-transparent border-none outline-none text-sm ml-2 w-full text-slate-700"
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}

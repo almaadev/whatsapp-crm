@@ -51,7 +51,7 @@ export default function LeadsPage() {
     const fetchRecentLeads = async () => {
         setFetchingLeads(true);
         try {
-            const res = await fetch("/api/contacts");
+            const res = await fetch("/api/leads");
             const data = await res.json();
             if (res.ok) setRawLeads(data);
         } catch (err) {
@@ -108,7 +108,8 @@ export default function LeadsPage() {
         const lowerTerm = searchTerm.toLowerCase();
         return leadArray.filter(lead =>
             (lead.name && lead.name.toLowerCase().includes(lowerTerm)) ||
-            (lead.phone && lead.phone.includes(lowerTerm))
+            (lead.phone && lead.phone.includes(lowerTerm)) ||
+            (lead.city && lead.city.toLowerCase().includes(lowerTerm))
         );
     }, [rawLeads, searchTerm]);
 
@@ -137,7 +138,7 @@ export default function LeadsPage() {
         }
 
         try {
-            const res = await fetch("/api/contacts", {
+            const res = await fetch("/api/leads", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ ...formData, checkDuplicates: false }),
@@ -176,7 +177,7 @@ export default function LeadsPage() {
                         <h1 className="text-lg font-bold text-slate-800 whitespace-nowrap">Leads Management</h1>
                         <div className="hidden md:flex items-center ml-6 bg-slate-100 rounded-xl px-3 py-1.5 border border-slate-200 focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all w-64">
                             <Search size={16} className="text-slate-400" />
-                            <input type="text" placeholder="Search leads..." className="bg-transparent border-none outline-none text-sm ml-2 w-full text-slate-700 placeholder:text-slate-400" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                            <input type="text" placeholder="Search leads..." title="Search name or phone or city" className="bg-transparent border-none outline-none text-sm ml-2 w-full text-slate-700 placeholder:text-slate-400" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                         </div>
                     </div>
                     <div className="flex items-center gap-3 w-full md:w-auto justify-end">
@@ -189,7 +190,7 @@ export default function LeadsPage() {
                     </div>
                     <div className="flex md:hidden w-full items-center bg-slate-100 rounded-xl px-3 py-2 border border-slate-200">
                         <Search size={16} className="text-slate-400" />
-                        <input type="text" placeholder="Search name or phone..." className="bg-transparent border-none outline-none text-sm ml-2 w-full text-slate-700" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                        <input type="text" placeholder="Search leads..." title="Search name or phone or city" className="bg-transparent border-none outline-none text-sm ml-2 w-full text-slate-700" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                     </div>
                 </header>
 
@@ -276,7 +277,7 @@ export default function LeadsPage() {
                                                         <option value="New">New</option>
                                                         <option value="Follow Up">Follow Up</option>
                                                         <option value="Closed">Closed</option>
-                                                        <option value="Enquired for">Enquired for</option>
+                                                        
                                                     </select>
                                                 </div>
                                             </div>
@@ -308,7 +309,7 @@ export default function LeadsPage() {
                                             <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Enquired for</label>
                                             <div className="relative group">
                                                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Tag size={16} /></div>
-                                                <input type="text" name="Enquired for" placeholder="e.g., therapy" value={formData.enquiredFor} onChange={handleChange} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium" />
+                                                <input type="text" name="enquiredFor" placeholder="e.g., therapy" value={formData.enquiredFor} onChange={handleChange} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium" />
                                             </div>
                                         </div>
 

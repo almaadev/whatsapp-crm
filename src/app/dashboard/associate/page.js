@@ -3,14 +3,12 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import Sidebar from "@/components/layout/Sidebar";
-import { useChatStore } from "@/store/chatStore";
 import { useRouter } from "next/navigation";
-import { TrendingUp, Users, Clock, Menu, Inbox, CheckCircle, BarChart3, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
+import { TrendingUp, Users, Clock, Menu, Inbox, ChevronLeft, ChevronRight, User } from "lucide-react";
 
 export default function AssociateDashboard() {
     const { data: session } = useSession();
     const router = useRouter();
-    const setSelectedChat = useChatStore((s) => s.setSelectedChat);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     const [stats, setStats] = useState({ target: 0, achieved: 0, pending: 0, followUp: 0, closed: 0, conversionRate: 0, total: 0 });
@@ -38,49 +36,72 @@ export default function AssociateDashboard() {
                 const users = await userRes.json();
                 const me = users.find(u => u.email === session.user.email);
 
-                // Fetch Chats for Live Stats
-                const chatRes = await fetch("/api/chats");
-                const chats = await chatRes.json();
+                // Fetch Contacts (Leads + Customers)
+                const contactsRes = await fetch("/api/contacts");
+                const contacts = await contactsRes.json();
 
-                // 1. Unique Leads Logic (Latest Status)
-                const uniqueLeads = Object.values(chats.reduce((acc, msg) => {
-                    if (!acc[msg.phone]) acc[msg.phone] = msg;
-                    return acc;
-                }, {}));
+                // 1. Filter ONLY My Leads
+                const myLeads = contacts.filter(l => l.associate === session.user.name);
 
-                // 2. Filter My Leads
-                const myLeads = uniqueLeads.filter(l => l.currentHandler === session.user.name);
+                let pending = 0;
+                let followUp = 0;
+                let closedThisMonth = 0;
 
-                // 3. Calculate Stats based on Status
-                // Pending = "New" OR "Not Closed"
-                const pending = myLeads.filter(l => l.status === "New" || l.status === "Not Closed" || l.status === "Not Interested").length;
-                
-                // Follow Up = "Follow Up" only
-                const followUp = myLeads.filter(l => l.status === "Follow Up").length;
-                
-                // Closed (Active in pipeline)
-                const closedActive = myLeads.filter(l => l.status === "Closed").length; 
-                
-                // Historical Achievement (from User Profile)
-                const achievedTotal = me ? parseInt(me.achieved || 0) : 0;
-                
-                // Total Interactions
-                const totalInteractions = pending + followUp + closedActive;
+                const now = new Date();
+                const currentMonth = now.getMonth();
+                const currentYear = now.getFullYear();
 
-                // Conversion Rate
-                const conversionRate = totalInteractions > 0 ? Math.round((closedActive / totalInteractions) * 100) : 0;
+                // 2. Calculate Stats
+                myLeads.forEach(lead => {
+                    const leadDate = new Date(lead.date);
 
-                setStats({
-                    target: me ? parseInt(me.target || 0) : 0,
-                    achieved: achievedTotal, 
-                    pending,
-                    followUp,
-                    closed: closedActive,
-                    conversionRate,
-                    total: totalInteractions
+                    if (lead.status === "Closed" || lead.isClosed) {
+                        // Monthly target logic: Only count if closed in the current month
+                        if (leadDate.getMonth() === currentMonth && leadDate.getFullYear() === currentYear) {
+                            closedThisMonth++;
+                        }
+                    } else if (lead.status === "Follow Up") {
+                        const followUpDate = lead.followUpStart ? new Date(lead.followUpStart) : leadDate;
+                        const hoursDiff = (now - followUpDate) / (1000 * 60 * 60);
+                        
+                        if (hoursDiff > 48) {
+                            pending++; // Over 48 hours is Pending
+                        } else {
+                            followUp++; // Under 48 hours is active Follow Up
+                        }
+                    } else if (lead.status !== "Not Interested" && lead.status !== "Not Closed") {
+                        // New and other statuses are Pending action items
+                        pending++;
+                    }
                 });
 
-                setLeads(myLeads.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
+                // 3. Deduplicate Leads for the table view: Only keep the latest interaction per customer
+                const uniqueLeadsMap = new Map();
+                
+                // Sort by date descending first, so the first one we iterate over is the latest one
+                myLeads.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(lead => {
+                    if (!uniqueLeadsMap.has(lead.phone)) {
+                        uniqueLeadsMap.set(lead.phone, lead);
+                    }
+                });
+
+                const uniqueLeads = Array.from(uniqueLeadsMap.values());
+
+                const target = me ? parseInt(me.target || 0) : 0;
+                const totalInteractions = pending + followUp + closedThisMonth;
+                const conversionRate = totalInteractions > 0 ? Math.round((closedThisMonth / totalInteractions) * 100) : 0;
+
+                setStats({
+                    target,
+                    achieved: closedThisMonth, 
+                    pending,
+                    followUp,
+                    closed: closedThisMonth,
+                    conversionRate,
+                    total: uniqueLeads.length // Total distinct customers
+                });
+
+                setLeads(uniqueLeads);
 
             } catch (err) {
                 console.error("Dashboard Load Error:", err);
@@ -88,17 +109,11 @@ export default function AssociateDashboard() {
         }
 
         loadData();
-        // Poll every 10s to keep stats updated "same time"
+        // Poll every 10s to keep stats updated
         const interval = setInterval(loadData, 10000);
         return () => clearInterval(interval);
 
     }, [session]);
-
-    const handleNavigateToChat = (lead) => {
-        const chatObj = { ...lead, history: [lead] };
-        setSelectedChat(chatObj);
-        router.push("/dashboard/chat");
-    };
 
     // Pagination
     const indexOfLastItem = currentPage * itemsPerPage;
@@ -133,7 +148,6 @@ export default function AssociateDashboard() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <StatWidget label="Total Leads" value={stats.total} icon={<Inbox size={20} />} color="text-slate-600" bg="bg-slate-100" border="border-slate-200" />
                         
-                        {/* Pending includes 'New' and 'Not Closed' */}
                         <StatWidget label="Pending" value={stats.pending} icon={<Clock size={20} />} color="text-blue-600" bg="bg-blue-50" border="border-blue-100" />
                         
                         <StatWidget label="Follow Ups" value={stats.followUp} icon={<Users size={20} />} color="text-amber-600" bg="bg-amber-50" border="border-amber-100" />
@@ -187,10 +201,13 @@ export default function AssociateDashboard() {
                                                         <StatusBadge status={lead.status} />
                                                     </td>
                                                     <td className="px-6 py-4 text-right">
-                                                        <button onClick={() => handleNavigateToChat(lead)} className="inline-flex items-center gap-2 text-slate-500 hover:text-emerald-600 font-bold text-xs border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-emerald-50 hover:border-emerald-200 transition-all">
-                                                            <MessageSquare size={14} /> 
-                                                            <span className="hidden sm:inline">Open Chat</span>
-                                                            <span className="sm:hidden">Chat</span>
+                                                        <button 
+                                                            onClick={() => router.push(`/dashboard/leads/${lead.phone}`)} 
+                                                            className="inline-flex items-center gap-2 text-slate-500 hover:text-emerald-600 font-bold text-xs border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-emerald-50 hover:border-emerald-200 transition-all"
+                                                        >
+                                                            <User size={14} /> 
+                                                            <span className="hidden sm:inline">View Lead</span>
+                                                            <span className="sm:hidden">View</span>
                                                         </button>
                                                     </td>
                                                 </tr>

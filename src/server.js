@@ -17,7 +17,7 @@ app.prepare().then(() => {
 
   const io = new Server(httpServer, {
     cors: {
-      origin: "*", // Allow connections from any origin (adjust for production)
+      origin: "*",
       methods: ["GET", "POST"]
     }
   });

@@ -29,6 +29,7 @@ export default function LeadDetailsPage({ params }) {
     const [lead, setLead] = useState(null);
     const [loading, setLoading] = useState(true);
     const [copied, setCopied] = useState(false);
+   
 
     useEffect(() => {
         if (!phone) return;
@@ -36,7 +37,7 @@ export default function LeadDetailsPage({ params }) {
         const fetchLeadDetails = async () => {
             try {
                 setLoading(true);
-                const res = await fetch("/api/contacts");
+                const res = await fetch("/api/leads",{ cache: 'no-store' });
                 const data = await res.json();
 
                 if (res.ok && Array.isArray(data)) {
@@ -55,7 +56,7 @@ export default function LeadDetailsPage({ params }) {
                                 status: item.status,
                                 enquiredFor: item.enquiredFor,
                                 remarks: item.remarks,
-                                handler: item.handler
+                                handler: item.associate
                             });
                         }
                     });
@@ -74,6 +75,7 @@ export default function LeadDetailsPage({ params }) {
 
         fetchLeadDetails();
     }, [phone]);
+
 
     const handleCopyPhone = () => {
         if (lead?.phone) {
@@ -192,10 +194,10 @@ export default function LeadDetailsPage({ params }) {
                                             <div className="px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
                                                 <span className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-0.5">Status</span>
                                                 <span className={`inline-flex items-center gap-1.5 text-sm font-bold ${lead.status === 'Closed' ? 'text-emerald-600' :
-                                                        lead.status === 'Follow Up' ? 'text-amber-600' : 'text-blue-600'
+                                                    lead.status === 'Follow Up' ? 'text-amber-600' : 'text-blue-600'
                                                     }`}>
                                                     <span className={`w-2 h-2 rounded-full ${lead.status === 'Closed' ? 'bg-emerald-500' :
-                                                            lead.status === 'Follow Up' ? 'bg-amber-500' : 'bg-blue-500'
+                                                        lead.status === 'Follow Up' ? 'bg-amber-500' : 'bg-blue-500'
                                                         }`}></span>
                                                     {lead.status}
                                                 </span>
@@ -245,14 +247,32 @@ export default function LeadDetailsPage({ params }) {
                                             </div>
                                         </div>
 
-                                        <div>
-                                            <p className="text-xs text-slate-400 font-bold uppercase mb-1.5 flex items-center gap-1.5">
-                                                <User size={12} />Previous Handler
-                                            </p>
-                                            <div className="bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-100 font-medium text-slate-700 text-sm">
-                                                {lead.handler || "Unassigned"}
-                                            </div>
-                                        </div>
+                                        {(() => {
+                                            // 1. Check if the lead is closed
+                                            const isClosed = lead.status === 'Closed' || lead.isClosed;
+
+                                            // 2. Determine the Label (Current vs Previous)
+                                            const handlerLabel = isClosed ? "Previous Associate" : "Current Associate";
+
+                                            // 3. Fetch the actual handler name from the API's 'associate' property
+                                            const handlerName = lead.associate && lead.associate.trim() !== "" ? lead.associate : "Unassigned";
+
+                                            // 4. Check if the logged-in user is the handler
+                                            const displayHandler = (handlerName !== "Unassigned" && handlerName === session?.user?.name)
+                                                ? "You"
+                                                : handlerName;
+
+                                            return (
+                                                <div>
+                                                    <p className="text-xs text-slate-400 font-bold uppercase mb-1.5 flex items-center gap-1.5">
+                                                        <User size={12} /> {handlerLabel}
+                                                    </p>
+                                                    <div className="bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-100 font-medium text-slate-700 text-sm">
+                                                        {displayHandler}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
 

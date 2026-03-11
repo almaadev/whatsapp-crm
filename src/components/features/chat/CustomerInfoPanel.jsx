@@ -11,11 +11,11 @@ export default function CustomerInfoPanel({ isOpen, onClose }) {
   const [loading, setLoading] = useState(false);
   const [leadHistory, setLeadHistory] = useState([]);
 
-const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState({
     name: "", city: "", address: "",
-    source: "Facebook", enquiredFor: "", status: "New", 
+    source: "Facebook", enquiredFor: "", status: "New",
     saleAmount: "", remarks: "", day1Remarks: "", day2Remarks: "", day3Remarks: ""
-});
+  });
 
   useEffect(() => {
     if (selectedChat) {
@@ -32,23 +32,21 @@ const [formData, setFormData] = useState({
         day2Remarks: selectedChat.day2Remarks || "",
         day3Remarks: selectedChat.day3Remarks || ""
       });
-
-      if (selectedChat.phone) {
-        // Extract just the number (e.g., +91... )
-        const rawPhone = selectedChat.phone.replace('whatsapp:', '');
-
-        // Use encodeURIComponent so the '+' safely travels through the URL
-        fetch(`/api/leads/${encodeURIComponent(rawPhone)}`)
-          .then(res => res.json())
-          .then(data => {
-            if (data.success) 
-              
-              setLeadHistory(data.leads); // Ensure it's an array
-          })
-          .catch(err => console.error("Failed to fetch lead history", err));
-      }
     }
-  }, [selectedChat?.phone]); // Re-run when chat changes
+  }, [selectedChat?.phone]);
+
+  // 2. Fetch Lead History when switching chats OR when the status changes to closed!
+  useEffect(() => {
+    if (selectedChat?.phone) {
+      const rawPhone = selectedChat.phone.replace('whatsapp:', '');
+      fetch(`/api/leads/${encodeURIComponent(rawPhone)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) setLeadHistory(data.leads);
+        })
+        .catch(err => console.error("Failed to fetch lead history", err));
+    }
+  }, [selectedChat?.phone, selectedChat?.status]);
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
@@ -56,7 +54,7 @@ const [formData, setFormData] = useState({
     if (!selectedChat) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/contacts", {
+      const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -71,7 +69,6 @@ const [formData, setFormData] = useState({
       // Update local store immediately
       updateChatDetails(selectedChat.phone, {
         ...formData,
-        // Map interest back to store property if needed
         interest: formData.enquiredFor
       });
 
@@ -187,7 +184,7 @@ const [formData, setFormData] = useState({
         </div>
 
 
-        {leadHistory && leadHistory.length > 1 && (
+        {leadHistory && leadHistory.length > 0 && (
           <div className="space-y-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
             <h3 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-3 flex items-center gap-2">
               <List size={16} className="text-emerald-600" /> Last Closed Enquiry
@@ -195,14 +192,28 @@ const [formData, setFormData] = useState({
 
             <div className="space-y-4">
               {leadHistory
-                // 1. Keep track of the original index so "Visit X" calculates correctly
+                .map((l, i) => {
+                  // Optimistically merge current typing/status into the current active lead (index 0)
+                  if (i === 0) {
+                    return {
+                      ...l,
+                      status: formData.status === 'Closed' ? 'Closed' : (selectedChat?.status || l.status),
+                      isClosed: formData.status === 'Closed' || selectedChat?.status === 'Closed' || l.isClosed,
+                      enquiredFor: formData.enquiredFor || l.enquiredFor,
+                      remarks: formData.remarks || l.remarks,
+                      day1Remarks: formData.day1Remarks || l.day1Remarks,
+                      day2Remarks: formData.day2Remarks || l.day2Remarks,
+                      day3Remarks: formData.day3Remarks || l.day3Remarks,
+                    };
+                  }
+                  return l;
+                })
                 .map((lead, index) => ({ lead, originalIndex: index }))
-                // 2. Ignore the current active lead (index 0), and only keep "Closed" status
-                .filter(({ lead, originalIndex }) => originalIndex !== 0 && (lead.status === 'Closed' || lead.isClosed))
-                // 3. Take ONLY the first one (which is the most recent past closed lead)
+                // Look for closed leads. If the current lead (index 0) is closed, it will immediately show!
+                .filter(({ lead }) => lead.status === 'Closed' || lead.isClosed)
                 .slice(0, 1)
                 .map(({ lead, originalIndex }) => (
-                  <div key={lead._id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 shadow-sm">
+                  <div key={lead._id || originalIndex} className="p-3 bg-slate-50 rounded-xl border border-slate-200 shadow-sm">
                     <div className="flex justify-between items-center mb-2">
                       <span className="font-bold text-emerald-700 text-sm">Visit {leadHistory.length - originalIndex}</span>
                       <span className="text-[10px] px-2 py-1 rounded-full font-bold uppercase tracking-wide bg-emerald-100 text-emerald-700">
@@ -215,7 +226,6 @@ const [formData, setFormData] = useState({
                       <p className="text-xs text-slate-600 truncate"><strong className="text-slate-800">Assigned:</strong> {lead.assignedTo}</p>
                     </div>
 
-                    {/* Read-only Follow Up Remarks tied to this past visit */}
                     <div className="mt-2 text-xs text-slate-700 space-y-1.5 bg-white p-2.5 rounded-lg border border-slate-100">
                       <p className="font-bold text-slate-400 uppercase text-[10px] mb-1">Follow-up Notes</p>
                       {lead.day1Remarks ? <p><span className="font-semibold text-slate-800">Day 1:</span> {lead.day1Remarks}</p> : null}
@@ -229,11 +239,13 @@ const [formData, setFormData] = useState({
                     </div>
                   </div>
                 ))}
-                
+
               {/* Fallback if they have past history but none of them are closed yet */}
-              {leadHistory.filter((l, idx) => idx !== 0 && (l.status === 'Closed' || l.isClosed)).length === 0 && (
-                 <p className="text-xs text-slate-400 italic text-center py-2">No previously closed enquiries found.</p>
-              )}
+              {leadHistory
+                .map((l, i) => i === 0 ? { ...l, status: formData.status === 'Closed' ? 'Closed' : (selectedChat?.status || l.status), isClosed: formData.status === 'Closed' || selectedChat?.status === 'Closed' || l.isClosed } : l)
+                .filter(l => l.status === 'Closed' || l.isClosed).length === 0 && (
+                  <p className="text-xs text-slate-400 italic text-center py-2">No previously closed enquiries found.</p>
+                )}
             </div>
           </div>
         )}

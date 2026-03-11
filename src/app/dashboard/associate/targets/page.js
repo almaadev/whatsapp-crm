@@ -20,7 +20,6 @@ export default function TargetReportPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Removed monthlyTrends from the initial state
   const [report, setReport] = useState({
     current: { attended: 0, pending: 0, closed: 0, amount: 0, target: 0 },
     last: { attended: 0, pending: 0, closed: 0, amount: 0 },
@@ -32,25 +31,19 @@ export default function TargetReportPage() {
 
     async function loadData() {
       try {
-        const [userRes, chatRes] = await Promise.all([
+        const [userRes, contactsRes] = await Promise.all([
             fetch("/api/users"),
-            fetch("/api/chats")
+            fetch("/api/contacts") 
         ]);
 
         const users = await userRes.json();
-        const chats = await chatRes.json();
+        const contacts = await contactsRes.json();
 
         const me = users.find(u => u.email === session.user.email);
-        const myTarget = me ? me.target : 0;
-
-        // Unique Leads Map
-        const uniqueLeads = Object.values(chats.reduce((acc, msg) => {
-            if (!acc[msg.phone]) acc[msg.phone] = msg;
-            return acc;
-        }, {}));
+        const myTarget = me ? parseInt(me.target || "0", 10) : 0;
 
         // Filter: ONLY MY LEADS
-        const myLeads = uniqueLeads.filter(l => l.currentHandler === session.user.name);
+        const myLeads = contacts.filter(l => l.associate === session.user.name);
 
         const now = new Date();
         const currentMonth = now.getMonth(); 
@@ -64,44 +57,49 @@ export default function TargetReportPage() {
         const currentStats = { attended: 0, pending: 0, closed: 0, amount: 0, target: myTarget };
         const lastStats = { attended: 0, pending: 0, closed: 0, amount: 0 };
         
-        // Follow-up Specific Stats
-        const followUpStats = { total: 0, converted: 0, pending: 0, dropped: 0 };
+        // Total Initiated = Total leads attended by this associate
+        const followUpStats = { total: myLeads.length, converted: 0, pending: 0, dropped: 0 };
         
-
         myLeads.forEach(lead => {
-            const leadDate = lead.timestamp ? new Date(lead.timestamp) : new Date();
+            const leadDate = lead.date ? new Date(lead.date) : new Date();
             const m = leadDate.getMonth();
             const y = leadDate.getFullYear();
-            const amount = parseInt(lead.saleAmount || "0");
+            
+            const amount = parseInt(lead.saleAmount || "0", 10) || 0;
+            const isClosed = lead.status === "Closed" || lead.isClosed;
             
             // --- General Monthly Stats ---
             if (m === currentMonth && y === currentYear) {
                 currentStats.attended++;
-                if (lead.status === "Closed") {
+                if (isClosed) {
                     currentStats.closed++;
                     currentStats.amount += amount;
-                } else if (lead.status === "New") {
+                } else if (lead.status !== "Not Interested" && lead.status !== "Not Closed") {
                     currentStats.pending++;
                 }
             } else if (m === lastMonth && y === lastYear) {
                 lastStats.attended++;
-                if (lead.status === "Closed") {
+                if (isClosed) {
                     lastStats.closed++;
                     lastStats.amount += amount;
                 }
             }
 
-            // --- Follow Up Analytics (The Upgrade) ---
-            // Check if this lead EVER entered follow-up (Column Q exists)
-            if (lead.followUpStartDate) {
-                followUpStats.total++; // Total Initiated
+            // --- Follow Up Analytics Pipeline ---
+            
+            // Converted: Closed Follow-ups
+            if (isClosed) {
+                followUpStats.converted++;
+            }
 
-                if (lead.status === "Closed") {
-                    followUpStats.converted++; // Converted from Follow-up
-                } else if (lead.status === "Follow Up") {
-                    followUpStats.pending++; // Still Active
-                } else if (lead.status === "Not Interested") {
-                    followUpStats.dropped++; // Lost
+            // Active Pending: Follow ups BELOW 48 HOURS
+            if (lead.status === "Follow Up" && !isClosed) {
+                const followUpDate = lead.followUpStart ? new Date(lead.followUpStart) : leadDate;
+                const hoursDiff = (now - followUpDate) / (1000 * 60 * 60);
+                
+                // Only count as active pending if it's strictly <= 48 hours
+                if (hoursDiff <= 48) {
+                    followUpStats.pending++; 
                 }
             }
         });
@@ -128,8 +126,6 @@ export default function TargetReportPage() {
     ? Math.min(100, Math.round((report.current.closed / report.current.target) * 100)) 
     : 0;
 
-  // REMOVED: getMaxVal and maxChartVal calculations that were causing the crash
-
   return (
     <div className="flex h-[100dvh] bg-slate-50">
       <Sidebar role={session.user.role} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
@@ -153,7 +149,7 @@ export default function TargetReportPage() {
             ) : (
                 <div className="space-y-8">
                     
-                    {/* SECTION 1: MONTHLY GOALS (Existing) */}
+                    {/* SECTION 1: MONTHLY GOALS */}
                     <div className="grid md:grid-cols-2 gap-6">
                         {/* Current Month */}
                         <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden relative group hover:shadow-md transition-all">
@@ -245,7 +241,7 @@ export default function TargetReportPage() {
                                 <div>
                                     <p className="text-3xl font-bold text-slate-900">{report.followUp.pending}</p>
                                     <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Active Pending</p>
-                                    <p className="text-[10px] text-slate-400 mt-0.5">Currently in follow-up</p>
+                                    <p className="text-[10px] text-slate-400 mt-0.5">Currently in follow-up ({"<"} 2 days)</p>
                                 </div>
                             </div>
 
@@ -258,23 +254,23 @@ export default function TargetReportPage() {
                                 <div className="z-10">
                                     <p className="text-3xl font-bold text-emerald-700">{report.followUp.converted}</p>
                                     <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Converted</p>
-                                    <p className="text-[10px] text-emerald-600/70 mt-0.5">Closed via Follow-up</p>
+                                    <p className="text-[10px] text-emerald-600/70 mt-0.5">Closed Follow-ups count</p>
                                 </div>
                             </div>
 
-                            {/* Card 3: Conversion Rate */}
+                            {/* Card 3: Success Rate */}
                             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
                                 <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
                                     <BarChart3 size={24} />
                                 </div>
                                 <div>
                                     <p className="text-3xl font-bold text-slate-900">
-                                        {report.followUp.total > 0 
-                                            ? Math.round((report.followUp.converted / report.followUp.total) * 100) 
+                                        {report.current.target > 0 
+                                            ? Math.round((report.current.closed / report.current.target) * 100) 
                                             : 0}%
                                     </p>
                                     <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Success Rate</p>
-                                    <p className="text-[10px] text-slate-400 mt-0.5">Conversion efficacy</p>
+                                    <p className="text-[10px] text-slate-400 mt-0.5">Calculated by Target</p>
                                 </div>
                             </div>
                         </div>
@@ -285,4 +281,4 @@ export default function TargetReportPage() {
       </main>
     </div>
   );
-}   
+}

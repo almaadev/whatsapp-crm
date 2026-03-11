@@ -8,7 +8,6 @@ import {
   ChevronLeft, Download, Calendar, TrendingUp, Users, 
   CheckCircle, CreditCard, Clock, Activity 
 } from "lucide-react";
-import { useHumanDate } from "@/hooks/useHumanDate";
 
 export default function AdminReportsPage() {
   const { data: session } = useSession();
@@ -153,7 +152,7 @@ export default function AdminReportsPage() {
                                     bg="bg-amber-50" 
                                 />
                                 <StatBox 
-                                    label="Pending" 
+                                    label="Pending (> 48 Hrs)" 
                                     value={report.current.pending} 
                                     icon={<Clock size={16}/>} 
                                     color="text-rose-600" 
@@ -193,7 +192,7 @@ export default function AdminReportsPage() {
                                 <StatBoxDark label="Total Enquiries" value={report.last.totalLeads} />
                                 <StatBoxDark label="Successfully Closed" value={report.last.closed} />
                                 <StatBoxDark label="Active Follow Ups" value={report.last.followUps} />
-                                <StatBoxDark label="Pending" value={report.last.pending} />
+                                <StatBoxDark label="Pending (> 48 Hrs)" value={report.last.pending} />
                             </div>
                         </div>
                         

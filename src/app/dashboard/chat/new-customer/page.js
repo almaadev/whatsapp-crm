@@ -92,7 +92,7 @@ export default function NewCustomerPage() {
     const formattedPhone = `whatsapp:+91${cleanMobile.slice(-10)}`;
 
     try {
-      const res = await fetch("/api/contacts", {
+      const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

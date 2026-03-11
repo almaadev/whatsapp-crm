@@ -7,6 +7,8 @@ import Lead from "@/models/Lead";
 import User from "@/models/User";
 import redis from "@/lib/redis";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req) {
   try {
     await connectDB();

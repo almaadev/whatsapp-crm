@@ -104,9 +104,7 @@ export function useChat(role) {
     });
 
     socket.on("message_status_update", ({ sid, status }) => {
-        console.log(`📡 Status Update Received for SID ${sid}: ${status}`);
-        
-        // Find the message in the store that matches this SID and update its status
+
         const state = useChatStore.getState();
         const allChats = state.messages;
         
@@ -114,13 +112,11 @@ export function useChat(role) {
             if (chat.history) {
                 const msgToUpdate = chat.history.find(m => m.twilioSid === sid);
                 if (msgToUpdate) {
-                    // Update by passing phone, temporary ID (which acts as unique id here) and new status
                     updateMessageStatus(chat.phone, msgToUpdate.tempId || msgToUpdate.id, status);
                 }
             }
         });
     });
-    // =========================================================
 
     return () => {
         if (socketRef.current) {

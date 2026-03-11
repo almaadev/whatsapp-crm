@@ -287,7 +287,6 @@ export default function ChatArea() {
 
     const displayName = activeChat.name || activeChat.phone.replace("whatsapp:", "");
 
-    // --- CHANGED LOGIC: Always return plain "Follow Up" ---
     const followUpLabel = "Follow Up";
 
     return (
@@ -407,58 +406,83 @@ export default function ChatArea() {
                     const showDateHeader = index === 0 || (previousMsgDate && currentMsgDate.toDateString() !== previousMsgDate.toDateString());
 
                     return (
-                        <div key={index}>
+                        <div key={index} className="w-full flex flex-col">
                             {showDateHeader && <div className="flex justify-center my-4 sticky top-2 z-10"><span className="bg-white/90 backdrop-blur text-slate-500 text-[11px] font-medium px-3 py-1 rounded-lg shadow-sm">{getDayHeader(currentMsgDate)}</span></div>}
-
-                            <div className={`flex ${isMe ? "justify-end" : "justify-start"} group mb-1`}>
-                                <div className={`relative px-3 py-1.5 max-w-[80%] md:max-w-[60%] rounded-lg shadow-sm text-sm leading-relaxed ${isMe ? "bg-[#d9fdd3] text-slate-900 rounded-tr-none" : "bg-white text-slate-900 rounded-tl-none"}`}>
+                            
+                            <div className={`flex w-full ${isMe ? "justify-end" : "justify-start"} group mb-1 min-w-0`}>
+                                                                
+                                <div className={`relative px-3 py-1.5 max-w-[85%] sm:max-w-[75%] md:max-w-[65%] min-w-0 break-words rounded-lg shadow-sm text-sm leading-relaxed ${isMe ? "bg-[#d9fdd3] text-slate-900 rounded-tr-none" : "bg-white text-slate-900 rounded-tl-none"}`}>
 
                                     {/* Media */}
                                     {msg.mediaUrl && msg.mediaUrl.startsWith("http") && (
                                         <div className="mb-1 rounded overflow-hidden">
                                             {msg.mediaType?.includes("video") ? (
                                                 <div className="cursor-pointer" onClick={() => setSelectedMedia({ url: msg.mediaUrl, type: msg.mediaType })} title="Play Video">
-                                                    <video src={msg.mediaUrl} className="max-w-full max-h-[300px]" />
+                                                    <video src={msg.mediaUrl} className="w-full max-w-[300px] h-auto rounded" />
                                                 </div>
                                             ) : msg.mediaType?.includes("audio") ? (
                                                 <div className="pt-1" title="Play audio">
-                                                    <audio src={msg.mediaUrl} controls className="max-w-full w-[240px] h-10" />
+                                                    <audio src={msg.mediaUrl} controls className="w-full max-w-[240px] h-10" />
                                                 </div>
                                             ) : msg.mediaType?.includes("pdf") || msg.mediaType?.includes("document") ? (
                                                 <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-white/60 border border-slate-200 rounded-lg hover:bg-white/90 transition-colors cursor-pointer" title="Open Document">
                                                     <div className="p-2 bg-red-100 text-red-600 rounded-lg" ><FileText size={20} /></div>
-
                                                 </a>
                                             ) : (
                                                 <div className="cursor-pointer" onClick={() => setSelectedMedia({ url: msg.mediaUrl, type: msg.mediaType })} title="Open Image">
-                                                    <img src={msg.mediaUrl} alt="Attachment" className="max-w-full max-h-[300px] object-cover" />
+                                                    <img src={msg.mediaUrl} alt="Attachment" className="w-full max-w-[300px] h-auto object-cover rounded" />
                                                 </div>
                                             )}
                                         </div>
                                     )}
 
                                     {/* Message Text */}
-                                    {msg.message && <p className="whitespace-pre-wrap break-words pr-2 pb-1">{msg.message}</p>}
-
-                                   {/* Time & Status */}
-                                    <div className="flex justify-end items-center gap-1 float-right mt-1 ml-2">
-                                        <span className="text-[10px] text-slate-500 min-w-fit">{formatBubbleTime(currentMsgDate)}</span>
-                                        {isMe && (
-                                            (() => {
-                                                
-                                                const msgStat = (msg.messageStatus || msg.status || "").toUpperCase();
-                                                return (
-                                                    <>
-                                                        {msgStat === "SENDING" && <Clock size={14} className="text-slate-400" />}
-                                                        {msgStat === "SENT" && <Check size={16} className="text-slate-400" />}
-                                                        {msgStat === "DELIVERED" && <CheckCheck size={16} className="text-slate-400" />}
-                                                        {msgStat === "READ" && <CheckCheck size={16} className="text-blue-500" />}
-                                                        {msgStat === "FAILED" && <AlertCircle size={14} className="text-red-500" />}
-                                                    </>
-                                                );
-                                            })()
-                                        )}
-                                    </div>
+                                    {/* FIX 3: Applied exact CSS styles to force breaking of continuous characters */}
+                                    {msg.message && (
+                                        <div className="whitespace-pre-wrap text-left" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                            <span>{msg.message}</span>
+                                            
+                                            {/* Time & Status */}
+                                            <span className="inline-flex items-center gap-1 float-right mt-2 ml-3">
+                                                <span className="text-[10px] text-slate-500 whitespace-nowrap">{formatBubbleTime(currentMsgDate)}</span>
+                                                {isMe && (
+                                                    (() => {
+                                                        const msgStat = (msg.messageStatus || msg.status || "").toUpperCase();
+                                                        return (
+                                                            <>
+                                                                {msgStat === "SENDING" && <Clock size={12} className="text-slate-400 shrink-0" />}
+                                                                {msgStat === "SENT" && <Check size={14} className="text-slate-400 shrink-0" />}
+                                                                {msgStat === "DELIVERED" && <CheckCheck size={14} className="text-slate-400 shrink-0" />}
+                                                                {msgStat === "READ" && <CheckCheck size={14} className="text-blue-500 shrink-0" />}
+                                                                {msgStat === "FAILED" && <AlertCircle size={12} className="text-red-500 shrink-0" />}
+                                                            </>
+                                                        );
+                                                    })()
+                                                )}
+                                            </span>
+                                        </div>
+                                    )}
+                                    
+                                    {/* Fallback Time & Status if there is NO text (e.g. only image sent) */}
+                                    {!msg.message && (
+                                        <div className="flex justify-end items-center gap-1 mt-1">
+                                            <span className="text-[10px] text-slate-500 whitespace-nowrap">{formatBubbleTime(currentMsgDate)}</span>
+                                            {isMe && (
+                                                (() => {
+                                                    const msgStat = (msg.messageStatus || msg.status || "").toUpperCase();
+                                                    return (
+                                                        <>
+                                                            {msgStat === "SENDING" && <Clock size={12} className="text-slate-400 shrink-0" />}
+                                                            {msgStat === "SENT" && <Check size={14} className="text-slate-400 shrink-0" />}
+                                                            {msgStat === "DELIVERED" && <CheckCheck size={14} className="text-slate-400 shrink-0" />}
+                                                            {msgStat === "READ" && <CheckCheck size={14} className="text-blue-500 shrink-0" />}
+                                                            {msgStat === "FAILED" && <AlertCircle size={12} className="text-red-500 shrink-0" />}
+                                                        </>
+                                                    );
+                                                })()
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -523,7 +547,7 @@ const ChatInput = memo(function ChatInput({ currentLeadStatus, followUpLabel, ge
 
     return (
         <div className="bg-[#f0f2f5] p-3 px-4 border-t border-slate-200 flex items-end gap-3 z-20">
-            
+
             <div className={`relative mb-1 ${text ? "hidden lg:block" : ""}`} ref={statusMenuRef}>
                 <button onClick={() => setIsStatusMenuOpen(!isStatusMenuOpen)} className={`h-10 px-4 rounded-full border border-slate-300 flex items-center gap-2 text-xs font-bold transition-all shadow-sm bg-white hover:bg-slate-50 text-slate-700`}>
                     {currentLeadStatus === "Follow Up" ? followUpLabel : currentLeadStatus} <ChevronDown size={14} />

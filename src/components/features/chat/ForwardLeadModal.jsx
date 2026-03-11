@@ -46,7 +46,7 @@ export default function ForwardLeadModal({ isOpen, onClose, customer, onConfirm 
         if (!selectedChat) return;
         setToggleLoading(true);
         try {
-            const res = await fetch("/api/contacts/close", {
+            const res = await fetch("/api/leads/close", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

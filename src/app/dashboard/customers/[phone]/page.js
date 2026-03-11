@@ -42,8 +42,7 @@ export default function CustomerDetailPage({ params }) {
     useEffect(() => {
         if (!session) return;
 
-        // Fetching from /api/contacts instead of /api/chats to get ALL profiles
-        fetch("/api/contacts")
+        fetch("/api/leads")
             .then(res => res.json())
             .then(data => {
                 const targetPhone = phone.replace(/\D/g, '');
@@ -74,7 +73,7 @@ export default function CustomerDetailPage({ params }) {
     const handleSave = async () => {
         setSaving(true);
         try {
-            await fetch("/api/contacts", {
+            await fetch("/api/leads", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ mobile: phone, ...formData, checkDuplicates: false }),
