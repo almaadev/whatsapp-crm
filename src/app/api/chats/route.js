@@ -162,11 +162,8 @@ export async function DELETE(req) {
 
     await connectDB();
 
-    // 👇 CHANGED: Only delete from the Message collection.
-    // Customer and Lead data will remain safely in the database.
     await Message.deleteMany({ phone: { $in: phones } });
 
-    // Clear Redis cache so the UI fetches fresh data (without the deleted messages)
     if (redis && redis.status === 'ready') {
       await redis.del("chats:all_data");
     }

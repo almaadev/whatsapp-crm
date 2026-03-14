@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Lock, Mail, ArrowRight } from "lucide-react";
 import Image from "next/image";
 import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png";
-import { toast } from "react-toastify"; // Import Toast
+import { toast } from "react-toastify";
 
 export default function LoginCard() {
   const router = useRouter();

@@ -1,4 +1,5 @@
 import { createServer } from "http";
+import { parse } from "url"; // 👈 URL parsing add panniyachu
 import next from "next";
 import { Server } from "socket.io";
 
@@ -11,8 +12,16 @@ const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
 app.prepare().then(() => {
-  const httpServer = createServer((req, res) => {
-    handle(req, res);
+  const httpServer = createServer(async (req, res) => {
+    try {
+
+      const parsedUrl = parse(req.url, true);
+      await handle(req, res, parsedUrl);
+    } catch (err) {
+      console.error("❌ Error occurred handling", req.url, err);
+      res.statusCode = 500;
+      res.end("Internal Server Error");
+    }
   });
 
   const io = new Server(httpServer, {
@@ -22,7 +31,6 @@ app.prepare().then(() => {
     }
   });
 
-  // Make 'io' globally accessible for API routes to emit events
   global.io = io;
 
   io.on("connection", (socket) => {
@@ -31,10 +39,19 @@ app.prepare().then(() => {
     socket.on("disconnect", () => {
       console.log("🔴 Client Disconnected");
     });
+    
+    // Socket errors naala server stop aagama irukka
+    socket.on("error", (err) => console.error("Socket Error:", err));
   });
+
+  // HTTP server errors naala server stop aagama irukka
+  httpServer.on("error", (err) => console.error("Server Error:", err));
 
   httpServer.listen(port, (err) => {
     if (err) throw err;
-    console.log(`> 🚀 Ready on http://${hostname}:${port}`);
+    console.log(`> 🚀 Ready on http://${hostname}:${port} (NODE_ENV: ${process.env.NODE_ENV})`);
   });
+}).catch((ex) => {
+  console.error("🚨 Next.js preparation failed:", ex.stack);
+  process.exit(1);
 });
