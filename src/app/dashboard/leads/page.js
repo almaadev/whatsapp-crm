@@ -297,7 +297,7 @@ export default function LeadsPage() {
                                         <div>
                                             <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Source</label>
                                             <select name="source" value={formData.source} onChange={handleChange} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium cursor-pointer">
-                                                <option value="Manual Entry">Manual Entry</option>
+                                                <option value="Direct">Direct</option>
                                                 <option value="Phone Call">Phone Call</option>
                                                 <option value="Google">Google</option>
                                                 <option value="WhatsApp">WhatsApp</option>

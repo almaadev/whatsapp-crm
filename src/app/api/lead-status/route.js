@@ -68,7 +68,7 @@ export async function POST(req) {
             address: customer?.address || "",
             source: customer?.source || "Whatsapp",
             enquiredFor: customer?.enquiredFor || "",
-            priority: priority || customer?.priority || "Medium",
+            priority: customer?.isClosed !== false ? customer.priority : null,
             status: status,
             assignedTo: associateName,
             associateId: associateId, // <--- New lead relation ID

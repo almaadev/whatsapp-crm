@@ -29,15 +29,14 @@ export default function LeadDetailsPage({ params }) {
     const [lead, setLead] = useState(null);
     const [loading, setLoading] = useState(true);
     const [copied, setCopied] = useState(false);
-   
-
+    
     useEffect(() => {
         if (!phone) return;
 
         const fetchLeadDetails = async () => {
             try {
                 setLoading(true);
-                const res = await fetch("/api/leads",{ cache: 'no-store' });
+                const res = await fetch("/api/leads", { cache: 'no-store' });
                 const data = await res.json();
 
                 if (res.ok && Array.isArray(data)) {
@@ -56,6 +55,9 @@ export default function LeadDetailsPage({ params }) {
                                 status: item.status,
                                 enquiredFor: item.enquiredFor,
                                 remarks: item.remarks,
+                                day1Remarks: item.day1Remarks,
+                                day2Remarks: item.day2Remarks,
+                                day3Remarks: item.day3Remarks,
                                 handler: item.associate
                             });
                         }
@@ -291,7 +293,7 @@ export default function LeadDetailsPage({ params }) {
                             {/* RIGHT COLUMN - HISTORY */}
                             <div className="lg:col-span-8">
                                 <div className="bg-white rounded-2xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-100 p-6 h-full">
-                                    <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-50">
+                                    <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-50">
                                         <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                                             <History size={16} className="text-emerald-500" /> Interaction History
                                         </h3>
@@ -300,19 +302,29 @@ export default function LeadDetailsPage({ params }) {
                                         </span>
                                     </div>
 
-                                    <div className="relative pl-6 space-y-8 before:absolute before:left-[9px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-100">
-                                        {lead.history && lead.history.length > 0 ? (
-                                            lead.history.map((entry, idx) => (
-                                                // USING THE NEW COMPONENT HERE
-                                                <HistoryCard key={idx} entry={entry} />
-                                            ))
-                                        ) : (
-                                            <div className="flex flex-col items-center justify-center py-12 text-slate-400 bg-slate-50 rounded-2xl border border-slate-100 border-dashed">
-                                                <Clock size={32} className="mb-2 opacity-30" />
-                                                <p className="text-sm font-medium">No history available yet.</p>
-                                            </div>
-                                        )}
+                                    {/* SCROLLABLE WRAPPER ADDED HERE */}
+                                    <div className="max-h-[450px] overflow-y-auto pr-4 
+                                        [&::-webkit-scrollbar]:w-1.5 
+                                        [&::-webkit-scrollbar-track]:bg-transparent 
+                                        [&::-webkit-scrollbar-thumb]:bg-slate-200 
+                                        [&::-webkit-scrollbar-thumb]:rounded-full 
+                                        hover:[&::-webkit-scrollbar-thumb]:bg-slate-300 transition-all"
+                                    >
+                                        <div className="relative pl-6 space-y-8 before:absolute before:left-[9px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-100">
+                                            {lead.history && lead.history.length > 0 ? (
+                                                lead.history.map((entry, idx) => (
+                                                    // USING THE NEW COMPONENT HERE
+                                                    <HistoryCard key={idx} entry={entry} />
+                                                ))
+                                            ) : (
+                                                <div className="flex flex-col items-center justify-center py-12 text-slate-400 bg-slate-50 rounded-2xl border border-slate-100 border-dashed">
+                                                    <Clock size={32} className="mb-2 opacity-30" />
+                                                    <p className="text-sm font-medium">No history available yet.</p>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
+
                                 </div>
                             </div>
 

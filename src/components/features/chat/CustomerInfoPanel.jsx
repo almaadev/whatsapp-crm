@@ -13,14 +13,15 @@ export default function CustomerInfoPanel({ isOpen, onClose }) {
 
   const [formData, setFormData] = useState({
     name: "", city: "", address: "",
-    source: "Facebook", enquiredFor: "", status: "New",
+    source: "Whatsapp", enquiredFor: "", status: "New",
     saleAmount: "", remarks: "", day1Remarks: "", day2Remarks: "", day3Remarks: ""
   });
 
+  // 1. Initial Load & Auto-Fill from Customer DB
   useEffect(() => {
     if (selectedChat) {
       setFormData({
-        name: selectedChat.name || "",
+        name: selectedChat.name !== "Unknown" ? (selectedChat.name || "") : "",
         city: selectedChat.city || "",
         address: selectedChat.address || "",
         source: selectedChat.source || "Whatsapp",
@@ -32,21 +33,57 @@ export default function CustomerInfoPanel({ isOpen, onClose }) {
         day2Remarks: selectedChat.day2Remarks || "",
         day3Remarks: selectedChat.day3Remarks || ""
       });
+
+      const rawPhone = selectedChat.phone.replace('whatsapp:', '');
+      fetch("/api/customers")
+        .then(res => res.json())
+        .then(customers => {
+          if (Array.isArray(customers)) {
+            const existingCustomer = customers.find(c => c.phone && c.phone.includes(rawPhone));
+            if (existingCustomer) {
+              setFormData(prev => ({
+                ...prev,
+                name: prev.name ? prev.name : (existingCustomer.name !== "Unknown" ? existingCustomer.name : ""),
+                city: prev.city ? prev.city : (existingCustomer.city || ""),
+                address: prev.address ? prev.address : (existingCustomer.address || ""),
+                source: (prev.source && prev.source !== "Whatsapp") ? prev.source : (existingCustomer.source || "Whatsapp"),
+              }));
+            }
+          }
+        })
+        .catch(err => console.error("Auto-fill fetch failed", err));
     }
   }, [selectedChat?.phone]);
 
-  // 2. Fetch Lead History when switching chats OR when the status changes to closed!
+  // 2. Fetch Lead History & ACTIVE LEAD DATA AUTO-FILL
   useEffect(() => {
     if (selectedChat?.phone) {
       const rawPhone = selectedChat.phone.replace('whatsapp:', '');
       fetch(`/api/leads/${encodeURIComponent(rawPhone)}`)
         .then(res => res.json())
         .then(data => {
-          if (data.success) setLeadHistory(data.leads);
+          if (data.success && data.leads) {
+            setLeadHistory(data.leads);
+            
+            // 🌟 PUTHU LOGIC: Active lead data-va DB-la irunthu eduthu form-la pre-fill pandrom!
+            const activeLead = data.leads.find(l => !l.isClosed);
+            if (activeLead) {
+                setFormData(prev => ({
+                    ...prev,
+                    enquiredFor: activeLead.enquiredFor || prev.enquiredFor || "",
+                    status: activeLead.status || prev.status || "New",
+                    saleAmount: activeLead.saleAmount || prev.saleAmount || "",
+                    remarks: activeLead.remarks || prev.remarks || "",
+                    day1Remarks: activeLead.day1Remarks || prev.day1Remarks || "",
+                    day2Remarks: activeLead.day2Remarks || prev.day2Remarks || "",
+                    day3Remarks: activeLead.day3Remarks || prev.day3Remarks || ""
+                }));
+            }
+          }
         })
         .catch(err => console.error("Failed to fetch lead history", err));
     }
-  }, [selectedChat?.phone, selectedChat?.status]);
+  }, [selectedChat?.phone]);
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
@@ -59,14 +96,13 @@ export default function CustomerInfoPanel({ isOpen, onClose }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mobile: selectedChat.phone,
-          ...formData,
+          ...formData, // Auto-fill aana pazhaya data + neenga type panna puthu data
           checkDuplicates: false
         }),
       });
 
       if (!res.ok) throw new Error("Failed");
 
-      // Update local store immediately
       updateChatDetails(selectedChat.phone, {
         ...formData,
         interest: formData.enquiredFor
@@ -100,7 +136,7 @@ export default function CustomerInfoPanel({ isOpen, onClose }) {
           <div className="w-20 h-20 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-full flex items-center justify-center text-3xl font-bold text-emerald-700 shadow-sm border-4 border-white">
             {formData.name ? formData.name.charAt(0).toUpperCase() : "#"}
           </div>
-          <p className="text-slate-900 font-bold text-lg mt-3">{selectedChat?.name || selectedChat?.phone}</p>
+          <p className="text-slate-900 font-bold text-lg mt-3">{formData.name || selectedChat?.phone}</p>
 
           {selectedChat?.visitCount > 1 && (
             <span className="mt-1 flex items-center gap-1 text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-200">
@@ -116,7 +152,7 @@ export default function CustomerInfoPanel({ isOpen, onClose }) {
           <div className="grid grid-cols-2 gap-4 items-end">
             <InputGroup label="City" name="city" value={formData.city} onChange={handleChange} icon={<MapPin size={14} />} />
             <InputGroup label="Address" name="address" value={formData.address} onChange={handleChange} icon={<MapPin size={14} />} placeholder="Full Address..." />
-            <div>
+            <div className="col-span-2">
               <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5 flex items-center gap-1"><Globe size={12} /> Source</label>
               <select name="source" value={formData.source} onChange={handleChange} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none bg-slate-50 text-sm text-slate-700 transition-all cursor-pointer">
                 {["Whatsapp", "Facebook", "Instagram", "Google", "Referral", "Direct", "Manual Entry", "Phone Call"].map(o => <option key={o} value={o}>{o}</option>)}
@@ -131,7 +167,7 @@ export default function CustomerInfoPanel({ isOpen, onClose }) {
                 <option value="New">New</option>
                 <option value="Follow Up">Follow Up</option>
                 <option value="Closed">Closed</option>
-                <option value="Not Closed">Not Closed</option>
+                <option value="Not Interested">Not Interested</option>
               </select>
             </div>
             <InputGroup label="Amount (₹)" name="saleAmount" value={formData.saleAmount} onChange={handleChange} type="number" placeholder="0" icon={<DollarSign size={14} />} />
@@ -148,41 +184,42 @@ export default function CustomerInfoPanel({ isOpen, onClose }) {
           </div>
         </div>
 
-        {/* Current Active Lead Daily Remarks Section */}
-        <div className="space-y-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-          <h3 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-2">Current Enquiry Follow-up</h3>
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5 flex items-center gap-1">Day 1 Remarks</label>
-            <textarea
-              name="day1Remarks"
-              value={formData.day1Remarks}
-              onChange={handleChange}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none h-20 resize-none text-sm bg-slate-50 text-slate-700 placeholder:text-slate-400"
-              placeholder="Notes from Day 1..."
-            />
+        {/* Current Active Lead Daily Remarks Section - ONLY SHOWS ON FOLLOW UP */}
+        {formData.status === "Follow Up" && (
+          <div className="space-y-4 bg-emerald-50/50 p-5 rounded-2xl shadow-sm border border-emerald-100 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <h3 className="text-sm font-bold text-emerald-800 border-b border-emerald-200/50 pb-2 mb-2">Current Enquiry Follow-up</h3>
+            <div>
+              <label className="block text-xs font-bold text-emerald-700 uppercase mb-1.5 flex items-center gap-1">Day 1 Remarks</label>
+              <textarea
+                name="day1Remarks"
+                value={formData.day1Remarks}
+                onChange={handleChange}
+                className="w-full px-3 py-2.5 border border-emerald-200/60 rounded-xl focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none h-20 resize-none text-sm bg-white text-slate-700 placeholder:text-slate-400"
+                placeholder="Notes from Day 1..."
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-emerald-700 uppercase mb-1.5 flex items-center gap-1">Day 2 Remarks</label>
+              <textarea
+                name="day2Remarks"
+                value={formData.day2Remarks}
+                onChange={handleChange}
+                className="w-full px-3 py-2.5 border border-emerald-200/60 rounded-xl focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none h-20 resize-none text-sm bg-white text-slate-700 placeholder:text-slate-400"
+                placeholder="Notes from Day 2..."
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-emerald-700 uppercase mb-1.5 flex items-center gap-1">Day 3 Remarks</label>
+              <textarea
+                name="day3Remarks"
+                value={formData.day3Remarks}
+                onChange={handleChange}
+                className="w-full px-3 py-2.5 border border-emerald-200/60 rounded-xl focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none h-20 resize-none text-sm bg-white text-slate-700 placeholder:text-slate-400"
+                placeholder="Notes from Day 3..."
+              />
+            </div>
           </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5 flex items-center gap-1">Day 2 Remarks</label>
-            <textarea
-              name="day2Remarks"
-              value={formData.day2Remarks}
-              onChange={handleChange}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none h-20 resize-none text-sm bg-slate-50 text-slate-700 placeholder:text-slate-400"
-              placeholder="Notes from Day 2..."
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5 flex items-center gap-1">Day 3 Remarks</label>
-            <textarea
-              name="day3Remarks"
-              value={formData.day3Remarks}
-              onChange={handleChange}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none h-20 resize-none text-sm bg-slate-50 text-slate-700 placeholder:text-slate-400"
-              placeholder="Notes from Day 3..."
-            />
-          </div>
-        </div>
-
+        )}
 
         {leadHistory && leadHistory.length > 0 && (
           <div className="space-y-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
@@ -193,7 +230,6 @@ export default function CustomerInfoPanel({ isOpen, onClose }) {
             <div className="space-y-4">
               {leadHistory
                 .map((l, i) => {
-                  // Optimistically merge current typing/status into the current active lead (index 0)
                   if (i === 0) {
                     return {
                       ...l,
@@ -209,7 +245,6 @@ export default function CustomerInfoPanel({ isOpen, onClose }) {
                   return l;
                 })
                 .map((lead, index) => ({ lead, originalIndex: index }))
-                // Look for closed leads. If the current lead (index 0) is closed, it will immediately show!
                 .filter(({ lead }) => lead.status === 'Closed' || lead.isClosed)
                 .slice(0, 1)
                 .map(({ lead, originalIndex }) => (
@@ -240,7 +275,6 @@ export default function CustomerInfoPanel({ isOpen, onClose }) {
                   </div>
                 ))}
 
-              {/* Fallback if they have past history but none of them are closed yet */}
               {leadHistory
                 .map((l, i) => i === 0 ? { ...l, status: formData.status === 'Closed' ? 'Closed' : (selectedChat?.status || l.status), isClosed: formData.status === 'Closed' || selectedChat?.status === 'Closed' || l.isClosed } : l)
                 .filter(l => l.status === 'Closed' || l.isClosed).length === 0 && (

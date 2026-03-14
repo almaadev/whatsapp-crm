@@ -39,10 +39,10 @@ export default function CustomerDetailPage({ params }) {
         return `Day ${diffDays} Follow Up`;
     };
 
-    useEffect(() => {
+useEffect(() => {
         if (!session) return;
 
-        fetch("/api/leads")
+        fetch("/api/customers", { cache: 'no-store' }) // <-- CHANGED HERE
             .then(res => res.json())
             .then(data => {
                 const targetPhone = phone.replace(/\D/g, '');
@@ -73,11 +73,15 @@ export default function CustomerDetailPage({ params }) {
     const handleSave = async () => {
         setSaving(true);
         try {
-            await fetch("/api/leads", {
-                method: "POST",
+            const rawPhone = phone.replace(/\D/g, ''); // Number mattum edukkurom
+            const res = await fetch(`/api/customers/${rawPhone}`, { 
+                method: "PUT", // POST-ku bathila PUT use pandrom (update panrathuku)
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ mobile: phone, ...formData, checkDuplicates: false }),
+                body: JSON.stringify(formData),
             });
+            
+            if (!res.ok) throw new Error("Failed to update");
+
             setCustomer(prev => ({ ...prev, ...formData }));
             setIsEditing(false);
         } catch (e) {
@@ -153,13 +157,10 @@ export default function CustomerDetailPage({ params }) {
                                         {customer.name && customer.name !== "Unknown" ? customer.name.charAt(0).toUpperCase() : "#"}
                                     </div>
                                     <h2 className="text-xl font-bold text-slate-900 truncate px-2">{customer.name || "Unknown"}</h2>
-                                    <p className="text-slate-500 text-sm mt-1 font-mono">{customer.phone}</p>
+                                    <p className="text-slate-500 text-sm mt-1 font-mono">{customer.phone?.split(':')?.[1] }</p>
 
                                     <div className="mt-6 md:mt-8 pt-6 border-t border-slate-100 grid grid-cols-2 gap-4">
-                                        <div>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Duration</p>
-                                            <p className="text-sm font-bold text-emerald-600">{getDuration(customer.date)}</p>
-                                        </div>
+                                        
                                         <div>
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Joined</p>
                                             <p className="text-sm font-semibold text-slate-700">
@@ -169,13 +170,17 @@ export default function CustomerDetailPage({ params }) {
                                                 }
                                             </p>
                                         </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Customer Since</p>
+                                            <p className="text-sm font-bold text-emerald-600">{getDuration(customer.date)}</p>
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="absolute top-0 left-0 w-full h-24 bg-slate-50 z-0"></div>
                             </div>
 
                             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6">
-                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Quick Actions</h3>
+                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Overview</h3>
                                 <div className="space-y-3">
                                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-slate-50 rounded-xl border border-slate-100 gap-2">
                                         <span className="text-sm text-slate-600 font-medium">Lead Status</span>
@@ -214,7 +219,7 @@ export default function CustomerDetailPage({ params }) {
                                 <InfoField type="text" label="Full Name" value={formData.name} onChange={v => setFormData({ ...formData, name: v })} isEditing={isEditing} icon={<User size={14} />} />
                                 <InfoField type="text" label="City / Location" value={formData.city} onChange={v => setFormData({ ...formData, city: v })} isEditing={isEditing} icon={<MapPin size={14} />} />
                                 <InfoField type="textArea" label="Address" value={formData.address} onChange={v => setFormData({ ...formData, address: v })} isEditing={isEditing} icon={<MapPin size={14} />} />
-                                <InfoField type="text" label="Associate" value={formData.associate}  isEditing={isEditing} readOnly={!isEditing} icon={<User size={14} />} />
+                                <InfoField type="text" label="Associate" value={formData.associate || ""} onChange={() => {}} isEditing={isEditing} readOnly={!isEditing} icon={<User size={14} />} />
                                 <InfoField type="select" label="Source" value={formData.source} onChange={v => setFormData({ ...formData, source: v })} isEditing={isEditing} icon={<Globe size={14} />} options={["Facebook", "Instagram", "Google", "Referral", "Walk-in", "Whatsapp", "Manual Entry"]} />
                                 <InfoField type="text" label="Enquired For" value={formData.enquiredFor} onChange={v => setFormData({ ...formData, enquiredFor: v })} isEditing={isEditing} icon={<Briefcase size={14} />} />
                             </div>

@@ -111,6 +111,7 @@ export async function POST(req) {
           message: messageText,
           direction: "INBOUND",
           status: "RECEIVED",
+          read: "FALSE",
           twilioSid: twilioSID,
           mediaUrl: mediaUrl,
           mediaType: mediaType,
@@ -132,6 +133,7 @@ export async function POST(req) {
         message: messageText,
         direction: "INBOUND",
         status: "RECEIVED",
+        read: "FALSE",
         twilioSid: twilioSID,
         senderName: profileName
       });

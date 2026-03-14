@@ -12,10 +12,11 @@ export const dynamic = "force-dynamic";
 export async function GET(req) {
   try {
     await connectDB();
+    
     const leads = await Lead.find({}).sort({ createdAt: -1 }).lean();
-    const customers = await Customer.find({}).lean();
+    const leadPhones = leads.map(l => l.phone || l.customerPhone).filter(Boolean);
+    const customers = await Customer.find({ phone: { $in: leadPhones } }).lean();
 
-    // Mapping customers to merge data perfectly
     const customerMap = {};
     customers.forEach(c => { customerMap[c.phone] = c; });
 
@@ -23,37 +24,25 @@ export async function GET(req) {
         const c = customerMap[lead.phone || lead.customerPhone] || {};
         return {
             phone: lead.phone || lead.customerPhone,
-            name: lead.name || c.name || "Unknown",
-            city: lead.city || c.city || "",
-            address: lead.address || c.address || "",
-            source: lead.source || c.source || "Manual Entry",
+            // FIX 1: Customer DB-la irukka peruku 1st Priority
+            name: (c.name && c.name !== "Unknown") ? c.name : (lead.name || "Unknown"),
+            city: c.city || lead.city || "",
+            address: c.address || lead.address || "",
+            source: c.source || lead.source || "Manual Entry",
             enquiredFor: lead.enquiredFor || c.enquiredFor || "",
-            status: lead.status || c.status || "New",
+            status: lead.status || "New", 
             priority: lead.priority || c.priority || "Medium", 
-            remarks: lead.remarks || lead.day1Remarks || c.remarks || "",
+            remarks: lead.remarks || "", 
+            day1Remarks: lead.day1Remarks || "",
+            day2Remarks: lead.day2Remarks || "",
+            day3Remarks: lead.day3Remarks || "",
             saleAmount: lead.saleAmount || "0",
-            associate: lead.assignedTo || c.assignedTo || "Unassigned",
-            visitCount: c.visitCount || 1,
+            associate: lead.assignedTo || "Unassigned", 
+            visitCount: c.visitCount || 1, 
             date: lead.createdAt ? new Date(lead.createdAt).toISOString() : new Date().toISOString(),
             followUpStart: lead.followUpStart ? new Date(lead.followUpStart).toISOString() : null,
-            isClosed: lead.isClosed || c.isClosed || false
+            isClosed: lead.isClosed || false 
         };
-    });
-
-    // Add legacy customers who have no lead entries
-    const leadsPhones = new Set(leads.map(l => l.phone || l.customerPhone));
-    customers.forEach(c => {
-        if (!leadsPhones.has(c.phone)) {
-            formattedData.push({
-                phone: c.phone, name: c.name || "Unknown", city: c.city || "", address: c.address || "",
-                source: c.source || "Imported", enquiredFor: c.enquiredFor || "", status: c.status || "New",
-                priority: c.priority || "Medium", remarks: c.remarks || "", saleAmount: "0",
-                associate: c.assignedTo || "Unassigned", visitCount: c.visitCount || 1,
-                date: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
-                followUpStart: null,
-                isClosed: c.isClosed || false
-            });
-        }
     });
 
     return NextResponse.json(formattedData);
@@ -81,11 +70,46 @@ export async function POST(req) {
     const userDoc = await User.findOne({ name: currentUser });
     const associateId = userDoc ? userDoc._id.toString() : "";
 
-    const payload = {
-        name: body.name || "Unknown",
-        city: body.city || "",
-        address: body.address || "",
-        source: body.source || "Whatsapp",
+    let customer = await Customer.findOne({ phone: cleanPhone });
+    let latestLead = await Lead.findOne({ phone: cleanPhone }).sort({ createdAt: -1 });
+
+    // NAME RESOLUTION
+    let resolvedName = "Unknown";
+    if (body.name && body.name.trim() !== "") {
+        resolvedName = body.name.trim(); 
+    } else if (customer && customer.name && customer.name !== "Unknown") {
+        resolvedName = customer.name; 
+    }
+
+    // CITY RESOLUTION
+    let resolvedCity = "";
+    if (body.city && body.city.trim() !== "") {
+        resolvedCity = body.city.trim(); 
+    } else if (customer && customer.city) {
+        resolvedCity = customer.city; 
+    }
+
+    // ADDRESS RESOLUTION
+    let resolvedAddress = "";
+    if (body.address && body.address.trim() !== "") {
+        resolvedAddress = body.address.trim(); 
+    } else if (customer && customer.address) {
+        resolvedAddress = customer.address; 
+    }
+
+    // CUSTOMER DATA
+    const customerData = {
+        name: resolvedName,
+        city: resolvedCity,
+        address: resolvedAddress,
+        source: body.source || (customer ? customer.source : "Whatsapp"),
+    };
+
+    // FIX 2: LEAD DATA-laiyum Name, City, Address add panniyachu!
+    const leadData = {
+        name: resolvedName,
+        city: resolvedCity,
+        address: resolvedAddress,
         enquiredFor: body.enquiredFor || "",
         priority: body.priority || "Medium",
         remarks: body.remarks || "",
@@ -96,40 +120,52 @@ export async function POST(req) {
         isClosed: body.status === "Closed"
     };
 
-    let customer = await Customer.findOne({ phone: cleanPhone });
-    let latestLead = await Lead.findOne({ $or: [{ phone: cleanPhone }] }).sort({ createdAt: -1 });
-
+    // CUSTOMER LOGIC
     let currentVisitCount = customer ? (customer.visitCount || 1) : 1;
 
     if (!customer) {
-        customer = await Customer.create({ phone: cleanPhone, ...payload, visitCount: 1 });
+        customer = await Customer.create({ 
+            phone: cleanPhone, 
+            ...customerData, 
+            visitCount: 1 
+        });
     } else {
-        Object.assign(customer, payload);
-        if (latestLead && latestLead.isClosed) {
-            customer.visitCount += 1;
+        Object.assign(customer, customerData);
+        if (latestLead && !latestLead.isClosed && body.status === "Closed") {
+            customer.visitCount = (customer.visitCount || 1) + 1;
             currentVisitCount = customer.visitCount;
         }
         await customer.save();
     }
 
-    if (!latestLead || latestLead.isClosed) {
-        await Lead.create({
-            phone: cleanPhone,
-            ...payload,
-            day1Remarks: body.day1Remarks || "", day2Remarks: body.day2Remarks || "", day3Remarks: body.day3Remarks || ""
-        });
-    } else {
-        Object.assign(latestLead, payload);
-        if (body.day1Remarks) latestLead.day1Remarks = body.day1Remarks;
-        if (body.day2Remarks) latestLead.day2Remarks = body.day2Remarks;
-        if (body.day3Remarks) latestLead.day3Remarks = body.day3Remarks;
-        await latestLead.save();
+    // LEADS LOGIC
+    const isExistingActiveLead = latestLead && !latestLead.isClosed;
+
+    if (body.status !== "New" || isExistingActiveLead) {
+        if (!latestLead || latestLead.isClosed) {
+            await Lead.create({
+                phone: cleanPhone,
+                ...leadData,
+                day1Remarks: body.day1Remarks || "", 
+                day2Remarks: body.day2Remarks || "", 
+                day3Remarks: body.day3Remarks || ""
+            });
+        } else {
+            Object.assign(latestLead, leadData);
+            if (body.day1Remarks !== undefined) latestLead.day1Remarks = body.day1Remarks;
+            if (body.day2Remarks !== undefined) latestLead.day2Remarks = body.day2Remarks;
+            if (body.day3Remarks !== undefined) latestLead.day3Remarks = body.day3Remarks;
+            await latestLead.save();
+        }
     }
 
-    if (redis && redis.status === 'ready') await redis.del("chats:all_data");
+    if (redis && redis.status === 'ready') {
+        try { await redis.del("chats:all_data"); } catch (e) { }
+    }
 
     return NextResponse.json({ success: true, visitCount: currentVisitCount });
   } catch (error) {
-    return NextResponse.json({ error: "Failed" }, { status: 500 });
+    console.error("Save Contact Error:", error);
+    return NextResponse.json({ error: "Failed to save data" }, { status: 500 });
   }
 }

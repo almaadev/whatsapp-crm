@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { authOptions } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import Customer from "@/models/Customer";
+import Lead from "@/models/Lead"; // 1. Added Lead Model
 import redis from "@/lib/redis";
 
 export async function POST(req) {
@@ -20,14 +21,22 @@ export async function POST(req) {
     await connectDB();
     const newStateBoolean = currentState !== "TRUE"; // Toggle Action
 
-    // 1. ADDED: Await the update and check if it found the customer
+    // 2. Prepare the update data
+    const updateData = {
+      isClosed: newStateBoolean,
+      status: newStateBoolean ? "Closed" : "Follow Up",
+      lastClosedBy: newStateBoolean ? session.user.name : ""
+    };
+
+    // 3. If closing, set priority to empty string (null equivalent for Strings)
+    if (newStateBoolean) {
+      updateData.priority = ""; 
+    }
+
+    // 4. Update Customer
     const updatedCustomer = await Customer.findOneAndUpdate(
       { phone: cleanPhone },
-      {
-        isClosed: newStateBoolean,
-        status: newStateBoolean ? "Closed" : "Follow Up",
-        lastClosedBy: newStateBoolean ? session.user.name : ""
-      },
+      updateData,
       { new: true } // Returns the updated document
     );
 
@@ -35,19 +44,23 @@ export async function POST(req) {
       return NextResponse.json({ error: "Customer not found in Database" }, { status: 404 });
     }
 
-    // 2. Clear Caches
+    // 5. Update Lead collection as well
+    await Lead.updateMany(
+      { phone: cleanPhone },
+      updateData
+    );
+
+    // 6. Clear Caches
     try { 
         await redis.del("chats:all_data"); 
-        // Unga leads page kaga vera ethavathu redis key irundhal athayum delete pannunga
-        // await redis.del("leads:all"); 
     } catch (e) {
         console.error("Redis delete error:", e);
     }
 
-    // 3. Clear Next.js UI Cache
+    // 7. Clear Next.js UI Cache
     revalidatePath("/dashboard/leads");
     revalidatePath("/dashboard/chat");
-    revalidatePath(`/dashboard/leads/${encodeURIComponent(cleanPhone)}`); // Specific lead page cache clearance
+    revalidatePath(`/dashboard/leads/${encodeURIComponent(cleanPhone)}`);
 
     return NextResponse.json({ success: true, newState: newStateBoolean ? "TRUE" : "FALSE" });
   } catch (error) {

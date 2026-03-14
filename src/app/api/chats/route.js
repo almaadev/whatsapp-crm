@@ -7,6 +7,8 @@ import Message from "@/models/Message";
 import redis from "@/lib/redis";
 import twilio from "twilio";
 
+
+
 const REDIS_CACHE_TTL = 30;
 
 export async function GET(request) {
@@ -34,7 +36,14 @@ export async function GET(request) {
 
     const contactMap = new Map();
     customers.forEach(c => {
-      contactMap.set(c.phone, { name: c.name, status: c.status, assignedTo: c.assignedTo, unreadCount: c.unreadCount || 0 });
+      contactMap.set(c.phone, { 
+        name: c.name, 
+        status: c.status, 
+        assignedTo: c.assignedTo, 
+        unreadCount: c.unreadCount || 0,
+        // 👇 FIX 1: Check if closed, and use ?? instead of ||
+        priority: c.isClosed ? "" : (c.priority ?? "Medium") 
+      });
     });
 
     const chats = messages.map((msg) => {
@@ -45,8 +54,10 @@ export async function GET(request) {
         message: msg.message || "",
         direction: msg.direction,
         status: customerInfo.status || "New", 
+        // 👇 FIX 2: Use ?? instead of || here too
+        priority: customerInfo.priority ?? "Medium", 
         messageStatus: msg.status || "RECEIVED", 
-        read: msg.direction === "INBOUND" ? "FALSE" : "TRUE",
+        read: msg.read || "TRUE",
         timestamp: msg.timestamp || new Date().toISOString(),
         twilioSid: msg.twilioSid || "",
         associate: customerInfo.assignedTo || "",
@@ -59,9 +70,9 @@ export async function GET(request) {
     }).filter(chat => chat.phone && !chat.phone.includes("whatsapp:+14155238886"));
 
     if (redis && redis.status === 'ready') {
-      await redis.set("chats:all_data", JSON.stringify(chats), "EX", 30);
+      await redis.set("chats:all_data", JSON.stringify(chats), "EX", REDIS_CACHE_TTL);
     }
-
+    
     return NextResponse.json(chats);
 
   } catch (error) {
@@ -136,5 +147,33 @@ export async function POST(req) {
   } catch (error) {
     console.error("POST Chat DB Error:", error);
     return NextResponse.json({ error: "Failed" }, { status: 500 });
+  }
+}
+
+export async function DELETE(req) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { phones } = await req.json();
+    if (!phones || !Array.isArray(phones) || phones.length === 0) {
+      return NextResponse.json({ error: "No phones provided for deletion" }, { status: 400 });
+    }
+
+    await connectDB();
+
+    // 👇 CHANGED: Only delete from the Message collection.
+    // Customer and Lead data will remain safely in the database.
+    await Message.deleteMany({ phone: { $in: phones } });
+
+    // Clear Redis cache so the UI fetches fresh data (without the deleted messages)
+    if (redis && redis.status === 'ready') {
+      await redis.del("chats:all_data");
+    }
+
+    return NextResponse.json({ success: true, deletedCount: phones.length });
+  } catch (error) {
+    console.error("Delete Chats API Error:", error);
+    return NextResponse.json({ error: "Failed to delete chats" }, { status: 500 });
   }
 }

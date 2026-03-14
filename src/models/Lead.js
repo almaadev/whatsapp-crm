@@ -10,7 +10,7 @@ const LeadSchema = new mongoose.Schema({
   
   source: { type: String, default: "Whatsapp" },
   enquiredFor: { type: String, default: "" },
-  priority: { type: String, default: "Medium" },
+  priority: { type: String, default: "" },
   remarks: { type: String, default: "" },
   
   status: { type: String, default: "New" },

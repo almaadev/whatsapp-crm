@@ -28,6 +28,7 @@ export const authOptions = {
       }
     })
   ],
+
   callbacks: {
     async jwt({ token, user }) {
       if (user) { token.role = user.role; token.id = user.id; }
@@ -41,4 +42,5 @@ export const authOptions = {
   pages: { signIn: "/" },
   session: { strategy: "jwt" },
   secret: process.env.NEXTAUTH_SECRET,
+  
 };

@@ -212,12 +212,6 @@ export default function ChatArea() {
         }
     };
 
-    const getFormattedDate = () => {
-        const now = new Date();
-        const date = now.toLocaleDateString("en-US", { year: 'numeric', month: 'numeric', day: 'numeric' });
-        const time = now.toLocaleTimeString("en-US", { hour12: false });
-        return `${date} ${time}`;
-    };
 
     const handleSend = async (text) => {
         if (!text.trim() || !activeChat) return;
@@ -240,14 +234,12 @@ export default function ChatArea() {
         setTimeout(() => scrollToBottom(), 100);
 
         try {
-            if (currentLeadStatus === 'New') initiateStatusChange('Follow Up');
+            // if (currentLeadStatus === 'New') initiateStatusChange('Follow Up');
 
             if (!navigator.onLine) throw new Error("Offline");
 
-            // FIX: Backend-ல் இருந்து வரும் Response-ஐ ஒரு variable-ல் வாங்குகிறோம்
             const res = await chatService.sendMessage(newMessage);
 
-            // FIX: Twilio SID-ஐ store-க்கு அனுப்புகிறோம். அப்போதுதான் Webhook அதை கண்டுபிடிக்க முடியும்!
             updateMessageStatus(activeChat.phone, tempId, "SENT", res?.twilioSid);
 
         } catch (error) {
@@ -505,7 +497,7 @@ export default function ChatArea() {
     );
 }
 
-const ChatInput = memo(function ChatInput({ currentLeadStatus, followUpLabel, getStatusColor, onStatusChange, onSendMessage, sending }) {
+const ChatInput = memo(function ChatInput({ currentLeadStatus, followUpLabel, onStatusChange, onSendMessage, sending }) {
     const [text, setText] = useState("");
     const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
     const statusMenuRef = useRef(null);

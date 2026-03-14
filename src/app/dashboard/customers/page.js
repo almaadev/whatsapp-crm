@@ -24,7 +24,7 @@ export default function CustomersPage() {
     useEffect(() => {
         const fetchCustomers = async () => {
             try {
-                const res = await fetch("/api/leads");
+              const res = await fetch("/api/customers", { cache: 'no-store' });
                 const data = await res.json();
                 if (res.ok && Array.isArray(data)) {
                     setRawCustomers(data);

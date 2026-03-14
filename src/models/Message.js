@@ -5,6 +5,7 @@ const MessageSchema = new mongoose.Schema({
   message: { type: String },
   direction: { type: String, enum: ['INBOUND', 'OUTBOUND'], required: true },
   status: { type: String, default: 'RECEIVED' },
+  read: { type: String, enum: ['TRUE', 'FALSE'], default: 'FALSE' },
   twilioSid: { type: String, index: true },
   mediaUrl: { type: String },
   mediaType: { type: String },
