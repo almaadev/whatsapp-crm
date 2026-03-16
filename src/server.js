@@ -25,10 +25,14 @@ app.prepare().then(() => {
   });
 
   const io = new Server(httpServer, {
+    path: "/socket.io/",
     cors: {
       origin: "*",
-      methods: ["GET", "POST"]
-    }
+      methods: ["GET", "POST"],
+      credentials: true
+    },
+    transports: ["websocket", "polling"], // Try websocket first, fallback to polling
+    allowEIO3: true, // Allow Engine.IO v3 clients
   });
 
   global.io = io;
