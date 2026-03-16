@@ -58,7 +58,7 @@ export function useChat(role) {
     
     const socket = io(socketUrl, {
       path: "/socket.io/",
-      transports: ["polling"],
+      transports: ["websocket", "polling"],
       secure: true,
       rejectUnauthorized: false
     }); 
