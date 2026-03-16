@@ -58,7 +58,7 @@ export function useChat(role) {
     
     const socket = io(socketUrl, {
       path: "/socket.io/",
-      transports: ["websocket", "polling"], // Try websocket first, fallback to polling
+      transports: ["polling", "websocket"], // Try websocket first, fallback to polling
       secure: true,
       rejectUnauthorized: false
     }); 
