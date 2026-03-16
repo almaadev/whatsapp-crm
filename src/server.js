@@ -1,5 +1,5 @@
 import { createServer } from "http";
-import { parse } from "url"; // 👈 URL parsing add panniyachu
+import { parse } from "url"; 
 import next from "next";
 import { Server } from "socket.io";
 

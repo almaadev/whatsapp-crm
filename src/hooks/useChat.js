@@ -8,7 +8,7 @@ export function useChat(role) {
   const [loading, setLoading] = useState(true);
   const setMessages = useChatStore((s) => s.setMessages);
   const addMessage = useChatStore((s) => s.addMessage); 
-  const updateMessageStatus = useChatStore((s) => s.updateMessageStatus); // FIX: Added this
+  const updateMessageStatus = useChatStore((s) => s.updateMessageStatus);
   
   const addNotification = useChatStore((s) => s.addNotification);
 
@@ -53,11 +53,24 @@ export function useChat(role) {
 
     fetchChats();
 
-    const socket = io(); 
+    // 👇 FIX: Explicitly setup socket connection for live server
+    const socketUrl = process.env.NODE_ENV === "production" ? "https://crm.almaaerp.in" : "";
+    
+    const socket = io(socketUrl, {
+      path: "/socket.io/",
+      transports: ["websocket", "polling"], // Try websocket first, fallback to polling
+      secure: true,
+      rejectUnauthorized: false
+    }); 
+    
     socketRef.current = socket;
 
     socket.on("connect", () => {
         console.log("✅ Socket Connected to Server");
+    });
+
+    socket.on("connect_error", (err) => {
+        console.error("❌ Socket Connection Error:", err.message);
     });
 
     socket.on("new_message", (newMessage) => {
