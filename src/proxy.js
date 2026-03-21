@@ -6,9 +6,19 @@ export default withAuth(
     const token = req.nextauth.token;
     const path = req.nextUrl.pathname;
 
-    // Strict Admin Protection for /dashboard/admin
-    if (path.startsWith("/dashboard/admin") && token?.role !== "admin") {
-      // If a non-admin tries to access admin panel, kick them to chat
+    // 1. Yaarellam Admin nu check panrom
+    const isAdmin = 
+        token?.role === "superAdmin" || 
+        (token?.role === "sales" && token?.department === "admin") || 
+        (token?.role === "doctor" && token?.department === "admin");
+
+    // 2. Entha pages ellam Admin mattum paaka koodiyathu nu set panrom
+    const isAdminRoute = 
+        path.startsWith("/dashboard/admin") || 
+        path.startsWith("/dashboard/associate-management");
+
+      
+    if (isAdminRoute && !isAdmin) {
       return NextResponse.redirect(new URL("/dashboard/chat", req.url));
     }
 

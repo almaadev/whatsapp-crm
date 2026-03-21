@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
     try {
         await connectDB();
-        const users = await User.find({ role: { $ne: 'admin' } }).lean();
+        const users = await User.find({ role: { $ne: 'superAdmin' }  }).lean();
         const leads = await Lead.find({}).lean();
 
         const roster = users.map(user => {

@@ -7,13 +7,14 @@ import { useAuthStore } from "@/store/authStore";
 import { useChatStore } from "@/store/chatStore";
 import { useChat } from "@/hooks/useChat";
 import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png";
+import { ShieldAlert } from "lucide-react"; // 👇 FIX: Added ShieldAlert for Access Denied page
 
 import Sidebar from "@/components/layout/Sidebar";
 import ChatList from "@/components/features/chat/ChatList";
 import ChatArea from "@/components/features/chat/ChatArea";
 
 function ChatPageContent() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const login = useAuthStore((s) => s.login);
 
   const selectedChat = useChatStore((s) => s.selectedChat);
@@ -24,6 +25,24 @@ function ChatPageContent() {
   const searchParams = useSearchParams();
 
   const userRole = session?.user?.role;
+  const displayRole = userRole || "";
+  const department = session?.user?.department || "";
+  
+  // 👇 FIX: Get access modules from session
+  const accessModules = session?.user?.accessModules || [];
+
+  // 👇 FIX: Authorization Logic
+  const isAdminAuthorized =
+    displayRole === 'superAdmin' ||
+    (displayRole === 'sales' && department === 'admin') ||
+    (displayRole === 'doctor' && department === 'admin');
+
+  const hasAccess = (moduleName) => {
+    if (isAdminAuthorized) return true; // Admins get all access by default
+    return accessModules.includes(moduleName); // Check array for normal users
+  };
+
+  const isAuthorized = hasAccess("Chat Inbox");
 
   const { loading } = useChat(userRole);
 
@@ -43,7 +62,32 @@ function ChatPageContent() {
     }
   }, [searchParams, messages, selectedChat, setSelectedChat]);
 
+  if (status === "loading") return <div className="flex h-[100dvh] items-center justify-center text-slate-500">Loading Chat...</div>;
   if (!session) return null;
+
+  // 👇 FIX: Access Denied Screen
+  if (!isAuthorized) {
+      return (
+          <div className="flex h-[100dvh] bg-gray-100 overflow-hidden relative">
+              <div className="flex-shrink-0 z-40">
+                  <Sidebar role={userRole} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
+              </div>
+
+              <div className="flex flex-1 w-full h-full relative overflow-hidden flex-col">
+                  <div className="md:hidden h-14 bg-white border-b flex items-center px-4 shrink-0 justify-between z-30 shadow-sm">
+                      <button onClick={() => setMobileMenuOpen(true)} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-md">
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                      </button>
+                  </div>
+                  <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+                      <ShieldAlert size={60} className="text-red-400 mb-4" />
+                      <h2 className="text-2xl font-bold text-slate-800">Access Denied</h2>
+                      <p className="text-slate-500 mt-2">You do not have permission to access the Chat Inbox.</p>
+                  </div>
+              </div>
+          </div>
+      );
+  }
 
   return (
     <div className="flex h-[100dvh] bg-gray-100 overflow-hidden relative">
@@ -56,7 +100,6 @@ function ChatPageContent() {
           <button onClick={() => setMobileMenuOpen(true)} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-md">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
-          {/* FIX: Changed <span> to <div> to prevent Turbopack crash */}
           <div className="font-semibold text-gray-700">
             <div className=" w-20 flex items-center justify-center shrink-0 p-1">
               <img src={AlmaaLogo.src} alt="Almaa" className="w-full h-full object-contain" />
@@ -92,8 +135,9 @@ function ChatPageContent() {
 }
 
 export default function ChatPage() {
+  
   return (
-    <Suspense fallback={<div className="flex h-[100dvh] bg-gray-100 items-center justify-center">Loading Chat...</div>}>
+    <Suspense fallback={<div className="flex h-[100dvh] bg-gray-100 items-center justify-center text-slate-500 font-medium">Loading Workspace...</div>}>
       <ChatPageContent />
     </Suspense>
   );

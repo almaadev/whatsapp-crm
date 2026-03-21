@@ -7,7 +7,6 @@ const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOST || "localhost";
 const port = parseInt(process.env.PORT || "3000", 10);
 
-// Initialize Next.js app
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
@@ -31,8 +30,8 @@ app.prepare().then(() => {
       methods: ["GET", "POST"],
       credentials: true
     },
-    transports: ["websocket", "polling"], // Try websocket first, fallback to polling
-    allowEIO3: true, // Allow Engine.IO v3 clients
+    transports: ["websocket", "polling"],
+    allowEIO3: true,
   });
 
   global.io = io;
@@ -44,11 +43,10 @@ app.prepare().then(() => {
       console.log("🔴 Client Disconnected");
     });
     
-    // Socket errors naala server stop aagama irukka
     socket.on("error", (err) => console.error("Socket Error:", err));
   });
 
-  // HTTP server errors naala server stop aagama irukka
+
   httpServer.on("error", (err) => console.error("Server Error:", err));
 
   httpServer.listen(port, (err) => {

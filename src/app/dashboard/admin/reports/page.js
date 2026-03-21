@@ -78,7 +78,7 @@ export default function AdminReportsPage() {
 
   return (
     <div className="flex h-[100dvh] bg-slate-50">
-      <Sidebar role="admin" mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
+      <Sidebar role={session?.user?.role} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
       
       <main className="flex-1 p-6 md:p-10 overflow-y-auto">
         <div className="max-w-6xl mx-auto space-y-8">

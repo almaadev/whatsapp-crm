@@ -1,13 +1,47 @@
 "use client";
 import { useState } from "react";
-import { User, Mail, Lock, Shield, CheckCircle, AlertCircle, Plus } from "lucide-react";
+import { User, Mail, Lock, Shield, CheckCircle, AlertCircle, Plus, Phone, Briefcase, Tag } from "lucide-react";
 
 export default function CreateUserForm() {
   const [formData, setFormData] = useState({
-    name: "", email: "", password: "", role: "sales_associate"
+    name: "", preferredName: "", email: "", number: "", password: "",
+    // FIX: department initial state should be a valid enum value
+    role: "sales", department: "telecalling", isAdmin: false, active: true, accessModules: []
   });
+  
   const [status, setStatus] = useState({ type: "", message: "" });
   const [loading, setLoading] = useState(false);
+
+  const modulesList = ["Leads", "Customers", "Reports", "Chat Inbox"];
+
+  const handleModuleChange = (module) => {
+    setFormData(prev => ({
+      ...prev,
+      accessModules: prev.accessModules.includes(module)
+        ? prev.accessModules.filter(m => m !== module)
+        : [...prev.accessModules, module]
+    }));
+  };
+
+  const handleRoleChange = (e) => {
+    const selectedRole = e.target.value;
+    
+    if (selectedRole === "superAdmin") {
+      setFormData(prev => ({
+        ...prev,
+        role: "superAdmin", 
+        department: "admin",
+        isAdmin: true,
+        accessModules: [...modulesList] 
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        role: selectedRole,
+        isAdmin: false 
+      }));
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,11 +55,24 @@ export default function CreateUserForm() {
         body: JSON.stringify(formData),
       });
       
+      const contentType = res.headers.get("content-type");
+
       if (res.ok) {
         setStatus({ type: "success", message: "User created successfully!" });
-        setFormData({ name: "", email: "", password: "", role: "sales_associate" });
+        setFormData({ 
+          name: "", preferredName: "", email: "", number: "", password: "",
+          role: "sales", department: "telecalling", isAdmin: false, active: true, accessModules: [] 
+        });
       } else {
-        setStatus({ type: "error", message: "Failed to create user." });
+        // 👇 FIX: JSON ah iruntha mattum parse pannurom
+        if (contentType && contentType.includes("application/json")) {
+            const errorData = await res.json();
+            setStatus({ type: "error", message: errorData.error || "Failed to create user." });
+        } else {
+            const htmlText = await res.text();
+            console.error("Server HTML Error:", htmlText); // Check browser console to see real error
+            setStatus({ type: "error", message: "Server error occurred. Check terminal for details." });
+        }
       }
     } catch (err) {
       setStatus({ type: "error", message: "An unexpected error occurred." });
@@ -35,75 +82,105 @@ export default function CreateUserForm() {
   };
 
   return (
-    <div className="bg-white p-0 md:p-2">
-      <form onSubmit={handleSubmit} className="space-y-5">
+    <div className="bg-white p-0 md:p-2 max-h-[70vh] overflow-y-auto custom-scrollbar">
+      <form onSubmit={handleSubmit} className="space-y-4 pr-2">
         
-        {/* Name Input */}
-        <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Full Name</label>
-            <div className="relative group">
-                <User className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-600 transition-colors" size={18} />
-                <input 
-                    placeholder="e.g. John Doe" 
-                    className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-slate-700 placeholder:text-slate-400" 
-                    value={formData.name}
-                    onChange={e => setFormData({...formData, name: e.target.value})}
-                    required
-                />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Full Name *</label>
+                <div className="relative group">
+                    <User className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
+                    <input required placeholder="Associate Name" className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm" 
+                        value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                </div>
+            </div>
+
+            <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Preferred Name</label>
+                <div className="relative group">
+                    <Tag className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
+                    <input placeholder="Nick Name" className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm" 
+                        value={formData.preferredName} onChange={e => setFormData({...formData, preferredName: e.target.value})} />
+                </div>
+            </div>
+
+            <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Email Address *</label>
+                <div className="relative group">
+                    <Mail className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
+                    <input required type="email" placeholder="Associate@almaa.com" className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm" 
+                        value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                </div>
+            </div>
+
+            <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Mobile Number</label>
+                <div className="relative group">
+                    <Phone className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
+                    <input type="text" placeholder="+91 9876543210" className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm" 
+                        value={formData.number} onChange={e => setFormData({...formData, number: e.target.value})} />
+                </div>
+            </div>
+
+            <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Role *</label>
+                <div className="relative group">
+                    <Shield className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
+                    <select className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm cursor-pointer"
+                        value={formData.role} onChange={handleRoleChange}>
+                        <option value="sales">Sales</option>
+                        <option value="doctor">Doctor</option>
+                        <option value="superAdmin">Super Admin</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Department *</label>
+                <div className="relative group">
+                    <Briefcase className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
+                    <select className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm cursor-pointer"
+                        value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})}>
+                        <option value="telecalling">Telecalling</option>
+                        <option value="support">Support</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Password *</label>
+                <div className="relative group">
+                    <Lock className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
+                    <input required type="text" placeholder="Set a strong password" className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-sm" 
+                        value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                </div>
             </div>
         </div>
 
-        {/* Email Input */}
-        <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Email Address</label>
-            <div className="relative group">
-                <Mail className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-600 transition-colors" size={18} />
-                <input 
-                    type="email" 
-                    placeholder="e.g. john@almaa.com" 
-                    className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-slate-700 placeholder:text-slate-400" 
-                    value={formData.email}
-                    onChange={e => setFormData({...formData, email: e.target.value})}
-                    required
-                />
-            </div>
+        <div className="flex gap-6 py-2 border-y border-slate-100">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
+                <input type="checkbox" checked={formData.isAdmin} onChange={e => setFormData({...formData, isAdmin: e.target.checked})} className="w-4 h-4 text-emerald-600 rounded" />
+                Is Admin
+            </label>
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
+                <input type="checkbox" checked={formData.active} onChange={e => setFormData({...formData, active: e.target.checked})} className="w-4 h-4 text-emerald-600 rounded" />
+                Active Account
+            </label>
         </div>
 
-        {/* Password Input */}
         <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Default Password</label>
-            <div className="relative group">
-                <Lock className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-600 transition-colors" size={18} />
-                <input 
-                    type="text" 
-                    placeholder="Set a strong password" 
-                    className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-slate-700 placeholder:text-slate-400 font-mono" 
-                    value={formData.password}
-                    onChange={e => setFormData({...formData, password: e.target.value})}
-                    required
-                />
-            </div>
-        </div>
-
-        {/* Role Select */}
-        <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Assign Role</label>
-            <div className="relative group">
-                <Shield className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-600 transition-colors" size={18} />
-                <select 
-                    className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-slate-700 appearance-none cursor-pointer"
-                    value={formData.role}
-                    onChange={e => setFormData({...formData, role: e.target.value})}
-                >
-                    <option value="sales_associate">Sales Associate</option>
-                    <option value="doctor_associate">Doctor Associate</option>
-                    <option value="admin">Administrator</option>
-                </select>
-                <div className="absolute right-4 top-4 w-2 h-2 border-r-2 border-b-2 border-slate-400 rotate-45 pointer-events-none"></div>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Access Modules</label>
+            <div className="flex flex-wrap gap-3">
+                {modulesList.map(mod => (
+                    <label key={mod} className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 px-3 py-1.5 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100">
+                        <input type="checkbox" checked={formData.accessModules.includes(mod)} onChange={() => handleModuleChange(mod)} className="w-3.5 h-3.5 text-emerald-600 rounded" />
+                        {mod}
+                    </label>
+                ))}
             </div>
         </div>
         
-        {/* Status Message */}
         {status.message && (
             <div className={`flex items-center gap-2 text-sm p-3 rounded-lg ${status.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
                 {status.type === 'success' ? <CheckCircle size={16}/> : <AlertCircle size={16}/>}
@@ -111,12 +188,8 @@ export default function CreateUserForm() {
             </div>
         )}
 
-        {/* Submit Button */}
-        <button 
-            disabled={loading}
-            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-slate-200 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed hover:-translate-y-0.5 active:translate-y-0"
-        >
-            {loading ? "Creating Account..." : <><Plus size={18} /> Create Account</>}
+        <button disabled={loading} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-70 mt-4">
+            {loading ? "Creating..." : <><Plus size={18} /> Create Account</>}
         </button>
       </form>
     </div>

@@ -16,7 +16,8 @@ import {
   ChevronLeft,
   Bell,
   Share2,
-  List
+  List,
+  ChevronDown
 } from "lucide-react";
 
 export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
@@ -26,11 +27,28 @@ export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSignOut, setShowSignOut] = useState(false);
 
+  const [adminDropdownOpen, setAdminDropdownOpen] = useState(
+    pathname === "/dashboard/admin" || pathname.startsWith("/dashboard/associate-management")
+  );
+
   const notifications = useChatStore(s => s.notifications);
   const userName = session?.user?.name || "User";
+  const displayRole = role || "";
+  const department = session?.user?.department || "";
 
-  // FIX: Ensure role is always a string to prevent .replace() crashes during sign-out
-  const displayRole = role
+  // 👇 FIX: Get access modules from session
+  const accessModules = session?.user?.accessModules || [];
+
+  const isAdminAuthorized =
+    displayRole === 'superAdmin' ||
+    (displayRole === 'sales' && department === 'admin') ||
+    (displayRole === 'doctor' && department === 'admin');
+
+  // 👇 FIX: Helper function to check module access
+  const hasAccess = (moduleName) => {
+    if (isAdminAuthorized) return true; // Admins get all access by default
+    return accessModules.includes(moduleName); // Check array for normal users
+  };
 
   useEffect(() => {
     const handleResize = () => { if (window.innerWidth >= 768) setMobileOpen(false); };
@@ -42,7 +60,6 @@ export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
   const toggleSidebar = () => window.innerWidth < 768 ? setMobileOpen(!mobileOpen) : setIsDesktopExpanded(!isDesktopExpanded);
 
   const handleConfirmSignOut = async () => {
-    // FIX: Await sign out and force redirect to home to prevent race conditions
     await signOut({ callbackUrl: "/", redirect: true });
   };
 
@@ -118,34 +135,95 @@ export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
         {/* Nav Links */}
         <nav className="flex-1 flex flex-col gap-2 p-4 mt-0 overflow-y-auto custom-scrollbar">
 
-          {displayRole === 'admin' && (
-            <Link href="/dashboard/admin">
-              <NavItem isOpen={isExpanded} active={pathname === "/dashboard/admin"} label="Admin Overview" icon={<LayoutDashboard size={22} />} />
-            </Link>
+          {isAdminAuthorized && (
+            <div className="flex flex-col gap-1">
+              <div
+                onClick={() => {
+                  if (!isExpanded) {
+                    if (window.innerWidth < 768) setMobileOpen(true);
+                    else setIsDesktopExpanded(true);
+                    setAdminDropdownOpen(true);
+                  } else {
+                    setAdminDropdownOpen(!adminDropdownOpen);
+                  }
+                }}
+                className={`flex items-center gap-4 p-3.5 rounded-xl transition-all duration-200 cursor-pointer group font-medium ${(pathname === "/dashboard/admin" || pathname.startsWith("/dashboard/associate-management")) && !adminDropdownOpen
+                  ? "bg-white/10 text-white"
+                  : "text-white hover:bg-white/20"
+                  } ${isExpanded ? "justify-between" : "justify-center"}`}
+              >
+                <div className="flex items-center gap-4">
+                  <span className="shrink-0 transition-transform duration-200 group-hover:scale-110">
+                    <LayoutDashboard size={22} />
+                  </span>
+                  {isExpanded && (
+                    <span className="text-[15px] tracking-wide animate-in fade-in slide-in-from-left-2 font-medium">
+                      Admin Overview
+                    </span>
+                  )}
+                </div>
+                {isExpanded && (
+                  <ChevronDown
+                    size={16}
+                    className={`transition-transform duration-200 ${adminDropdownOpen ? "rotate-180" : ""}`}
+                  />
+                )}
+              </div>
+
+              {isExpanded && adminDropdownOpen && (
+                <div className="flex flex-col gap-1 ml-[22px] pl-4 border-l-2 border-white/20 mt-1 mb-2 animate-in slide-in-from-top-2 fade-in duration-200">
+                  <Link href="/dashboard/admin">
+                    <div className={`py-2 px-3 rounded-lg text-sm transition-all duration-200 ${pathname === "/dashboard/admin"
+                      ? "bg-white text-[#1aa159] font-bold shadow-sm translate-x-1"
+                      : "text-white/80 hover:text-white hover:bg-white/10 hover:translate-x-1"
+                      }`}>
+                      Dashboard
+                    </div>
+                  </Link>
+                  <Link href="/dashboard/associate-management">
+                    <div className={`py-2 px-3 rounded-lg text-sm transition-all duration-200 ${pathname === "/dashboard/associate-management"
+                      ? "bg-white text-[#1aa159] font-bold shadow-sm translate-x-1"
+                      : "text-white/80 hover:text-white hover:bg-white/10 hover:translate-x-1"
+                      }`}>
+                      Manage Associates
+                    </div>
+                  </Link>
+                </div>
+              )}
+            </div>
           )}
 
-          {displayRole !== 'admin' && (
+          {/* Normal User Dashboard */}
+          {!isAdminAuthorized && (
             <Link href="/dashboard/associate">
               <NavItem isOpen={isExpanded} active={pathname === "/dashboard/associate"} label="My Dashboard" icon={<LayoutDashboard size={22} />} />
             </Link>
           )}
 
-          <Link href="/dashboard/chat">
-            <NavItem isOpen={isExpanded} active={pathname === "/dashboard/chat"} label="Chat Inbox" icon={<MessageSquare size={22} />} />
-          </Link>
+          {/* 👇 FIX: Show modules only if user has access */}
+          {hasAccess("Chat Inbox") && (
+            <Link href="/dashboard/chat">
+              <NavItem isOpen={isExpanded} active={pathname === "/dashboard/chat"} label="Chat Inbox" icon={<MessageSquare size={22} />} />
+            </Link>
+          )}
 
-          <Link href="/dashboard/leads">
-            <NavItem isOpen={isExpanded} active={pathname === "/dashboard/leads"} label="Leads" icon={<List size={22} />} />
-          </Link>
-          
-          <Link href="/dashboard/customers">
-            <NavItem isOpen={isExpanded} active={pathname.startsWith("/dashboard/customers")} label="Customers" icon={<Users size={22} />} />
-          </Link>
+          {hasAccess("Leads") && (
+            <Link href="/dashboard/leads">
+              <NavItem isOpen={isExpanded} active={pathname === "/dashboard/leads"} label="Leads" icon={<List size={22} />} />
+            </Link>
+          )}
 
-          <Link href="/dashboard/forwarded-leads">
-            <NavItem isOpen={isExpanded} active={pathname === "/dashboard/forwarded-leads"} label="Forwarded Leads" icon={<Share2 size={22} />} />
-          </Link>
+          {hasAccess("Customers") && (
+            <Link href="/dashboard/customers">
+              <NavItem isOpen={isExpanded} active={pathname.startsWith("/dashboard/customers")} label="Customers" icon={<Users size={22} />} />
+            </Link>
+          )}
 
+          {hasAccess("Leads") && (
+            <Link href="/dashboard/forwarded-leads">
+              <NavItem isOpen={isExpanded} active={pathname === "/dashboard/forwarded-leads"} label="Forwarded Leads" icon={<Share2 size={22} />} />
+            </Link>
+          )}
 
         </nav>
 
@@ -158,8 +236,11 @@ export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
             {isExpanded && (
               <div className="overflow-hidden flex-1 min-w-0">
                 <p className="text-sm font-bold text-white truncate">{userName}</p>
-                {/* FIX: Use displayRole here instead of raw role */}
-                <p className="text-[11px] text-green-100 uppercase tracking-wide truncate font-medium">{displayRole.replace('_', ' ')}</p>
+                <p className="text-[11px] text-green-100 uppercase tracking-wide truncate font-medium">{
+                  displayRole === "superAdmin"
+                    ? displayRole.replace(/([a-z])([A-Z])/g, "$1 $2")
+                    : displayRole.replace('_', ' ')
+                }</p>
               </div>
             )}
             {isExpanded && (
@@ -198,4 +279,4 @@ function NavItem({ isOpen, icon, label, active }) {
       )}
     </div>
   );
-} 
+}

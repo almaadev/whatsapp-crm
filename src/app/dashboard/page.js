@@ -12,7 +12,7 @@ export default function DashboardRoot() {
     if (status === "authenticated" && session?.user) {
       const role = session.user.role;
 
-      if (role === "admin") {
+      if (role === "admin" || role === "superAdmin") {
         // Admin goes to Admin Panel by default
         router.replace("/dashboard/admin");
       } else {

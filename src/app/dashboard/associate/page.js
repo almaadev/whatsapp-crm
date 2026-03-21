@@ -34,7 +34,7 @@ export default function AssociateDashboard() {
                 // Fetch Users for Targets
                 const userRes = await fetch("/api/users");
                 const users = await userRes.json();
-                const me = users.find(u => u.email === session.user.email);
+                const me = Array.isArray(users) ? users.find(u => u.email === session.user.email) : null;
 
                 // Fetch Contacts (Leads + Customers)
                 const contactsRes = await fetch("/api/contacts");
@@ -127,8 +127,9 @@ export default function AssociateDashboard() {
     const progressPercent = stats.target > 0 ? Math.min(100, Math.round((stats.achieved / stats.target) * 100)) : 0;
 
     return (
-        <div className="flex h-[100dvh] bg-slate-50">
-            <Sidebar role={session.user.role} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
+       <div className="flex h-[100dvh] bg-slate-50">
+            {/* 👇 FIX: Intha line sariyaana murayil maathiyachu */}
+            <Sidebar role={session?.user?.role} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
 
             <main className="flex-1 p-4 md:p-10 overflow-y-auto w-full">
                 <button onClick={() => setMobileMenuOpen(true)} className="md:hidden mb-6 p-2 text-slate-600 bg-white rounded-lg shadow-sm border border-slate-200">

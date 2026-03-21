@@ -10,6 +10,7 @@
   },
   "type": "module",
   "dependencies": {
+    "antd": "^6.3.3",
     "axios": "^1.13.4",
     "bcryptjs": "^3.0.3",
     "googleapis": "^171.4.0",

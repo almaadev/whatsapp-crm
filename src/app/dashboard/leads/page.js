@@ -29,7 +29,7 @@ import LeadCard from "@/components/layout/LeadCard";
 
 export default function LeadsPage() {
     const router = useRouter();
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
     const role = session?.user?.role;
     const { setSelectedChat } = useChatStore();
     const { setPath } = usePathStore()
@@ -163,7 +163,9 @@ export default function LeadsPage() {
             setLoading(false);
         }
     };
-
+    if (status === "loading") {
+        return <div className="flex h-screen items-center justify-center text-slate-500">Loading...</div>;
+    }
     return (
         <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
             <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} role={role || "associate"} />
@@ -277,7 +279,7 @@ export default function LeadsPage() {
                                                         <option value="New">New</option>
                                                         <option value="Follow Up">Follow Up</option>
                                                         <option value="Closed">Closed</option>
-                                                        
+
                                                     </select>
                                                 </div>
                                             </div>

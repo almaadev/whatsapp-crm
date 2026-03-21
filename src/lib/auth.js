@@ -17,11 +17,17 @@ export const authOptions = {
         const user = await User.findOne({ email: credentials.email }).lean();
         
         if (user) {
-          // Check if password matches (Supports both hashed and old plain-text passwords during transition)
           const isMatch = (await bcrypt.compare(credentials.password, user.password).catch(()=>false)) || credentials.password === user.password;
           
           if (isMatch) {
-            return { id: user._id.toString(), name: user.name, email: user.email, role: user.role };
+            return { 
+                id: user._id.toString(), 
+                name: user.name, 
+                email: user.email, 
+                role: user.role, 
+                department: user.department,
+                accessModules: user.accessModules || [] 
+            };
           }
         }
         return null;
@@ -31,16 +37,27 @@ export const authOptions = {
 
   callbacks: {
     async jwt({ token, user }) {
-      if (user) { token.role = user.role; token.id = user.id; }
+      if (user) { 
+        token.role = user.role;  
+        token.id = user.id; 
+        token.department = user.department; 
+        // 👇 FIX: Token-la set panrom
+        token.accessModules = user.accessModules; 
+      }
       return token;
     },
     async session({ session, token }) {
-      if (token) { session.user.role = token.role; session.user.id = token.id; }
+      if (token) { 
+        session.user.role = token.role; 
+        session.user.department = token.department; 
+        session.user.id = token.id; 
+        // 👇 FIX: Session-la add panrom
+        session.user.accessModules = token.accessModules; 
+      }
       return session;
     }
   },
   pages: { signIn: "/" },
   session: { strategy: "jwt" },
   secret: process.env.NEXTAUTH_SECRET,
-  
 };
