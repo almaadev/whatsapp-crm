@@ -1,30 +1,16 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useChatStore } from "@/store/chatStore";
 import { usePathStore } from "@/store/pathStore";
-import { usePathname } from 'next/navigation';
-
 import {
-    Save,
-    User,
-    Phone,
-    MapPin,
-    Tag,
-    FileText,
-    AlertCircle,
-    Loader2,
-    X,
-    Plus,
-    Search,
-    RefreshCcw,
-    Flag
+    Save, User, Phone, MapPin, Tag, FileText, AlertCircle, Loader2, X, Plus, Search, RefreshCcw, Flag,
 } from "lucide-react";
 
 import { toast } from "react-toastify";
 import Sidebar from "@/components/layout/Sidebar";
-import LeadCard from "@/components/layout/LeadCard";
+import LeadCard from "@/components/layout/LeadCard"
 
 
 export default function LeadsPage() {
@@ -68,14 +54,14 @@ export default function LeadsPage() {
 
     const handleCustomerRedirect = (phone) => {
         setPath(pathname)
-        router.push(`/dashboard/leads/${phone}`)
+        router.push(`/crm/leads/${phone}`)
     }
 
     const handleChatSelect = (lead) => {
         const chatObject = {
             phone: lead.phone,
             name: lead.name || lead.phone,
-            address: lead.address || "", // Pass address to chat
+            address: lead.address || "", 
             status: lead.status || "New",
             priority: lead.priority || "Medium",
             direction: "OUTBOUND", read: "TRUE", timestamp: new Date().toISOString()
@@ -119,7 +105,7 @@ export default function LeadsPage() {
     };
 
     const handleCopyPhone = (e, phone) => {
-        e.preventDefault(); // Prevent navigation if inside link
+        e.preventDefault(); 
         e.stopPropagation();
         navigator.clipboard.writeText(phone);
         setCopiedPhone(phone);
@@ -163,11 +149,13 @@ export default function LeadsPage() {
             setLoading(false);
         }
     };
+    
     if (status === "loading") {
         return <div className="flex h-screen items-center justify-center text-slate-500">Loading...</div>;
     }
+
     return (
-        <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
+        <div className="flex h-[100dvh] bg-slate-50 overflow-hidden font-sans">
             <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} role={role || "associate"} />
 
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
@@ -208,18 +196,35 @@ export default function LeadsPage() {
                             <p className="text-sm font-medium">No leads found matching your search.</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                            {processedLeads.map((lead, idx) => (
-                                // USING THE NEW COMPONENT HERE
-                                <LeadCard
-                                    key={idx}
-                                    lead={lead}
-                                    handleCustomerRedirect={handleCustomerRedirect}
-                                    handleCopyPhone={handleCopyPhone}
-                                    copiedPhone={copiedPhone}
-                                    handleChatSelect={handleChatSelect}
-                                />
-                            ))}
+                        // 👇 FIX: Grid view converted to responsive list (Table) view
+                        <div className="container mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase font-semibold border-b border-slate-200">
+                                        <tr>
+                                            <th className="px-4 md:px-6 py-4">Lead Info</th>
+                                            <th className="px-4 md:px-6 py-4">Contact</th>
+                                            {/* Hidden on mobile */}
+                                            <th className="px-6 py-4 hidden md:table-cell">Enquired For</th>
+                                            <th className="px-6 py-4 hidden md:table-cell">Status</th>
+                                            <th className="px-6 py-4 hidden lg:table-cell">Date</th>
+                                            <th className="px-4 md:px-6 py-4 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 text-sm">
+                                        {processedLeads.map((lead, idx) => (
+                                            <LeadCard
+                                                key={idx}
+                                                lead={lead}
+                                                handleCustomerRedirect={handleCustomerRedirect}
+                                                handleCopyPhone={handleCopyPhone}
+                                                copiedPhone={copiedPhone}
+                                                handleChatSelect={handleChatSelect}
+                                            />
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     )}
                 </main>
@@ -279,7 +284,6 @@ export default function LeadsPage() {
                                                         <option value="New">New</option>
                                                         <option value="Follow Up">Follow Up</option>
                                                         <option value="Closed">Closed</option>
-
                                                     </select>
                                                 </div>
                                             </div>
@@ -322,7 +326,6 @@ export default function LeadsPage() {
                                                 <textarea name="remarks" placeholder="Notes..." value={formData.remarks} onChange={handleChange} rows={3} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium resize-none" />
                                             </div>
                                         </div>
-
                                     </div>
 
                                     <div className="pt-4 border-t border-slate-100 flex gap-3">
@@ -331,7 +334,6 @@ export default function LeadsPage() {
                                             {loading ? <Loader2 size={18} className="animate-spin" /> : <><Save size={18} /> Save Lead</>}
                                         </button>
                                     </div>
-
                                 </form>
                             </div>
                         </div>
@@ -341,5 +343,4 @@ export default function LeadsPage() {
         </div>
     );
 }
-
 

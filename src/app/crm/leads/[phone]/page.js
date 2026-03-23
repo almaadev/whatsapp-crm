@@ -100,7 +100,7 @@ export default function LeadDetailsPage({ params }) {
                 timestamp: new Date().toISOString()
             };
             setSelectedChat(chatObject);
-            router.push("/dashboard/chat");
+            router.push("/crm/chat");
         }
     };
 
@@ -128,7 +128,7 @@ export default function LeadDetailsPage({ params }) {
                     </div>
                     <h2 className="text-xl font-bold text-slate-800 mb-2">Lead Not Found</h2>
                     <p className="text-slate-500 mb-6 max-w-sm text-sm">The requested lead profile could not be found. It may have been deleted or the link is incorrect.</p>
-                    <Link href="/dashboard/new-leads" className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition shadow-sm">
+                    <Link href="/crm/new-leads" className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition shadow-sm">
                         Back to Leads
                     </Link>
                 </div>
@@ -147,7 +147,7 @@ export default function LeadDetailsPage({ params }) {
                         <button onClick={() => setMobileOpen(true)} className="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-700 transition">
                             <Menu size={24} />
                         </button>
-                        <Link href="/dashboard/leads" className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition border border-transparent hover:border-slate-200">
+                        <Link href="/crm/leads" className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition border border-transparent hover:border-slate-200">
                             <ArrowLeft size={20} />
                         </Link>
                         <div>

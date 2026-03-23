@@ -8,12 +8,13 @@ import ChatArea from "@/components/features/chat/ChatArea";
 import { useChatStore } from "@/store/chatStore";
 import { 
   ArrowLeft, User, Phone, MapPin, Briefcase, 
-  FileText, Save, Loader2, MessageSquarePlus, CheckCircle 
-} from "lucide-react";
+  FileText, Save, Loader2, MessageSquarePlus, CheckCircle, ShieldAlert 
+} from "lucide-react"; // 👇 FIX: Added ShieldAlert
 import { toast } from "react-toastify";
+import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png"; // 👇 FIX: Added Logo for mobile header
 
 export default function NewCustomerPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const setSelectedChat = useChatStore((s) => s.setSelectedChat);
@@ -34,7 +35,25 @@ export default function NewCustomerPage() {
     source: "Direct"
   });
 
-  // Debounce check for existing customer
+  // 👇 FIX: Authorization Logic Added
+  const userRole = session?.user?.role;
+  const displayRole = userRole || "";
+  const department = session?.user?.department || "";
+  const accessModules = session?.user?.accessModules || [];
+
+  const isAdminAuthorized =
+    displayRole === 'superAdmin' ||
+    (displayRole === 'sales' && department === 'admin') ||
+    (displayRole === 'doctor' && department === 'admin');
+
+  const hasAccess = (moduleName) => {
+    if (isAdminAuthorized) return true; 
+    return accessModules.includes(moduleName); 
+  };
+
+  const isAuthorized = hasAccess("Chat Inbox");
+
+
   useEffect(() => {
       const cleanMobile = formData.mobile.replace(/\D/g, "");
       if (cleanMobile.length >= 10) {
@@ -55,11 +74,9 @@ export default function NewCustomerPage() {
               const found = chats.find(c => c.phone === formattedPhone);
               if (found) {
                   setExistingCustomer(found);
-                  // Auto-select chat if found so right panel shows history
                   setSelectedChat(found);
               } else {
                   setExistingCustomer(null);
-                  // Clear selection if not found so right panel is blank/ready
                   setSelectedChat(null);
               }
           }
@@ -75,10 +92,9 @@ export default function NewCustomerPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // If existing, just redirect/open chat
     if (existingCustomer) {
         setSelectedChat(existingCustomer);
-        router.push("/dashboard/chat");
+        router.push("/crm/chat");
         return;
     }
 
@@ -115,7 +131,7 @@ export default function NewCustomerPage() {
       };
       
       setSelectedChat(newChatObj);
-      router.push("/dashboard/chat"); 
+      router.push("/crm/chat"); 
       
     } catch (error) {
       console.error("Error adding customer:", error);
@@ -125,19 +141,53 @@ export default function NewCustomerPage() {
     }
   };
 
+  // 👇 FIX: Loading check
+  if (status === "loading") return <div className="flex h-[100dvh] items-center justify-center text-slate-500 font-medium">Loading Workspace...</div>;
+  if (!session) return null;
+
+  // 👇 FIX: Access Denied Screen
+  if (!isAuthorized) {
+    return (
+        <div className="flex h-[100dvh] bg-gray-100 overflow-hidden relative">
+            <div className="flex-shrink-0 z-40">
+                <Sidebar role={userRole} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
+            </div>
+
+            <div className="flex flex-1 w-full h-full relative overflow-hidden flex-col">
+                <div className="md:hidden h-14 bg-white border-b flex items-center px-4 shrink-0 justify-between z-30 shadow-sm">
+                    <button onClick={() => setMobileMenuOpen(true)} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-md">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                    </button>
+                    <div className="font-semibold text-gray-700">
+                        <div className=" w-20 flex items-center justify-center shrink-0 p-1">
+                            <img src={AlmaaLogo.src} alt="Almaa" className="w-full h-full object-contain" />
+                        </div>
+                    </div>
+                    <div className="w-8"></div>
+                </div>
+                <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+                    <ShieldAlert size={60} className="text-red-400 mb-4" />
+                    <h2 className="text-2xl font-bold text-slate-800">Access Denied</h2>
+                    <p className="text-slate-500 mt-2">You do not have permission to access to new customer.</p>
+                </div>
+            </div>
+        </div>
+    );
+  }
+
   return (
     <div className="flex h-[100dvh] bg-slate-50 overflow-hidden">
         
         {/* 1. Sidebar */}
-        <Sidebar role={session?.user?.role || "sales"} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
+        <Sidebar role={userRole || "sales"} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
 
-        {/* 2. LEFT PANEL: Add Customer Form (Replaces ChatList) */}
+        {/* 2. LEFT PANEL: Add Customer Form */}
         <div className="flex flex-col w-full md:w-[400px] border-r border-slate-200 bg-white h-full shrink-0 z-20 shadow-xl md:shadow-none absolute md:relative">
              
              {/* Header */}
              <div className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
-                    <button onClick={() => router.push('/dashboard/chat')} className="p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors">
+                    <button onClick={() => router.push('/crm/chat')} className="p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors">
                         <ArrowLeft size={20} />
                     </button>
                     <h1 className="font-bold text-lg text-slate-800">Add Customer</h1>

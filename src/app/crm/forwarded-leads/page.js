@@ -85,7 +85,7 @@ export default function ForwardedLeadsPage() {
     const handleNavigateToChat = (chat) => {
         const chatObj = { ...chat, history: [chat] };
         setSelectedChat(chatObj);
-        router.push("/dashboard/chat");
+        router.push("/crm/chat");
     };
 
     const filteredLeads = leads.filter(l => 

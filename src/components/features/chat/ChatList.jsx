@@ -381,7 +381,7 @@ export default function ChatList({ role, loading }) {
 
       <div className="h-16 px-5 flex items-center justify-between border-b border-slate-100 shrink-0 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
         <h2 className="text-lg font-bold text-slate-800 tracking-tight">Messages</h2>
-        <Link href="/dashboard/chat/new-customer" className="text-slate-400 hover:text-emerald-600 transition">
+        <Link href="/crm/chat/new-customer" className="text-slate-400 hover:text-emerald-600 transition">
              <PlusCircle size={20} />
         </Link>
       </div>

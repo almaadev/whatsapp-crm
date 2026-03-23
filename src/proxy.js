@@ -14,12 +14,12 @@ export default withAuth(
 
     // 2. Entha pages ellam Admin mattum paaka koodiyathu nu set panrom
     const isAdminRoute = 
-        path.startsWith("/dashboard/admin") || 
-        path.startsWith("/dashboard/associate-management");
+        path.startsWith("/crm/admin") || 
+        path.startsWith("/crm/associate-management");
 
       
     if (isAdminRoute && !isAdmin) {
-      return NextResponse.redirect(new URL("/dashboard/chat", req.url));
+      return NextResponse.redirect(new URL("/crm/chat", req.url));
     }
 
     return NextResponse.next();
@@ -32,5 +32,5 @@ export default withAuth(
 );
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: ["/crm/:path*"],
 };

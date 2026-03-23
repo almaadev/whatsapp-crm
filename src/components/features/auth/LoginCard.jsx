@@ -20,7 +20,7 @@ export default function LoginCard() {
     const result = await signIn("credentials", { redirect: false, email, password });
     if (result?.ok) {
         toast.success("Welcome back!");
-        router.push("/dashboard");
+        router.push("/crm");
     } else { 
         toast.error("Invalid Credentials"); 
         setLoading(false); 

@@ -14,10 +14,10 @@ export default function DashboardRoot() {
 
       if (role === "admin" || role === "superAdmin") {
         // Admin goes to Admin Panel by default
-        router.replace("/dashboard/admin");
+        router.replace("/crm/admin");
       } else {
         // Associates go straight to Chat
-        router.replace("/dashboard/chat");
+        router.replace("/crm/chat");
       }
     }
   }, [status, session, router]);

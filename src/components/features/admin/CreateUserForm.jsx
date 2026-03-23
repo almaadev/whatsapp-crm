@@ -1,18 +1,28 @@
 "use client";
 import { useState } from "react";
-import { User, Mail, Lock, Shield, CheckCircle, AlertCircle, Plus, Phone, Briefcase, Tag } from "lucide-react";
+import { User, Mail, Lock, Shield, CheckCircle, AlertCircle, Plus, Phone, Briefcase, Tag, Building } from "lucide-react";
 
 export default function CreateUserForm() {
   const [formData, setFormData] = useState({
     name: "", preferredName: "", email: "", number: "", password: "",
-    // FIX: department initial state should be a valid enum value
-    role: "sales", department: "telecalling", isAdmin: false, active: true, accessModules: []
+    role: "sales", department: "telecalling", branch: "", isAdmin: false, active: true, accessModules: []
   });
   
   const [status, setStatus] = useState({ type: "", message: "" });
   const [loading, setLoading] = useState(false);
 
   const modulesList = ["Leads", "Customers", "Reports", "Chat Inbox"];
+
+  // 👇 Tamil Nadu Districts Array
+  const tamilNaduDistricts = [
+    "Ariyalur", "Chengalpattu", "Chennai", "Coimbatore", "Cuddalore", "Dharmapuri",
+    "Dindigul", "Erode", "Kallakurichi", "Kanchipuram", "Kanyakumari", "Karur",
+    "Krishnagiri", "Madurai", "Mayiladuthurai", "Nagapattinam", "Namakkal", "Nilgiris",
+    "Perambalur", "Pudukkottai", "Ramanathapuram", "Ranipet", "Salem", "Sivaganga",
+    "Tenkasi", "Thanjavur", "Theni", "Thoothukudi", "Tiruchirappalli", "Tirunelveli",
+    "Tirupathur", "Tiruppur", "Tiruvallur", "Tiruvannamalai", "Tiruvarur", "Vellore",
+    "Viluppuram", "Virudhunagar"
+  ];
 
   const handleModuleChange = (module) => {
     setFormData(prev => ({
@@ -60,17 +70,16 @@ export default function CreateUserForm() {
       if (res.ok) {
         setStatus({ type: "success", message: "User created successfully!" });
         setFormData({ 
-          name: "", preferredName: "", email: "", number: "", password: "",
+          name: "", preferredName: "", email: "", number: "", password: "", branch: "",
           role: "sales", department: "telecalling", isAdmin: false, active: true, accessModules: [] 
         });
       } else {
-        // 👇 FIX: JSON ah iruntha mattum parse pannurom
         if (contentType && contentType.includes("application/json")) {
             const errorData = await res.json();
             setStatus({ type: "error", message: errorData.error || "Failed to create user." });
         } else {
             const htmlText = await res.text();
-            console.error("Server HTML Error:", htmlText); // Check browser console to see real error
+            console.error("Server HTML Error:", htmlText);
             setStatus({ type: "error", message: "Server error occurred. Check terminal for details." });
         }
       }
@@ -122,11 +131,28 @@ export default function CreateUserForm() {
                 </div>
             </div>
 
+            {/* 👇 FIX: Branch Input changed to Select Dropdown */}
+            <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Branch *</label>
+                <div className="relative group">
+                    <Building className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
+                    <select required className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm cursor-pointer appearance-none" 
+                        value={formData.branch} onChange={e => setFormData({...formData, branch: e.target.value})}>
+                        <option value="" disabled>Select Branch / District</option>
+                        {tamilNaduDistricts.map((district) => (
+                            <option key={district} value={district}>
+                                {district}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+
             <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Role *</label>
                 <div className="relative group">
                     <Shield className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
-                    <select className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm cursor-pointer"
+                    <select className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm cursor-pointer appearance-none"
                         value={formData.role} onChange={handleRoleChange}>
                         <option value="sales">Sales</option>
                         <option value="doctor">Doctor</option>
@@ -139,7 +165,7 @@ export default function CreateUserForm() {
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Department *</label>
                 <div className="relative group">
                     <Briefcase className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
-                    <select className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm cursor-pointer"
+                    <select className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm cursor-pointer appearance-none"
                         value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})}>
                         <option value="telecalling">Telecalling</option>
                         <option value="support">Support</option>

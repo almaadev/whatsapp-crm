@@ -23,7 +23,6 @@ export default function AdminDashboard() {
     totalPending: 0, totalFollowUp: 0, totalAchieved: 0
   });
 
-  // 1. Authorization Logic
   const isAuthorized = 
       session?.user?.role === 'superAdmin' || 
       (session?.user?.role === 'sales' && session?.user?.department === 'admin') ||  
@@ -61,9 +60,9 @@ export default function AdminDashboard() {
     if (isAuthorized) {
         fetchData();
     } else if (status !== "loading") {
-        setLoading(false); // Stop loading if not authorized
+        setLoading(false); 
     }
-  }, [isAuthorized, status, session?.user?.id]); // Added necessary dependencies
+  }, [isAuthorized, status, session?.user?.id]); 
 
   const saveEdit = async (id) => {
     const associate = associates.find(a => a.id === id);
@@ -91,12 +90,10 @@ export default function AdminDashboard() {
     setTempTarget(associate.target);
   };
 
-  // 👇 FIX: Loading State Check (Sariyaana edathula)
   if (status === "loading" || (loading && isAuthorized)) {
     return <div className="p-8 flex h-[100dvh] items-center justify-center text-slate-500 font-medium">Loading Dashboard Data...</div>;
   }
 
-  // 👇 FIX: Unauthorized User Check
   if (!isAuthorized) {
       return (
           <div className="flex h-[100dvh] bg-gray-100 overflow-hidden relative">
@@ -136,7 +133,6 @@ export default function AdminDashboard() {
       </div>
 
       <main className="flex-1 p-6 md:p-10 overflow-y-auto w-full">
-        {/* Mobile Header logic with Hamburger */}
         <div className="md:hidden flex items-center justify-between mb-6 border-b pb-4 border-slate-200">
           <button
             onClick={() => setMobileMenuOpen(true)}
@@ -160,7 +156,7 @@ export default function AdminDashboard() {
               </h1>
               <p className="text-slate-500 text-sm mt-1 ml-1">Company-wide performance and associate management.</p>
             </div>
-            <Link href="/dashboard/admin/reports" className="flex items-center gap-2 text-emerald-600 hover:text-emerald-700 font-semibold text-sm bg-white px-4 py-2 rounded-lg border border-slate-200 hover:border-emerald-200 transition-all shadow-sm hover:shadow-md group w-fit">
+            <Link href="/crm/admin/reports" className="flex items-center gap-2 text-emerald-600 hover:text-emerald-700 font-semibold text-sm bg-white px-4 py-2 rounded-lg border border-slate-200 hover:border-emerald-200 transition-all shadow-sm hover:shadow-md group w-fit">
               View Detailed Reports
               <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
             </Link>
@@ -227,6 +223,8 @@ export default function AdminDashboard() {
                 <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase font-semibold">
                   <tr>
                     <th className="px-6 py-4">Associate</th>
+                    {/* 👇 FIX: Branch Column Added in Roster */}
+                    <th className="px-6 py-4">Branch</th>
                     <th className="px-6 py-4 text-center">Pending</th>
                     <th className="px-6 py-4 text-center">Active Follow Up</th>
                     <th className="px-6 py-4 text-center">Achieved</th>
@@ -251,6 +249,10 @@ export default function AdminDashboard() {
                             </div>
                           </div>
                         </td>
+                        
+                        {/* 👇 FIX: Show Branch Value */}
+                        <td className="px-6 py-4 font-medium text-slate-600">{associate.branch}</td>
+
                         <td className="px-6 py-4 text-center font-medium text-rose-600">{associate.pendingCount}</td>
                         <td className="px-6 py-4 text-center font-medium text-amber-600">{associate.followUpCount}</td>
                         <td className="px-6 py-4 text-center">
@@ -299,7 +301,7 @@ export default function AdminDashboard() {
                   })}
                   {associates.length === 0 && !loading && (
                     <tr>
-                      <td colSpan="8" className="text-center py-6 text-slate-500">
+                      <td colSpan="9" className="text-center py-6 text-slate-500">
                         No associates found. Please add new associates to see them here.
                       </td>
                     </tr>

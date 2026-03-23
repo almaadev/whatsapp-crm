@@ -23,7 +23,6 @@ export async function GET(req, { params }) {
     const user = await User.findById(id).select("-password").lean();
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
     
-    // 👇 PUDHIYA CONDITION: Normal admin oru Admin-oda profile-a open panna mudiyathu
     if (session.user.role !== 'superAdmin' && user.department === 'admin') {
         return NextResponse.json({ error: "Access Denied: Only Super Admins can manage other Admins" }, { status: 403 });
     }
@@ -46,8 +45,6 @@ export async function PUT(req, { params }) {
     const existingUser = await User.findById(id).lean();
     if (!existingUser) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-    // 👇 PUDHIYA CONDITION: Normal admin, already admin aagairukavara update pannavoo, 
-    // allathu oruthara puthusa admin aagavoo maatha mudiyathu!
     if (session.user.role !== 'superAdmin') {
         if (existingUser.department === 'admin' || body.department === 'admin') {
             return NextResponse.json({ error: "Access Denied: Only Super Admin can manage Admins" }, { status: 403 });
@@ -60,6 +57,7 @@ export async function PUT(req, { params }) {
           email: body.email,
           role: body.role,
           department: body.department,
+          branch: body.branch,
           isAdmin: body.isAdmin,
           active: body.active,
           accessModules: body.accessModules || []

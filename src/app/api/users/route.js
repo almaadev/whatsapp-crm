@@ -21,8 +21,6 @@ export async function GET() {
   try {
     await connectDB();
 
-    // 👇 FIX: Normal user-a iruntha, avangaloda data-va mattum Array-va anuppurom.
-    // Ithaala frontend-la .find() crash aagathu, avanga target-um sariya load aagum.
     if (!isAuthorized(session)) {
         const me = await User.findOne({ email: session.user.email }).lean();
         if (!me) return NextResponse.json([]);
@@ -33,12 +31,12 @@ export async function GET() {
             email: me.email,
             role: me.role,
             department: me.department,
+            branch: me.branch || "",
             target: me.target || 0,
             achieved: me.achieved || 0,
         }]);
     }
 
-    // --- Keela irukka Admin Logic Pazhayathu Thaan ---
     let associates = [];
     if (redis && redis.status === 'ready') {
         const cachedUsers = await redis.get(USER_CACHE_KEY);
@@ -56,6 +54,7 @@ export async function GET() {
           number: u.number || "",
           role: u.role,
           department: u.department,
+          branch: u.branch || "",
           active: u.active,
           leads: u.leads || 0,
           target: u.target || 0,
@@ -78,6 +77,7 @@ export async function GET() {
     return NextResponse.json([], { status: 200 });
   }
 }
+
 export async function POST(req) {
   const session = await getServerSession(authOptions);
   if (!isAuthorized(session)) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
@@ -86,13 +86,14 @@ export async function POST(req) {
     await connectDB();
     const body = await req.json();
     
-    // 👇 PUDHIYA CONDITION: Normal admin innoru Admin-a create panna mudiyathu
     if (session.user.role !== 'superAdmin' && body.department === 'admin') {
         return NextResponse.json({ error: "Only Super Admin can create Admin users" }, { status: 403 });
     }
 
-    const { name, preferredName, email, number, password, role, department, isAdmin, active, accessModules } = body;
+    const { name, preferredName, email, number, password, role, department, branch, isAdmin, active, accessModules } = body;
     
+    if (!branch) return NextResponse.json({ error: "Branch is mandatory" }, { status: 400 });
+
     const salt = await bcrypt.genSalt(Number(process.env.SALT || 10));
     const hashedPassword = await bcrypt.hash(password, salt);
     
@@ -104,6 +105,7 @@ export async function POST(req) {
         password: hashedPassword, 
         role, 
         department, 
+        branch, // 👇 FIX: Save branch to DB
         isAdmin, 
         active, 
         accessModules,

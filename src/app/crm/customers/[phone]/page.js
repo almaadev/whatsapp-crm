@@ -124,7 +124,7 @@ useEffect(() => {
                 <div className="max-w-6xl mx-auto">
                     <div className="flex flex-col md:flex-row md:items-center gap-4 mb-6 md:mb-8">
                         <div className="flex items-center gap-3">
-                            <Link href={lastPath ? lastPath : "/dashboard/customers"} className="p-2.5 bg-white rounded-xl hover:bg-slate-100 text-slate-500 shadow-sm border border-slate-200 transition-all shrink-0">
+                            <Link href={lastPath ? lastPath : "/crm/customers"} className="p-2.5 bg-white rounded-xl hover:bg-slate-100 text-slate-500 shadow-sm border border-slate-200 transition-all shrink-0">
                                 <ChevronLeft size={20} />
                             </Link>
                             <div>

@@ -12,7 +12,7 @@ export default function LoginPage() {
   useEffect(() => {
     // If already authenticated, go to dashboard
     if (status === "authenticated") {
-      router.replace("/dashboard");
+      router.replace("/crm");
     }
   }, [status, router]);
 

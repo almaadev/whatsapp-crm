@@ -58,9 +58,9 @@ export async function POST(req) {
     }
 
     // 7. Clear Next.js UI Cache
-    revalidatePath("/dashboard/leads");
-    revalidatePath("/dashboard/chat");
-    revalidatePath(`/dashboard/leads/${encodeURIComponent(cleanPhone)}`);
+    revalidatePath("/crm/leads");
+    revalidatePath("/crm/chat");
+    revalidatePath(`/crm/leads/${encodeURIComponent(cleanPhone)}`);
 
     return NextResponse.json({ success: true, newState: newStateBoolean ? "TRUE" : "FALSE" });
   } catch (error) {

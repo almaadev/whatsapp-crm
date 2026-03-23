@@ -86,7 +86,7 @@ export default function AdminReportsPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                    <Link href="/dashboard/admin" className="p-2.5 bg-white rounded-xl hover:bg-slate-100 text-slate-500 shadow-sm border border-slate-200 transition-all">
+                    <Link href="/crm/admin" className="p-2.5 bg-white rounded-xl hover:bg-slate-100 text-slate-500 shadow-sm border border-slate-200 transition-all">
                         <ChevronLeft size={20} />
                     </Link>
                     <div>

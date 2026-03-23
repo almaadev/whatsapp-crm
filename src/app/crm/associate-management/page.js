@@ -18,7 +18,6 @@ const AssociateManagement = () => {
 
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-    // Modal states
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
@@ -45,7 +44,6 @@ const AssociateManagement = () => {
         }
     }, [session]);
 
-    // Delete Logic
     const handleDelete = async (id) => {
         try {
             const res = await fetch(`/api/users?id=${id}`, { method: "DELETE" });
@@ -60,7 +58,6 @@ const AssociateManagement = () => {
         }
     };
 
-    // Edit Logic
     const handleEditSave = async () => {
         try {
             const res = await fetch("/api/users", {
@@ -91,6 +88,10 @@ const AssociateManagement = () => {
         { title: "Email", dataIndex: "email", key: "email" },
         { title: "Mobile", dataIndex: "number", key: "number", render: (text) => <span className="whitespace-nowrap">{text || "-"}</span> },
         { title: "Preferred Name", dataIndex: "preferredName", key: "preferredName", render: (text) => <span className="whitespace-nowrap">{text || "-"}</span> },
+        
+        // 👇 FIX: Branch Column Added
+        { title: "Branch", dataIndex: "branch", key: "branch", render: (text) => <span className="whitespace-nowrap font-medium text-slate-600">{text || "-"}</span> },
+
         { title: "Role", dataIndex: "role", key: "role", render: (text) => <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px]  uppercase font-bold w-max">{text}</span> },
         { title: "Department", dataIndex: "department", key: "department", render: (text) => <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px]  uppercase font-bold w-max">{text || 'sales'}</span> },
         { title: "Status", dataIndex: "active", key: "active", render: (active) => (<span className={`px-2 py-1 text-xs font-bold whitespace-nowrap ${active ? ' text-green-700' : 'bg-red-100 text-red-700'}`}>{active ? 'Active' : 'Inactive'}</span>) },
@@ -99,7 +100,7 @@ const AssociateManagement = () => {
         { title: "Actions", key: "actions",
             render: (_, record) => (
                 <div className="flex gap-3">
-                    <Link href={`/dashboard/associate-management/${record.id}`}>
+                    <Link href={`/crm/associate-management/${record.id}`}>
                         <button className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Edit Full Profile">
                             <UserCog size={18} />
                         </button>
@@ -132,12 +133,10 @@ const AssociateManagement = () => {
 
     if (status === "loading") return <div className="p-8 flex justify-center text-slate-500">Loading Access...</div>;
 
-// 1. Muthalla user Authorized-a nu check panrom
     const isAuthorized = 
         session?.user?.role === 'superAdmin' || 
         (session?.user?.role === 'sales' && session?.user?.department === 'admin') ||  (session?.user?.role === 'doctor' && session?.user?.department === 'admin')
 
-    // 2. Authorized ILLANA (!isAuthorized) Access Denied page-a kaaturom
     if (!isAuthorized) {
         return (
             <div className="flex h-[100dvh] bg-gray-100 overflow-hidden relative">
@@ -182,11 +181,9 @@ const AssociateManagement = () => {
                     <div className="w-8"></div>
                 </div>
 
-                {/* Main Content Area */}
                 <div className="flex-1 overflow-y-auto p-4 md:p-6 w-full">
                     <div className="max-w-8xl mx-auto">
 
-                        {/* 👇 RESPONSIVE FIX: Stacked on mobile, row on tablet/desktop */}
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                             <div>
                                 <h2 className="text-xl md:text-2xl font-bold text-slate-800">Associate Management</h2>
@@ -201,7 +198,6 @@ const AssociateManagement = () => {
                             </button>
                         </div>
 
-                        {/* Main Table */}
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                             <Table
                                 columns={columns}
@@ -210,10 +206,9 @@ const AssociateManagement = () => {
                                 rowKey="id"
                                 pagination={{ 
                                     pageSize: 10,
-                                    responsive: true, // 👇 RESPONSIVE FIX: Adaptive pagination
-                                    size: "small" // slightly smaller pagination controls for mobile
+                                    responsive: true, 
+                                    size: "small" 
                                 }}
-                                // 👇 RESPONSIVE FIX: Increased x-scroll width to prevent column squishing on mobile
                                 scroll={{ x: 1100, y: 'calc(100vh - 280px)' }} 
                             />
                         </div>
@@ -222,7 +217,6 @@ const AssociateManagement = () => {
                 </div>
             </div>
 
-            {/* Create User Modal */}
             <Modal
                 title={<span className="text-lg md:text-xl">Create New Associate</span>}
                 open={isCreateModalOpen}
@@ -232,7 +226,7 @@ const AssociateManagement = () => {
                 }}
                 footer={null}
                 destroyOnHidden
-                width={700} // 👇 RESPONSIVE FIX: Better width for laptop/desktop
+                width={700}
                 className="top-4 md:top-20"
             >
                 <div className="pt-4">
@@ -240,7 +234,6 @@ const AssociateManagement = () => {
                 </div>
             </Modal>
 
-            {/* Edit Targets Modal */}
             <Modal
                 title="Update Associate Targets"
                 open={isEditModalOpen}
@@ -248,7 +241,7 @@ const AssociateManagement = () => {
                 onCancel={() => setIsEditModalOpen(false)}
                 okText="Save Changes"
                 okButtonProps={{ className: "bg-[#0b8343]" }}
-                centered // 👇 RESPONSIVE FIX: Centers modal gracefully on all devices
+                centered 
             >
                 {editingUser && (
                     <div className="space-y-4 pt-4">
@@ -257,7 +250,6 @@ const AssociateManagement = () => {
                             <p className="text-xs text-slate-500 truncate">{editingUser.email}</p>
                         </div>
 
-                        {/* 👇 RESPONSIVE FIX: grid-cols-1 on mobile, grid-cols-2 on tablet/up */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 mb-1">Target</label>

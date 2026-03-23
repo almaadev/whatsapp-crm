@@ -13,7 +13,6 @@ export async function GET() {
 
         const roster = users.map(user => {
             const userIdStr = user._id.toString();
-            // Safety check: Filter by associateId OR their name (for old data support)
             const userLeads = leads.filter(l => l.associateId === userIdStr || l.assignedTo === user.name);
 
             let pendingCount = 0;
@@ -29,29 +28,25 @@ export async function GET() {
                     const followUpDate = lead.followUpStart ? new Date(lead.followUpStart) : new Date(lead.createdAt);
                     const hoursDiff = (now - followUpDate) / (1000 * 60 * 60);
                     
-                    // Logic: > 48 Hrs Pending, Else current follow up
                     if (hoursDiff > 48) {
                         pendingCount++;
                     } else {
                         followUpCount++;
                     }
                 } else if (lead.status === "New") {
-                    pendingCount++; // New leads are strictly Pending
+                    pendingCount++; 
                 }
             });
 
             const totalTarget = user.target || 0;
-            
-            // 1. Conversion Rate calculated based on Target
             const conversionRate = totalTarget > 0 ? Math.round((achievedCount / totalTarget) * 100) : 0;
-            
-            // 2. Progress calculated based on Target (capped at 100%)
             const progress = totalTarget > 0 ? Math.min(100, Math.round((achievedCount / totalTarget) * 100)) : 0;
 
             return {
                 id: userIdStr,
                 name: user.name,
                 role: user.role,
+                branch: user.branch || "-", // 👇 FIX: Passed branch to roster
                 target: totalTarget,
                 pendingCount,
                 followUpCount,

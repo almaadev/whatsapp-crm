@@ -29,13 +29,13 @@ export default function NotificationPanel({ isOpen, onClose }) {
     
     if (chat) {
         setSelectedChat(chat);
-        router.push('/dashboard/chat');
+        router.push('/crm/chat');
         onClose(); 
     } else {
         // Fallback: If chat isn't loaded for some reason, try to navigate anyway
         // Ideally we would fetch it, but for now we redirect to chat
         console.warn("Chat object not found in store for", notif.phone);
-        router.push('/dashboard/chat');
+        router.push('/crm/chat');
         onClose();
     }
   };

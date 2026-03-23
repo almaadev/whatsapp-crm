@@ -28,7 +28,7 @@ export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
   const [showSignOut, setShowSignOut] = useState(false);
 
   const [adminDropdownOpen, setAdminDropdownOpen] = useState(
-    pathname === "/dashboard/admin" || pathname.startsWith("/dashboard/associate-management")
+    pathname === "/crm/admin" || pathname.startsWith("/crm/associate-management")
   );
 
   const notifications = useChatStore(s => s.notifications);
@@ -147,7 +147,7 @@ export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
                     setAdminDropdownOpen(!adminDropdownOpen);
                   }
                 }}
-                className={`flex items-center gap-4 p-3.5 rounded-xl transition-all duration-200 cursor-pointer group font-medium ${(pathname === "/dashboard/admin" || pathname.startsWith("/dashboard/associate-management")) && !adminDropdownOpen
+                className={`flex items-center gap-4 p-3.5 rounded-xl transition-all duration-200 cursor-pointer group font-medium ${(pathname === "/crm/admin" || pathname.startsWith("/crm/associate-management")) && !adminDropdownOpen
                   ? "bg-white/10 text-white"
                   : "text-white hover:bg-white/20"
                   } ${isExpanded ? "justify-between" : "justify-center"}`}
@@ -172,16 +172,16 @@ export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
 
               {isExpanded && adminDropdownOpen && (
                 <div className="flex flex-col gap-1 ml-[22px] pl-4 border-l-2 border-white/20 mt-1 mb-2 animate-in slide-in-from-top-2 fade-in duration-200">
-                  <Link href="/dashboard/admin">
-                    <div className={`py-2 px-3 rounded-lg text-sm transition-all duration-200 ${pathname === "/dashboard/admin"
+                  <Link href="/crm/admin">
+                    <div className={`py-2 px-3 rounded-lg text-sm transition-all duration-200 ${pathname === "/crm/admin"
                       ? "bg-white text-[#1aa159] font-bold shadow-sm translate-x-1"
                       : "text-white/80 hover:text-white hover:bg-white/10 hover:translate-x-1"
                       }`}>
                       Dashboard
                     </div>
                   </Link>
-                  <Link href="/dashboard/associate-management">
-                    <div className={`py-2 px-3 rounded-lg text-sm transition-all duration-200 ${pathname === "/dashboard/associate-management"
+                  <Link href="/crm/associate-management">
+                    <div className={`py-2 px-3 rounded-lg text-sm transition-all duration-200 ${pathname === "/crm/associate-management"
                       ? "bg-white text-[#1aa159] font-bold shadow-sm translate-x-1"
                       : "text-white/80 hover:text-white hover:bg-white/10 hover:translate-x-1"
                       }`}>
@@ -195,33 +195,33 @@ export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
 
           {/* Normal User Dashboard */}
           {!isAdminAuthorized && (
-            <Link href="/dashboard/associate">
-              <NavItem isOpen={isExpanded} active={pathname === "/dashboard/associate"} label="My Dashboard" icon={<LayoutDashboard size={22} />} />
+            <Link href="/crm/associate">
+              <NavItem isOpen={isExpanded} active={pathname === "/crm/associate"} label="My Dashboard" icon={<LayoutDashboard size={22} />} />
             </Link>
           )}
 
           {/* 👇 FIX: Show modules only if user has access */}
           {hasAccess("Chat Inbox") && (
-            <Link href="/dashboard/chat">
-              <NavItem isOpen={isExpanded} active={pathname === "/dashboard/chat"} label="Chat Inbox" icon={<MessageSquare size={22} />} />
+            <Link href="/crm/chat">
+              <NavItem isOpen={isExpanded} active={pathname === "/crm/chat"} label="Chat Inbox" icon={<MessageSquare size={22} />} />
             </Link>
           )}
 
           {hasAccess("Leads") && (
-            <Link href="/dashboard/leads">
-              <NavItem isOpen={isExpanded} active={pathname === "/dashboard/leads"} label="Leads" icon={<List size={22} />} />
+            <Link href="/crm/leads">
+              <NavItem isOpen={isExpanded} active={pathname === "/crm/leads"} label="Leads" icon={<List size={22} />} />
             </Link>
           )}
 
           {hasAccess("Customers") && (
-            <Link href="/dashboard/customers">
-              <NavItem isOpen={isExpanded} active={pathname.startsWith("/dashboard/customers")} label="Customers" icon={<Users size={22} />} />
+            <Link href="/crm/customers">
+              <NavItem isOpen={isExpanded} active={pathname.startsWith("/crm/customers")} label="Customers" icon={<Users size={22} />} />
             </Link>
           )}
 
           {hasAccess("Leads") && (
-            <Link href="/dashboard/forwarded-leads">
-              <NavItem isOpen={isExpanded} active={pathname === "/dashboard/forwarded-leads"} label="Forwarded Leads" icon={<Share2 size={22} />} />
+            <Link href="/crm/forwarded-leads">
+              <NavItem isOpen={isExpanded} active={pathname === "/crm/forwarded-leads"} label="Forwarded Leads" icon={<Share2 size={22} />} />
             </Link>
           )}
 

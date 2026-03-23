@@ -135,7 +135,7 @@ export default function TargetReportPage() {
             
             {/* Header */}
             <div className="flex items-center gap-4">
-                <Link href="/dashboard/associate" className="p-2.5 bg-white rounded-xl hover:bg-slate-100 text-slate-500 shadow-sm border border-slate-200 transition-all group">
+                <Link href="/crm/associate" className="p-2.5 bg-white rounded-xl hover:bg-slate-100 text-slate-500 shadow-sm border border-slate-200 transition-all group">
                     <ChevronLeft size={20} className="group-hover:-translate-x-0.5 transition-transform" />
                 </Link>
                 <div>

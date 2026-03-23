@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import { message } from "antd";
-import { User, Mail, Lock, Shield, Phone, Briefcase, Tag, ArrowLeft, Save, ShieldAlert } from "lucide-react";
+import { User, Mail, Lock, Shield, Phone, Briefcase, Tag, ArrowLeft, Save, ShieldAlert, Building } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
 import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png";
 
@@ -17,13 +17,23 @@ export default function EditAssociatePage() {
   const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState({
-    name: "", preferredName: "", email: "", number: "", password: "",
+    name: "", preferredName: "", email: "", number: "", password: "", branch: "",
     role: "sales", department: "telecalling", isAdmin: false, active: true, accessModules: []
   });
 
   const modulesList = ["Leads", "Customers", "Reports", "Chat Inbox"];
 
-  // 👇 FIX: Puthiya Authorization Logic
+  // 👇 Tamil Nadu Districts Array Added
+  const tamilNaduDistricts = [
+    "Ariyalur", "Chengalpattu", "Chennai", "Coimbatore", "Cuddalore", "Dharmapuri",
+    "Dindigul", "Erode", "Kallakurichi", "Kanchipuram", "Kanyakumari", "Karur",
+    "Krishnagiri", "Madurai", "Mayiladuthurai", "Nagapattinam", "Namakkal", "Nilgiris",
+    "Perambalur", "Pudukkottai", "Ramanathapuram", "Ranipet", "Salem", "Sivaganga",
+    "Tenkasi", "Thanjavur", "Theni", "Thoothukudi", "Tiruchirappalli", "Tirunelveli",
+    "Tirupathur", "Tiruppur", "Tiruvallur", "Tiruvannamalai", "Tiruvarur", "Vellore",
+    "Viluppuram", "Virudhunagar"
+  ];
+
   const isAuthorized =
     session?.user?.role === 'superAdmin' ||
     (session?.user?.role === 'sales' && session?.user?.department === 'admin') ||
@@ -32,7 +42,6 @@ export default function EditAssociatePage() {
   useEffect(() => {
     if (status === "loading") return;
 
-    // 👇 FIX: Authorized aana mattum fetch pannu, illana loading-a stop pannidu
     if (isAuthorized) {
       fetchUser();
     } else {
@@ -49,11 +58,12 @@ export default function EditAssociatePage() {
           ...data,
           password: "",
           preferredName: data.preferredName || "",
-          number: data.number || ""
+          number: data.number || "",
+          branch: data.branch || "" 
         });
       } else {
         message.error("Failed to load user data");
-        router.push("/dashboard/associate-management");
+        router.push("/crm/associate-management");
       }
     } catch (error) {
       message.error("Error connecting to server");
@@ -95,7 +105,7 @@ export default function EditAssociatePage() {
 
       if (res.ok) {
         message.success("Profile updated successfully!");
-        router.push("/dashboard/associate-management");
+        router.push("/crm/associate-management");
       } else {
         if (contentType && contentType.includes("application/json")) {
           const errorData = await res.json();
@@ -184,6 +194,24 @@ export default function EditAssociatePage() {
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Mobile Number</label>
                     <div className="relative group"><Phone className="absolute left-3.5 top-3.5 text-slate-400" size={16} /><input type="text" className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm" value={formData.number} onChange={e => setFormData({ ...formData, number: e.target.value })} /></div>
                   </div>
+                  
+                  {/* 👇 FIX: Branch Input changed to Select Dropdown */}
+                  <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Branch *</label>
+                      <div className="relative group">
+                          <Building className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
+                          <select required className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm cursor-pointer appearance-none" 
+                              value={formData.branch} onChange={e => setFormData({...formData, branch: e.target.value})}>
+                              <option value="" disabled>Select Branch / District</option>
+                              {tamilNaduDistricts.map((district) => (
+                                  <option key={district} value={district}>
+                                      {district}
+                                  </option>
+                              ))}
+                          </select>
+                      </div>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Role *</label>
                     <div className="relative group"><Shield className="absolute left-3.5 top-3.5 text-slate-400" size={16} /><select className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm cursor-pointer" value={formData.role} onChange={handleRoleChange}><option value="sales">Sales</option><option value="doctor">Doctor</option><option value="superAdmin">Super Admin</option></select></div>
@@ -202,7 +230,6 @@ export default function EditAssociatePage() {
                   <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
                     <input
                       type="checkbox"
-                      // 👇 FIX: Force boolean conversion
                       checked={formData.isAdmin === true || String(formData.isAdmin) === "true"}
                       onChange={e => setFormData({ ...formData, isAdmin: e.target.checked })}
                       className="w-4 h-4 text-emerald-600 rounded"
@@ -212,7 +239,6 @@ export default function EditAssociatePage() {
                   <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
                     <input
                       type="checkbox"
-                      // 👇 FIX: Force boolean conversion
                       checked={formData.active === true || String(formData.active) === "true"}
                       onChange={e => setFormData({ ...formData, active: e.target.checked })}
                       className="w-4 h-4 text-emerald-600 rounded"

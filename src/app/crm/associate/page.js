@@ -153,7 +153,7 @@ export default function AssociateDashboard() {
                         
                         <StatWidget label="Follow Ups" value={stats.followUp} icon={<Users size={20} />} color="text-amber-600" bg="bg-amber-50" border="border-amber-100" />
                         
-                        <Link href="/dashboard/associate/targets" className="group cursor-pointer col-span-2 md:col-span-1">
+                        <Link href="/crm/associate/targets" className="group cursor-pointer col-span-2 md:col-span-1">
                             <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden transition-transform group-hover:-translate-y-1 h-full">
                                 <div className="relative z-10">
                                     <div className="flex justify-between items-center mb-4">
@@ -176,7 +176,7 @@ export default function AssociateDashboard() {
                         <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
                             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
                                 <h3 className="font-bold text-slate-800">Your Leads Activity</h3>
-                                <Link href="/dashboard/customers" className="text-sm text-emerald-600 font-medium hover:underline">View All</Link>
+                                <Link href="/crm/customers" className="text-sm text-emerald-600 font-medium hover:underline">View All</Link>
                             </div>
 
                             <div className="w-full overflow-x-auto">
@@ -203,7 +203,7 @@ export default function AssociateDashboard() {
                                                     </td>
                                                     <td className="px-6 py-4 text-right">
                                                         <button 
-                                                            onClick={() => router.push(`/dashboard/leads/${lead.phone}`)} 
+                                                            onClick={() => router.push(`/crm/leads/${lead.phone}`)} 
                                                             className="inline-flex items-center gap-2 text-slate-500 hover:text-emerald-600 font-bold text-xs border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-emerald-50 hover:border-emerald-200 transition-all"
                                                         >
                                                             <User size={14} /> 
