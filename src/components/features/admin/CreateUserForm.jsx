@@ -11,7 +11,7 @@ export default function CreateUserForm() {
   const [status, setStatus] = useState({ type: "", message: "" });
   const [loading, setLoading] = useState(false);
 
-  const modulesList = ["Leads", "Customers", "Reports", "Chat Inbox"];
+  const modulesList = ["Leads", "Customers", "Reports", "Chat Inbox", "Ads Lead"];
 
   // 👇 Tamil Nadu Districts Array
   const tamilNaduDistricts = [

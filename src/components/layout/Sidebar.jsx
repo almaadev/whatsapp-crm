@@ -17,7 +17,8 @@ import {
   Bell,
   Share2,
   List,
-  ChevronDown
+  ChevronDown,
+  Megaphone // 👇 Puthu icon for Ads
 } from "lucide-react";
 
 export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
@@ -30,24 +31,27 @@ export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
   const [adminDropdownOpen, setAdminDropdownOpen] = useState(
     pathname === "/crm/admin" || pathname.startsWith("/crm/associate-management")
   );
+  
+  // 👇 FIX: Puthu Dropdown State for Chat / Ads Leads
+  const [chatDropdownOpen, setChatDropdownOpen] = useState(
+    pathname === "/crm/chat" || pathname.startsWith("/crm/ads-lead")
+  );
 
   const notifications = useChatStore(s => s.notifications);
   const userName = session?.user?.name || "User";
   const displayRole = role || "";
   const department = session?.user?.department || "";
-
-  // 👇 FIX: Get access modules from session
+  
   const accessModules = session?.user?.accessModules || [];
 
-  const isAdminAuthorized =
-    displayRole === 'superAdmin' ||
-    (displayRole === 'sales' && department === 'admin') ||
+  const isAdminAuthorized = 
+    displayRole === 'superAdmin' || 
+    (displayRole === 'sales' && department === 'admin') || 
     (displayRole === 'doctor' && department === 'admin');
 
-  // 👇 FIX: Helper function to check module access
   const hasAccess = (moduleName) => {
-    if (isAdminAuthorized) return true; // Admins get all access by default
-    return accessModules.includes(moduleName); // Check array for normal users
+    if (isAdminAuthorized) return true; 
+    return accessModules.includes(moduleName); 
   };
 
   useEffect(() => {
@@ -62,7 +66,7 @@ export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
   const handleConfirmSignOut = async () => {
     await signOut({ callbackUrl: "/", redirect: true });
   };
-
+  
   return (
     <>
       {mobileOpen && <div className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm" onClick={() => setMobileOpen(false)} />}
@@ -148,8 +152,8 @@ export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
                   }
                 }}
                 className={`flex items-center gap-4 p-3.5 rounded-xl transition-all duration-200 cursor-pointer group font-medium ${(pathname === "/crm/admin" || pathname.startsWith("/crm/associate-management")) && !adminDropdownOpen
-                  ? "bg-white/10 text-white"
-                  : "text-white hover:bg-white/20"
+                    ? "bg-white/10 text-white"
+                    : "text-white hover:bg-white/20"
                   } ${isExpanded ? "justify-between" : "justify-center"}`}
               >
                 <div className="flex items-center gap-4">
@@ -174,16 +178,16 @@ export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
                 <div className="flex flex-col gap-1 ml-[22px] pl-4 border-l-2 border-white/20 mt-1 mb-2 animate-in slide-in-from-top-2 fade-in duration-200">
                   <Link href="/crm/admin">
                     <div className={`py-2 px-3 rounded-lg text-sm transition-all duration-200 ${pathname === "/crm/admin"
-                      ? "bg-white text-[#1aa159] font-bold shadow-sm translate-x-1"
-                      : "text-white/80 hover:text-white hover:bg-white/10 hover:translate-x-1"
+                        ? "bg-white text-[#1aa159] font-bold shadow-sm translate-x-1"
+                        : "text-white/80 hover:text-white hover:bg-white/10 hover:translate-x-1"
                       }`}>
                       Dashboard
                     </div>
                   </Link>
                   <Link href="/crm/associate-management">
                     <div className={`py-2 px-3 rounded-lg text-sm transition-all duration-200 ${pathname === "/crm/associate-management"
-                      ? "bg-white text-[#1aa159] font-bold shadow-sm translate-x-1"
-                      : "text-white/80 hover:text-white hover:bg-white/10 hover:translate-x-1"
+                        ? "bg-white text-[#1aa159] font-bold shadow-sm translate-x-1"
+                        : "text-white/80 hover:text-white hover:bg-white/10 hover:translate-x-1"
                       }`}>
                       Manage Associates
                     </div>
@@ -200,11 +204,69 @@ export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
             </Link>
           )}
 
-          {/* 👇 FIX: Show modules only if user has access */}
-          {hasAccess("Chat Inbox") && (
-            <Link href="/crm/chat">
-              <NavItem isOpen={isExpanded} active={pathname === "/crm/chat"} label="Chat Inbox" icon={<MessageSquare size={22} />} />
-            </Link>
+          {/* 👇 FIX: Chat Inbox Dropdown with Ads Lead */}
+          {(hasAccess("Chat Inbox") || hasAccess("Ads Lead")) && (
+            <div className="flex flex-col gap-1">
+              <div
+                onClick={() => {
+                  if (!isExpanded) {
+                    if (window.innerWidth < 768) setMobileOpen(true);
+                    else setIsDesktopExpanded(true);
+                    setChatDropdownOpen(true);
+                  } else {
+                    setChatDropdownOpen(!chatDropdownOpen);
+                  }
+                }}
+                className={`flex items-center gap-4 p-3.5 rounded-xl transition-all duration-200 cursor-pointer group font-medium ${(pathname === "/crm/chat" || pathname.startsWith("/crm/ads-lead")) && !chatDropdownOpen
+                    ? "bg-white/10 text-white"
+                    : "text-white hover:bg-white/20"
+                  } ${isExpanded ? "justify-between" : "justify-center"}`}
+              >
+                <div className="flex items-center gap-4">
+                  <span className="shrink-0 transition-transform duration-200 group-hover:scale-110">
+                    <MessageSquare size={22} />
+                  </span>
+                  {isExpanded && (
+                    <span className="text-[15px] tracking-wide animate-in fade-in slide-in-from-left-2 font-medium">
+                      Communications
+                    </span>
+                  )}
+                </div>
+                {isExpanded && (
+                  <ChevronDown
+                    size={16}
+                    className={`transition-transform duration-200 ${chatDropdownOpen ? "rotate-180" : ""}`}
+                  />
+                )}
+              </div>
+
+              {isExpanded && chatDropdownOpen && (
+                <div className="flex flex-col gap-1 ml-[22px] pl-4 border-l-2 border-white/20 mt-1 mb-2 animate-in slide-in-from-top-2 fade-in duration-200">
+                  {hasAccess("Chat Inbox") && (
+                    <Link href="/crm/chat">
+                      <div className={`py-2 px-3 rounded-lg text-sm transition-all duration-200 ${pathname === "/crm/chat"
+                          ? "bg-white text-[#1aa159] font-bold shadow-sm translate-x-1"
+                          : "text-white/80 hover:text-white hover:bg-white/10 hover:translate-x-1"
+                        }`}>
+                        Chat Inbox
+                      </div>
+                    </Link>
+                  )}
+                  
+                  {/* Ads Lead link shows only if hasAccess("Ads Lead") */}
+                  {hasAccess("Ads Lead") && (
+                    <Link href="/crm/ads-lead">
+                      <div className={`py-2 px-3 rounded-lg text-sm transition-all duration-200 ${pathname === "/crm/ads-lead"
+                          ? "bg-white text-[#1aa159] font-bold shadow-sm translate-x-1"
+                          : "text-white/80 hover:text-white hover:bg-white/10 hover:translate-x-1"
+                        }`}>
+                        Ads Lead
+                      </div>
+                    </Link>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           {hasAccess("Leads") && (
@@ -236,11 +298,7 @@ export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
             {isExpanded && (
               <div className="overflow-hidden flex-1 min-w-0">
                 <p className="text-sm font-bold text-white truncate">{userName}</p>
-                <p className="text-[11px] text-green-100 uppercase tracking-wide truncate font-medium">{
-                  displayRole === "superAdmin"
-                    ? displayRole.replace(/([a-z])([A-Z])/g, "$1 $2")
-                    : displayRole.replace('_', ' ')
-                }</p>
+                <p className="text-[11px] text-green-100 uppercase tracking-wide truncate font-medium">{displayRole.replace('_', ' ')}</p>
               </div>
             )}
             {isExpanded && (

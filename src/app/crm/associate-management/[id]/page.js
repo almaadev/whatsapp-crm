@@ -21,7 +21,7 @@ export default function EditAssociatePage() {
     role: "sales", department: "telecalling", isAdmin: false, active: true, accessModules: []
   });
 
-  const modulesList = ["Leads", "Customers", "Reports", "Chat Inbox"];
+  const modulesList = ["Leads", "Customers", "Reports", "Chat Inbox", "Ads Lead"];
 
   // 👇 Tamil Nadu Districts Array Added
   const tamilNaduDistricts = [
