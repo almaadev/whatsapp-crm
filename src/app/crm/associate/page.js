@@ -4,10 +4,15 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import Sidebar from "@/components/layout/Sidebar";
 import { useRouter } from "next/navigation";
-import { TrendingUp, Users, Clock, Menu, Inbox, ChevronLeft, ChevronRight, User } from "lucide-react";
+import { 
+    TrendingUp, Users, Clock, Menu, Inbox, ChevronLeft, 
+    ChevronRight, User, Filter, MoreVertical, FileText 
+} from "lucide-react";
+
+import CustomerInfoPanel from "@/components/features/chat/CustomerInfoPanel";
 
 export default function AssociateDashboard() {
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
     const router = useRouter();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -15,8 +20,28 @@ export default function AssociateDashboard() {
     const [leads, setLeads] = useState([]);
     const [notes, setNotes] = useState("");
 
+    // Table States
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 5;
+    const [filterType, setFilterType] = useState("All");
+    const itemsPerPage = 6;
+
+    // Info Panel States
+    const [menuOpenId, setMenuOpenId] = useState(null);
+    const [isInfoOpen, setIsInfoOpen] = useState(false);
+    const [panelLeadCategory, setPanelLeadCategory] = useState(null);
+    const [panelActiveChat, setPanelActiveChat] = useState(null);
+
+    // 👇 FIX: Automatic Redirect Logic for Admins
+    useEffect(() => {
+        if (status === "loading" || !session) return;
+
+        const isSuperAdmin = session?.user?.role === "superAdmin";
+        const isAdminDepartment = session?.user?.department === "admin";
+
+        if (isSuperAdmin || isAdminDepartment) {
+            router.replace("/crm/admin");
+        }
+    }, [session, status, router]);
 
     const handleNoteChange = (e) => {
         setNotes(e.target.value);
@@ -25,6 +50,12 @@ export default function AssociateDashboard() {
 
     useEffect(() => {
         if (!session?.user) return;
+        
+        const isSuperAdmin = session?.user?.role === "superAdmin";
+        const isAdminDepartment = session?.user?.department === "admin";
+        
+        // Prevent fetching data if user is an admin (since they will be redirected)
+        if (isSuperAdmin || isAdminDepartment) return;
 
         const savedNotes = localStorage.getItem("associate_notes");
         if (savedNotes) setNotes(savedNotes);
@@ -36,12 +67,41 @@ export default function AssociateDashboard() {
                 const users = await userRes.json();
                 const me = Array.isArray(users) ? users.find(u => u.email === session.user.email) : null;
 
-                // Fetch Contacts (Leads + Customers)
-                const contactsRes = await fetch("/api/contacts");
-                const contacts = await contactsRes.json();
+                const fetchSafe = async (url) => {
+                    try {
+                        const res = await fetch(url);
+                        return res.ok ? await res.json() : [];
+                    } catch(e) { return []; }
+                };
 
-                // 1. Filter ONLY My Leads
-                const myLeads = contacts.filter(l => l.associate === session.user.name);
+                const [contacts, product, mdcamp, therapy] = await Promise.all([
+                    fetchSafe("/api/contacts"),
+                    fetchSafe("/api/category-chats/product"),
+                    fetchSafe("/api/category-chats/mdcamp"),
+                    fetchSafe("/api/category-chats/therapy")
+                ]);
+
+                const allLeads = [];
+
+                // 1. Direct / Main Leads
+                (Array.isArray(contacts) ? contacts : []).filter(l => l.associate === session.user.name).forEach(l => {
+                    allLeads.push({ ...l, leadType: "Direct Lead", categoryParam: null });
+                });
+
+                // 2. Product Leads
+                (Array.isArray(product) ? product : []).filter(l => l.assignedTo === session.user.name).forEach(l => {
+                    allLeads.push({ ...l, leadType: "Product Lead", categoryParam: "product" });
+                });
+
+                // 3. MD Camp Leads
+                (Array.isArray(mdcamp) ? mdcamp : []).filter(l => l.assignedTo === session.user.name).forEach(l => {
+                    allLeads.push({ ...l, leadType: "MD Camp", categoryParam: "mdcamp" });
+                });
+
+                // 4. Therapy Leads
+                (Array.isArray(therapy) ? therapy : []).filter(l => l.assignedTo === session.user.name).forEach(l => {
+                    allLeads.push({ ...l, leadType: "Therapy", categoryParam: "therapy" });
+                });
 
                 let pending = 0;
                 let followUp = 0;
@@ -51,37 +111,29 @@ export default function AssociateDashboard() {
                 const currentMonth = now.getMonth();
                 const currentYear = now.getFullYear();
 
-                // 2. Calculate Stats
-                myLeads.forEach(lead => {
-                    const leadDate = new Date(lead.date);
+                // Calculate Stats
+                allLeads.forEach(lead => {
+                    const leadDate = new Date(lead.date || lead.createdAt || new Date());
 
                     if (lead.status === "Closed" || lead.isClosed) {
-                        // Monthly target logic: Only count if closed in the current month
                         if (leadDate.getMonth() === currentMonth && leadDate.getFullYear() === currentYear) {
                             closedThisMonth++;
                         }
                     } else if (lead.status === "Follow Up") {
                         const followUpDate = lead.followUpStart ? new Date(lead.followUpStart) : leadDate;
                         const hoursDiff = (now - followUpDate) / (1000 * 60 * 60);
-                        
-                        if (hoursDiff > 48) {
-                            pending++; // Over 48 hours is Pending
-                        } else {
-                            followUp++; // Under 48 hours is active Follow Up
-                        }
+                        if (hoursDiff > 48) pending++; else followUp++;
                     } else if (lead.status !== "Not Interested" && lead.status !== "Not Closed") {
-                        // New and other statuses are Pending action items
                         pending++;
                     }
                 });
 
-                // 3. Deduplicate Leads for the table view: Only keep the latest interaction per customer
+                // Deduplicate Leads for table (Key: phone + leadType)
                 const uniqueLeadsMap = new Map();
-                
-                // Sort by date descending first, so the first one we iterate over is the latest one
-                myLeads.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(lead => {
-                    if (!uniqueLeadsMap.has(lead.phone)) {
-                        uniqueLeadsMap.set(lead.phone, lead);
+                allLeads.sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0)).forEach(lead => {
+                    const key = `${lead.phone}-${lead.leadType}`;
+                    if (!uniqueLeadsMap.has(key)) {
+                        uniqueLeadsMap.set(key, lead);
                     }
                 });
 
@@ -92,15 +144,9 @@ export default function AssociateDashboard() {
                 const conversionRate = totalInteractions > 0 ? Math.round((closedThisMonth / totalInteractions) * 100) : 0;
 
                 setStats({
-                    target,
-                    achieved: closedThisMonth, 
-                    pending,
-                    followUp,
-                    closed: closedThisMonth,
-                    conversionRate,
-                    total: uniqueLeads.length // Total distinct customers
+                    target, achieved: closedThisMonth, pending, followUp, closed: closedThisMonth, conversionRate,
+                    total: uniqueLeads.length
                 });
-
                 setLeads(uniqueLeads);
 
             } catch (err) {
@@ -109,27 +155,43 @@ export default function AssociateDashboard() {
         }
 
         loadData();
-        // Poll every 10s to keep stats updated
         const interval = setInterval(loadData, 10000);
         return () => clearInterval(interval);
 
     }, [session]);
 
-    // Pagination
+    const filteredLeads = filterType === "All" ? leads : leads.filter(l => l.leadType === filterType);
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentItems = leads.slice(indexOfFirstItem, indexOfLastItem);
-    const totalPages = Math.ceil(leads.length / itemsPerPage);
+    const currentItems = filteredLeads.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
     const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
-    if (!session) return null;
+    const openInfoPanel = (lead) => {
+        setPanelLeadCategory(lead.categoryParam);
+        setPanelActiveChat(lead);
+        setIsInfoOpen(true);
+        setMenuOpenId(null);
+    };
+
+    if (status === "loading" || !session) {
+        return <div className="flex h-screen items-center justify-center text-slate-500 font-medium">Loading Dashboard...</div>;
+    }
+    
+    // Prevent rendering if user is admin (they are being redirected)
+    const isSuperAdmin = session.user?.role === "superAdmin";
+    const isAdminDepartment = session.user?.department === "admin";
+    if (isSuperAdmin || isAdminDepartment) {
+        return null; 
+    }
 
     const progressPercent = stats.target > 0 ? Math.min(100, Math.round((stats.achieved / stats.target) * 100)) : 0;
 
     return (
-       <div className="flex h-[100dvh] bg-slate-50">
-            {/* 👇 FIX: Intha line sariyaana murayil maathiyachu */}
+       <div className="flex h-[100dvh] bg-slate-50 relative">
             <Sidebar role={session?.user?.role} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
+
+            {menuOpenId && <div className="fixed inset-0 z-30" onClick={() => setMenuOpenId(null)}></div>}
 
             <main className="flex-1 p-4 md:p-10 overflow-y-auto w-full">
                 <button onClick={() => setMobileMenuOpen(true)} className="md:hidden mb-6 p-2 text-slate-600 bg-white rounded-lg shadow-sm border border-slate-200">
@@ -145,12 +207,9 @@ export default function AssociateDashboard() {
                         <p className="text-sm font-medium text-slate-500">{new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                     </div>
 
-                    {/* STATS GRID */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <StatWidget label="Total Leads" value={stats.total} icon={<Inbox size={20} />} color="text-slate-600" bg="bg-slate-100" border="border-slate-200" />
-                        
                         <StatWidget label="Pending" value={stats.pending} icon={<Clock size={20} />} color="text-blue-600" bg="bg-blue-50" border="border-blue-100" />
-                        
                         <StatWidget label="Follow Ups" value={stats.followUp} icon={<Users size={20} />} color="text-amber-600" bg="bg-amber-50" border="border-amber-100" />
                         
                         <Link href="/crm/associate/targets" className="group cursor-pointer col-span-2 md:col-span-1">
@@ -173,43 +232,87 @@ export default function AssociateDashboard() {
                     </div>
 
                     <div className="grid lg:grid-cols-3 gap-8">
-                        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-                            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
+                        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col min-h-[400px]">
+                            
+                            <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-white">
                                 <h3 className="font-bold text-slate-800">Your Leads Activity</h3>
-                                <Link href="/crm/customers" className="text-sm text-emerald-600 font-medium hover:underline">View All</Link>
+                                <div className="flex items-center gap-2">
+                                    <Filter size={16} className="text-slate-400" />
+                                    <select 
+                                        value={filterType} 
+                                        onChange={e => { setFilterType(e.target.value); setCurrentPage(1); }}
+                                        className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 outline-none focus:ring-2 focus:ring-emerald-500/20 text-slate-700 cursor-pointer font-medium bg-slate-50 hover:bg-slate-100 transition-colors"
+                                    >
+                                        <option value="All">All Leads</option>
+                                        <option value="Direct Lead">Direct Leads</option>
+                                        <option value="Product Lead">Product Leads</option>
+                                        <option value="MD Camp">MD Camp Leads</option>
+                                        <option value="Therapy">Therapy Leads</option>
+                                    </select>
+                                </div>
                             </div>
 
-                            <div className="w-full overflow-x-auto">
-                                {leads.length === 0 ? (
-                                    <div className="p-10 text-center text-slate-400">No leads assigned to you yet.</div>
+                            <div className="w-full overflow-x-auto flex-1">
+                                {filteredLeads.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-slate-400 gap-3">
+                                        <Inbox size={40} className="text-slate-200" />
+                                        <p>No leads found in this category.</p>
+                                    </div>
                                 ) : (
-                                    <table className="w-full text-left min-w-[600px] md:min-w-0">
+                                    <table className="w-full text-left min-w-[650px] md:min-w-0">
                                         <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
                                             <tr>
-                                                <th className="px-6 py-4 w-2/5">Lead Name</th>
+                                                <th className="px-6 py-4 w-1/3">Lead Details</th>
+                                                <th className="px-6 py-4 w-1/5">Lead Type</th>
                                                 <th className="px-6 py-4 w-1/5">Status</th>
-                                                <th className="px-6 py-4 w-1/5 text-right">Action</th>
+                                                <th className="px-6 py-4 text-right">Action</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
                                             {currentItems.map((lead, i) => (
-                                                <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                                <tr key={`${lead.phone}-${lead.leadType}-${i}`} className="hover:bg-slate-50/80 transition-colors">
                                                     <td className="px-6 py-4">
-                                                        <div className="font-medium text-slate-900">{lead.name || "Unknown"}</div>
-                                                        <div className="text-xs text-slate-400 font-mono">{lead.phone}</div>
+                                                        <div className="font-bold text-slate-900 line-clamp-1">{lead.name || "Unknown"}</div>
+                                                        <div className="text-xs text-slate-400 font-mono mt-0.5">{lead.phone}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <LeadTypeBadge type={lead.leadType} />
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <StatusBadge status={lead.status} />
                                                     </td>
                                                     <td className="px-6 py-4 text-right">
-                                                        <button 
-                                                            onClick={() => router.push(`/crm/leads/${lead.phone}`)} 
-                                                            className="inline-flex items-center gap-2 text-slate-500 hover:text-emerald-600 font-bold text-xs border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-emerald-50 hover:border-emerald-200 transition-all"
-                                                        >
-                                                            <User size={14} /> 
-                                                            <span className="hidden sm:inline">View Lead</span>
-                                                            <span className="sm:hidden">View</span>
-                                                        </button>
+                                                        <div className="flex items-center justify-end gap-2 relative">
+                                                            <button 
+                                                                onClick={() => {
+                                                                    if (lead.categoryParam) router.push(`/crm/${lead.categoryParam === 'product' ? 'product-lead' : (lead.categoryParam === 'mdcamp' ? 'md-camp' : 'therapy')}`);
+                                                                    else router.push(`/crm/leads/${lead.phone}`);
+                                                                }} 
+                                                                className="inline-flex items-center gap-1.5 text-slate-500 hover:text-emerald-700 font-bold text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-emerald-50 hover:border-emerald-200 transition-all shadow-sm"
+                                                            >
+                                                                <User size={14} /> 
+                                                                <span className="hidden sm:inline">View</span>
+                                                            </button>
+                                                            
+                                                            <button 
+                                                                onClick={() => setMenuOpenId(menuOpenId === lead.phone ? null : lead.phone)}
+                                                                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200"
+                                                            >
+                                                                <MoreVertical size={16} />
+                                                            </button>
+
+                                                            {menuOpenId === lead.phone && (
+                                                                <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-slate-100 shadow-xl rounded-xl py-1.5 z-40 animate-in fade-in zoom-in-95">
+                                                                    <button 
+                                                                        onClick={() => openInfoPanel(lead)}
+                                                                        className="w-full text-left px-4 py-2.5 text-sm text-slate-700 font-medium hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2.5 transition-colors"
+                                                                    >
+                                                                        <FileText size={16} className="text-emerald-600" />
+                                                                        Info Panel
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -218,33 +321,38 @@ export default function AssociateDashboard() {
                                 )}
                             </div>
                             
-                            {/* Pagination */}
-                            {leads.length > itemsPerPage && (
-                                <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/50">
-                                    <span className="text-xs text-slate-500 font-medium">Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, leads.length)} of {leads.length}</span>
+                            {filteredLeads.length > itemsPerPage && (
+                                <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/50 mt-auto">
+                                    <span className="text-xs text-slate-500 font-medium">Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, filteredLeads.length)} of {filteredLeads.length}</span>
                                     <div className="flex gap-2">
-                                        <button onClick={() => paginate(currentPage - 1)} disabled={currentPage === 1} className="p-2 border rounded-lg hover:bg-slate-50 disabled:opacity-50"><ChevronLeft size={16}/></button>
-                                        <button onClick={() => paginate(currentPage + 1)} disabled={currentPage === totalPages} className="p-2 border rounded-lg hover:bg-slate-50 disabled:opacity-50"><ChevronRight size={16}/></button>
+                                        <button onClick={() => paginate(currentPage - 1)} disabled={currentPage === 1} className="p-2 border rounded-lg bg-white hover:bg-slate-50 disabled:opacity-50 transition-colors shadow-sm"><ChevronLeft size={16}/></button>
+                                        <button onClick={() => paginate(currentPage + 1)} disabled={currentPage === totalPages} className="p-2 border rounded-lg bg-white hover:bg-slate-50 disabled:opacity-50 transition-colors shadow-sm"><ChevronRight size={16}/></button>
                                     </div>
                                 </div>
                             )}
                         </div>
 
-                        {/* Scratchpad */}
                         <div className="bg-amber-50/50 rounded-2xl border border-amber-100 p-6 flex flex-col shadow-sm h-full max-h-96 lg:max-h-auto">
                             <div className="flex items-center gap-2 mb-4 text-amber-800 font-bold"><div className="w-2 h-2 rounded-full bg-amber-500"></div>Scratchpad</div>
-                            <textarea value={notes} onChange={handleNoteChange} className="flex-1 bg-white/50 border-0 rounded-xl p-4 text-sm text-slate-700 outline-none resize-none focus:bg-white focus:ring-2 focus:ring-amber-200 transition-all placeholder:text-amber-800/30" placeholder="Jot down quick reminders..."></textarea>
+                            <textarea value={notes} onChange={handleNoteChange} className="flex-1 bg-white/50 border-0 rounded-xl p-4 text-sm text-slate-700 outline-none resize-none focus:bg-white focus:ring-2 focus:ring-amber-200 transition-all placeholder:text-amber-800/30 custom-scrollbar" placeholder="Jot down quick reminders..."></textarea>
                         </div>
                     </div>
                 </div>
             </main>
+
+            <CustomerInfoPanel 
+                isOpen={isInfoOpen} 
+                onClose={() => setIsInfoOpen(false)} 
+                leadCategory={panelLeadCategory} 
+                activeChat={panelActiveChat} 
+            />
         </div>
     );
 }
 
 function StatWidget({ label, value, icon, color, bg, border }) {
     return (
-        <div className={`bg-white p-4 md:p-6 rounded-2xl shadow-sm border ${border} flex items-center gap-3 md:gap-4`}>
+        <div className={`bg-white p-4 md:p-6 rounded-2xl shadow-sm border ${border} flex items-center gap-3 md:gap-4 transition-all hover:shadow-md`}>
             <div className={`p-2 md:p-3 rounded-xl ${bg} ${color}`}>{icon}</div>
             <div>
                 <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wide">{label}</p>
@@ -264,7 +372,21 @@ function StatusBadge({ status }) {
     };
     return (
         <span className={`px-2.5 py-1 rounded-full text-[10px] md:text-xs font-bold tracking-wide border whitespace-nowrap ${styles[status] || "bg-slate-100 text-slate-600 border-slate-200"}`}>
-            {status}
+            {status || "New"}
+        </span>
+    );
+}
+
+function LeadTypeBadge({ type }) {
+    const styles = {
+        "Product Lead": "bg-blue-50 text-blue-700 border-blue-200",
+        "MD Camp": "bg-amber-50 text-amber-700 border-amber-200",
+        "Therapy": "bg-purple-50 text-purple-700 border-purple-200",
+        "Direct Lead": "bg-slate-50 text-slate-700 border-slate-200"
+    };
+    return (
+        <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wide border whitespace-nowrap ${styles[type]}`}>
+            {type}
         </span>
     );
 }

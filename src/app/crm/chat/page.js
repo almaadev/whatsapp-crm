@@ -7,7 +7,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useChatStore } from "@/store/chatStore";
 import { useChat } from "@/hooks/useChat";
 import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png";
-import { ShieldAlert } from "lucide-react"; // 👇 FIX: Added ShieldAlert for Access Denied page
+import { ShieldAlert } from "lucide-react";
 
 import Sidebar from "@/components/layout/Sidebar";
 import ChatList from "@/components/features/chat/ChatList";

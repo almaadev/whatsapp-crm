@@ -21,9 +21,9 @@ export default function EditAssociatePage() {
     role: "sales", department: "telecalling", isAdmin: false, active: true, accessModules: []
   });
 
-  const modulesList = ["Leads", "Customers", "Reports", "Chat Inbox", "Ads Lead"];
+  // 👇 FIX: Added New Modules (Product Lead, MD Camp, Therapy)
+  const modulesList = ["Leads", "Customers", "Reports", "Chat Inbox", "Product Lead", "MD Camp", "Therapy"];
 
-  // 👇 Tamil Nadu Districts Array Added
   const tamilNaduDistricts = [
     "Ariyalur", "Chengalpattu", "Chennai", "Coimbatore", "Cuddalore", "Dharmapuri",
     "Dindigul", "Erode", "Kallakurichi", "Kanchipuram", "Kanyakumari", "Karur",
@@ -195,7 +195,6 @@ export default function EditAssociatePage() {
                     <div className="relative group"><Phone className="absolute left-3.5 top-3.5 text-slate-400" size={16} /><input type="text" className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm" value={formData.number} onChange={e => setFormData({ ...formData, number: e.target.value })} /></div>
                   </div>
                   
-                  {/* 👇 FIX: Branch Input changed to Select Dropdown */}
                   <div className="md:col-span-2">
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Branch *</label>
                       <div className="relative group">
@@ -247,11 +246,12 @@ export default function EditAssociatePage() {
                   </label>
                 </div>
 
+                {/* 👇 FIX: Displaying All Access Modules */}
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Access Modules</label>
                   <div className="flex flex-wrap gap-3">
                     {modulesList.map(mod => (
-                      <label key={mod} className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 px-3 py-2 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100"><input type="checkbox" checked={formData.accessModules.includes(mod)} onChange={() => handleModuleChange(mod)} className="w-4 h-4 text-emerald-600 rounded" />{mod}</label>
+                      <label key={mod} className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 px-3 py-2 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 transition-all"><input type="checkbox" checked={formData.accessModules.includes(mod)} onChange={() => handleModuleChange(mod)} className="w-4 h-4 text-emerald-600 rounded" />{mod}</label>
                     ))}
                   </div>
                 </div>

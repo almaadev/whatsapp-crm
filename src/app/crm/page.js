@@ -17,7 +17,7 @@ export default function DashboardRoot() {
         router.replace("/crm/admin");
       } else {
         // Associates go straight to Chat
-        router.replace("/crm/chat");
+        router.replace("/crm/associate");
       }
     }
   }, [status, session, router]);

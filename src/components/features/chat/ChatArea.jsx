@@ -234,8 +234,6 @@ export default function ChatArea() {
         setTimeout(() => scrollToBottom(), 100);
 
         try {
-            // if (currentLeadStatus === 'New') initiateStatusChange('Follow Up');
-
             if (!navigator.onLine) throw new Error("Offline");
 
             const res = await chatService.sendMessage(newMessage);
@@ -277,7 +275,8 @@ export default function ChatArea() {
     if (!activeChat) return <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 h-full text-slate-300"><MessageSquare size={40} className="mb-4" /><h1 className="text-2xl font-light">Select a conversation</h1></div>;
 
 
-    const displayName = activeChat.name || activeChat.phone.replace("whatsapp:", "");
+    // 👇 FIX: Safely checking if activeChat.phone exists before calling replace
+    const displayName = activeChat.name || (activeChat.phone ? activeChat.phone.replace("whatsapp:", "") : "Unknown");
 
     const followUpLabel = "Follow Up";
 
@@ -353,7 +352,8 @@ export default function ChatArea() {
                             </div>
 
                             {/* Phone */}
-                            <p className="text-xs text-slate-500 truncate mb-0.5">{activeChat.phone.replace("whatsapp:", "")}</p>
+                            {/* 👇 FIX: Safely checking phone before replace */}
+                            <p className="text-xs text-slate-500 truncate mb-0.5">{activeChat.phone ? activeChat.phone.replace("whatsapp:", "") : ""}</p>
 
                             {/* HANDLERS INFO */}
                             <div className="flex items-center gap-2 text-[12px] font-medium tracking-tight">
@@ -429,7 +429,6 @@ export default function ChatArea() {
                                     )}
 
                                     {/* Message Text */}
-                                    {/* FIX 3: Applied exact CSS styles to force breaking of continuous characters */}
                                     {msg.message && (
                                         <div className="whitespace-pre-wrap text-left" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                                             <span>{msg.message}</span>
@@ -556,9 +555,8 @@ const ChatInput = memo(function ChatInput({ currentLeadStatus, followUpLabel, on
             <div className="flex-1 bg-white border border-slate-200 rounded-2xl flex items-center px-4 py-1.5 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all shadow-sm min-h-[44px]">
                 <textarea
                     ref={textareaRef}
-                    // 🔴 FIX: Custom Scrollbar மற்றும் Max Height சேர்க்கப்பட்டுள்ளது
                     className="w-full bg-transparent border-none text-sm outline-none placeholder:text-slate-400 resize-none py-1.5 text-slate-800 custom-scrollbar"
-                    style={{ maxHeight: '150px' }} // 150px வரை பெரிதாகும், அதற்கு மேல் Scroll ஆகும்
+                    style={{ maxHeight: '150px' }}
                     placeholder="Type a message"
                     rows={1}
                     value={text}

@@ -4,10 +4,9 @@ import { authOptions } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import Customer from "@/models/Customer";
 import Message from "@/models/Message";
+import Lead from "@/models/Lead";
 import redis from "@/lib/redis";
 import twilio from "twilio";
-
-
 
 const REDIS_CACHE_TTL = 30;
 
@@ -18,35 +17,38 @@ export async function GET(request) {
 
     if (redis && redis.status === 'ready') {
       try {
-        const cachedData = await redis.get("chats:all_data");
+        const cachedData = await redis.get("chats:main_inbox_data");
         if (cachedData) return NextResponse.json(JSON.parse(cachedData));
-      } catch (e) { console.error("Redis Error", e); }
+      } catch (e) {}
     }
 
     await connectDB();
 
-    // 🚀 NEW LOGIC: Only fetch messages from the last 60 days to prevent server crash
     const sixtyDaysAgo = new Date();
     sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
-    const [customers, messages] = await Promise.all([
+    // 👇 FIX: Fetching ONLY from the main 'Message' collection for the general inbox.
+    const [customers, msgs] = await Promise.all([
       Customer.find({}).lean(),
-      Message.find({ timestamp: { $gte: sixtyDaysAgo } }).sort({ timestamp: 1 }).lean()
+      Message.find({ timestamp: { $gte: sixtyDaysAgo } }).lean()
     ]);
+
+    const allMessages = msgs.map(m => ({ 
+        ...m, 
+        categoryLabel: null, 
+        time: new Date(m.timestamp || m.createdAt || 0).getTime() 
+    }));
+
+    allMessages.sort((a, b) => a.time - b.time);
 
     const contactMap = new Map();
     customers.forEach(c => {
       contactMap.set(c.phone, { 
-        name: c.name, 
-        status: c.status, 
-        assignedTo: c.assignedTo, 
-        unreadCount: c.unreadCount || 0,
-        // 👇 FIX 1: Check if closed, and use ?? instead of ||
-        priority: c.isClosed ? "" : (c.priority ?? "Medium") 
+        name: c.name, status: c.status, assignedTo: c.assignedTo, unreadCount: c.unreadCount || 0, priority: c.isClosed ? "" : (c.priority ?? "Medium") 
       });
     });
 
-    const chats = messages.map((msg) => {
+    const chats = allMessages.map((msg) => {
       const customerInfo = contactMap.get(msg.phone) || {};
       return {
         phone: msg.phone,
@@ -54,27 +56,24 @@ export async function GET(request) {
         message: msg.message || "",
         direction: msg.direction,
         status: customerInfo.status || "New", 
-        // 👇 FIX 2: Use ?? instead of || here too
         priority: customerInfo.priority ?? "Medium", 
         messageStatus: msg.status || "RECEIVED", 
         read: msg.read || "TRUE",
-        timestamp: msg.timestamp || new Date().toISOString(),
+        timestamp: new Date(msg.time).toISOString(),
         twilioSid: msg.twilioSid || "",
         associate: customerInfo.assignedTo || "",
+        categoryLabel: msg.categoryLabel,
         role: "sales",
         mediaUrl: msg.mediaUrl || "",
         mediaType: msg.mediaType || "",
-        lastSeenAt: msg.timestamp || new Date().toISOString(),
+        lastSeenAt: new Date(msg.time).toISOString(),
         ...customerInfo
       };
     }).filter(chat => chat.phone && !chat.phone.includes("whatsapp:+14155238886"));
 
-    if (redis && redis.status === 'ready') {
-      await redis.set("chats:all_data", JSON.stringify(chats), "EX", REDIS_CACHE_TTL);
-    }
+    if (redis && redis.status === 'ready') await redis.set("chats:main_inbox_data", JSON.stringify(chats), "EX", REDIS_CACHE_TTL);
     
     return NextResponse.json(chats);
-
   } catch (error) {
     return NextResponse.json({ error: "Server Error" }, { status: 500 });
   }
@@ -91,61 +90,58 @@ export async function POST(req) {
     let twilioSid = "sys_msg_" + Date.now();
     const myTwilioNumber = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER;
 
-    // 1. SEND MESSAGE VIA TWILIO
     try {
       const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
       const sent = await client.messages.create({
-        body: message,
-        from: myTwilioNumber,
-        to: phone.startsWith("whatsapp:") ? phone : `whatsapp:${phone}`,
+        body: message, from: myTwilioNumber, to: phone.startsWith("whatsapp:") ? phone : `whatsapp:${phone}`,
       });
       twilioSid = sent.sid;
-    } catch (e) {
-      console.error("Twilio Error:", e.message);
-    }
+    } catch (e) {}
 
-    // 2. SAVE OUTBOUND MESSAGE TO MONGODB
     if (!skipSave) {
       await connectDB();
       const isoTimestamp = new Date().toISOString();
 
-      // Ensure customer exists in DB
-      await Customer.findOneAndUpdate(
-        { phone: phone },
-        { $setOnInsert: { name: name || phone, status: "New", assignedTo: "unassigned" } },
-        { upsert: true }
-      );
+      await Customer.findOneAndUpdate({ phone: phone }, { $setOnInsert: { name: name || phone, status: "New", assignedTo: "unassigned" } }, { upsert: true });
 
-      // Save message
-      await Message.create({
-        phone: phone,
-        message: message,
-        direction: "OUTBOUND",
-        status: "SENT",
-        twilioSid: twilioSid,
-        senderName: name || "Associate"
-      });
-
-      // Send to UI live
-      if (global.io) {
-        global.io.emit("new_message", { 
-            phone: phone, 
-            message: message, 
-            direction: "OUTBOUND", 
-            timestamp: isoTimestamp,
-            status: "SENT",
-            role: role || "sales",
-            name: name || phone
-        });
+      // Identify which specific collection to save the outgoing message IF it's a lead response
+      const lead = await Lead.findOne({ phone }).lean();
+      
+      // We will save to Message by default, but if it happens to be a Lead response from here, 
+      // we still need those models. However, the GET method is strictly decoupled.
+      // (To keep it completely decoupled, we could just always save to Message, 
+      // but let's honor the dynamic DB routing for POST to avoid broken threads).
+      let targetModelName = 'Message';
+      if (lead) {
+          if (lead.leadType === "Product Lead") targetModelName = 'ProductMessage';
+          else if (lead.leadType === "MD Camp") targetModelName = 'MDCampMessage';
+          else if (lead.leadType === "Therapy") targetModelName = 'TherapyMessage';
       }
 
-      // Clear cache to show new message on refresh
-      if (redis && redis.status === 'ready') await redis.del("chats:all_data");
-    }
+      // Dynamically import only if needed to keep initial load clean
+      let MsgModel = Message;
+      if (targetModelName === 'ProductMessage') MsgModel = (await import("@/models/ProductMessage")).default;
+      if (targetModelName === 'MDCampMessage') MsgModel = (await import("@/models/MDCampMessage")).default;
+      if (targetModelName === 'TherapyMessage') MsgModel = (await import("@/models/TherapyMessage")).default;
 
+      await MsgModel.create({
+        phone: phone, message: message, direction: "OUTBOUND", status: "SENT", twilioSid: twilioSid, senderName: name || "Associate"
+      });
+
+      if (global.io) {
+          global.io.emit("new_message", { 
+              phone: phone, message: message, direction: "OUTBOUND", timestamp: isoTimestamp, status: "SENT", role: role || "sales", name: name || phone
+          });
+          
+          if (targetModelName === 'ProductMessage') global.io.emit("new_product_message", { phone, message, direction: "OUTBOUND", timestamp: isoTimestamp });
+          if (targetModelName === 'MDCampMessage') global.io.emit("new_mdcamp_message", { phone, message, direction: "OUTBOUND", timestamp: isoTimestamp });
+          if (targetModelName === 'TherapyMessage') global.io.emit("new_therapy_message", { phone, message, direction: "OUTBOUND", timestamp: isoTimestamp });
+      }
+
+      if (redis && redis.status === 'ready') await redis.del("chats:main_inbox_data");
+    }
     return NextResponse.json({ success: true, twilioSid });
   } catch (error) {
-    console.error("POST Chat DB Error:", error);
     return NextResponse.json({ error: "Failed" }, { status: 500 });
   }
 }
@@ -156,21 +152,14 @@ export async function DELETE(req) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { phones } = await req.json();
-    if (!phones || !Array.isArray(phones) || phones.length === 0) {
-      return NextResponse.json({ error: "No phones provided for deletion" }, { status: 400 });
-    }
+    if (!phones || !Array.isArray(phones) || phones.length === 0) return NextResponse.json({ error: "No phones provided" }, { status: 400 });
 
     await connectDB();
-
     await Message.deleteMany({ phone: { $in: phones } });
 
-    if (redis && redis.status === 'ready') {
-      await redis.del("chats:all_data");
-    }
-
+    if (redis && redis.status === 'ready') await redis.del("chats:main_inbox_data");
     return NextResponse.json({ success: true, deletedCount: phones.length });
   } catch (error) {
-    console.error("Delete Chats API Error:", error);
     return NextResponse.json({ error: "Failed to delete chats" }, { status: 500 });
   }
 }

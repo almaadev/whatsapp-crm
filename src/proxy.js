@@ -19,7 +19,7 @@ export default withAuth(
 
       
     if (isAdminRoute && !isAdmin) {
-      return NextResponse.redirect(new URL("/crm/chat", req.url));
+      return NextResponse.redirect(new URL("/crm/associate", req.url));
     }
 
     return NextResponse.next();

@@ -17,8 +17,7 @@ import {
   Bell,
   Share2,
   List,
-  ChevronDown,
-  Megaphone // 👇 Puthu icon for Ads
+  ChevronDown
 } from "lucide-react";
 
 export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
@@ -32,9 +31,12 @@ export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
     pathname === "/crm/admin" || pathname.startsWith("/crm/associate-management")
   );
   
-  // 👇 FIX: Puthu Dropdown State for Chat / Ads Leads
+  // 👇 FIX: All 4 Pages tracked here
   const [chatDropdownOpen, setChatDropdownOpen] = useState(
-    pathname === "/crm/chat" || pathname.startsWith("/crm/ads-lead")
+    pathname === "/crm/chat" || 
+    pathname.startsWith("/crm/product-lead") || 
+    pathname.startsWith("/crm/md-camp") || 
+    pathname.startsWith("/crm/therapy")
   );
 
   const notifications = useChatStore(s => s.notifications);
@@ -204,8 +206,8 @@ export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
             </Link>
           )}
 
-          {/* 👇 FIX: Chat Inbox Dropdown with Ads Lead */}
-          {(hasAccess("Chat Inbox") || hasAccess("Ads Lead")) && (
+          {/* 👇 FIX: Chat Inbox Dropdown with 3 New Categories */}
+          {(hasAccess("Chat Inbox") || hasAccess("Product Lead") || hasAccess("MD Camp") || hasAccess("Therapy")) && (
             <div className="flex flex-col gap-1">
               <div
                 onClick={() => {
@@ -217,7 +219,7 @@ export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
                     setChatDropdownOpen(!chatDropdownOpen);
                   }
                 }}
-                className={`flex items-center gap-4 p-3.5 rounded-xl transition-all duration-200 cursor-pointer group font-medium ${(pathname === "/crm/chat" || pathname.startsWith("/crm/ads-lead")) && !chatDropdownOpen
+                className={`flex items-center gap-4 p-3.5 rounded-xl transition-all duration-200 cursor-pointer group font-medium ${(pathname === "/crm/chat" || pathname.startsWith("/crm/product-lead") || pathname.startsWith("/crm/md-camp") || pathname.startsWith("/crm/therapy")) && !chatDropdownOpen
                     ? "bg-white/10 text-white"
                     : "text-white hover:bg-white/20"
                   } ${isExpanded ? "justify-between" : "justify-center"}`}
@@ -252,15 +254,33 @@ export default function Sidebar({ role, mobileOpen, setMobileOpen }) {
                       </div>
                     </Link>
                   )}
-                  
-                  {/* Ads Lead link shows only if hasAccess("Ads Lead") */}
-                  {hasAccess("Ads Lead") && (
-                    <Link href="/crm/ads-lead">
-                      <div className={`py-2 px-3 rounded-lg text-sm transition-all duration-200 ${pathname === "/crm/ads-lead"
+                  {hasAccess("Product Lead") && (
+                    <Link href="/crm/product-lead">
+                      <div className={`py-2 px-3 rounded-lg text-sm transition-all duration-200 ${pathname === "/crm/product-lead"
                           ? "bg-white text-[#1aa159] font-bold shadow-sm translate-x-1"
                           : "text-white/80 hover:text-white hover:bg-white/10 hover:translate-x-1"
                         }`}>
-                        Ads Lead
+                        Product Lead
+                      </div>
+                    </Link>
+                  )}
+                  {hasAccess("MD Camp") && (
+                    <Link href="/crm/md-camp">
+                      <div className={`py-2 px-3 rounded-lg text-sm transition-all duration-200 ${pathname === "/crm/md-camp"
+                          ? "bg-white text-[#1aa159] font-bold shadow-sm translate-x-1"
+                          : "text-white/80 hover:text-white hover:bg-white/10 hover:translate-x-1"
+                        }`}>
+                        MD Camp
+                      </div>
+                    </Link>
+                  )}
+                  {hasAccess("Therapy") && (
+                    <Link href="/crm/therapy">
+                      <div className={`py-2 px-3 rounded-lg text-sm transition-all duration-200 ${pathname === "/crm/therapy"
+                          ? "bg-white text-[#1aa159] font-bold shadow-sm translate-x-1"
+                          : "text-white/80 hover:text-white hover:bg-white/10 hover:translate-x-1"
+                        }`}>
+                        Therapy
                       </div>
                     </Link>
                   )}

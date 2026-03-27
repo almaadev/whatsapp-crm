@@ -11,9 +11,9 @@ export default function CreateUserForm() {
   const [status, setStatus] = useState({ type: "", message: "" });
   const [loading, setLoading] = useState(false);
 
-  const modulesList = ["Leads", "Customers", "Reports", "Chat Inbox", "Ads Lead"];
+  // 👇 FIX: Added New Modules (Product Lead, MD Camp, Therapy)
+  const modulesList = ["Leads", "Customers", "Reports", "Chat Inbox", "Product Lead", "MD Camp", "Therapy"];
 
-  // 👇 Tamil Nadu Districts Array
   const tamilNaduDistricts = [
     "Ariyalur", "Chengalpattu", "Chennai", "Coimbatore", "Cuddalore", "Dharmapuri",
     "Dindigul", "Erode", "Kallakurichi", "Kanchipuram", "Kanyakumari", "Karur",
@@ -131,7 +131,6 @@ export default function CreateUserForm() {
                 </div>
             </div>
 
-            {/* 👇 FIX: Branch Input changed to Select Dropdown */}
             <div className="md:col-span-2">
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Branch *</label>
                 <div className="relative group">
@@ -195,11 +194,12 @@ export default function CreateUserForm() {
             </label>
         </div>
 
+        {/* 👇 FIX: Displaying All Access Modules */}
         <div>
             <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Access Modules</label>
             <div className="flex flex-wrap gap-3">
                 {modulesList.map(mod => (
-                    <label key={mod} className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 px-3 py-1.5 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100">
+                    <label key={mod} className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 px-3 py-1.5 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 transition-all">
                         <input type="checkbox" checked={formData.accessModules.includes(mod)} onChange={() => handleModuleChange(mod)} className="w-3.5 h-3.5 text-emerald-600 rounded" />
                         {mod}
                     </label>
