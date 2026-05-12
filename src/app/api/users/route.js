@@ -105,7 +105,11 @@ export async function POST(req) {
         password: hashedPassword, 
         role, 
         department, 
+<<<<<<< HEAD
         branch, // 👇 FIX: Save branch to DB
+=======
+        branch,
+>>>>>>> c1be5bc (Initial commit from new system)
         isAdmin, 
         active, 
         accessModules,

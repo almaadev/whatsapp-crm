@@ -11,8 +11,13 @@ export default function DashboardRoot() {
   useEffect(() => {
     if (status === "authenticated" && session?.user) {
       const role = session.user.role;
+<<<<<<< HEAD
 
       if (role === "admin" || role === "superAdmin") {
+=======
+      const department = session.user.department;
+      if (department === "admin" || role === "superAdmin") {
+>>>>>>> c1be5bc (Initial commit from new system)
         // Admin goes to Admin Panel by default
         router.replace("/crm/admin");
       } else {

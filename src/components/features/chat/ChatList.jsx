@@ -206,7 +206,11 @@ export default function ChatList({ role, loading }) {
                 {chats.map((chat, index) => {
                     const isSelected = selectedChat?.phone === chat.phone;
                     const isUnread = !isSelected && chat.direction === "INBOUND" && chat.read === "FALSE";
+<<<<<<< HEAD
 
+=======
+                    
+>>>>>>> c1be5bc (Initial commit from new system)
                     const cleanPhone = chat.phone ? chat.phone.replace("whatsapp:", "") : "";
                     const displayName = chat.name || cleanPhone;
                     const dateObj = parseDate(chat.lastSeenAt || chat.timestamp);

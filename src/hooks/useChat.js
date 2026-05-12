@@ -53,6 +53,7 @@ export function useChat(role) {
 
     fetchChats();
 
+<<<<<<< HEAD
     // 👇 FIX: Explicitly setup socket connection for live server
     const socketUrl = process.env.NODE_ENV === "production" ? "https://crm.almaaerp.in" : "";
     
@@ -61,16 +62,36 @@ export function useChat(role) {
       transports: ["websocket", "polling"],
       secure: true,
       rejectUnauthorized: false
+=======
+    // 👇 FIX: Dynamically resolve the socket URL and configure robust timeout/transports
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || (process.env.NODE_ENV === "production" ? "https://crm.almaaerp.in" : (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"));
+    
+    const socket = io(socketUrl, {
+      path: "/socket.io/",
+      transports: ["websocket", "polling"], // Polling first prevents initial timeout failures in dev
+      secure: process.env.NODE_ENV === "production",
+      rejectUnauthorized: false,
+      reconnectionAttempts: 5,
+      timeout: 10000 // Increased to 10 seconds
+>>>>>>> c1be5bc (Initial commit from new system)
     }); 
     
     socketRef.current = socket;
 
     socket.on("connect", () => {
+<<<<<<< HEAD
         console.log("✅ Socket Connected to Server");
     });
 
     socket.on("connect_error", (err) => {
         console.error("❌ Socket Connection Error:", err.message);
+=======
+        console.log("✅ Socket Connected to Server:", socket.id);
+    });
+
+    socket.on("connect_error", (err) => {
+        console.warn("⚠️ Socket Connection Warning:", err.message);
+>>>>>>> c1be5bc (Initial commit from new system)
     });
 
     socket.on("new_message", (newMessage) => {

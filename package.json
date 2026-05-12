@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "node src/server.js",
     "build": "next build",
+<<<<<<< HEAD
     "start": "node src/server.js",
     "lint": "next lint"
   },
@@ -17,6 +18,19 @@
     "ioredis": "^5.9.2",
     "lucide-react": "^0.563.0",
     "mongoose": "^9.2.4",
+=======
+    "start": "NODE_ENV=production node src/server.js"
+  },
+  "type": "module",
+  "dependencies": {
+    "axios": "^1.13.4",
+    "bcryptjs": "^3.0.3",
+    "framer-motion": "^12.38.0",
+    "googleapis": "^171.4.0",
+    "ioredis": "^5.9.2",
+    "lucide-react": "^0.563.0",
+    "mongoose": "^9.4.1",
+>>>>>>> c1be5bc (Initial commit from new system)
     "next": "16.1.6",
     "next-auth": "^4.24.13",
     "pusher": "^5.3.2",

@@ -19,7 +19,11 @@ export async function GET(request) {
       try {
         const cachedData = await redis.get("chats:main_inbox_data");
         if (cachedData) return NextResponse.json(JSON.parse(cachedData));
+<<<<<<< HEAD
       } catch (e) {}
+=======
+      } catch (e) { }
+>>>>>>> c1be5bc (Initial commit from new system)
     }
 
     await connectDB();
@@ -33,18 +37,30 @@ export async function GET(request) {
       Message.find({ timestamp: { $gte: sixtyDaysAgo } }).lean()
     ]);
 
+<<<<<<< HEAD
     const allMessages = msgs.map(m => ({ 
         ...m, 
         categoryLabel: null, 
         time: new Date(m.timestamp || m.createdAt || 0).getTime() 
+=======
+    const allMessages = msgs.map(m => ({
+      ...m,
+      categoryLabel: null,
+      time: new Date(m.timestamp || m.createdAt || 0).getTime()
+>>>>>>> c1be5bc (Initial commit from new system)
     }));
 
     allMessages.sort((a, b) => a.time - b.time);
 
     const contactMap = new Map();
     customers.forEach(c => {
+<<<<<<< HEAD
       contactMap.set(c.phone, { 
         name: c.name, status: c.status, assignedTo: c.assignedTo, unreadCount: c.unreadCount || 0, priority: c.isClosed ? "" : (c.priority ?? "Medium") 
+=======
+      contactMap.set(c.phone, {
+        name: c.name, status: c.status, city: c.city, assignedTo: c.assignedTo, activeRouteCategory: c.activeRouteCategory, unreadCount: c.unreadCount || 0, priority: c.isClosed ? "" : (c.priority ?? "Medium")
+>>>>>>> c1be5bc (Initial commit from new system)
       });
     });
 
@@ -55,15 +71,27 @@ export async function GET(request) {
         name: customerInfo.name || msg.senderName || msg.phone,
         message: msg.message || "",
         direction: msg.direction,
+<<<<<<< HEAD
         status: customerInfo.status || "New", 
         priority: customerInfo.priority ?? "Medium", 
         messageStatus: msg.status || "RECEIVED", 
+=======
+        city: customerInfo.city || "",
+        activeRouteCategory: customerInfo.activeRouteCategory,
+        status: customerInfo.status || "New",
+        priority: customerInfo.priority ?? "Medium",
+        messageStatus: msg.status || "RECEIVED",
+>>>>>>> c1be5bc (Initial commit from new system)
         read: msg.read || "TRUE",
         timestamp: new Date(msg.time).toISOString(),
         twilioSid: msg.twilioSid || "",
         associate: customerInfo.assignedTo || "",
         categoryLabel: msg.categoryLabel,
         role: "sales",
+<<<<<<< HEAD
+=======
+        isChatClosed: msg.isChatClosed,
+>>>>>>> c1be5bc (Initial commit from new system)
         mediaUrl: msg.mediaUrl || "",
         mediaType: msg.mediaType || "",
         lastSeenAt: new Date(msg.time).toISOString(),
@@ -72,7 +100,11 @@ export async function GET(request) {
     }).filter(chat => chat.phone && !chat.phone.includes("whatsapp:+14155238886"));
 
     if (redis && redis.status === 'ready') await redis.set("chats:main_inbox_data", JSON.stringify(chats), "EX", REDIS_CACHE_TTL);
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> c1be5bc (Initial commit from new system)
     return NextResponse.json(chats);
   } catch (error) {
     return NextResponse.json({ error: "Server Error" }, { status: 500 });
@@ -96,7 +128,11 @@ export async function POST(req) {
         body: message, from: myTwilioNumber, to: phone.startsWith("whatsapp:") ? phone : `whatsapp:${phone}`,
       });
       twilioSid = sent.sid;
+<<<<<<< HEAD
     } catch (e) {}
+=======
+    } catch (e) { }
+>>>>>>> c1be5bc (Initial commit from new system)
 
     if (!skipSave) {
       await connectDB();
@@ -104,6 +140,7 @@ export async function POST(req) {
 
       await Customer.findOneAndUpdate({ phone: phone }, { $setOnInsert: { name: name || phone, status: "New", assignedTo: "unassigned" } }, { upsert: true });
 
+<<<<<<< HEAD
       // Identify which specific collection to save the outgoing message IF it's a lead response
       const lead = await Lead.findOne({ phone }).lean();
       
@@ -116,6 +153,15 @@ export async function POST(req) {
           if (lead.leadType === "Product Lead") targetModelName = 'ProductMessage';
           else if (lead.leadType === "MD Camp") targetModelName = 'MDCampMessage';
           else if (lead.leadType === "Therapy") targetModelName = 'TherapyMessage';
+=======
+      const lead = await Lead.findOne({ phone }).lean();
+
+      let targetModelName = 'Message';
+      if (lead) {
+        if (lead.leadType === "Product Lead") targetModelName = 'ProductMessage';
+        else if (lead.leadType === "MD Camp") targetModelName = 'MDCampMessage';
+        else if (lead.leadType === "Therapy") targetModelName = 'TherapyMessage';
+>>>>>>> c1be5bc (Initial commit from new system)
       }
 
       // Dynamically import only if needed to keep initial load clean
@@ -129,6 +175,7 @@ export async function POST(req) {
       });
 
       if (global.io) {
+<<<<<<< HEAD
           global.io.emit("new_message", { 
               phone: phone, message: message, direction: "OUTBOUND", timestamp: isoTimestamp, status: "SENT", role: role || "sales", name: name || phone
           });
@@ -136,6 +183,15 @@ export async function POST(req) {
           if (targetModelName === 'ProductMessage') global.io.emit("new_product_message", { phone, message, direction: "OUTBOUND", timestamp: isoTimestamp });
           if (targetModelName === 'MDCampMessage') global.io.emit("new_mdcamp_message", { phone, message, direction: "OUTBOUND", timestamp: isoTimestamp });
           if (targetModelName === 'TherapyMessage') global.io.emit("new_therapy_message", { phone, message, direction: "OUTBOUND", timestamp: isoTimestamp });
+=======
+        global.io.emit("new_message", {
+          phone: phone, message: message, direction: "OUTBOUND", timestamp: isoTimestamp, status: "SENT", role: role || "sales", name: name || phone
+        });
+
+        if (targetModelName === 'ProductMessage') global.io.emit("new_product_message", { phone, message, direction: "OUTBOUND", timestamp: isoTimestamp });
+        if (targetModelName === 'MDCampMessage') global.io.emit("new_mdcamp_message", { phone, message, direction: "OUTBOUND", timestamp: isoTimestamp });
+        if (targetModelName === 'TherapyMessage') global.io.emit("new_therapy_message", { phone, message, direction: "OUTBOUND", timestamp: isoTimestamp });
+>>>>>>> c1be5bc (Initial commit from new system)
       }
 
       if (redis && redis.status === 'ready') await redis.del("chats:main_inbox_data");
