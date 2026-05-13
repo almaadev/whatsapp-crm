@@ -345,7 +345,6 @@ useEffect(() => {
           </div>
         )}
 
-        {/* ── Follow-up history (collapsible with Associate Filtering) ── */}
         {followUps.length > 0 && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
             <button
@@ -451,9 +450,7 @@ useEffect(() => {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  SUB-COMPONENTS
-// ─────────────────────────────────────────────────────────────────────────────
+
 function InputGroup({ label, name, value, onChange, type = "text", placeholder = "", icon, required }) {
   return (
     <div>
