@@ -1,10 +1,4 @@
 /** @type {import('next').NextConfig} */
-<<<<<<< HEAD
-const nextConfig = {
-  /* config options here */
-  reactCompiler: true,
-  
-=======
 
 const nextConfig = {
   /* config options here */
@@ -16,7 +10,6 @@ const nextConfig = {
         allowedOrigins: ["*.ngrok-free.dev", "*.ngrok-free.app"]
     }
   }
->>>>>>> c1be5bc (Initial commit from new system)
 };
 
 export default nextConfig;

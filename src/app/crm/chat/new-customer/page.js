@@ -11,11 +11,7 @@ import {
   FileText, Save, Loader2, MessageSquarePlus, CheckCircle, ShieldAlert 
 } from "lucide-react"; // 👇 FIX: Added ShieldAlert
 import { toast } from "react-toastify";
-<<<<<<< HEAD
-import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png"; // 👇 FIX: Added Logo for mobile header
-=======
 import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png"; 
->>>>>>> c1be5bc (Initial commit from new system)
 
 export default function NewCustomerPage() {
   const { data: session, status } = useSession();
@@ -112,20 +108,12 @@ export default function NewCustomerPage() {
     const formattedPhone = `whatsapp:+91${cleanMobile.slice(-10)}`;
 
     try {
-<<<<<<< HEAD
-      const res = await fetch("/api/leads", {
-=======
       const res = await fetch("/api/customers", {
->>>>>>> c1be5bc (Initial commit from new system)
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             ...formData,
-<<<<<<< HEAD
-            mobile: formattedPhone 
-=======
             phone: formattedPhone 
->>>>>>> c1be5bc (Initial commit from new system)
         }),
       });
 
@@ -154,11 +142,7 @@ export default function NewCustomerPage() {
   };
 
   // 👇 FIX: Loading check
-<<<<<<< HEAD
-  if (status === "loading") return <div className="flex h-[100dvh] items-center justify-center text-slate-500 font-medium">Loading Workspace...</div>;
-=======
   if (status === "loading") return <div className="flex h-[100dvh] items-center justify-center text-slate-500 font-medium">Loading CRM...</div>;
->>>>>>> c1be5bc (Initial commit from new system)
   if (!session) return null;
 
   // 👇 FIX: Access Denied Screen

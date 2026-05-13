@@ -7,15 +7,6 @@ import Lead from "@/models/Lead";
 import User from "@/models/User";
 import redis from "@/lib/redis";
 
-<<<<<<< HEAD
-export async function GET(req) {
-  try {
-    await connectDB();
-    const leads = await Lead.find({}).sort({ createdAt: -1 }).lean();
-    const customers = await Customer.find({}).lean();
-
-    // Mapping customers to merge data perfectly
-=======
 export const dynamic = "force-dynamic";
 
 export async function GET(req) {
@@ -26,7 +17,6 @@ export async function GET(req) {
     const leadPhones = leads.map(l => l.phone || l.customerPhone).filter(Boolean);
     const customers = await Customer.find({ phone: { $in: leadPhones } }).lean();
 
->>>>>>> c1be5bc (Initial commit from new system)
     const customerMap = {};
     customers.forEach(c => { customerMap[c.phone] = c; });
 
@@ -34,41 +24,6 @@ export async function GET(req) {
         const c = customerMap[lead.phone || lead.customerPhone] || {};
         return {
             phone: lead.phone || lead.customerPhone,
-<<<<<<< HEAD
-            name: lead.name || c.name || "Unknown",
-            city: lead.city || c.city || "",
-            address: lead.address || c.address || "",
-            source: lead.source || c.source || "Manual Entry",
-            enquiredFor: lead.enquiredFor || c.enquiredFor || "",
-            status: lead.status || c.status || "New",
-            priority: lead.priority || c.priority || "Medium", 
-            remarks: lead.remarks || lead.day1Remarks || c.remarks || "",
-            saleAmount: lead.saleAmount || "0",
-            associate: lead.assignedTo || c.assignedTo || "Unassigned",
-            visitCount: c.visitCount || 1,
-            date: lead.createdAt ? new Date(lead.createdAt).toISOString() : new Date().toISOString(),
-            followUpStart: lead.followUpStart ? new Date(lead.followUpStart).toISOString() : null,
-            isClosed: lead.isClosed || c.isClosed || false
-        };
-    });
-
-    // Add legacy customers who have no lead entries
-    const leadsPhones = new Set(leads.map(l => l.phone || l.customerPhone));
-    customers.forEach(c => {
-        if (!leadsPhones.has(c.phone)) {
-            formattedData.push({
-                phone: c.phone, name: c.name || "Unknown", city: c.city || "", address: c.address || "",
-                source: c.source || "Imported", enquiredFor: c.enquiredFor || "", status: c.status || "New",
-                priority: c.priority || "Medium", remarks: c.remarks || "", saleAmount: "0",
-                associate: c.assignedTo || "Unassigned", visitCount: c.visitCount || 1,
-                date: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
-                followUpStart: null,
-                isClosed: c.isClosed || false
-            });
-        }
-    });
-
-=======
             name: (c.name && c.name !== "Unknown") ? c.name : (lead.name || "Unknown"),
             city: c.city || lead.city || "",
             address: c.address || lead.address || "",
@@ -89,7 +44,6 @@ export async function GET(req) {
         };
     });
 
->>>>>>> c1be5bc (Initial commit from new system)
     return NextResponse.json(formattedData);
   } catch (error) {
     return NextResponse.json({ error: "Failed to fetch contacts" }, { status: 500 });
@@ -115,13 +69,6 @@ export async function POST(req) {
     const userDoc = await User.findOne({ name: currentUser });
     const associateId = userDoc ? userDoc._id.toString() : "";
 
-<<<<<<< HEAD
-    const payload = {
-        name: body.name || "Unknown",
-        city: body.city || "",
-        address: body.address || "",
-        source: body.source || "Whatsapp",
-=======
     let customer = await Customer.findOne({ phone: cleanPhone });
     let latestLead = await Lead.findOne({ phone: cleanPhone }).sort({ createdAt: -1 });
 
@@ -158,7 +105,6 @@ export async function POST(req) {
         name: resolvedName,
         city: resolvedCity,
         address: resolvedAddress,
->>>>>>> c1be5bc (Initial commit from new system)
         enquiredFor: body.enquiredFor || "",
         priority: body.priority || "Medium",
         remarks: body.remarks || "",
@@ -166,22 +112,6 @@ export async function POST(req) {
         saleAmount: body.saleAmount || "0",
         assignedTo: currentUser,
         associateId: associateId,
-<<<<<<< HEAD
-        isClosed: body.status === "Closed"
-    };
-
-    let customer = await Customer.findOne({ phone: cleanPhone });
-    let latestLead = await Lead.findOne({ $or: [{ phone: cleanPhone }] }).sort({ createdAt: -1 });
-
-    let currentVisitCount = customer ? (customer.visitCount || 1) : 1;
-
-    if (!customer) {
-        customer = await Customer.create({ phone: cleanPhone, ...payload, visitCount: 1 });
-    } else {
-        Object.assign(customer, payload);
-        if (latestLead && latestLead.isClosed) {
-            customer.visitCount += 1;
-=======
         isClosed: body.status === "Closed",
         leadType: latestLead?.leadType || "Direct Lead"
     };
@@ -199,33 +129,11 @@ export async function POST(req) {
         Object.assign(customer, customerData);
         if (latestLead && !latestLead.isClosed && body.status === "Closed") {
             customer.visitCount = (customer.visitCount || 1) + 1;
->>>>>>> c1be5bc (Initial commit from new system)
             currentVisitCount = customer.visitCount;
         }
         await customer.save();
     }
 
-<<<<<<< HEAD
-    if (!latestLead || latestLead.isClosed) {
-        await Lead.create({
-            phone: cleanPhone,
-            ...payload,
-            day1Remarks: body.day1Remarks || "", day2Remarks: body.day2Remarks || "", day3Remarks: body.day3Remarks || ""
-        });
-    } else {
-        Object.assign(latestLead, payload);
-        if (body.day1Remarks) latestLead.day1Remarks = body.day1Remarks;
-        if (body.day2Remarks) latestLead.day2Remarks = body.day2Remarks;
-        if (body.day3Remarks) latestLead.day3Remarks = body.day3Remarks;
-        await latestLead.save();
-    }
-
-    if (redis && redis.status === 'ready') await redis.del("chats:all_data");
-
-    return NextResponse.json({ success: true, visitCount: currentVisitCount });
-  } catch (error) {
-    return NextResponse.json({ error: "Failed" }, { status: 500 });
-=======
     // 👇 FIX: Follow Up Registration & Edit Logic
     let createNewLead = false;
 
@@ -279,6 +187,5 @@ export async function POST(req) {
   } catch (error) {
     console.error("Save Contact Error:", error);
     return NextResponse.json({ error: "Failed to save data" }, { status: 500 });
->>>>>>> c1be5bc (Initial commit from new system)
   }
 }

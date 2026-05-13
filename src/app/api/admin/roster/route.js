@@ -7,22 +7,11 @@ import Lead from "@/models/Lead";
 
 export const dynamic = "force-dynamic";
 
-<<<<<<< HEAD
-export async function GET() {
-=======
 export async function GET(req) {
->>>>>>> c1be5bc (Initial commit from new system)
     try {
         await connectDB();
         
         const session = await getServerSession(authOptions);
-<<<<<<< HEAD
-        const isSuperAdmin = session?.user?.role === 'superAdmin';
-        const currentUserEmail = session?.user?.email;
-
-        const allUsers = await User.find({ role: { $ne: 'superAdmin' } }).lean();
-
-=======
         if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
         const isSuperAdmin = session?.user?.role === 'superAdmin';
@@ -42,7 +31,6 @@ export async function GET(req) {
 
         // --- 2. Fetch Users ---
         const allUsers = await User.find({ role: { $ne: 'superAdmin' } }).lean();
->>>>>>> c1be5bc (Initial commit from new system)
         let filteredUsers = allUsers;
         if (!isSuperAdmin) {
             filteredUsers = allUsers.filter(u => 
@@ -50,10 +38,6 @@ export async function GET(req) {
             );
         }
 
-<<<<<<< HEAD
-        // ONE SINGLE FETCH NOW!
-        const allLeads = await Lead.find({}).lean();
-=======
         // --- 3. Fetch Leads Active in Selected Month ---
         const activeLeads = await Lead.find({
             $or: [
@@ -65,36 +49,16 @@ export async function GET(req) {
 
         // --- 4. Process Roster Metrics ---
         let companyAnalytics = { totalLeads: 0, totalPending: 0, totalFollowUp: 0, totalAchieved: 0, totalTarget: 0 };
->>>>>>> c1be5bc (Initial commit from new system)
 
         const roster = filteredUsers.map(user => {
             const userIdStr = user._id.toString();
             const userName = user.name;
 
-<<<<<<< HEAD
-            // Filter for current user
-            const userLeads = allLeads.filter(l => l.associateId === userIdStr || l.assignedTo === userName || l.associate === userName);
-
-=======
             let totalLeads = 0;
->>>>>>> c1be5bc (Initial commit from new system)
             let pendingCount = 0;
             let followUpCount = 0;
             let achievedCount = 0;
 
-<<<<<<< HEAD
-            const now = new Date();
-
-            userLeads.forEach(lead => {
-                if (lead.status === "Closed" || lead.isClosed) {
-                    achievedCount++;
-                } else if (lead.status === "Follow Up") {
-                    const followUpDate = lead.followUpStart ? new Date(lead.followUpStart) : new Date(lead.createdAt);
-                    const hoursDiff = (now - followUpDate) / (1000 * 60 * 60);
-                    if (hoursDiff > 48) pendingCount++; else followUpCount++;
-                } else if (lead.status === "New" || !lead.status) {
-                    pendingCount++; 
-=======
             activeLeads.forEach(lead => {
                 const history = lead.leads || [];
                 const firstFollowUp = history.length > 0 ? history[0] : null;
@@ -140,37 +104,22 @@ export async function GET(req) {
                         pendingCount++;
                         companyAnalytics.totalPending++;
                     }
->>>>>>> c1be5bc (Initial commit from new system)
                 }
             });
 
             const totalTarget = user.target || 0;
-<<<<<<< HEAD
-            const totalInteractions = pendingCount + followUpCount + achievedCount;
-            const conversionRate = totalInteractions > 0 ? Math.round((achievedCount / totalInteractions) * 100) : 0;
-=======
             companyAnalytics.totalTarget += totalTarget;
             
             const conversionRate = totalLeads > 0 ? Math.round((achievedCount / totalLeads) * 100) : 0;
->>>>>>> c1be5bc (Initial commit from new system)
             const progress = totalTarget > 0 ? Math.min(100, Math.round((achievedCount / totalTarget) * 100)) : 0;
 
             return {
                 id: userIdStr, name: userName, role: user.role, branch: user.branch || "-", 
-<<<<<<< HEAD
-                target: totalTarget, pendingCount, followUpCount, achievedCount, conversionRate, progress
-            };
-        });
-
-        roster.sort((a, b) => b.achievedCount - a.achievedCount);
-        return NextResponse.json({ success: true, roster });
-=======
                 target: totalTarget, totalLeads, pendingCount, followUpCount, achievedCount, conversionRate, progress
             };
         });
 
         return NextResponse.json({ success: true, roster, analytics: companyAnalytics });
->>>>>>> c1be5bc (Initial commit from new system)
     } catch (error) {
         console.error("Roster API Error:", error);
         return NextResponse.json({ success: false, error: "Failed to load roster" }, { status: 500 });

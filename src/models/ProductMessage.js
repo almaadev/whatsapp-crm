@@ -1,16 +1,5 @@
 import mongoose from "mongoose";
 const ProductMessageSchema = new mongoose.Schema({
-<<<<<<< HEAD
-    phone: { type: String, required: true }, 
-    message: { type: String }, 
-    direction: { type: String, enum: ["INBOUND", "OUTBOUND"] }, 
-    status: { type: String }, 
-    read: { type: String, default: "FALSE" }, 
-    twilioSid: { type: String }, 
-    mediaUrl: { type: String }, 
-    mediaType: { type: String }, 
-    senderName: { type: String }
-=======
  phone: { type: String, required: true, index: true },
   message: { type: String },
   direction: { type: String, enum: ['INBOUND', 'OUTBOUND'], required: true },
@@ -22,7 +11,6 @@ const ProductMessageSchema = new mongoose.Schema({
   senderName: { type: String },
   isChatClosed: { type: Boolean, default: false },
   timestamp: { type: Date, default: Date.now, index: true }
->>>>>>> c1be5bc (Initial commit from new system)
 }, { timestamps: true });
 
 if (mongoose.models.ProductMessage) {

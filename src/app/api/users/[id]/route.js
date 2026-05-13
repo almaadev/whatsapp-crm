@@ -56,10 +56,7 @@ export async function PUT(req, { params }) {
           name: body.name,
           email: body.email,
           role: body.role,
-<<<<<<< HEAD
-=======
           number: body.number,
->>>>>>> c1be5bc (Initial commit from new system)
           department: body.department,
           branch: body.branch,
           isAdmin: body.isAdmin,
@@ -75,19 +72,11 @@ export async function PUT(req, { params }) {
         updateData.$unset.preferredName = "";
     }
 
-<<<<<<< HEAD
-    if (body.number && body.number.trim() !== "") {
-        updateData.$set.number = body.number.trim();
-    } else {
-        updateData.$unset.number = "";
-    }
-=======
     // if (body.number && body.number.trim() !== "") {
     //     updateData.$set.number = body.number.trim();
     // } else {
     //     updateData.$unset.number = "";
     // }
->>>>>>> c1be5bc (Initial commit from new system)
 
     if (body.password && body.password.trim() !== "") {
       const salt = await bcrypt.genSalt(Number(process.env.SALT || 10));

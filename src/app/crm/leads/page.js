@@ -2,26 +2,15 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-<<<<<<< HEAD
-import { useChatStore } from "@/store/chatStore";
-import { usePathStore } from "@/store/pathStore";
-import {
-    Save, User, Phone, MapPin, Tag, FileText, AlertCircle, Loader2, X, Plus, Search, RefreshCcw, Flag,
-=======
 import { usePathStore } from "@/store/pathStore";
 import {
     Save, User, Phone, MapPin, Tag, FileText, AlertCircle, Loader2, X, Plus, Search,
     RefreshCcw, Flag, ChevronDown, ChevronUp, History, UserCircle, BadgeCheck, Clock,
     TrendingUp, CornerDownRight, ArrowRight, Copy, Check, CheckCircle2, ChevronLeft, ChevronRight
->>>>>>> c1be5bc (Initial commit from new system)
 } from "lucide-react";
 
 import { toast } from "react-toastify";
 import Sidebar from "@/components/layout/Sidebar";
-<<<<<<< HEAD
-import LeadCard from "@/components/layout/LeadCard"
-
-=======
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  STATUS & UI CONSTANTS
@@ -47,18 +36,12 @@ const LifecycleBadge = ({ state }) => {
         </span>
     );
 };
->>>>>>> c1be5bc (Initial commit from new system)
 
 export default function LeadsPage() {
     const router = useRouter();
     const { data: session, status } = useSession();
     const role = session?.user?.role;
-<<<<<<< HEAD
-    const { setSelectedChat } = useChatStore();
-    const { setPath } = usePathStore()
-=======
     const { setPath } = usePathStore();
->>>>>>> c1be5bc (Initial commit from new system)
     const pathname = usePathname();
 
     const [mobileOpen, setMobileOpen] = useState(false);
@@ -69,13 +52,10 @@ export default function LeadsPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [copiedPhone, setCopiedPhone] = useState(null);
 
-<<<<<<< HEAD
-=======
     // --- Pagination State ---
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
 
->>>>>>> c1be5bc (Initial commit from new system)
     const [formData, setFormData] = useState({
         phone: "", name: "", city: "", address: "",
         source: "Manual Entry", enquiredFor: "", priority: "Medium", status: "New", remarks: ""
@@ -85,13 +65,6 @@ export default function LeadsPage() {
         setFetchingLeads(true);
         try {
             const res = await fetch("/api/leads");
-<<<<<<< HEAD
-            const data = await res.json();
-            if (res.ok) setRawLeads(data);
-        } catch (err) {
-            console.error("Error fetching leads:", err);
-            toast.error("Failed to sync leads.");
-=======
             if (res.ok) {
                 const data = await res.json();
                 setRawLeads(data);
@@ -102,7 +75,6 @@ export default function LeadsPage() {
         } catch (err) {
             console.error("Error fetching leads:", err);
             toast.error("Failed to sync leads database.");
->>>>>>> c1be5bc (Initial commit from new system)
         } finally {
             setFetchingLeads(false);
         }
@@ -112,55 +84,6 @@ export default function LeadsPage() {
         fetchRecentLeads();
     }, []);
 
-<<<<<<< HEAD
-    const handleCustomerRedirect = (phone) => {
-        setPath(pathname)
-        router.push(`/crm/leads/${phone}`)
-    }
-
-    const handleChatSelect = (lead) => {
-        const chatObject = {
-            phone: lead.phone,
-            name: lead.name || lead.phone,
-            address: lead.address || "", 
-            status: lead.status || "New",
-            priority: lead.priority || "Medium",
-            direction: "OUTBOUND", read: "TRUE", timestamp: new Date().toISOString()
-        };
-        setSelectedChat(chatObject);
-    };
-
-    const processedLeads = useMemo(() => {
-        const grouped = {};
-        rawLeads.forEach(lead => {
-            const cleanPhone = lead.phone?.replace(/\D/g, '') || "unknown";
-            if (!grouped[cleanPhone]) {
-                grouped[cleanPhone] = { ...lead, history: [] };
-            }
-            grouped[cleanPhone].history.push({
-                date: lead.date,
-                source: lead.source,
-                enquiredFor: lead.enquiredFor,
-                remarks: lead.remarks,
-                status: lead.status
-            });
-        });
-
-        const leadArray = Object.values(grouped).sort((a, b) =>
-            new Date(b.date) - new Date(a.date)
-        );
-
-        if (!searchTerm) return leadArray;
-
-        const lowerTerm = searchTerm.toLowerCase();
-        return leadArray.filter(lead =>
-            (lead.name && lead.name.toLowerCase().includes(lowerTerm)) ||
-            (lead.phone && lead.phone.includes(lowerTerm)) ||
-            (lead.city && lead.city.toLowerCase().includes(lowerTerm))
-        );
-    }, [rawLeads, searchTerm]);
-
-=======
     // Reset pagination when search query or page size changes
     useEffect(() => {
         setCurrentPage(1);
@@ -200,18 +123,13 @@ export default function LeadsPage() {
         return { paginatedLeads: paginated, totalPages: total };
     }, [processedLeads, currentPage, pageSize]);
 
->>>>>>> c1be5bc (Initial commit from new system)
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
     const handleCopyPhone = (e, phone) => {
-<<<<<<< HEAD
-        e.preventDefault(); 
-=======
         e.preventDefault();
->>>>>>> c1be5bc (Initial commit from new system)
         e.stopPropagation();
         navigator.clipboard.writeText(phone);
         setCopiedPhone(phone);
@@ -233,15 +151,11 @@ export default function LeadsPage() {
             const res = await fetch("/api/leads", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-<<<<<<< HEAD
-                body: JSON.stringify({ ...formData, checkDuplicates: false }),
-=======
                 body: JSON.stringify({
                     ...formData,
                     overAllRemarks: formData.remarks,
                     date: new Date().toISOString()
                 }),
->>>>>>> c1be5bc (Initial commit from new system)
             });
 
             const data = await res.json();
@@ -263,201 +177,12 @@ export default function LeadsPage() {
             setLoading(false);
         }
     };
-<<<<<<< HEAD
-    
-=======
 
->>>>>>> c1be5bc (Initial commit from new system)
     if (status === "loading") {
         return <div className="flex h-screen items-center justify-center text-slate-500">Loading...</div>;
     }
 
     return (
-<<<<<<< HEAD
-        <div className="flex h-[100dvh] bg-slate-50 overflow-hidden font-sans">
-            <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} role={role || "associate"} />
-
-            <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-                <header className="h-auto md:h-16 px-4 py-3 md:py-0 bg-white border-b border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between shrink-0 z-10 shadow-sm gap-3">
-                    <div className="flex items-center gap-3 w-full md:w-auto">
-                        <button onClick={() => setMobileOpen(true)} className="p-2 -ml-2 text-slate-500 md:hidden">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
-                        </button>
-                        <h1 className="text-lg font-bold text-slate-800 whitespace-nowrap">Leads Management</h1>
-                        <div className="hidden md:flex items-center ml-6 bg-slate-100 rounded-xl px-3 py-1.5 border border-slate-200 focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all w-64">
-                            <Search size={16} className="text-slate-400" />
-                            <input type="text" placeholder="Search leads..." title="Search name or phone or city" className="bg-transparent border-none outline-none text-sm ml-2 w-full text-slate-700 placeholder:text-slate-400" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3 w-full md:w-auto justify-end">
-                        <button onClick={fetchRecentLeads} disabled={fetchingLeads} className="p-2 text-slate-500 hover:bg-slate-100 rounded-xl transition-all" title="Refresh List">
-                            <RefreshCcw size={18} className={fetchingLeads ? "animate-spin" : ""} />
-                        </button>
-                        <button onClick={() => setShowCreateForm(true)} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-emerald-200 transition-all active:scale-95 w-full md:w-auto justify-center">
-                            <Plus size={18} /> <span className="hidden sm:inline">New Lead</span><span className="sm:hidden">Add</span>
-                        </button>
-                    </div>
-                    <div className="flex md:hidden w-full items-center bg-slate-100 rounded-xl px-3 py-2 border border-slate-200">
-                        <Search size={16} className="text-slate-400" />
-                        <input type="text" placeholder="Search leads..." title="Search name or phone or city" className="bg-transparent border-none outline-none text-sm ml-2 w-full text-slate-700" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                    </div>
-                </header>
-
-                <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-[#f8fafc]">
-                    {fetchingLeads && rawLeads.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                            <Loader2 size={32} className="animate-spin mb-3 text-emerald-500" />
-                            <span className="text-sm font-medium">Syncing database...</span>
-                        </div>
-                    ) : processedLeads.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                            <User size={48} className="mb-4 opacity-20" />
-                            <p className="text-sm font-medium">No leads found matching your search.</p>
-                        </div>
-                    ) : (
-                        // 👇 FIX: Grid view converted to responsive list (Table) view
-                        <div className="container mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
-                                    <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase font-semibold border-b border-slate-200">
-                                        <tr>
-                                            <th className="px-4 md:px-6 py-4">Lead Info</th>
-                                            <th className="px-4 md:px-6 py-4">Contact</th>
-                                            {/* Hidden on mobile */}
-                                            <th className="px-6 py-4 hidden md:table-cell">Enquired For</th>
-                                            <th className="px-6 py-4 hidden md:table-cell">Status</th>
-                                            <th className="px-6 py-4 hidden lg:table-cell">Date</th>
-                                            <th className="px-4 md:px-6 py-4 text-right">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 text-sm">
-                                        {processedLeads.map((lead, idx) => (
-                                            <LeadCard
-                                                key={idx}
-                                                lead={lead}
-                                                handleCustomerRedirect={handleCustomerRedirect}
-                                                handleCopyPhone={handleCopyPhone}
-                                                copiedPhone={copiedPhone}
-                                                handleChatSelect={handleChatSelect}
-                                            />
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
-                </main>
-
-                {showCreateForm && (
-                    <>
-                        <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-40 transition-opacity" onClick={() => setShowCreateForm(false)} />
-                        <div className="fixed inset-y-0 left-0 w-full sm:w-[450px] bg-white z-50 shadow-2xl transform transition-transform duration-300 animate-in slide-in-from-left flex flex-col">
-                            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                                <h2 className="text-lg font-bold text-slate-800">Create New Lead</h2>
-                                <button onClick={() => setShowCreateForm(false)} className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200 transition">
-                                    <X size={20} />
-                                </button>
-                            </div>
-
-                            <div className="flex-1 overflow-y-auto p-6">
-                                <form onSubmit={handleSubmit} className="space-y-6">
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Phone Number <span className="text-rose-500">*</span></label>
-                                            <div className="relative group">
-                                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Phone size={16} /></div>
-                                                <input type="tel" name="phone" placeholder="e.g., 919876543210" value={formData.phone} onChange={handleChange} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium" required />
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Name</label>
-                                                <div className="relative group">
-                                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><User size={16} /></div>
-                                                    <input type="text" name="name" placeholder="Name" value={formData.name} onChange={handleChange} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium" />
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">City</label>
-                                                <div className="relative group">
-                                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><MapPin size={16} /></div>
-                                                    <input type="text" name="city" placeholder="City" value={formData.city} onChange={handleChange} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium" />
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Address (Optional)</label>
-                                                <div className="relative group">
-                                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><MapPin size={16} /></div>
-                                                    <input type="text" name="address" placeholder="Full Address" value={formData.address} onChange={handleChange} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium" />
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Status</label>
-                                                <div className="relative group">
-                                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Flag size={16} /></div>
-                                                    <select name="status" value={formData.status} onChange={handleChange} className="w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium cursor-pointer appearance-none">
-                                                        <option value="New">New</option>
-                                                        <option value="Follow Up">Follow Up</option>
-                                                        <option value="Closed">Closed</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Priority</label>
-                                                <div className="relative group">
-                                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><AlertCircle size={16} /></div>
-                                                    <select name="priority" value={formData.priority} onChange={handleChange} className="w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium cursor-pointer appearance-none">
-                                                        <option value="Low">Low</option>
-                                                        <option value="Medium">Medium</option>
-                                                        <option value="High">High</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Source</label>
-                                            <select name="source" value={formData.source} onChange={handleChange} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium cursor-pointer">
-                                                <option value="Direct">Direct</option>
-                                                <option value="Phone Call">Phone Call</option>
-                                                <option value="Google">Google</option>
-                                                <option value="WhatsApp">WhatsApp</option>
-                                                <option value="Facebook">Facebook</option>
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Enquired for</label>
-                                            <div className="relative group">
-                                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Tag size={16} /></div>
-                                                <input type="text" name="enquiredFor" placeholder="e.g., therapy" value={formData.enquiredFor} onChange={handleChange} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium" />
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Remarks</label>
-                                            <div className="relative group">
-                                                <div className="absolute left-3 top-3 text-slate-400"><FileText size={16} /></div>
-                                                <textarea name="remarks" placeholder="Notes..." value={formData.remarks} onChange={handleChange} rows={3} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium resize-none" />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-4 border-t border-slate-100 flex gap-3">
-                                        <button type="button" onClick={() => setShowCreateForm(false)} className="flex-1 py-3 text-sm rounded-xl text-slate-500 font-bold hover:bg-slate-100 transition-all">Cancel</button>
-                                        <button type="submit" disabled={loading} className="flex-1 py-3 bg-emerald-600 text-white text-sm rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70">
-                                            {loading ? <Loader2 size={18} className="animate-spin" /> : <><Save size={18} /> Save Lead</>}
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </>
-=======
         <div className="flex h-[100dvh] bg-[#f8fafc] overflow-hidden font-sans">
             <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} role={role || "associate"} />
 
@@ -540,15 +265,12 @@ export default function LeadsPage() {
                         setShowCreateForm={setShowCreateForm}
                         loading={loading}
                     />
->>>>>>> c1be5bc (Initial commit from new system)
                 )}
             </div>
         </div>
     );
 }
 
-<<<<<<< HEAD
-=======
 
 const PaginationControls = ({ currentPage, totalPages, totalRecords, pageSize, onPageChange, onPageSizeChange }) => {
     return (
@@ -899,4 +621,3 @@ const CreateLeadModal = ({ formData, handleChange, handleSubmit, setShowCreateFo
 const MenuIcon = () => (
     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
 );
->>>>>>> c1be5bc (Initial commit from new system)

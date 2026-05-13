@@ -9,11 +9,7 @@ import { io } from "socket.io-client";
 import { useMDCampChatStore } from "@/store/mdcampChatStore";
 import { useMDCampChat } from "@/hooks/useMDCampChat";
 import CustomerInfoPanel from "@/components/features/chat/CustomerInfoPanel";
-<<<<<<< HEAD
-import { Tent, ShieldAlert, Menu, Send, User, ChevronLeft, Check, CheckCheck, Clock, X, MapPin, FileText, Search, Info, Lock } from "lucide-react";
-=======
 import { Tent, ShieldAlert, Menu, Send, User, ChevronLeft, Check, CheckCheck, Clock, X, MapPin, FileText, Search, Info, ToggleLeft, ToggleRight, Lock } from "lucide-react";
->>>>>>> c1be5bc (Initial commit from new system)
 
 const formatSafeTime = (timeStr) => {
     if (!timeStr) return '';
@@ -24,8 +20,6 @@ const formatSafeTime = (timeStr) => {
     } catch(e) { return ''; }
 };
 
-<<<<<<< HEAD
-=======
 const renderMedia = (msg) => {
     const mUrl = msg?.mediaUrl;
     if (!mUrl || mUrl === "undefined" || mUrl === "null" || mUrl === "") return null;
@@ -54,7 +48,6 @@ const getDisplayMessage = (chat) => {
     return chat.message || "No MD Camp messages yet";
 };
 
->>>>>>> c1be5bc (Initial commit from new system)
 function MDCampContent() {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
@@ -64,10 +57,7 @@ function MDCampContent() {
   const selectedChat = useMDCampChatStore((s) => s.selectedChat);
   const setSelectedChat = useMDCampChatStore((s) => s.setSelectedChat);
   const messages = useMDCampChatStore((s) => s.messages);
-<<<<<<< HEAD
-=======
   const updateChatDetails = useMDCampChatStore((s) => s.updateChatDetails);
->>>>>>> c1be5bc (Initial commit from new system)
   
   const { fetchChats, sendMessage, updateStatus, loading, sending } = useMDCampChat();
 
@@ -75,10 +65,7 @@ function MDCampContent() {
   const messagesEndRef = useRef(null);
   const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
   const statusMenuRef = useRef(null);
-<<<<<<< HEAD
-=======
   const [isToggling, setIsToggling] = useState(false);
->>>>>>> c1be5bc (Initial commit from new system)
 
   const userRole = session?.user?.role;
   const displayRole = userRole || "";
@@ -86,28 +73,15 @@ function MDCampContent() {
   const accessModules = session?.user?.accessModules || [];
 
   const isAdminAuthorized = displayRole === 'superAdmin' || (displayRole === 'sales' && department === 'admin') || (displayRole === 'doctor' && department === 'admin');
-<<<<<<< HEAD
-  const hasAccess = (moduleName) => {
-    if (isAdminAuthorized) return true;
-    return accessModules.includes(moduleName);
-  };
-  const isAuthorized = hasAccess("MD Camp");
-=======
   const isAuthorized = isAdminAuthorized || accessModules.includes("MD Camp");
->>>>>>> c1be5bc (Initial commit from new system)
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   useEffect(() => { scrollToBottom(); }, [selectedChat?.history]);
 
   useEffect(() => {
     const phoneParam = searchParams.get("phone");
-<<<<<<< HEAD
-    if (phoneParam && messages.length > 0 && !selectedChat) {
-      const targetChat = messages.find(c => c.phone.includes(phoneParam) || c.phone === phoneParam);
-=======
     if (phoneParam && messages?.length > 0 && !selectedChat) {
       const targetChat = messages.find(c => c?.phone?.includes(phoneParam) || c?.phone === phoneParam);
->>>>>>> c1be5bc (Initial commit from new system)
       if (targetChat) setSelectedChat(targetChat);
     }
   }, [searchParams, messages, selectedChat, setSelectedChat]);
@@ -123,12 +97,8 @@ function MDCampContent() {
   useEffect(() => {
       if (isAuthorized) {
           fetchChats();
-<<<<<<< HEAD
-          const socketUrl = process.env.NODE_ENV === "production" ? "https://crm.almaaerp.in" : "";
-=======
           // 👇 FIX 1: Prevent Illegal Constructor by using undefined instead of empty string
           const socketUrl = process.env.NODE_ENV === "production" ? "https://crm.almaaerp.in" : undefined;
->>>>>>> c1be5bc (Initial commit from new system)
           const socket = io(socketUrl, { path: "/socket.io/", transports: ["websocket", "polling"] });
           socket.on("new_mdcamp_message", () => fetchChats(false));
           socket.on("message_status_update", () => fetchChats(false));
@@ -136,8 +106,6 @@ function MDCampContent() {
       }
   }, [isAuthorized, fetchChats]);
 
-<<<<<<< HEAD
-=======
   // 👇 FIX 2: Safe Array Access without `.at(-1)`
   const lastMessage = selectedChat?.history?.length > 0 ? selectedChat.history[selectedChat.history.length - 1] : null;
   const IsChatClosed = lastMessage ? !!lastMessage.isChatClosed : false;
@@ -174,7 +142,6 @@ function MDCampContent() {
       }
   };
 
->>>>>>> c1be5bc (Initial commit from new system)
   const handleSend = async () => {
       if (!replyText.trim() || !selectedChat) return;
       const msgText = replyText; setReplyText("");
@@ -189,15 +156,6 @@ function MDCampContent() {
   };
 
   const getStatusIcon = (status) => {
-<<<<<<< HEAD
-      if (!status) return <Check size={14} className="text-slate-400" />;
-      const s = status.toUpperCase();
-      if (s === "READ") return <CheckCheck size={15} className="text-[#53bdeb]" />;
-      if (s === "DELIVERED") return <CheckCheck size={15} className="text-slate-400" />;
-      if (s === "SENT") return <Check size={14} className="text-slate-400" />;
-      if (s === "FAILED") return <X size={14} className="text-red-500" />;
-      return <Clock size={12} className="text-slate-400" />;
-=======
       if (!status) return <Check size={14} className="text-emerald-100" />;
       const s = status.toUpperCase();
       if (s === "READ") return <CheckCheck size={15} className="text-blue-300" />;
@@ -205,43 +163,12 @@ function MDCampContent() {
       if (s === "SENT") return <Check size={14} className="text-emerald-100" />;
       if (s === "FAILED") return <X size={14} className="text-red-300" />;
       return <Clock size={12} className="text-emerald-100" />;
->>>>>>> c1be5bc (Initial commit from new system)
   };
 
   if (status === "loading") return <div className="flex h-[100dvh] items-center justify-center text-slate-500 font-medium">Loading MD Camp Leads...</div>;
   if (!session) return null;
 
-<<<<<<< HEAD
-  if (!isAuthorized) {
-      return (
-          <div className="flex h-[100dvh] bg-gray-100 overflow-hidden relative">
-              <div className="flex-shrink-0 z-40">
-                  <Sidebar role={userRole} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
-              </div>
-              <div className="flex flex-1 w-full h-full relative overflow-hidden flex-col">
-                  <div className="md:hidden h-14 bg-white border-b flex items-center px-4 shrink-0 justify-between z-30 shadow-sm">
-                      <button onClick={() => setMobileMenuOpen(true)} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-md">
-                          <Menu size={24} />
-                      </button>
-                      <div className="font-semibold text-gray-700">
-                          <div className=" w-20 flex items-center justify-center shrink-0 p-1">
-                              <img src={AlmaaLogo.src} alt="Almaa" className="w-full h-full object-contain" />
-                          </div>
-                      </div>
-                      <div className="w-8"></div>
-                  </div>
-                  <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-                      <ShieldAlert size={60} className="text-red-400 mb-4" />
-                      <h2 className="text-2xl font-bold text-slate-800">Access Denied</h2>
-                      <p className="text-slate-500 mt-2">You do not have permission to access MD Camp Leads.</p>
-                  </div>
-              </div>
-          </div>
-      );
-  }
-=======
   if (!isAuthorized) return (<div className="flex h-[100dvh] bg-gray-100 overflow-hidden relative"><div className="flex-shrink-0 z-40"><Sidebar role={userRole} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} /></div><div className="flex flex-1 items-center justify-center"><ShieldAlert size={60} className="text-red-400 mb-4" /><h2 className="text-2xl font-bold">Access Denied</h2></div></div>);
->>>>>>> c1be5bc (Initial commit from new system)
 
   return (
     <div className="flex h-[100dvh] bg-gray-100 overflow-hidden relative">
@@ -250,36 +177,11 @@ function MDCampContent() {
       </div>
 
       <div className="flex flex-1 w-full h-full relative overflow-hidden flex-col">
-<<<<<<< HEAD
-        <div className="md:hidden h-14 bg-white border-b flex items-center px-4 shrink-0 justify-between z-30 shadow-sm">
-          <button onClick={() => setMobileMenuOpen(true)} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-md"><Menu size={24} /></button>
-          <div className="font-semibold text-gray-700">
-            <div className=" w-20 flex items-center justify-center shrink-0 p-1"><img src={AlmaaLogo.src} alt="Almaa" className="w-full h-full object-contain" /></div>
-          </div>
-          <div className="w-8"></div>
-        </div>
-=======
         <div className="md:hidden h-14 bg-white border-b flex items-center px-4 shrink-0 justify-between z-30 shadow-sm"><button onClick={() => setMobileMenuOpen(true)} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-md"><Menu size={24} /></button><div className="font-semibold text-gray-700"><div className=" w-20 flex items-center justify-center shrink-0 p-1"><img src={AlmaaLogo.src} alt="Almaa" className="w-full h-full object-contain" /></div></div><div className="w-8"></div></div>
->>>>>>> c1be5bc (Initial commit from new system)
 
         <div className="flex flex-1 overflow-hidden relative">
             <div className={`flex flex-col bg-white border-r h-full z-10 ${selectedChat ? 'hidden md:flex' : 'flex w-full'} md:w-[400px] lg:w-[450px] flex-shrink-0 transition-all`}>
                 <div className="bg-[#f0f2f5] px-4 py-3 flex items-center justify-between border-b border-slate-200 h-[60px] shrink-0">
-<<<<<<< HEAD
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-amber-600 rounded-full flex items-center justify-center text-white shadow-sm shrink-0"><Tent size={20}/></div>
-                        <h2 className="font-bold text-[#111b21] text-[16px]">MD Camp Leads</h2>
-                    </div>
-                </div>
-                <div className="p-2 border-b border-slate-200 bg-white">
-                    <div className="bg-[#f0f2f5] rounded-lg flex items-center px-3 py-1.5 gap-3"><Search size={18} className="text-[#54656f]" /><input type="text" placeholder="Search leads..." className="bg-transparent border-none outline-none text-sm w-full py-1 text-[#111b21] placeholder:text-[#54656f]" /></div>
-                </div>
-                <div className="flex-1 overflow-y-auto bg-white custom-scrollbar">
-                    {loading ? <p className="text-center text-slate-400 mt-10 text-sm">Loading chats...</p> : 
-                        messages?.map(chat => {
-                            const lastHistoryMsg = chat.history?.length > 0 ? chat.history[chat.history.length - 1] : null;
-                            const displayMsg = chat.message || lastHistoryMsg?.message || "No messages";
-=======
                     <div className="flex items-center gap-3"><div className="w-10 h-10 bg-amber-600 rounded-full flex items-center justify-center text-white shadow-sm shrink-0"><Tent size={20}/></div><h2 className="font-bold text-[#111b21] text-[16px]">MD Camp Leads</h2></div>
                 </div>
                 <div className="p-2 border-b border-slate-200 bg-white"><div className="bg-[#f0f2f5] rounded-lg flex items-center px-3 py-1.5 gap-3"><Search size={18} className="text-[#54656f]" /><input type="text" placeholder="Search leads..." className="bg-transparent border-none outline-none text-sm w-full py-1 text-[#111b21] placeholder:text-[#54656f]" /></div></div>
@@ -289,7 +191,6 @@ function MDCampContent() {
                             if (!chat) return null;
                             const displayMsg = getDisplayMessage(chat);
                             const lastHistoryMsg = chat.history?.length > 0 ? chat.history[chat.history.length - 1] : null;
->>>>>>> c1be5bc (Initial commit from new system)
                             const displayTime = chat.lastSeenAt || lastHistoryMsg?.createdAt || lastHistoryMsg?.timestamp || chat.createdAt;
 
                             return (
@@ -313,38 +214,11 @@ function MDCampContent() {
             </div>
 
             <div className={`flex flex-col bg-[#efeae2] h-full transition-all ${selectedChat ? 'fixed inset-0 z-50 md:static md:z-auto flex w-full' : 'hidden md:flex flex-1'}`}>
-<<<<<<< HEAD
-                <div className="absolute inset-0 opacity-30 pointer-events-none z-0" style={{ backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')", backgroundSize: "400px" }}></div>
-=======
                 <div className="absolute inset-0 opacity-[0.03] pointer-events-none z-0" style={{ backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')", backgroundSize: "400px" }}></div>
->>>>>>> c1be5bc (Initial commit from new system)
                 
                 <div className="relative z-10 h-full flex flex-col">
                     {selectedChat ? (
                         <>
-<<<<<<< HEAD
-                            <div className="bg-[#f0f2f5] px-4 py-2.5 border-b border-slate-200 flex items-center justify-between shrink-0 shadow-sm h-[60px]">
-                                <div className="flex items-center gap-3">
-                                    <button onClick={() => setSelectedChat(null)} className="md:hidden p-1.5 -ml-1.5 text-[#54656f] hover:bg-slate-200 rounded-full"><ChevronLeft size={24}/></button>
-                                    <div className="w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center text-white shrink-0 overflow-hidden cursor-pointer" onClick={() => setIsInfoOpen(true)}><User size={24} className="mt-2 opacity-80" /></div>
-                                    <div className="flex flex-col cursor-pointer" onClick={() => setIsInfoOpen(true)}>
-                                        <h3 className="font-semibold text-[#111b21] text-[15px] leading-tight">{selectedChat.name || selectedChat.phone}</h3>
-                                        <p className="text-[13px] text-[#667781] mt-0.5 truncate">{selectedChat.phone}</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2 sm:gap-3">
-                                    {selectedChat.city && <div className="hidden sm:flex items-center gap-1 text-xs font-semibold text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200"><MapPin size={12}/> {selectedChat.city}</div>}
-                                    
-                                    <div className="relative" ref={statusMenuRef}>
-                                        <button onClick={() => setIsStatusMenuOpen(!isStatusMenuOpen)} className="flex items-center gap-1.5 bg-amber-100 text-amber-800 hover:bg-amber-200 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors shadow-sm">
-                                            <FileText size={16} />
-                                            <span className="hidden sm:inline">{selectedChat.status || "New"}</span>
-                                        </button>
-                                        {isStatusMenuOpen && (
-                                            <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-xl border border-slate-100 py-1 z-50 animate-in fade-in zoom-in-95">
-                                                {["New", "Follow Up", "Closed", "Not Interested"].map((st) => (
-                                                    <button key={st} onClick={() => handleStatusChange(st)} className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 text-slate-700">{st}</button>
-=======
                             <div className="bg-white px-4 py-3 border-b border-slate-200 flex items-center justify-between shrink-0 shadow-sm z-10">
                                 <div className="flex items-center gap-3">
                                     <button onClick={() => setSelectedChat(null)} className="md:hidden p-1.5 -ml-1.5 text-slate-500 hover:bg-slate-100 rounded-full"><ChevronLeft size={24}/></button>
@@ -369,26 +243,10 @@ function MDCampContent() {
                                             <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-xl border border-slate-100 py-1 z-50 animate-in fade-in zoom-in-95">
                                                 {[ "Follow Up", "Closed", "Not Interested"].map((st) => (
                                                     <button key={st} onClick={() => handleStatusChange(st)} className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 text-slate-700 font-medium">{st}</button>
->>>>>>> c1be5bc (Initial commit from new system)
                                                 ))}
                                             </div>
                                         )}
                                     </div>
-<<<<<<< HEAD
-                                    <button onClick={() => setIsInfoOpen(true)} className="flex items-center justify-center p-2 text-slate-500 hover:text-amber-700 hover:bg-amber-100 rounded-full transition-all" title="Customer Info"><Info size={22} /></button>
-                                </div>
-                            </div>
-
-                            <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-2 custom-scrollbar">
-                                {selectedChat?.history?.map((msg, i) => {
-                                    const isOutbound = msg.direction === 'OUTBOUND';
-                                    return (
-                                        <div key={i} className={`flex ${isOutbound ? 'justify-end' : 'justify-start'} w-full`}>
-                                            <div className={`max-w-[85%] md:max-w-[65%] rounded-lg px-3 py-1.5 shadow-[0_1px_0.5px_rgba(11,20,26,.13)] relative flex flex-col ${isOutbound ? 'bg-[#d9fdd3] rounded-tr-none text-[#111b21]' : 'bg-white rounded-tl-none text-[#111b21]'}`}>
-                                                <p className="text-[14.5px] leading-relaxed whitespace-pre-wrap break-words">{msg.message}</p>
-                                                <div className={`flex items-center justify-end gap-1 mt-1 -mb-0.5 pl-4`}>
-                                                    <span className="text-[10px] text-[#667781] font-medium">{formatSafeTime(msg.createdAt || msg.timestamp)}</span>
-=======
                                     <button onClick={() => setIsInfoOpen(true)} className="flex items-center justify-center p-2 text-slate-400 hover:text-amber-700 hover:bg-amber-50 rounded-full transition-all"><Info size={22} /></button>
                                 </div>
                             </div>
@@ -406,7 +264,6 @@ function MDCampContent() {
                                                 {msg.message && msg.message.trim() !== "" && <p className="text-[14.5px] leading-relaxed whitespace-pre-wrap break-words">{msg.message}</p>}
                                                 <div className={`flex items-center justify-end gap-1.5 mt-1 -mb-1 ${isOutbound ? 'text-emerald-100' : 'text-slate-400'}`}>
                                                     <span className="text-[10.5px] font-medium">{formatSafeTime(msg.createdAt || msg.timestamp)}</span>
->>>>>>> c1be5bc (Initial commit from new system)
                                                     {isOutbound && getStatusIcon(msg.status || msg.messageStatus)}
                                                 </div>
                                             </div>
@@ -416,19 +273,11 @@ function MDCampContent() {
                                 <div ref={messagesEndRef} />
                             </div>
 
-<<<<<<< HEAD
-                            <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="bg-[#f0f2f5] px-4 py-3 flex items-end gap-3 shrink-0">
-                                <div className="flex-1 bg-white rounded-xl flex items-end shadow-sm">
-                                    <textarea value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="Type a message" className="w-full max-h-32 bg-transparent px-4 py-3 outline-none resize-none text-[15px] text-[#111b21] custom-scrollbar min-h-[44px]" rows={1} onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); handleSend(); } }} />
-                                </div>
-                                <button type="submit" disabled={!replyText.trim() || sending} className="bg-[#00a884] text-white p-2.5 rounded-full hover:bg-[#008f6f] disabled:opacity-50 transition-all shadow-sm shrink-0 mb-0.5 flex items-center justify-center w-[44px] h-[44px]">
-=======
                             <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="bg-white px-4 py-3 flex items-end gap-3 shrink-0 border-t border-slate-200 z-10">
                                 <div className="flex-1 bg-slate-100 rounded-2xl flex items-end shadow-inner border border-slate-200">
                                     <textarea value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="Type a message..." className="w-full max-h-32 bg-transparent px-4 py-3 outline-none resize-none text-[15px] text-slate-800 custom-scrollbar min-h-[44px]" rows={1} onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); handleSend(); } }} />
                                 </div>
                                 <button type="submit" disabled={!replyText.trim() || sending} className="bg-[#00a884] text-white p-3 rounded-full hover:bg-emerald-600 disabled:opacity-50 transition-all shadow-md shrink-0 mb-0.5 flex items-center justify-center w-[48px] h-[48px]">
->>>>>>> c1be5bc (Initial commit from new system)
                                     <Send size={20} className={sending ? "opacity-50" : "ml-0.5"} />
                                 </button>
                             </form>
@@ -436,24 +285,14 @@ function MDCampContent() {
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center border-b-[6px] border-amber-500">
                             <div className="w-24 h-24 bg-white shadow-sm rounded-full flex items-center justify-center mb-6 text-amber-500"><Tent size={40} /></div>
-<<<<<<< HEAD
-                            <h2 className="text-3xl font-light text-[#41525d] mb-4">MD Camp Inbox</h2>
-                            <p className="text-[#8696a0] text-sm text-center max-w-[400px]">Select a customer from the left to start messaging.</p>
-                            <div className="mt-10 flex items-center gap-1.5 text-xs text-[#8696a0] font-medium bg-white px-4 py-2 rounded-full shadow-sm"><Lock size={12} /> End-to-end encrypted CRM integration</div>
-=======
                             <h2 className="text-3xl font-light text-slate-700 mb-4">MD Camp Inbox</h2>
                             <p className="text-slate-500 text-sm text-center max-w-[400px]">Select a customer from the left to start messaging.</p>
                             <div className="mt-10 flex items-center gap-1.5 text-xs text-slate-400 font-medium bg-white px-4 py-2 rounded-full shadow-sm"><Lock size={12} /> End-to-end encrypted CRM integration</div>
->>>>>>> c1be5bc (Initial commit from new system)
                         </div>
                     )}
                 </div>
             </div>
-<<<<<<< HEAD
-            <CustomerInfoPanel isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} leadCategory="mdcamp" activeChat={selectedChat} />
-=======
             {selectedChat && <CustomerInfoPanel isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} leadCategory="mdcamp" activeChat={selectedChat} />}
->>>>>>> c1be5bc (Initial commit from new system)
         </div>
       </div>
     </div>
@@ -462,11 +301,7 @@ function MDCampContent() {
 
 export default function MDCampPage() {
   return (
-<<<<<<< HEAD
-    <Suspense fallback={<div className="flex h-[100dvh] bg-gray-100 items-center justify-center text-slate-500 font-medium">Loading Workspace...</div>}>
-=======
     <Suspense fallback={<div className="flex h-[100dvh] bg-gray-100 items-center justify-center text-slate-500 font-medium">Loading CRM...</div>}>
->>>>>>> c1be5bc (Initial commit from new system)
       <MDCampContent />
     </Suspense>
   );

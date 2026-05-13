@@ -143,11 +143,7 @@ function ChatPageContent() {
 export default function ChatPage() {
   
   return (
-<<<<<<< HEAD
-    <Suspense fallback={<div className="flex h-[100dvh] bg-gray-100 items-center justify-center text-slate-500 font-medium">Loading Workspace...</div>}>
-=======
     <Suspense fallback={<div className="flex h-[100dvh] bg-gray-100 items-center justify-center text-slate-500 font-medium">Loading CRM...</div>}>
->>>>>>> c1be5bc (Initial commit from new system)
       <ChatPageContent />
     </Suspense>
   );

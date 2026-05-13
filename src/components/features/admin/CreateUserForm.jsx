@@ -1,17 +1,12 @@
 "use client";
 import { useState } from "react";
 import { User, Mail, Lock, Shield, CheckCircle, AlertCircle, Plus, Phone, Briefcase, Tag, Building } from "lucide-react";
-<<<<<<< HEAD
-
-export default function CreateUserForm() {
-=======
 import { useSession } from "next-auth/react";
 
 
 export default function CreateUserForm() {
     const { data: session } = useSession();
 
->>>>>>> c1be5bc (Initial commit from new system)
   const [formData, setFormData] = useState({
     name: "", preferredName: "", email: "", number: "", password: "",
     role: "sales", department: "telecalling", branch: "", isAdmin: false, active: true, accessModules: []
@@ -20,11 +15,7 @@ export default function CreateUserForm() {
   const [status, setStatus] = useState({ type: "", message: "" });
   const [loading, setLoading] = useState(false);
 
-<<<<<<< HEAD
-  // 👇 FIX: Added New Modules (Product Lead, MD Camp, Therapy)
-=======
 
->>>>>>> c1be5bc (Initial commit from new system)
   const modulesList = ["Leads", "Customers", "Reports", "Chat Inbox", "Product Lead", "MD Camp", "Therapy"];
 
   const tamilNaduDistricts = [
@@ -166,11 +157,6 @@ export default function CreateUserForm() {
                     <Shield className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
                     <select className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm cursor-pointer appearance-none"
                         value={formData.role} onChange={handleRoleChange}>
-<<<<<<< HEAD
-                        <option value="sales">Sales</option>
-                        <option value="doctor">Doctor</option>
-                        <option value="superAdmin">Super Admin</option>
-=======
                         {
                             session?.user?.role === "superAdmin" ? (
                                 <>
@@ -187,7 +173,6 @@ export default function CreateUserForm() {
                         {session?.user?.role === "superAdmin" && (
                             <option value="superAdmin">Super Admin</option>
                         )}
->>>>>>> c1be5bc (Initial commit from new system)
                     </select>
                 </div>
             </div>
@@ -201,10 +186,7 @@ export default function CreateUserForm() {
                         <option value="telecalling">Telecalling</option>
                         <option value="support">Support</option>
                         <option value="admin">Admin</option>
-<<<<<<< HEAD
-=======
                         
->>>>>>> c1be5bc (Initial commit from new system)
                     </select>
                 </div>
             </div>

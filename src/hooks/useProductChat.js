@@ -20,10 +20,7 @@ export const useProductChat = () => {
         try {
             const data = await categoryChatService.getChats(category);
             setMessages(Array.isArray(data) ? data : []);
-<<<<<<< HEAD
-=======
             
->>>>>>> c1be5bc (Initial commit from new system)
         } catch (error) {
             console.error(error);
             toast.error("Failed to load Product chats");

@@ -10,10 +10,6 @@ export const chatService = {
       const uniqueConversations = {};
       
       data.forEach((msg) => {
-<<<<<<< HEAD
-        // Skip if phone number is missing
-=======
->>>>>>> c1be5bc (Initial commit from new system)
         if (!msg.phone) return;
 
         // Grouping Logic
@@ -21,12 +17,7 @@ export const chatService = {
           uniqueConversations[msg.phone] = { ...msg, history: [msg] };
         } else {
           uniqueConversations[msg.phone].history.push(msg);
-<<<<<<< HEAD
-          
-          // ALWAYS UPDATE THESE TO REFLECT THE LATEST MESSAGE
-=======
 
->>>>>>> c1be5bc (Initial commit from new system)
           let displayText = msg.message;
           if (!displayText && msg.mediaUrl) {
               if (msg.mediaType?.includes("video")) displayText = "🎥 Video";
@@ -38,10 +29,6 @@ export const chatService = {
           uniqueConversations[msg.phone].message = displayText;
           uniqueConversations[msg.phone].lastSeenAt = msg.timestamp;
           
-<<<<<<< HEAD
-          // FIX: Message Delivery Status-ஐயும் லேட்டஸ்ட்டாக அப்டேட் செய்கிறோம் (Chat List-ல் டிக் தெரிய)
-=======
->>>>>>> c1be5bc (Initial commit from new system)
           uniqueConversations[msg.phone].status = msg.status; 
           uniqueConversations[msg.phone].messageStatus = msg.messageStatus; 
           
@@ -66,8 +53,6 @@ export const chatService = {
      const response = await axios.post("/api/chats", payload);
      return response.data; 
   }
-<<<<<<< HEAD
-=======
   ,
  updateChatControlStatus: async(phone, isChatClosed, chatType) => {
     const res = await fetch("/api/chats/status", {
@@ -123,5 +108,4 @@ export const chatService = {
     }
     return res.json();
   }
->>>>>>> c1be5bc (Initial commit from new system)
 };

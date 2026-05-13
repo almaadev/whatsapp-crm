@@ -4,11 +4,7 @@ export const useChatStore = create((set, get) => ({
   selectedChat: null,
   messages: [],
   notifications: [],
-<<<<<<< HEAD
-
-=======
   
->>>>>>> c1be5bc (Initial commit from new system)
   setMessages: (newMessagesFromServer) => set((state) => {
     let updatedSelectedChat = state.selectedChat;
 
@@ -166,10 +162,7 @@ export const useChatStore = create((set, get) => ({
             direction: newMessage.direction,
             read: newMessage.direction === "INBOUND" ? "FALSE" : chat.read,
             messageStatus: newMessage.status,
-<<<<<<< HEAD
-=======
             
->>>>>>> c1be5bc (Initial commit from new system)
             lastSeenAt: newMessage.timestamp || new Date().toISOString(),
             history: updatedHistory
           };
@@ -177,20 +170,14 @@ export const useChatStore = create((set, get) => ({
         return chat;
       });
 
-<<<<<<< HEAD
-=======
       
->>>>>>> c1be5bc (Initial commit from new system)
       if (!chatExists) {
         const newChat = {
           phone: newMessage.phone,
           name: newMessage.name || newMessage.phone,
           message: displayText,
           direction: newMessage.direction,
-<<<<<<< HEAD
-=======
           city: newMessage.city,
->>>>>>> c1be5bc (Initial commit from new system)
           read: newMessage.direction === "INBOUND" ? "FALSE" : "TRUE",
           messageStatus: newMessage.status,
           lastSeenAt: newMessage.timestamp || new Date().toISOString(),
