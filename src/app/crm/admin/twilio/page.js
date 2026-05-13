@@ -23,7 +23,6 @@ export default function TwilioEnterpriseDashboard() {
     const [fetching, setFetching] = useState(false);
     const [twilioData, setTwilioData] = useState({ balance: "0.00", currency: "USD", messages: [], analytics: {} });
 
-    // Exchange Rate States
     const [exchangeRate, setExchangeRate] = useState(83.50);
     const [isEditingRate, setIsEditingRate] = useState(false);
     const [tempRate, setTempRate] = useState("");
@@ -46,6 +45,10 @@ export default function TwilioEnterpriseDashboard() {
     const [clientMediaOnly, setClientMediaOnly] = useState(false);
     const [clientFailedOnly, setClientFailedOnly] = useState(false);
 
+    // --- ENTERPRISE EXPORT STATES ---
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [exportLoading, setExportLoading] = useState(false);
+
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(25);
@@ -64,10 +67,8 @@ export default function TwilioEnterpriseDashboard() {
         try {
             const date = new Date(dateString);
             if (isNaN(date.getTime())) return <span className="text-slate-300">-</span>;
-            
             const datePart = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
             const timePart = date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-            
             return (
                 <span className="flex flex-col sm:flex-row sm:items-center sm:gap-1.5 leading-tight">
                     <span>{datePart}</span>
@@ -75,12 +76,47 @@ export default function TwilioEnterpriseDashboard() {
                     <span className="text-[10px] sm:text-xs text-slate-400">{timePart}</span>
                 </span>
             );
-        } catch (e) {
-            return <span className="text-slate-300">-</span>;
-        }
+        } catch (e) { return <span className="text-slate-300">-</span>; }
     }, []);
 
-    // --- FETCH DATA ---
+    const downloadBlob = (blob, filename) => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    // --- DIRECT SERVER CSV EXPORT ---
+    const handleDirectExport = async () => {
+        setExportLoading(true);
+        setShowExportModal(false);
+        try {
+            let url = `/api/admin/twilio?limit=all&mode=export`;
+            if (startDate) url += `&startDate=${encodeURIComponent(startDate)}`;
+            if (endDate) url += `&endDate=${encodeURIComponent(endDate)}`;
+            if (apiStatusFilter !== "all") url += `&status=${encodeURIComponent(apiStatusFilter)}`;
+            if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
+            if (clientDirection !== "all") url += `&direction=${clientDirection}`;
+            if (clientMediaOnly) url += `&mediaOnly=true`;
+            if (clientFailedOnly) url += `&failedOnly=true`;
+
+            const res = await fetch(url);
+            if (!res.ok) throw new Error("Export failed");
+            
+            const blob = await res.blob();
+            downloadBlob(blob, `enterprise_twilio_export_${Date.now()}.csv`);
+            toast.success("Enterprise export downloaded safely.");
+        } catch (err) {
+            toast.error("Export operation failed.");
+        } finally {
+            setExportLoading(false);
+        }
+    };
+
+    // --- STANDARD FETCH LOGIC ---
     const fetchTwilioData = async (optStart = startDate, optEnd = endDate, optStatus = apiStatusFilter, optLimit = fetchLimit) => {
         setFetching(true);
         try {
@@ -105,21 +141,20 @@ export default function TwilioEnterpriseDashboard() {
             } else {
                 toast.error(data.error || "Failed to load Twilio data");
             }
-        } catch (error) {
-            toast.error("Error connecting to server");
-        } finally {
-            setLoading(false);
-            setFetching(false);
-        }
+        } catch (error) { toast.error("Error connecting to server"); } 
+        finally { setLoading(false); setFetching(false); }
     };
 
     useEffect(() => {
-        if (status === "authenticated" && isAuthorized) {
-            fetchTwilioData();
-        }
+        if (status === "authenticated" && isAuthorized) fetchTwilioData();
     }, [status, isAuthorized]);
 
-    // --- LIVE FILTERING TRIGGERS ---
+    // --- ACTION INTERCEPTORS ---
+    const handleSyncClick = () => {
+        if (fetchLimit === "all") setShowExportModal(true);
+        else fetchTwilioData();
+    };
+
     const applyDateChip = (chip) => {
         setActiveDateChip(chip);
         setCurrentPage(1);
@@ -142,7 +177,6 @@ export default function TwilioEnterpriseDashboard() {
 
         setStartDate(sDate);
         setEndDate(eDate);
-        
         fetchTwilioData(sDate, eDate, apiStatusFilter, fetchLimit);
     };
 
@@ -164,28 +198,21 @@ export default function TwilioEnterpriseDashboard() {
             }
             if (clientMediaOnly && (msg.numMedia || msg.mediaCount || 0) === 0) return false;
             if (clientFailedOnly && !['failed', 'undelivered'].includes(msg.status?.toLowerCase())) return false;
-            
             return true;
         });
     }, [twilioData.messages, searchQuery, clientDirection, clientMediaOnly, clientFailedOnly]);
 
     const liveMetrics = useMemo(() => {
-        let delivered = 0, failed = 0, inbound = 0, outbound = 0, media = 0;
-        let totalUsd = 0;
-
+        let delivered = 0, failed = 0, inbound = 0, outbound = 0, media = 0, totalUsd = 0;
         filteredMessages.forEach(m => {
             const s = m.status?.toLowerCase() || "";
             const isOut = m.direction?.includes('outbound');
-            const mCount = m.numMedia || m.mediaCount || 0;
-            const cost = Math.abs(Number(m.price || m.costUsd || 0));
-
             if (['delivered', 'read'].includes(s)) delivered++;
             if (['failed', 'undelivered'].includes(s)) failed++;
             if (isOut) outbound++; else inbound++;
-            if (mCount > 0) media++;
-            totalUsd += cost;
+            if ((m.numMedia || 0) > 0) media++;
+            totalUsd += Math.abs(Number(m.price || 0));
         });
-
         return { 
             total: filteredMessages.length, delivered, failed, inbound, outbound, media,
             totalUsd: totalUsd.toFixed(4), totalInr: (totalUsd * exchangeRate).toFixed(2)
@@ -195,37 +222,12 @@ export default function TwilioEnterpriseDashboard() {
     const totalPages = Math.max(1, Math.ceil(filteredMessages.length / itemsPerPage));
     const paginatedMessages = filteredMessages.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-    // --- HANDLERS ---
-    const handleSaveExchangeRate = async () => {
-        if (!tempRate || isNaN(tempRate) || Number(tempRate) <= 0) return toast.error("Please enter a valid rate");
-        setSavingRate(true);
-        try {
-            const res = await fetch("/api/admin/twilio", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ rate: tempRate })
-            });
-            const data = await res.json();
-            if (res.ok && data.success) {
-                setExchangeRate(data.rate);
-                setIsEditingRate(false);
-                toast.success("Exchange rate updated successfully");
-            } else toast.error(data.error || "Failed to update rate");
-        } catch (err) {
-            toast.error("Error saving exchange rate");
-        } finally {
-            setSavingRate(false);
-        }
-    };
-
     const toggleExpand = (id) => setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
 
-    const handleExport = (type) => {
+    const handleStandardExport = (type) => {
         setShowExportMenu(false);
         if (filteredMessages.length === 0) return toast.warning("No data to export.");
-        
         const toastId = toast.loading("Generating export...");
-
         setTimeout(() => {
             if (type === 'csv') {
                 const headers = ["ID", "Timestamp", "Direction", "From", "To", "Message Content", "Status", "Cost (USD)", "Cost (INR)", "Media Attached"];
@@ -233,28 +235,28 @@ export default function TwilioEnterpriseDashboard() {
                     const date = msg.timestamp || msg.dateSent ? new Date(msg.timestamp || msg.dateSent).toISOString() : "-"; 
                     const direction = msg.direction?.includes('outbound') ? 'Outbound' : 'Inbound';
                     const body = `"${(msg.body || "").replace(/"/g, '""')}"`;
-                    const inrCost = (Math.abs(Number(msg.price || msg.costUsd || 0)) * exchangeRate).toFixed(4);
-                    return [msg.id, date, direction, msg.from || "-", msg.to || "-", body, msg.status || "-", msg.price || msg.costUsd || "0.00", inrCost, msg.numMedia || msg.mediaCount || 0].join(",");
+                    const inrCost = (Math.abs(Number(msg.price || 0)) * exchangeRate).toFixed(4);
+                    return [msg.id, date, direction, msg.from || "-", msg.to || "-", body, msg.status || "-", msg.price || "0.00", inrCost, msg.numMedia || 0].join(",");
                 });
                 const csvContent = [headers.join(","), ...csvRows].join("\n");
                 const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-                downloadBlob(blob, `communication_logs_${new Date().getTime()}.csv`);
+                downloadBlob(blob, `communication_logs_${Date.now()}.csv`);
             } else if (type === 'json') {
                 const blob = new Blob([JSON.stringify(filteredMessages, null, 2)], { type: "application/json" });
-                downloadBlob(blob, `communication_logs_${new Date().getTime()}.json`);
+                downloadBlob(blob, `communication_logs_${Date.now()}.json`);
             }
             toast.update(toastId, { render: "Export successful!", type: "success", isLoading: false, autoClose: 3000 });
         }, 800);
     };
 
-    const downloadBlob = (blob, filename) => {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+    const handleSaveExchangeRate = async () => {
+        if (!tempRate || isNaN(tempRate) || Number(tempRate) <= 0) return toast.error("Valid rate required");
+        setSavingRate(true);
+        try {
+            const res = await fetch("/api/admin/twilio", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rate: tempRate }) });
+            const data = await res.json();
+            if (res.ok && data.success) { setExchangeRate(data.rate); setIsEditingRate(false); toast.success("Rate updated"); }
+        } catch (err) {} finally { setSavingRate(false); }
     };
 
     const getStatusBadge = (s) => {
@@ -264,6 +266,8 @@ export default function TwilioEnterpriseDashboard() {
         if (['sent', 'accepted', 'queued'].includes(statusStr)) return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-wider border border-blue-200/60"><ArrowUpRight size={12}/> {statusStr}</span>;
         return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold uppercase tracking-wider border border-amber-200/60"><Clock size={12}/> {statusStr}</span>;
     };
+
+    const isDangerousQuery = !startDate && !endDate && !searchQuery;
 
     if (status === "loading") return <div className="flex h-screen items-center justify-center text-emerald-600 font-bold uppercase tracking-widest text-sm bg-slate-50"><Loader2 className="animate-spin mr-3"/> Authenticating...</div>;
     if (!session || !isAuthorized) {
@@ -284,8 +288,63 @@ export default function TwilioEnterpriseDashboard() {
     return (
         <div className="flex h-[100dvh] bg-[#f8fafc] font-sans overflow-hidden text-slate-800 selection:bg-emerald-100 selection:text-emerald-900">
             {mobileMenuOpen && <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 md:hidden" onClick={() => setMobileMenuOpen(false)} />}
-            
             <Sidebar role={session?.user?.role} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
+
+            {/* --- EXPORT LOADING OVERLAY --- */}
+            <AnimatePresence>
+                {exportLoading && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999] bg-slate-900/80 backdrop-blur-lg flex flex-col items-center justify-center text-white">
+                        <Loader2 size={56} className="animate-spin text-emerald-400 mb-6" />
+                        <h2 className="text-2xl font-black tracking-widest uppercase text-emerald-50">Preparing Enterprise Export</h2>
+                        <p className="text-sm font-medium text-slate-300 mt-3 text-center max-w-sm">Generating optimized CSV stream from the server. <br/> Please do not close this window.</p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* --- HIGH VOLUME WARNING MODAL --- */}
+            <AnimatePresence>
+                {showExportModal && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9998] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 relative">
+                            <div className="p-6 pb-0">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className={`p-3 rounded-2xl ${isDangerousQuery ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
+                                        <AlertTriangle size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-extrabold text-slate-900">Enterprise Data Retrieval</h3>
+                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">High Volume Operation</p>
+                                    </div>
+                                </div>
+                                <p className="text-sm text-slate-600 font-medium leading-relaxed">
+                                    You are attempting to fetch a <strong className="text-slate-900">Maximum Volume Archive</strong> of Twilio logs. This operation retrieves thousands of records and consumes high API resources.
+                                </p>
+                                
+                                {isDangerousQuery && (
+                                    <div className="mt-4 p-4 bg-rose-50 border border-rose-200 rounded-xl">
+                                        <h4 className="text-sm font-bold text-rose-800 flex items-center gap-2 mb-1"><ShieldAlert size={16}/> Warning: Unfiltered Query</h4>
+                                        <p className="text-xs font-medium text-rose-700 leading-relaxed">You have not applied any Date Range or Search filters. Loading this directly into the UI may freeze your browser.</p>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <div className="p-6 pt-5 flex flex-col gap-3">
+                                <button onClick={handleDirectExport} className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md">
+                                    <DownloadCloud size={18} /> Download CSV Instead (Recommended)
+                                </button>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button onClick={() => setShowExportModal(false)} className="py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-colors">
+                                        Cancel
+                                    </button>
+                                    <button onClick={() => { setShowExportModal(false); fetchTwilioData(); }} className="py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-sm transition-colors">
+                                        Continue Fetch to UI
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto custom-scrollbar relative">
                 
@@ -296,75 +355,51 @@ export default function TwilioEnterpriseDashboard() {
                         
                         <div className="flex items-start justify-between">
                             <div className="flex items-center gap-4">
-                                <button onClick={() => setMobileMenuOpen(true)} className="md:hidden p-2 -ml-2 text-slate-400 hover:bg-slate-100 rounded-xl transition-colors">
-                                    <Menu size={24} />
-                                </button>
+                                <button onClick={() => setMobileMenuOpen(true)} className="md:hidden p-2 -ml-2 text-slate-400 hover:bg-slate-100 rounded-xl transition-colors"><Menu size={24} /></button>
                                 <div>
                                     <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2 sm:gap-2.5">
                                         <BarChart3 className="text-emerald-500 hidden sm:block" size={28} /> 
-                                        <span className="sm:hidden text-emerald-500"><BarChart3 size={24}/></span>
-                                        Twilio Operations Center
+                                        <span className="sm:hidden text-emerald-500"><BarChart3 size={24}/></span> Twilio Operations Center
                                     </h1>
                                     <p className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Enterprise Communication Analytics & Billing</p>
                                 </div>
                             </div>
-                            
                             <div className="hidden md:flex items-center gap-3">
                                 <span className="flex items-center gap-2 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
-                                    <span className="relative flex h-2 w-2">
-                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                                    </span>
-                                    API Active
+                                    <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span> API Active
                                 </span>
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                            
                             {/* Wallet Card */}
-                            <div className="xl:col-span-1 bg-slate-900 rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden group shadow-lg">
-                                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500 rounded-full mix-blend-screen filter blur-[80px] opacity-20 animate-pulse group-hover:opacity-30 transition-opacity duration-1000 pointer-events-none"></div>
-                                <div className="relative z-10 flex flex-col h-full justify-between gap-6">
-                                    
+                            <div className="xl:col-span-1 bg-slate-900 rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-lg">
+                                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500 rounded-full mix-blend-screen filter blur-[80px] opacity-20 pointer-events-none"></div>
+                                <div className="relative z-10 flex flex-col gap-6">
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                        <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full w-max">
-                                            <Wallet size={14} className="text-emerald-300" />
-                                            <span className="text-xs font-bold uppercase tracking-widest text-slate-200">Current Balance</span>
-                                        </div>
-                                        
+                                        <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full w-max"><Wallet size={14} className="text-emerald-300" /><span className="text-xs font-bold uppercase tracking-widest text-slate-200">Current Balance</span></div>
                                         <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-xl border border-white/10 w-max">
                                             <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">1 USD = ₹</span>
                                             {isEditingRate ? (
                                                 <div className="flex items-center gap-1">
-                                                    <input type="number" value={tempRate} onChange={(e) => setTempRate(e.target.value)} className="w-16 bg-white/20 border border-white/30 text-white text-xs px-2 py-1 rounded outline-none appearance-none" autoFocus />
-                                                    <button onClick={handleSaveExchangeRate} disabled={savingRate} className="p-1 hover:bg-emerald-500 rounded text-emerald-300 hover:text-white transition"><Save size={14}/></button>
-                                                    <button onClick={() => setIsEditingRate(false)} className="p-1 hover:bg-rose-500 rounded text-rose-300 hover:text-white transition"><X size={14}/></button>
+                                                    <input type="number" value={tempRate} onChange={(e) => setTempRate(e.target.value)} className="w-16 bg-white/20 border border-white/30 text-white text-xs px-2 py-1 rounded outline-none" autoFocus />
+                                                    <button onClick={handleSaveExchangeRate} disabled={savingRate} className="p-1 text-emerald-300 hover:text-white"><Save size={14}/></button>
+                                                    <button onClick={() => setIsEditingRate(false)} className="p-1 text-rose-300 hover:text-white"><X size={14}/></button>
                                                 </div>
                                             ) : (
                                                 <div className="flex items-center gap-2 group/edit cursor-pointer" onClick={() => { setTempRate(exchangeRate); setIsEditingRate(true); }}>
-                                                    <span className="text-sm font-extrabold text-white">{exchangeRate}</span>
-                                                    <Edit2 size={12} className="text-slate-400 group-hover/edit:text-white transition"/>
+                                                    <span className="text-sm font-extrabold text-white">{exchangeRate}</span><Edit2 size={12} className="text-slate-400 group-hover/edit:text-white transition"/>
                                                 </div>
                                             )}
                                         </div>
                                     </div>
-                                    
                                     <div className="flex flex-col gap-2">
-                                        <div className="flex items-baseline gap-2">
-                                            <span className="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight">{twilioData.balance}</span>
-                                            <span className="text-lg sm:text-xl font-bold text-slate-400">{twilioData.currency}</span>
-                                        </div>
-                                        <div className="flex items-baseline gap-1.5 opacity-90">
-                                            <span className="text-xl sm:text-2xl font-black text-emerald-400">₹{currentBalanceInr}</span>
-                                            <span className="text-[10px] sm:text-xs font-bold text-emerald-200/70 uppercase tracking-widest">INR</span>
-                                        </div>
+                                        <div className="flex items-baseline gap-2"><span className="text-4xl sm:text-5xl lg:text-6xl font-black text-white">{twilioData.balance}</span><span className="text-lg font-bold text-slate-400">{twilioData.currency}</span></div>
+                                        <div className="flex items-baseline gap-1.5 opacity-90"><span className="text-xl sm:text-2xl font-black text-emerald-400">₹{currentBalanceInr}</span><span className="text-[10px] font-bold text-emerald-200/70 uppercase">INR</span></div>
                                     </div>
-
                                     {currentBalanceNum < 5 && (
                                         <div className="flex items-center gap-3 bg-rose-500/20 border border-rose-500/30 text-rose-100 px-4 py-3 rounded-xl backdrop-blur-md">
-                                            <AlertTriangle size={20} className="text-rose-400 shrink-0" />
-                                            <p className="text-[11px] sm:text-xs font-bold">Low Balance Warning. Please recharge to avoid disruption.</p>
+                                            <AlertTriangle size={20} className="text-rose-400 shrink-0" /><p className="text-[11px] sm:text-xs font-bold">Low Balance Warning. Please recharge.</p>
                                         </div>
                                     )}
                                 </div>
@@ -382,10 +417,7 @@ export default function TwilioEnterpriseDashboard() {
                                     { label: "Filtered Cost (USD)", val: `$${liveMetrics.totalUsd}`, color: "slate" },
                                     { label: "Filtered Cost (INR)", val: `₹${liveMetrics.totalInr}`, color: "emerald" },
                                 ].map((stat, i) => (
-                                    <motion.div 
-                                        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                                        key={i} className={`bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group flex flex-col justify-between`}
-                                    >
+                                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} key={i} className={`bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm relative overflow-hidden group flex flex-col justify-between`}>
                                         <div className={`absolute top-0 right-0 w-16 h-16 sm:w-20 sm:h-20 bg-${stat.color}-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110 pointer-events-none`}></div>
                                         <p className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 relative z-10">{stat.label}</p>
                                         <p className={`text-xl sm:text-2xl font-black text-${stat.color}-600 relative z-10 truncate`}>{typeof stat.val === 'number' ? stat.val.toLocaleString() : stat.val}</p>
@@ -401,32 +433,18 @@ export default function TwilioEnterpriseDashboard() {
 
                         {/* --- FILTER TOOLBAR --- */}
                         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-2 sm:p-2.5 flex flex-col xl:flex-row gap-3 xl:gap-4 transition-all shrink-0">
-                            
                             <div className="flex-1 flex flex-col lg:flex-row items-start lg:items-center gap-3 bg-slate-50/50 p-2 sm:p-3 rounded-xl border border-slate-100 w-full overflow-hidden">
-                                
                                 <div className="flex items-center gap-3 w-full lg:w-auto overflow-x-auto hide-scrollbar pb-1 lg:pb-0">
                                     <Calendar size={16} className="text-slate-400 shrink-0 hidden md:block" />
                                     <div className="flex gap-1.5 shrink-0">
                                         {[
-                                            { id: 'today', label: 'Today' },
-                                            { id: 'yesterday', label: 'Yesterday' },
-                                            { id: 'last7', label: '7D' },
-                                            { id: 'last30', label: '30D' },
-                                            { id: 'all', label: 'All' },
+                                            { id: 'today', label: 'Today' }, { id: 'yesterday', label: 'Yesterday' }, { id: 'last7', label: '7D' }, { id: 'last30', label: '30D' }, { id: 'all', label: 'All' },
                                         ].map(chip => (
-                                            <button 
-                                                key={chip.id} type="button"
-                                                onClick={() => applyDateChip(chip.id)}
-                                                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all whitespace-nowrap ${activeDateChip === chip.id ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'}`}
-                                            >
-                                                {chip.label}
-                                            </button>
+                                            <button key={chip.id} type="button" onClick={() => applyDateChip(chip.id)} className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all whitespace-nowrap ${activeDateChip === chip.id ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'}`}>{chip.label}</button>
                                         ))}
                                     </div>
                                 </div>
-
                                 <div className="hidden lg:block w-px h-6 bg-slate-200 shrink-0"></div>
-
                                 <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full lg:w-auto shrink-0">
                                     <div className="flex bg-white border border-slate-200 rounded-lg overflow-hidden flex-1 sm:flex-none">
                                         <input type="datetime-local" value={startDate} onChange={e => {setStartDate(e.target.value); setActiveDateChip("custom"); setCurrentPage(1);}} className="px-2 sm:px-3 py-2 text-[11px] sm:text-xs font-bold text-slate-700 outline-none w-full sm:w-[150px] bg-transparent" title="Start Date" />
@@ -441,42 +459,35 @@ export default function TwilioEnterpriseDashboard() {
                                         <option value="sent">Sent/Queued</option>
                                     </select>
                                 </div>
-
                                 <div className="flex items-center gap-2 w-full lg:w-auto mt-1 lg:mt-0 shrink-0 border-t lg:border-t-0 border-slate-200 pt-2 lg:pt-0">
-                                    <select value={fetchLimit} onChange={e => setFetchLimit(e.target.value)} className="bg-white border border-slate-200 rounded-lg px-2 py-2 text-[11px] sm:text-xs font-bold text-slate-700 outline-none cursor-pointer">
-                                        <option value="100">Fetch 100 limit</option>
-                                        <option value="500">Fetch 500 limit</option>
-                                        <option value="1000">Fetch 1k limit</option>
-                                        <option value="all">Fetch Max Allowed</option>
-                                    </select>
-                                    <button onClick={() => fetchTwilioData()} disabled={fetching} className="flex-1 lg:flex-none px-4 py-2 sm:py-2 bg-slate-900 hover:bg-black text-white text-[11px] sm:text-xs font-bold rounded-lg shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-70">
-                                        {fetching ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} 
-                                        Fetch Logs
+                                    <div className="relative flex-1 lg:flex-none">
+                                        <select value={fetchLimit} onChange={e => setFetchLimit(e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-[11px] sm:text-xs font-bold text-slate-700 outline-none cursor-pointer  ">
+                                            <option value="100">100 limit</option>
+                                            <option value="500">500 limit</option>
+                                            <option value="1000">1000 limit</option>
+                                            <option value="all" className="font-bold text-amber-600">Max Allowed</option>
+                                        </select>
+                                        {fetchLimit === "all" && <AlertTriangle size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none" />}
+                                    </div>
+                                    
+                                    <button onClick={handleSyncClick} disabled={fetching} className="flex-1 lg:flex-none px-4 py-2 sm:py-2 bg-slate-900 hover:bg-black text-white text-[11px] sm:text-xs font-bold rounded-lg shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-70">
+                                        {fetching ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Sync Server
                                     </button>
                                 </div>
                             </div>
-
                             <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full xl:w-auto p-1 shrink-0">
                                 <div className="relative group flex-1 xl:w-64 min-w-[200px]">
                                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-                                    <input 
-                                        type="text" placeholder="Search message, numbers..." 
-                                        value={searchQuery} onChange={(e) => {setSearchQuery(e.target.value); setCurrentPage(1);}}
-                                        className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all"
-                                    />
+                                    <input type="text" placeholder="Search message, numbers..." value={searchQuery} onChange={(e) => {setSearchQuery(e.target.value); setCurrentPage(1);}} className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all"/>
                                 </div>
-                                <button onClick={() => setShowAdvancedFilters(!showAdvancedFilters)} className={`p-2.5 rounded-xl border transition-all shrink-0 ${showAdvancedFilters ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-                                    <SlidersHorizontal size={18} />
-                                </button>
+                                <button onClick={() => setShowAdvancedFilters(!showAdvancedFilters)} className={`p-2.5 rounded-xl border transition-all shrink-0 ${showAdvancedFilters ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}><SlidersHorizontal size={18} /></button>
                                 <div className="relative shrink-0">
-                                    <button onClick={() => setShowExportMenu(!showExportMenu)} disabled={filteredMessages.length === 0} className="p-2.5 bg-white rounded-xl border border-slate-200 text-slate-700 shadow-sm hover:bg-slate-50 transition-all disabled:opacity-50">
-                                        <DownloadCloud size={18} />
-                                    </button>
+                                    <button onClick={() => setShowExportMenu(!showExportMenu)} disabled={filteredMessages.length === 0} className="p-2.5 bg-white rounded-xl border border-slate-200 text-slate-700 shadow-sm hover:bg-slate-50 transition-all disabled:opacity-50"><DownloadCloud size={18} /></button>
                                     <AnimatePresence>
                                         {showExportMenu && (
                                             <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} className="absolute right-0 mt-2 w-36 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden py-1 z-50">
-                                                <button onClick={() => handleExport('csv')} className="w-full px-4 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"><FileText size={14} className="text-emerald-500"/> Export CSV</button>
-                                                <button onClick={() => handleExport('json')} className="w-full px-4 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"><FileJson size={14} className="text-blue-500"/> Export JSON</button>
+                                                <button onClick={() => handleStandardExport('csv')} className="w-full px-4 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"><FileText size={14} className="text-emerald-500"/> Export Standard CSV</button>
+                                                <button onClick={() => handleStandardExport('json')} className="w-full px-4 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"><FileJson size={14} className="text-blue-500"/> Export JSON</button>
                                             </motion.div>
                                         )}
                                     </AnimatePresence>
@@ -514,37 +525,26 @@ export default function TwilioEnterpriseDashboard() {
 
                         {/* --- DATA PRESENTATION --- */}
                         <div className="bg-white rounded-2xl sm:rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200 overflow-hidden flex flex-col flex-1 min-h-[400px]">
-                            
-                            {loading ? (
+                            {loading || fetching ? (
                                 <div className="flex-1 flex flex-col items-center justify-center p-12 sm:p-20 min-h-[300px]">
-                                    <div className="relative">
-                                        <div className="absolute inset-0 bg-emerald-500 rounded-full blur-xl opacity-20 animate-pulse"></div>
-                                        <Loader2 size={40} className="animate-spin text-emerald-500 relative z-10" />
-                                    </div>
+                                    <div className="relative"><div className="absolute inset-0 bg-emerald-500 rounded-full blur-xl opacity-20 animate-pulse"></div><Loader2 size={40} className="animate-spin text-emerald-500 relative z-10" /></div>
                                     <p className="mt-4 text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-widest animate-pulse">Syncing Twilio Logs...</p>
                                 </div>
                             ) : filteredMessages.length === 0 ? (
                                 <div className="flex-1 flex flex-col items-center justify-center p-8 sm:p-20 text-center min-h-[300px]">
-                                    <div className="w-20 h-20 sm:w-24 sm:h-24 bg-slate-50 rounded-full flex items-center justify-center mb-6 shadow-inner border border-slate-100">
-                                        <Search size={32} className="text-slate-300" />
-                                    </div>
+                                    <div className="w-20 h-20 sm:w-24 sm:h-24 bg-slate-50 rounded-full flex items-center justify-center mb-6 shadow-inner border border-slate-100"><Search size={32} className="text-slate-300" /></div>
                                     <h3 className="text-lg sm:text-xl font-extrabold text-slate-800">No logs found</h3>
                                     <p className="text-xs sm:text-sm font-medium text-slate-500 mt-2 max-w-sm px-4">We couldn't find any messages matching your current filter criteria.</p>
                                     <button onClick={() => {setSearchQuery(""); setApiStatusFilter("all"); setClientDirection("all"); setClientMediaOnly(false); setClientFailedOnly(false); setActiveDateChip("all"); setStartDate(""); setEndDate("");}} className="mt-6 text-sm font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-4 py-2 rounded-lg transition-colors">Clear All Filters</button>
                                 </div>
                             ) : (
                                 <>
-                                    {/* --- DESKTOP / LARGE TABLET VIEW --- */}
-                                    <div className="hidden lg:block overflow-x-auto w-full flex-1">
+                                    {/* DESKTOP TABLE */}
+                                    <div className="hidden lg:block overflow-x-auto w-full flex-1 min-h-[300px]">
                                         <table className="w-full text-left border-collapse whitespace-nowrap min-w-[900px]">
                                             <thead className="bg-slate-50/80 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200 sticky top-0 z-10 backdrop-blur-md">
                                                 <tr>
-                                                    <th className="px-6 py-4 pl-8">Date Sent</th>
-                                                    <th className="px-6 py-4">Participant</th>
-                                                    <th className="px-6 py-4">Direction</th>
-                                                    <th className="px-6 py-4">Status</th>
-                                                    <th className="px-6 py-4">Content Preview</th>
-                                                    <th className="px-6 py-4 pr-8 text-right">Cost (INR)</th>
+                                                    <th className="px-6 py-4 pl-8">Date Sent</th><th className="px-6 py-4">Participant</th><th className="px-6 py-4">Direction</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Content Preview</th><th className="px-6 py-4 pr-8 text-right">Cost (INR)</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100 text-[13px] font-medium text-slate-700 relative">
@@ -572,60 +572,35 @@ export default function TwilioEnterpriseDashboard() {
                                                                     </td>
                                                                     <td className="px-6 py-4">
                                                                         <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
-                                                                            {isOutbound ? <ArrowUpRight size={14} className="text-indigo-400"/> : <ArrowDownLeft size={14} className="text-emerald-400"/>}
-                                                                            {isOutbound ? "Outbound" : "Inbound"}
+                                                                            {isOutbound ? <ArrowUpRight size={14} className="text-indigo-400"/> : <ArrowDownLeft size={14} className="text-emerald-400"/>} {isOutbound ? "Outbound" : "Inbound"}
                                                                         </span>
                                                                     </td>
                                                                     <td className="px-6 py-4">{getStatusBadge(msg.status)}</td>
                                                                     <td className="px-6 py-4">
                                                                         <div className="flex items-center gap-2 text-slate-600 max-w-[250px]">
-                                                                            {hasMedia && <Paperclip size={14} className="text-slate-400 shrink-0"/>}
-                                                                            <span className="truncate group-hover:text-emerald-600 transition-colors">{previewWord}</span>
+                                                                            {hasMedia && <Paperclip size={14} className="text-slate-400 shrink-0"/>} <span className="truncate group-hover:text-emerald-600 transition-colors">{previewWord}</span>
                                                                         </div>
                                                                     </td>
-                                                                    <td className="px-6 py-4 pr-8 text-right font-mono text-xs font-bold text-emerald-600">
-                                                                        ₹{inrCost.toFixed(3)}
-                                                                    </td>
+                                                                    <td className="px-6 py-4 pr-8 text-right font-mono text-xs font-bold text-emerald-600">₹{inrCost.toFixed(3)}</td>
                                                                 </tr>
-                                                                
-                                                                {/* Expanded Content View (Desktop) */}
                                                                 <AnimatePresence>
                                                                     {isExpanded && (
                                                                         <tr>
                                                                             <td colSpan="6" className="p-0 border-0">
-                                                                                <motion.div 
-                                                                                    initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                                                                                    className="overflow-hidden bg-slate-50/80 border-b border-slate-100 shadow-inner"
-                                                                                >
+                                                                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden bg-slate-50/80 border-b border-slate-100 shadow-inner">
                                                                                     <div className="p-6 pl-8 flex gap-8">
                                                                                         <div className="flex-1 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm relative">
-                                                                                            <div className="absolute top-0 left-6 -mt-2.5 px-2 bg-white text-[10px] font-black uppercase tracking-widest text-emerald-600 flex items-center gap-1">
-                                                                                                <MessageCircle size={12}/> Message Content
-                                                                                            </div>
-                                                                                            <div className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap mt-2 word-break break-words">
-                                                                                                {msg.body || <span className="text-slate-400 italic">No text content provided.</span>}
-                                                                                            </div>
+                                                                                            <div className="absolute top-0 left-6 -mt-2.5 px-2 bg-white text-[10px] font-black uppercase tracking-widest text-emerald-600 flex items-center gap-1"><MessageCircle size={12}/> Message Content</div>
+                                                                                            <div className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap mt-2 word-break break-words">{msg.body || <span className="text-slate-400 italic">No text content provided.</span>}</div>
                                                                                         </div>
                                                                                         <div className="w-[300px] shrink-0 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-                                                                                            <div>
-                                                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Message SID</p>
-                                                                                                <p className="font-mono text-[11px] text-slate-700 break-all bg-slate-50 p-2 rounded-lg border border-slate-100 selection:bg-emerald-200 select-all">{msg.id}</p>
-                                                                                            </div>
+                                                                                            <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Message SID</p><p className="font-mono text-[11px] text-slate-700 break-all bg-slate-50 p-2 rounded-lg border border-slate-100 selection:bg-emerald-200 select-all">{msg.id}</p></div>
                                                                                             <div className="grid grid-cols-2 gap-4">
-                                                                                                <div>
-                                                                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Media Count</p>
-                                                                                                    <p className="text-sm font-black text-slate-700">{mediaCount}</p>
-                                                                                                </div>
-                                                                                                <div>
-                                                                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Cost (USD)</p>
-                                                                                                    <p className="text-sm font-black text-slate-700 font-mono">${Math.abs(cost).toFixed(4)}</p>
-                                                                                                </div>
+                                                                                                <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Media Count</p><p className="text-sm font-black text-slate-700">{mediaCount}</p></div>
+                                                                                                <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Cost (USD)</p><p className="text-sm font-black text-slate-700 font-mono">${Math.abs(cost).toFixed(4)}</p></div>
                                                                                             </div>
                                                                                             {msg.errorMessage && (
-                                                                                                <div className="bg-rose-50 border border-rose-100 p-3 rounded-xl mt-2">
-                                                                                                    <p className="text-[10px] font-bold text-rose-500 uppercase tracking-wider mb-1 flex items-center gap-1"><ShieldAlert size={12}/> Error Detail</p>
-                                                                                                    <p className="text-xs font-medium text-rose-700 leading-tight">{msg.errorMessage}</p>
-                                                                                                </div>
+                                                                                                <div className="bg-rose-50 border border-rose-100 p-3 rounded-xl mt-2"><p className="text-[10px] font-bold text-rose-500 uppercase tracking-wider mb-1 flex items-center gap-1"><ShieldAlert size={12}/> Error Detail</p><p className="text-xs font-medium text-rose-700 leading-tight">{msg.errorMessage}</p></div>
                                                                                             )}
                                                                                         </div>
                                                                                     </div>
@@ -642,7 +617,7 @@ export default function TwilioEnterpriseDashboard() {
                                         </table>
                                     </div>
 
-                                    {/* --- MOBILE / SMALL TABLET CARD VIEW --- */}
+                                    {/* MOBILE CARD VIEW */}
                                     <div className="lg:hidden flex flex-col p-3 sm:p-4 gap-3 sm:gap-4 bg-slate-50/50 flex-1 overflow-x-hidden">
                                         <AnimatePresence initial={false}>
                                             {paginatedMessages.map((msg) => {
@@ -669,41 +644,24 @@ export default function TwilioEnterpriseDashboard() {
                                                                 <div className="shrink-0 ml-2">{getStatusBadge(msg.status)}</div>
                                                             </div>
                                                             <div className={`text-[13px] text-slate-600 font-medium leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100 break-words ${!isExpanded && 'line-clamp-2'}`}>
-                                                                {hasMedia && !isExpanded && <Paperclip size={12} className="inline mr-1 text-slate-400"/>}
-                                                                {msg.body || (hasMedia ? "Media Attachment" : "-")}
+                                                                {hasMedia && !isExpanded && <Paperclip size={12} className="inline mr-1 text-slate-400"/>} {msg.body || (hasMedia ? "Media Attachment" : "-")}
                                                             </div>
                                                         </div>
-                                                        
                                                         <AnimatePresence>
                                                             {isExpanded && (
                                                                 <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden bg-white border-t border-slate-100 w-full">
                                                                     <div className="p-4 space-y-3 bg-slate-50/50 w-full overflow-hidden">
                                                                         <div className="flex flex-col gap-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm w-full">
                                                                             <div className="grid grid-cols-2 gap-3 border-b border-slate-100 pb-3">
-                                                                                <div>
-                                                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Cost (INR)</p>
-                                                                                    <p className="text-xs font-bold font-mono text-emerald-600">₹{inrCost.toFixed(3)}</p>
-                                                                                </div>
-                                                                                <div>
-                                                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Cost (USD)</p>
-                                                                                    <p className="text-xs font-bold text-slate-700">${Math.abs(cost).toFixed(4)}</p>
-                                                                                </div>
+                                                                                <div><p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Cost (INR)</p><p className="text-xs font-bold font-mono text-emerald-600">₹{inrCost.toFixed(3)}</p></div>
+                                                                                <div><p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Cost (USD)</p><p className="text-xs font-bold text-slate-700">${Math.abs(cost).toFixed(4)}</p></div>
                                                                             </div>
-                                                                            <div className="flex justify-between border-b border-slate-100 pb-3">
-                                                                                 <div>
-                                                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Media Count</p>
-                                                                                    <p className="text-xs font-bold text-slate-700">{mediaCount} items</p>
-                                                                                </div>
-                                                                            </div>
-                                                                            <div className="w-full min-w-0">
-                                                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Twilio SID</p>
-                                                                                <p className="text-[10px] font-mono text-slate-500 break-all bg-slate-50 p-2 rounded-lg border border-slate-100 mt-1 select-all w-full leading-relaxed">{msg.id}</p>
-                                                                            </div>
+                                                                            <div className="flex justify-between border-b border-slate-100 pb-3"><div><p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Media Count</p><p className="text-xs font-bold text-slate-700">{mediaCount} items</p></div></div>
+                                                                            <div className="w-full min-w-0"><p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Twilio SID</p><p className="text-[10px] font-mono text-slate-500 break-all bg-slate-50 p-2 rounded-lg border border-slate-100 mt-1 select-all w-full leading-relaxed">{msg.id}</p></div>
                                                                         </div>
                                                                         {msg.errorMessage && (
                                                                             <div className="bg-rose-50 border border-rose-100 p-3.5 rounded-xl text-[11px] sm:text-xs font-medium text-rose-700 leading-tight flex items-start gap-2.5 w-full">
-                                                                                <AlertTriangle size={16} className="shrink-0 text-rose-500 mt-0.5"/>
-                                                                                <span className="break-words w-full">{msg.errorMessage}</span>
+                                                                                <AlertTriangle size={16} className="shrink-0 text-rose-500 mt-0.5"/><span className="break-words w-full">{msg.errorMessage}</span>
                                                                             </div>
                                                                         )}
                                                                     </div>
@@ -716,52 +674,27 @@ export default function TwilioEnterpriseDashboard() {
                                         </AnimatePresence>
                                     </div>
 
-                                    {/* --- PAGINATION FOOTER --- */}
+                                    {/* PAGINATION FOOTER */}
                                     <div className="p-4 lg:p-5 border-t border-slate-200 bg-white flex flex-col sm:flex-row items-center justify-between gap-4 mt-auto shrink-0 relative">
                                         <div className="flex items-center justify-between w-full sm:w-auto gap-4">
                                             <div className="flex items-center gap-2 sm:gap-3">
                                                 <span className="text-[11px] sm:text-xs font-bold text-slate-500 hidden sm:block">Rows:</span>
-                                                <select 
-                                                    value={itemsPerPage} onChange={(e) => {setItemsPerPage(Number(e.target.value)); setCurrentPage(1);}}
-                                                    className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-700 outline-none cursor-pointer hover:bg-slate-100 transition"
-                                                >
-                                                    <option value={25}>25</option>
-                                                    <option value={50}>50</option>
-                                                    <option value={100}>100</option>
-                                                    <option value={250}>250</option>
+                                                <select value={itemsPerPage} onChange={(e) => {setItemsPerPage(Number(e.target.value)); setCurrentPage(1);}} className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-700 outline-none cursor-pointer hover:bg-slate-100 transition">
+                                                    <option value={25}>25</option><option value={50}>50</option><option value={100}>100</option><option value={250}>250</option>
                                                 </select>
                                             </div>
-                                            <span className="text-[11px] sm:text-xs font-bold text-slate-500 sm:hidden">
-                                                Showing {Math.min(currentPage * itemsPerPage, filteredMessages.length)} of {filteredMessages.length}
-                                            </span>
+                                            <span className="text-[11px] sm:text-xs font-bold text-slate-500 sm:hidden">Showing {Math.min(currentPage * itemsPerPage, filteredMessages.length)} of {filteredMessages.length}</span>
                                         </div>
-
-                                        <span className="hidden sm:block text-xs font-bold text-slate-500 text-center">
-                                            Showing <span className="text-slate-800">{(currentPage - 1) * itemsPerPage + 1}</span>–<span className="text-slate-800">{Math.min(currentPage * itemsPerPage, filteredMessages.length)}</span> of <span className="text-slate-800">{filteredMessages.length}</span> logs
-                                        </span>
-                                        
+                                        <span className="hidden sm:block text-xs font-bold text-slate-500 text-center">Showing <span className="text-slate-800">{(currentPage - 1) * itemsPerPage + 1}</span>–<span className="text-slate-800">{Math.min(currentPage * itemsPerPage, filteredMessages.length)}</span> of <span className="text-slate-800">{filteredMessages.length}</span> logs</span>
                                         <div className="flex items-center gap-1.5 w-full sm:w-auto justify-center">
-                                            <button 
-                                                onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}
-                                                className="p-2 sm:p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition shadow-sm bg-white"
-                                            >
-                                                <ChevronLeft size={18} className="sm:w-4 sm:h-4"/>
-                                            </button>
-                                            <div className="px-4 sm:px-3 text-xs font-bold text-slate-700 bg-slate-50 rounded-lg py-2 sm:py-1.5 border border-slate-100 min-w-[80px] text-center">
-                                                Page {currentPage} / {totalPages}
-                                            </div>
-                                            <button 
-                                                onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages || totalPages === 0}
-                                                className="p-2 sm:p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition shadow-sm bg-white"
-                                            >
-                                                <ChevronRight size={18} className="sm:w-4 sm:h-4"/>
-                                            </button>
+                                            <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} className="p-2 sm:p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition shadow-sm bg-white"><ChevronLeft size={18} className="sm:w-4 sm:h-4"/></button>
+                                            <div className="px-4 sm:px-3 text-xs font-bold text-slate-700 bg-slate-50 rounded-lg py-2 sm:py-1.5 border border-slate-100 min-w-[80px] text-center">Page {currentPage} / {totalPages}</div>
+                                            <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages || totalPages === 0} className="p-2 sm:p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition shadow-sm bg-white"><ChevronRight size={18} className="sm:w-4 sm:h-4"/></button>
                                         </div>
                                     </div>
                                 </>
                             )}
                         </div>
-
                     </div>
                 </main>
             </div>

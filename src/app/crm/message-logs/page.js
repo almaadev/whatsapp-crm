@@ -40,7 +40,11 @@ export default function MessageLogsPage() {
     const [clientMediaOnly, setClientMediaOnly] = useState(false);
     const [clientFailedOnly, setClientFailedOnly] = useState(false);
 
-    // 👇 FIX: Added missing Pagination state
+    // --- ENTERPRISE EXPORT STATES ---
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [exportLoading, setExportLoading] = useState(false);
+
+    // Pagination
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(25);
 
@@ -74,7 +78,44 @@ export default function MessageLogsPage() {
         }
     }, []);
 
-    // --- FETCH DATA ---
+    const downloadBlob = (blob, filename) => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    // --- DIRECT SERVER CSV EXPORT ---
+    const handleDirectExport = async () => {
+        setExportLoading(true);
+        setShowExportModal(false);
+        try {
+            let url = `/api/message-logs?limit=all&mode=export`;
+            if (startDate) url += `&startDate=${encodeURIComponent(startDate)}`;
+            if (endDate) url += `&endDate=${encodeURIComponent(endDate)}`;
+            if (apiStatusFilter !== "all") url += `&status=${encodeURIComponent(apiStatusFilter)}`;
+            if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
+            if (clientDirection !== "all") url += `&direction=${clientDirection}`;
+            if (clientMediaOnly) url += `&mediaOnly=true`;
+            if (clientFailedOnly) url += `&failedOnly=true`;
+
+            const res = await fetch(url);
+            if (!res.ok) throw new Error("Export failed");
+            
+            const blob = await res.blob();
+            downloadBlob(blob, `enterprise_message_archive_${Date.now()}.csv`);
+            toast.success("Enterprise archive downloaded safely.");
+        } catch (err) {
+            toast.error("Export operation failed.");
+        } finally {
+            setExportLoading(false);
+        }
+    };
+
+    // --- FETCH DATA (JSON) ---
     const fetchLogs = async (optStart = startDate, optEnd = endDate, optStatus = apiStatusFilter, optLimit = fetchLimit) => {
         setFetching(true);
         try {
@@ -107,6 +148,15 @@ export default function MessageLogsPage() {
     useEffect(() => {
         if (status === "authenticated" && isAuthorized) fetchLogs();
     }, [status, isAuthorized]);
+
+    // --- ACTION INTERCEPTORS ---
+    const handleSyncClick = () => {
+        if (fetchLimit === "all") {
+            setShowExportModal(true);
+        } else {
+            fetchLogs();
+        }
+    };
 
     // --- LIVE FILTERING TRIGGERS ---
     const applyDateChip = (chip) => {
@@ -178,7 +228,7 @@ export default function MessageLogsPage() {
     // --- HANDLERS ---
     const toggleExpand = (id) => setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
 
-    const handleExport = (type) => {
+    const handleStandardExport = (type) => {
         setShowExportMenu(false);
         if (filteredMessages.length === 0) return toast.warning("No data to export.");
         
@@ -204,16 +254,6 @@ export default function MessageLogsPage() {
         }, 800);
     };
 
-    const downloadBlob = (blob, filename) => {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
     const getStatusBadge = (s) => {
         const statusStr = s?.toLowerCase() || "unknown";
         if (['delivered', 'read'].includes(statusStr)) return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase tracking-wider border border-emerald-200/60"><CheckCircle2 size={12}/> {statusStr}</span>;
@@ -221,6 +261,8 @@ export default function MessageLogsPage() {
         if (['sent', 'accepted', 'queued'].includes(statusStr)) return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-wider border border-blue-200/60"><ArrowUpRight size={12}/> {statusStr}</span>;
         return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold uppercase tracking-wider border border-amber-200/60"><Clock size={12}/> {statusStr}</span>;
     };
+
+    const isDangerousQuery = !startDate && !endDate && !searchQuery;
 
     if (status === "loading") return <div className="flex h-screen items-center justify-center text-emerald-600 font-bold uppercase tracking-widest text-sm bg-slate-50"><Loader2 className="animate-spin mr-3"/> Authenticating...</div>;
     if (!session || !isAuthorized) {
@@ -241,9 +283,65 @@ export default function MessageLogsPage() {
             
             <Sidebar role={session?.user?.role} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
 
+            {/* --- EXPORT LOADING OVERLAY --- */}
+            <AnimatePresence>
+                {exportLoading && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999] bg-slate-900/80 backdrop-blur-lg flex flex-col items-center justify-center text-white p-4">
+                        <Loader2 size={56} className="animate-spin text-emerald-400 mb-6" />
+                        <h2 className="text-2xl font-black tracking-widest uppercase text-emerald-50 text-center">Preparing Enterprise Export</h2>
+                        <p className="text-sm font-medium text-slate-300 mt-3 text-center max-w-sm">Generating optimized CSV stream from the server. <br className="hidden sm:block"/> Please do not close this window.</p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* --- HIGH VOLUME WARNING MODAL --- */}
+            <AnimatePresence>
+                {showExportModal && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9998] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 relative flex flex-col max-h-full">
+                            <div className="p-5 sm:p-6 pb-0 overflow-y-auto custom-scrollbar">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className={`p-3 rounded-2xl shrink-0 ${isDangerousQuery ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
+                                        <AlertTriangle size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg sm:text-xl font-extrabold text-slate-900">Enterprise Archive Retrieval</h3>
+                                        <p className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider mt-0.5">High Volume Operation</p>
+                                    </div>
+                                </div>
+                                <p className="text-xs sm:text-sm text-slate-600 font-medium leading-relaxed">
+                                    You are attempting to retrieve a <strong className="text-slate-900">High-Volume Communication Archive</strong> from Twilio infrastructure. Large retrieval operations may increase API load, take longer to process, and consume more browser memory.
+                                </p>
+                                
+                                {isDangerousQuery && (
+                                    <div className="mt-4 p-4 bg-rose-50 border border-rose-200 rounded-xl">
+                                        <h4 className="text-xs sm:text-sm font-bold text-rose-800 flex items-center gap-2 mb-1"><ShieldAlert size={16}/> Warning: Unrestricted Archive</h4>
+                                        <p className="text-[11px] sm:text-xs font-medium text-rose-700 leading-relaxed">You have not applied any Date Range or Search filters. Loading this directly into the UI may freeze low-memory devices.</p>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <div className="p-5 sm:p-6 pt-5 shrink-0 flex flex-col gap-3 mt-auto bg-white border-t border-slate-100">
+                                <button onClick={handleDirectExport} className="w-full py-3 sm:py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md">
+                                    <DownloadCloud size={18} /> Download CSV Instead <span className="hidden sm:inline">(Recommended)</span>
+                                </button>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button onClick={() => setShowExportModal(false)} className="py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs sm:text-sm transition-colors">
+                                        Cancel
+                                    </button>
+                                    <button onClick={() => { setShowExportModal(false); fetchLogs(); }} className="py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-xs sm:text-sm transition-colors px-2">
+                                        Continue Fetch to UI
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto custom-scrollbar relative">
                 
-                {/* --- HEADER (No Wallet, Just Metrics) --- */}
+                {/* --- HEADER --- */}
                 <header className="px-4 py-6 md:px-6 lg:py-8 bg-white border-b border-slate-200 shrink-0 shadow-sm relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
                     <div className="max-w-[1600px] mx-auto relative z-10 flex flex-col gap-6">
@@ -259,12 +357,12 @@ export default function MessageLogsPage() {
                                         <span className="sm:hidden text-emerald-500"><BarChart3 size={24}/></span>
                                         Message Analytics
                                     </h1>
-                                    <p className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Enterprise Communication Intelligence</p>
+                                    <p className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Enterprise Communication Logs</p>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Analytics Grid */}
+                        {/* Live Metrics Grid */}
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
                             {[
                                 { label: "Filtered Handled", val: liveMetrics.total || 0, color: "slate" },
@@ -280,7 +378,7 @@ export default function MessageLogsPage() {
                                 >
                                     <div className={`absolute top-0 right-0 w-16 h-16 sm:w-20 sm:h-20 bg-${stat.color}-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110 pointer-events-none`}></div>
                                     <p className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 relative z-10">{stat.label}</p>
-                                    <p className={`text-xl sm:text-2xl font-black text-${stat.color}-600 relative z-10 truncate`}>{typeof stat.val === 'number' ? stat.val.toLocaleString() : stat.val}</p>
+                                    <p className={`text-xl sm:text-2xl lg:text-3xl font-black text-${stat.color}-600 relative z-10 truncate`}>{typeof stat.val === 'number' ? stat.val.toLocaleString() : stat.val}</p>
                                 </motion.div>
                             ))}
                         </div>
@@ -320,9 +418,9 @@ export default function MessageLogsPage() {
 
                                 <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full lg:w-auto shrink-0">
                                     <div className="flex bg-white border border-slate-200 rounded-lg overflow-hidden flex-1 sm:flex-none">
-                                        <input type="datetime-local" value={startDate} onChange={e => {setStartDate(e.target.value); setActiveDateChip("custom"); setCurrentPage(1);}} className="px-2 sm:px-3 py-2 text-[11px] sm:text-xs font-bold text-slate-700 outline-none w-full sm:w-[150px] bg-transparent" title="Start Date" />
+                                        <input type="datetime-local" value={startDate} onChange={e => {setStartDate(e.target.value); setActiveDateChip("custom"); setCurrentPage(1);}} className="px-2 sm:px-3 py-2 text-[11px] sm:text-xs font-bold text-slate-700 outline-none w-full sm:w-[130px] bg-transparent" title="Start Date" />
                                         <div className="w-px bg-slate-200"></div>
-                                        <input type="datetime-local" value={endDate} onChange={e => {setEndDate(e.target.value); setActiveDateChip("custom"); setCurrentPage(1);}} className="px-2 sm:px-3 py-2 text-[11px] sm:text-xs font-bold text-slate-700 outline-none w-full sm:w-[150px] bg-transparent" title="End Date" />
+                                        <input type="datetime-local" value={endDate} onChange={e => {setEndDate(e.target.value); setActiveDateChip("custom"); setCurrentPage(1);}} className="px-2 sm:px-3 py-2 text-[11px] sm:text-xs font-bold text-slate-700 outline-none w-full sm:w-[130px] bg-transparent" title="End Date" />
                                     </div>
                                     <select value={apiStatusFilter} onChange={e => {setApiStatusFilter(e.target.value); setCurrentPage(1);}} className="flex-1 sm:flex-none bg-white border border-slate-200 rounded-lg px-2 sm:px-3 py-2 text-[11px] sm:text-xs font-bold text-slate-700 outline-none cursor-pointer">
                                         <option value="all">Any Status</option>
@@ -334,13 +432,17 @@ export default function MessageLogsPage() {
                                 </div>
 
                                 <div className="flex items-center gap-2 w-full lg:w-auto mt-1 lg:mt-0 shrink-0 border-t lg:border-t-0 border-slate-200 pt-2 lg:pt-0">
-                                    <select value={fetchLimit} onChange={e => setFetchLimit(e.target.value)} className="bg-white border border-slate-200 rounded-lg px-2 py-2 text-[11px] sm:text-xs font-bold text-slate-700 outline-none cursor-pointer">
-                                        <option value="100">100</option>
-                                        <option value="500">500</option>
-                                        <option value="1000">1,000</option>
-                                        <option value="all">All (if needed)</option>
-                                    </select>
-                                    <button onClick={() => fetchLogs()} disabled={fetching} className="flex-1 lg:flex-none px-4 py-2 sm:py-2 bg-slate-900 hover:bg-black text-white text-[11px] sm:text-xs font-bold rounded-lg shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-70">
+                                    <div className="relative flex-1 lg:flex-none">
+                                        <select value={fetchLimit} onChange={e => setFetchLimit(e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-[11px] sm:text-xs font-bold text-slate-700 outline-none cursor-pointer appearance-none pr-8">
+                                            <option value="100">Fetch 100 limit</option>
+                                            <option value="500">Fetch 500 limit</option>
+                                            <option value="1000">Fetch 1k limit</option>
+                                            <option value="all" className="font-bold text-amber-600">Max Allowed</option>
+                                        </select>
+                                        {fetchLimit === "all" && <AlertTriangle size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none" />}
+                                    </div>
+                                    {/* 👇 FIX: Fetch Server Button explicitly uses the Interceptor */}
+                                    <button onClick={handleSyncClick} disabled={fetching} className="flex-1 lg:flex-none px-4 py-2 sm:py-2 bg-slate-900 hover:bg-black text-white text-[11px] sm:text-xs font-bold rounded-lg shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-70">
                                         {fetching ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} 
                                         Sync Server
                                     </button>
@@ -366,8 +468,8 @@ export default function MessageLogsPage() {
                                     <AnimatePresence>
                                         {showExportMenu && (
                                             <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} className="absolute right-0 mt-2 w-36 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden py-1 z-50">
-                                                <button onClick={() => handleExport('csv')} className="w-full px-4 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"><FileText size={14} className="text-emerald-500"/> Export CSV</button>
-                                                <button onClick={() => handleExport('json')} className="w-full px-4 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"><FileJson size={14} className="text-blue-500"/> Export JSON</button>
+                                                <button onClick={() => handleStandardExport('csv')} className="w-full px-4 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"><FileText size={14} className="text-emerald-500"/> Export Standard CSV</button>
+                                                <button onClick={() => handleStandardExport('json')} className="w-full px-4 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"><FileJson size={14} className="text-blue-500"/> Export JSON</button>
                                             </motion.div>
                                         )}
                                     </AnimatePresence>
@@ -426,7 +528,7 @@ export default function MessageLogsPage() {
                             ) : (
                                 <>
                                     {/* --- DESKTOP / LARGE TABLET VIEW --- */}
-                                    <div className="hidden lg:block overflow-x-auto w-full flex-1">
+                                    <div className="hidden lg:block overflow-x-auto w-full flex-1 min-h-[300px]">
                                         <table className="w-full text-left border-collapse whitespace-nowrap">
                                             <thead className="bg-slate-50/80 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200 sticky top-0 z-10 backdrop-blur-md">
                                                 <tr>
@@ -486,7 +588,7 @@ export default function MessageLogsPage() {
                                                                                             <div className="absolute top-0 left-6 -mt-2.5 px-2 bg-white text-[10px] font-black uppercase tracking-widest text-emerald-600 flex items-center gap-1">
                                                                                                 <MessageCircle size={12}/> Message Content
                                                                                             </div>
-                                                                                            <div className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap mt-2 word-break break-all">
+                                                                                            <div className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap mt-2 word-break break-words">
                                                                                                 {msg.body || <span className="text-slate-400 italic">No text content provided.</span>}
                                                                                             </div>
                                                                                         </div>

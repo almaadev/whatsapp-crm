@@ -12,7 +12,6 @@ export async function GET(req) {
         await connectDB();
         const session = await getServerSession(authOptions);
 
-        // 1. Strict Role Validation
         const isSuperAdmin = session?.user?.role === 'superAdmin';
         const isAdmin = session?.user?.department === 'admin';
 
@@ -20,49 +19,51 @@ export async function GET(req) {
             return NextResponse.json({ error: "Forbidden: Admin access required." }, { status: 403 });
         }
 
-        // 2. Parse Enterprise Filters
         const { searchParams } = new URL(req.url);
         const limitParam = searchParams.get("limit") || "100";
         const startDate = searchParams.get("startDate");
         const endDate = searchParams.get("endDate");
         const status = searchParams.get("status");
+        const mode = searchParams.get("mode"); // 'export' or null
         
-        let fetchLimit = limitParam === "all" ? 1000 : parseInt(limitParam, 10);
+        let fetchLimit = limitParam === "all" ? undefined : parseInt(limitParam, 10);
 
-        // 3. Fetch Exchange Rate
         let exchangeRate = 83.50;
         const rateDoc = await mongoose.connection.collection('settings').findOne({ key: 'usd_to_inr' });
-        if (rateDoc && rateDoc.value) {
-            exchangeRate = parseFloat(rateDoc.value);
-        }
+        if (rateDoc && rateDoc.value) exchangeRate = parseFloat(rateDoc.value);
 
         const accountSid = process.env.TWILIO_ACCOUNT_SID;
         const authToken = process.env.TWILIO_AUTH_TOKEN;
 
-        // 4. Fetch Account Balance
-        const authHeader = `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`;
-        const balanceRes = await fetch(
-            `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Balance.json`,
-            { headers: { Authorization: authHeader } }
-        );
-        const balanceData = await balanceRes.json();
+        // Fetch Account Balance (Only needed for standard JSON view)
+        let balanceData = { balance: "0.00", currency: "USD" };
+        if (mode !== 'export') {
+            const authHeader = `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`;
+            const balanceRes = await fetch(
+                `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Balance.json`,
+                { headers: { Authorization: authHeader } }
+            );
+            balanceData = await balanceRes.json();
+        }
 
-        // 5. Fetch Message Logs with Server-Side Filtering
         const client = twilio(accountSid, authToken);
-        const fetchOptions = { limit: fetchLimit };
+        const fetchOptions = {};
+        if (fetchLimit) fetchOptions.limit = fetchLimit;
 
-        // 👇 FIX: Use exact Date/Time objects passed from the client
         if (startDate) fetchOptions.dateSentAfter = new Date(startDate);
-        if (endDate) fetchOptions.dateSentBefore = new Date(endDate);
+        if (endDate) {
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            fetchOptions.dateSentBefore = end;
+        }
         if (status && status !== 'all') fetchOptions.status = status;
 
         const messages = await client.messages.list(fetchOptions);
 
-        // 6. Compute Enterprise Metrics
         let delivered = 0, failed = 0, inbound = 0, outbound = 0, media = 0;
         let totalCost = 0;
 
-        const formattedMessages = messages.map(msg => {
+        let formattedMessages = messages.map(msg => {
             const numMedia = Number(msg.numMedia || 0);
             const price = Math.abs(Number(msg.price || 0));
             const msgStatus = msg.status?.toLowerCase();
@@ -83,18 +84,59 @@ export async function GET(req) {
                 body: msg.body || "",
                 numMedia: numMedia,
                 status: msg.status,
-                price: msg.price || "0.00",
-                errorMessage: msg.errorMessage
+                price: price.toFixed(4),
+                errorMessage: msg.errorMessage || ""
             };
         });
 
+        // ─── ENTERPRISE DIRECT CSV EXPORT MODE ───
+        if (mode === "export") {
+            const search = searchParams.get("search")?.toLowerCase() || "";
+            const directionFilter = searchParams.get("direction") || "all";
+            const mediaOnly = searchParams.get("mediaOnly") === "true";
+            const failedOnly = searchParams.get("failedOnly") === "true";
+
+            // Apply Client-Side filters on Server before exporting
+            formattedMessages = formattedMessages.filter(msg => {
+                if (search) {
+                    const toMatch = msg.to?.toLowerCase().includes(search);
+                    const fromMatch = msg.from?.toLowerCase().includes(search);
+                    const bodyMatch = msg.body?.toLowerCase().includes(search);
+                    const sidMatch = msg.id?.toLowerCase().includes(search);
+                    if (!toMatch && !fromMatch && !bodyMatch && !sidMatch) return false;
+                }
+                if (directionFilter !== "all") {
+                    const isOut = msg.direction?.includes('outbound');
+                    if (directionFilter === "outbound" && !isOut) return false;
+                    if (directionFilter === "inbound" && isOut) return false;
+                }
+                if (mediaOnly && msg.numMedia === 0) return false;
+                if (failedOnly && !['failed', 'undelivered'].includes(msg.status?.toLowerCase())) return false;
+                return true;
+            });
+
+            const headers = ["SID", "Timestamp", "Direction", "From", "To", "Message Content", "Status", "Cost (USD)", "Cost (INR)", "Media Count", "Error Message"];
+            const csvRows = formattedMessages.map(msg => {
+                const costUsd = Number(msg.price);
+                const costInr = (costUsd * exchangeRate).toFixed(4);
+                const body = `"${msg.body.replace(/"/g, '""')}"`;
+                const errorMsg = `"${msg.errorMessage.replace(/"/g, '""')}"`;
+                return `"${msg.id}","${msg.dateSent}","${msg.direction}","${msg.from}","${msg.to}",${body},"${msg.status}","${costUsd}","${costInr}","${msg.numMedia}",${errorMsg}`;
+            });
+
+            const csvContent = [headers.join(","), ...csvRows].join("\n");
+            
+            return new NextResponse(csvContent, {
+                headers: {
+                    'Content-Type': 'text/csv',
+                    'Content-Disposition': 'attachment; filename="enterprise_twilio_logs.csv"'
+                }
+            });
+        }
+
+        // ─── STANDARD JSON MODE ───
         const analytics = {
-            total: formattedMessages.length,
-            delivered,
-            failed,
-            inbound,
-            outbound,
-            media,
+            total: formattedMessages.length, delivered, failed, inbound, outbound, media,
             totalCostUsd: totalCost.toFixed(4),
             totalCostInr: (totalCost * exchangeRate).toFixed(2),
             deliveryRate: formattedMessages.length > 0 ? ((delivered / formattedMessages.length) * 100).toFixed(1) : 0

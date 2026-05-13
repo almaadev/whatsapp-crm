@@ -20,18 +20,16 @@ export async function GET(req) {
         const startDate = searchParams.get("startDate");
         const endDate = searchParams.get("endDate");
         const status = searchParams.get("status");
+        const mode = searchParams.get("mode"); // 'export' or null
+        
+        let fetchLimit = limitParam === "all" ? undefined : parseInt(limitParam, 10);
 
         const accountSid = process.env.TWILIO_ACCOUNT_SID;
         const authToken = process.env.TWILIO_AUTH_TOKEN;
         const client = twilio(accountSid, authToken);
 
-        // Start with empty options
         const fetchOptions = {};
-
-        // 👇 FIX: Only apply the limit if it is NOT "all"
-        if (limitParam !== "all") {
-            fetchOptions.limit = parseInt(limitParam, 10);
-        }
+        if (fetchLimit) fetchOptions.limit = fetchLimit;
 
         if (startDate) fetchOptions.dateSentAfter = new Date(startDate);
         if (endDate) {
@@ -41,12 +39,11 @@ export async function GET(req) {
         }
         if (status && status !== 'all') fetchOptions.status = status;
 
-        // Twilio will automatically fetch ALL records if fetchOptions.limit is undefined
         const messages = await client.messages.list(fetchOptions);
 
         let delivered = 0, failed = 0, inbound = 0, outbound = 0, media = 0;
 
-        const formattedMessages = messages.map(msg => {
+        let formattedMessages = messages.map(msg => {
             const numMedia = Number(msg.numMedia || 0);
             const msgStatus = msg.status?.toLowerCase() || "";
             const isOutbound = msg.direction.includes('outbound');
@@ -65,10 +62,55 @@ export async function GET(req) {
                 body: msg.body || "",
                 numMedia: numMedia,
                 status: msg.status,
-                errorMessage: msg.errorMessage || null
+                errorMessage: msg.errorMessage || ""
             };
         });
 
+        // ─── ENTERPRISE DIRECT CSV EXPORT MODE ───
+        if (mode === "export") {
+            const search = searchParams.get("search")?.toLowerCase() || "";
+            const directionFilter = searchParams.get("direction") || "all";
+            const mediaOnly = searchParams.get("mediaOnly") === "true";
+            const failedOnly = searchParams.get("failedOnly") === "true";
+
+            // Apply Client-Side equivalent filters on Server before exporting
+            formattedMessages = formattedMessages.filter(msg => {
+                if (search) {
+                    const toMatch = msg.to?.toLowerCase().includes(search);
+                    const fromMatch = msg.from?.toLowerCase().includes(search);
+                    const bodyMatch = msg.body?.toLowerCase().includes(search);
+                    const sidMatch = msg.id?.toLowerCase().includes(search);
+                    if (!toMatch && !fromMatch && !bodyMatch && !sidMatch) return false;
+                }
+                if (directionFilter !== "all") {
+                    const isOut = msg.direction?.includes('outbound');
+                    if (directionFilter === "outbound" && !isOut) return false;
+                    if (directionFilter === "inbound" && isOut) return false;
+                }
+                if (mediaOnly && msg.numMedia === 0) return false;
+                if (failedOnly && !['failed', 'undelivered'].includes(msg.status?.toLowerCase())) return false;
+                return true;
+            });
+
+            // NO PRICING FIELDS for this generic log interface
+            const headers = ["SID", "Timestamp", "Direction", "From", "To", "Message Content", "Status", "Media Count", "Error Message"];
+            const csvRows = formattedMessages.map(msg => {
+                const body = `"${msg.body.replace(/"/g, '""')}"`;
+                const errorMsg = `"${msg.errorMessage.replace(/"/g, '""')}"`;
+                return `"${msg.id}","${msg.dateSent}","${msg.direction}","${msg.from}","${msg.to}",${body},"${msg.status}","${msg.numMedia}",${errorMsg}`;
+            });
+
+            const csvContent = [headers.join(","), ...csvRows].join("\n");
+            
+            return new NextResponse(csvContent, {
+                headers: {
+                    'Content-Type': 'text/csv',
+                    'Content-Disposition': 'attachment; filename="enterprise_message_archive.csv"'
+                }
+            });
+        }
+
+        // ─── STANDARD JSON MODE ───
         const analytics = {
             total: formattedMessages.length,
             delivered,
