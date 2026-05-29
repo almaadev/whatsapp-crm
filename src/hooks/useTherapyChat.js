@@ -15,10 +15,12 @@ export const useTherapyChat = () => {
     const addMessage = useTherapyChatStore(s => s.addMessage);
     const updateChatDetails = useTherapyChatStore(s => s.updateChatDetails);
 
-    const fetchChats = useCallback(async (showLoading = true) => {
+    // ✅ FIXED: Added 'search' parameter
+    const fetchChats = useCallback(async (search = "", showLoading = true) => {
         if (showLoading) setLoading(true);
         try {
-            const data = await categoryChatService.getChats(category);
+            // ✅ FIXED: Passing 'search' to the API service
+            const data = await categoryChatService.getChats(category, search);
             setMessages(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error(error);
@@ -38,7 +40,7 @@ export const useTherapyChat = () => {
 
         try {
             await categoryChatService.sendMessage(category, phone, messageText);
-            await fetchChats(false);
+            await fetchChats("", false); // Reset search when refreshing after send
             return true;
         } catch (error) {
             toast.error("Error sending message");
@@ -53,7 +55,7 @@ export const useTherapyChat = () => {
         try {
             await categoryChatService.updateStatus(category, phone, status);
             toast.success(`Status updated to ${status}`);
-            await fetchChats(false);
+            await fetchChats("", false);
             return true;
         } catch (err) {
             toast.error("Failed to update status");

@@ -31,7 +31,7 @@ const LifecycleBadge = ({ state }) => {
         slate: "bg-slate-100 text-slate-600 border-slate-200",
     }[cfg.color];
     return (
-        <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border ${cls} whitespace-nowrap`}>
+        <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1  ${cls} whitespace-nowrap`}>
             {cfg.icon} {state}
         </span>
     );
@@ -349,7 +349,7 @@ function LeadIntelligenceRecord({ lead, handleCustomerRedirect, handleCopyPhone,
     // Ownership Intelligence Resolution
     let ownershipTransitionText = null;
     if (isClosed) {
-        ownershipTransitionText = (closedBy && closedBy !== firstHandler) ? `Closed by ${closedBy}` : "Closed";
+        ownershipTransitionText = (closedBy && closedBy !== firstHandler) ? `Closed by ${closedBy}` : "Automatically Closed";
     }
 
     const lastActivityDate = latestFollowUp.date ? new Date(latestFollowUp.date) : new Date(lead.createdAt);
@@ -390,8 +390,8 @@ function LeadIntelligenceRecord({ lead, handleCustomerRedirect, handleCopyPhone,
                     <div className="flex items-center gap-2">
                         <LifecycleBadge state={leadLifecycleState} />
                         {isClosed && (
-                            <span className="text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap">
-                                <CheckCircle2 size={10} /> {ownershipTransitionText}
+                            <span className="text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1 whitespace-nowrap">
+                                {ownershipTransitionText}
                             </span>
                         )}
                     </div>
@@ -413,15 +413,16 @@ function LeadIntelligenceRecord({ lead, handleCustomerRedirect, handleCopyPhone,
                     <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">
                         <Tag size={10} /> {leadType}
                     </div>
-                </div>
-
-                {/* Sales Attribution Snippet (If Deal Closed) */}
+                                    {/* Sales Attribution Snippet (If Deal Closed) */}
                 {isClosed && revenueAttribution > 0 && (
                     <div className="absolute top-4 right-4 lg:relative lg:top-0 lg:right-0 bg-gradient-to-r from-emerald-500 to-[#00a884] text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm">
                         <TrendingUp size={14} />
                         <span className="text-xs font-bold">₹{revenueAttribution.toLocaleString()}</span>
                     </div>
                 )}
+                </div>
+
+
 
                 {/* Expansion Chevron */}
                 <div className="absolute bottom-4 right-4 lg:relative lg:bottom-0 lg:right-0 text-slate-400 p-1.5 hover:bg-slate-100 rounded-full transition-colors">

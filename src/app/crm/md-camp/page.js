@@ -62,6 +62,11 @@ function MDCampContent() {
   const { fetchChats, sendMessage, updateStatus, loading, sending } = useMDCampChat();
 
   const [replyText, setReplyText] = useState("");
+  
+  // --- Added Search States ---
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
   const messagesEndRef = useRef(null);
   const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
   const statusMenuRef = useRef(null);
@@ -77,6 +82,35 @@ function MDCampContent() {
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   useEffect(() => { scrollToBottom(); }, [selectedChat?.history]);
+
+  // --- Added Debounce Logic for Search ---
+  useEffect(() => {
+    const handler = setTimeout(() => {
+        setDebouncedSearch(searchTerm);
+    }, 500); // 500ms delay
+
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  // --- Trigger fetchChats when debouncedSearch changes ---
+  useEffect(() => {
+    if (isAuthorized) {
+        fetchChats(debouncedSearch, true);
+    }
+  }, [debouncedSearch, isAuthorized, fetchChats]);
+
+  // --- Socket Sync Logic ---
+  useEffect(() => {
+      if (isAuthorized) {
+          // Initial fetch is handled by the debouncedSearch effect above
+          const socketUrl = process.env.NODE_ENV === "production" ? "https://crm.almaaerp.in" : undefined;
+          const socket = io(socketUrl, { path: "/socket.io/", transports: ["websocket", "polling"] });
+          // Pass debouncedSearch to maintain search filters during live socket updates
+          socket.on("new_mdcamp_message", () => fetchChats(debouncedSearch, false));
+          socket.on("message_status_update", () => fetchChats(debouncedSearch, false));
+          return () => socket.disconnect();
+      }
+  }, [isAuthorized, fetchChats, debouncedSearch]);
 
   useEffect(() => {
     const phoneParam = searchParams.get("phone");
@@ -94,19 +128,6 @@ function MDCampContent() {
       return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useEffect(() => {
-      if (isAuthorized) {
-          fetchChats();
-          // 👇 FIX 1: Prevent Illegal Constructor by using undefined instead of empty string
-          const socketUrl = process.env.NODE_ENV === "production" ? "https://crm.almaaerp.in" : undefined;
-          const socket = io(socketUrl, { path: "/socket.io/", transports: ["websocket", "polling"] });
-          socket.on("new_mdcamp_message", () => fetchChats(false));
-          socket.on("message_status_update", () => fetchChats(false));
-          return () => socket.disconnect();
-      }
-  }, [isAuthorized, fetchChats]);
-
-  // 👇 FIX 2: Safe Array Access without `.at(-1)`
   const lastMessage = selectedChat?.history?.length > 0 ? selectedChat.history[selectedChat.history.length - 1] : null;
   const IsChatClosed = lastMessage ? !!lastMessage.isChatClosed : false;
 
@@ -184,7 +205,19 @@ function MDCampContent() {
                 <div className="bg-[#f0f2f5] px-4 py-3 flex items-center justify-between border-b border-slate-200 h-[60px] shrink-0">
                     <div className="flex items-center gap-3"><div className="w-10 h-10 bg-amber-600 rounded-full flex items-center justify-center text-white shadow-sm shrink-0"><Tent size={20}/></div><h2 className="font-bold text-[#111b21] text-[16px]">MD Camp Leads</h2></div>
                 </div>
-                <div className="p-2 border-b border-slate-200 bg-white"><div className="bg-[#f0f2f5] rounded-lg flex items-center px-3 py-1.5 gap-3"><Search size={18} className="text-[#54656f]" /><input type="text" placeholder="Search leads..." className="bg-transparent border-none outline-none text-sm w-full py-1 text-[#111b21] placeholder:text-[#54656f]" /></div></div>
+                <div className="p-2 border-b border-slate-200 bg-white">
+                    <div className="bg-[#f0f2f5] rounded-lg flex items-center px-3 py-1.5 gap-3">
+                        <Search size={18} className="text-[#54656f]" />
+                        {/* --- Added Search Input Control --- */}
+                        <input 
+                            type="text" 
+                            placeholder="Search leads (Server-side)..." 
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="bg-transparent border-none outline-none text-sm w-full py-1 text-[#111b21] placeholder:text-[#54656f]" 
+                        />
+                    </div>
+                </div>
                 <div className="flex-1 overflow-y-auto bg-white custom-scrollbar">
                     {loading ? <p className="text-center text-slate-400 mt-10 text-sm">Loading chats...</p> : 
                         messages?.map(chat => {

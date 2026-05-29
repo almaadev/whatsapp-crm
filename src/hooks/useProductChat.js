@@ -15,12 +15,12 @@ export const useProductChat = () => {
     const addMessage = useProductChatStore(s => s.addMessage);
     const updateChatDetails = useProductChatStore(s => s.updateChatDetails);
 
-    const fetchChats = useCallback(async (showLoading = true) => {
+    // Accept search string parameter
+    const fetchChats = useCallback(async (search = "", showLoading = true) => {
         if (showLoading) setLoading(true);
         try {
-            const data = await categoryChatService.getChats(category);
+            const data = await categoryChatService.getChats(category, search);
             setMessages(Array.isArray(data) ? data : []);
-            
         } catch (error) {
             console.error(error);
             toast.error("Failed to load Product chats");
@@ -39,7 +39,7 @@ export const useProductChat = () => {
 
         try {
             await categoryChatService.sendMessage(category, phone, messageText);
-            await fetchChats(false);
+            await fetchChats("", false); // Can leave empty to reset or pass current state if tracked globally
             return true;
         } catch (error) {
             toast.error("Error sending message");
@@ -54,7 +54,7 @@ export const useProductChat = () => {
         try {
             await categoryChatService.updateStatus(category, phone, status);
             toast.success(`Status updated to ${status}`);
-            await fetchChats(false);
+            await fetchChats("", false);
             return true;
         } catch (err) {
             toast.error("Failed to update status");

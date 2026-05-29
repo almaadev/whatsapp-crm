@@ -26,7 +26,7 @@ export default function CustomerDetailPage({ params }) {
     const [isEditing, setIsEditing] = useState(false);
     const [saving, setSaving] = useState(false);
     const [copied, setCopied] = useState(false);
-
+    console.log(customer);
     const [formData, setFormData] = useState({
         name: "", city: "", address: "", associate: "", source: "",
         enquiredFor: "", status: "New", saleAmount: "", remarks: ""
