@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
@@ -9,8 +9,11 @@ import { io } from "socket.io-client";
 import { useMDCampChatStore } from "@/store/mdcampChatStore";
 import { useMDCampChat } from "@/hooks/useMDCampChat";
 import CustomerInfoPanel from "@/components/features/chat/CustomerInfoPanel";
-import { Tent, ShieldAlert, Menu, Send, User, ChevronLeft, Check, CheckCheck, Clock, X, MapPin, FileText, Search, Info, ToggleLeft, ToggleRight, Lock } from "lucide-react";
+import { Tent, ShieldAlert, Menu, User, Check, CheckCheck, Clock, X, FileText, Search, Lock } from "lucide-react";
+// Import extracted components
+import { LeadChatHeader, LeadChatInput } from "@/components/features/chat/LeadChatModal"; 
 
+// ... formatSafeTime, renderMedia, getDisplayMessage remain exactly same ...
 const formatSafeTime = (timeStr) => {
     if (!timeStr) return '';
     try {
@@ -62,8 +65,6 @@ function MDCampContent() {
   const { fetchChats, sendMessage, updateStatus, loading, sending } = useMDCampChat();
 
   const [replyText, setReplyText] = useState("");
-  
-  // --- Added Search States ---
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -83,29 +84,21 @@ function MDCampContent() {
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   useEffect(() => { scrollToBottom(); }, [selectedChat?.history]);
 
-  // --- Added Debounce Logic for Search ---
   useEffect(() => {
     const handler = setTimeout(() => {
         setDebouncedSearch(searchTerm);
-    }, 500); // 500ms delay
-
+    }, 500);
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
-  // --- Trigger fetchChats when debouncedSearch changes ---
   useEffect(() => {
-    if (isAuthorized) {
-        fetchChats(debouncedSearch, true);
-    }
+    if (isAuthorized) fetchChats(debouncedSearch, true);
   }, [debouncedSearch, isAuthorized, fetchChats]);
 
-  // --- Socket Sync Logic ---
   useEffect(() => {
       if (isAuthorized) {
-          // Initial fetch is handled by the debouncedSearch effect above
           const socketUrl = process.env.NODE_ENV === "production" ? "https://crm.almaaerp.in" : undefined;
           const socket = io(socketUrl, { path: "/socket.io/", transports: ["websocket", "polling"] });
-          // Pass debouncedSearch to maintain search filters during live socket updates
           socket.on("new_mdcamp_message", () => fetchChats(debouncedSearch, false));
           socket.on("message_status_update", () => fetchChats(debouncedSearch, false));
           return () => socket.disconnect();
@@ -128,12 +121,50 @@ function MDCampContent() {
       return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const handleSendTemplate = useCallback(async (template) => {
+        if (!selectedChat) return;
+
+        // Optimistic UI Update
+        const tempId = `temp-${Date.now()}`;
+        const tempMsg = { 
+            tempId, 
+            message: `Template: ${template.name}`, 
+            direction: "OUTBOUND", 
+            status: "SENT", 
+            createdAt: new Date().toISOString(), 
+            phone: selectedChat.phone,
+            isTemplate: true,
+            templateSid: template.sid
+        };
+        // Note: Make sure addMessage is exported from useProductChatStore
+        // useProductChatStore.getState().addMessage(tempMsg); 
+
+        try {
+            const res = await fetch('/api/messages/send-template', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    phone: selectedChat.phone,
+                    templateSid: template.sid,
+                    chatType: "Product Lead",
+                    associateName: session?.user?.name
+                })
+            });
+
+            if (!res.ok) throw new Error("Template failed");
+            // Refresh chats after send
+            fetchChats("", false);
+            setTimeout(scrollToBottom, 50);
+        } catch (error) {
+            toast.error("Failed to send template.");
+        }
+    }, [selectedChat, session, fetchChats]);
+
   const lastMessage = selectedChat?.history?.length > 0 ? selectedChat.history[selectedChat.history.length - 1] : null;
   const IsChatClosed = lastMessage ? !!lastMessage.isChatClosed : false;
 
   const handleToggleChatStatus = async () => {
       if (!selectedChat || isToggling || !selectedChat.history?.length) return;
-      
       setIsToggling(true);
       const newClosedState = !IsChatClosed;
 
@@ -147,12 +178,8 @@ function MDCampContent() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ phone: selectedChat.phone, isChatClosed: newClosedState, chatType: "MD Camp" })
           });
-
-          if (res.ok) {
-              toast.success(newClosedState ? "Chat Marked as Closed" : "Chat Marked as Active");
-          } else {
-              throw new Error("Failed to sync toggle");
-          }
+          if (res.ok) toast.success(newClosedState ? "Chat Marked as Closed" : "Chat Marked as Active");
+          else throw new Error("Failed to sync toggle");
       } catch (error) {
           toast.error("Failed to update Chat Control Status");
           const revertedHistory = [...selectedChat.history];
@@ -208,7 +235,6 @@ function MDCampContent() {
                 <div className="p-2 border-b border-slate-200 bg-white">
                     <div className="bg-[#f0f2f5] rounded-lg flex items-center px-3 py-1.5 gap-3">
                         <Search size={18} className="text-[#54656f]" />
-                        {/* --- Added Search Input Control --- */}
                         <input 
                             type="text" 
                             placeholder="Search leads (Server-side)..." 
@@ -252,37 +278,22 @@ function MDCampContent() {
                 <div className="relative z-10 h-full flex flex-col">
                     {selectedChat ? (
                         <>
-                            <div className="bg-white px-4 py-3 border-b border-slate-200 flex items-center justify-between shrink-0 shadow-sm z-10">
-                                <div className="flex items-center gap-3">
-                                    <button onClick={() => setSelectedChat(null)} className="md:hidden p-1.5 -ml-1.5 text-slate-500 hover:bg-slate-100 rounded-full"><ChevronLeft size={24}/></button>
-                                    <div className="w-10 h-10 bg-gradient-to-tr from-amber-500 to-yellow-400 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm cursor-pointer" onClick={() => setIsInfoOpen(true)}><User size={20} className="opacity-90" /></div>
-                                    <div className="flex flex-col cursor-pointer" onClick={() => setIsInfoOpen(true)}>
-                                        <h3 className="font-bold text-slate-800 text-[15px] leading-tight">{selectedChat?.name || selectedChat?.phone}</h3>
-                                        <p className="text-[12px] text-slate-500 mt-0.5 truncate">{selectedChat?.phone}</p>
-                                    </div>
-                                    {selectedChat?.city && <div className="hidden lg:flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full border border-slate-200"><MapPin size={12}/> {selectedChat.city}</div>} 
-                                </div>
-                                
-                                <div className="flex items-center gap-2 sm:gap-3">
-                                    {selectedChat?.history?.length > 0 && (
-                                        <button onClick={handleToggleChatStatus} disabled={isToggling} className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold transition-all shadow-sm ${IsChatClosed ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}`} title={IsChatClosed ? "Mark chat as Closed" : "Mark chat as Active"}>
-                                            {isToggling ? <span className="w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"/> : (IsChatClosed ? <ToggleLeft size={16} /> : <ToggleRight size={16} />)}
-                                            <span>{IsChatClosed ? "Closed" : "Active"}</span>
-                                        </button>
-                                    )}
-                                    <div className={"flex relative" }  ref={statusMenuRef}>
-                                        <button onClick={() => setIsStatusMenuOpen(!isStatusMenuOpen)} className="flex items-center gap-1.5 bg-amber-50 text-amber-800 hover:bg-amber-100 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors shadow-sm"><FileText size={16} /><span className="hidden sm:inline">{selectedChat?.status || "New"}</span></button>
-                                        {isStatusMenuOpen && (
-                                            <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-xl border border-slate-100 py-1 z-50 animate-in fade-in zoom-in-95">
-                                                {[ "Follow Up", "Closed", "Not Interested"].map((st) => (
-                                                    <button key={st} onClick={() => handleStatusChange(st)} className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 text-slate-700 font-medium">{st}</button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <button onClick={() => setIsInfoOpen(true)} className="flex items-center justify-center p-2 text-slate-400 hover:text-amber-700 hover:bg-amber-50 rounded-full transition-all"><Info size={22} /></button>
-                                </div>
-                            </div>
+                            <LeadChatHeader 
+                                selectedChat={selectedChat}
+                                onBack={() => setSelectedChat(null)}
+                                onInfoClick={() => setIsInfoOpen(true)}
+                                showToggle={selectedChat?.history?.length > 0}
+                                isToggling={isToggling}
+                                onToggle={handleToggleChatStatus}
+                                isChatActive={!IsChatClosed}
+                                statusMenuRef={statusMenuRef}
+                                isStatusMenuOpen={isStatusMenuOpen}
+                                setIsStatusMenuOpen={setIsStatusMenuOpen}
+                                onStatusChange={handleStatusChange}
+                                themeGradient="from-amber-500 to-yellow-400"
+                                themeBadgeClasses="bg-amber-50 text-amber-800 hover:bg-amber-100"
+                                themeIconHoverClasses="hover:text-amber-700 hover:bg-amber-50"
+                            />
 
                             <div className="flex-1 overflow-y-auto p-4 md:p-6 relative z-10 custom-scrollbar flex flex-col gap-2">
                                 {selectedChat?.history?.map((msg, i) => {
@@ -306,14 +317,14 @@ function MDCampContent() {
                                 <div ref={messagesEndRef} />
                             </div>
 
-                            <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="bg-white px-4 py-3 flex items-end gap-3 shrink-0 border-t border-slate-200 z-10">
-                                <div className="flex-1 bg-slate-100 rounded-2xl flex items-end shadow-inner border border-slate-200">
-                                    <textarea value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="Type a message..." className="w-full max-h-32 bg-transparent px-4 py-3 outline-none resize-none text-[15px] text-slate-800 custom-scrollbar min-h-[44px]" rows={1} onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); handleSend(); } }} />
-                                </div>
-                                <button type="submit" disabled={!replyText.trim() || sending} className="bg-[#00a884] text-white p-3 rounded-full hover:bg-emerald-600 disabled:opacity-50 transition-all shadow-md shrink-0 mb-0.5 flex items-center justify-center w-[48px] h-[48px]">
-                                    <Send size={20} className={sending ? "opacity-50" : "ml-0.5"} />
-                                </button>
-                            </form>
+                            <LeadChatInput 
+                                replyText={replyText}
+                                setReplyText={setReplyText}
+                                handleSend={handleSend}
+                                handleSendTemplate={handleSendTemplate}
+                                isChatClosed={IsChatClosed}
+                                sending={sending}
+                            />
                         </>
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center border-b-[6px] border-amber-500">

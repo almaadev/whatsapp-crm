@@ -531,18 +531,20 @@ const ChatHeader = memo(function ChatHeader({ activeChat, userName, isChatClosed
                 </button>
 
                 <div className="relative">
-                    <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-1.5 bg-blue-50 text-blue-800 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors shadow-sm"><FileText size={16} /><span className="hidden sm:inline">{activeChat.status || "New"}</span></button>
+                    <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-1.5 bg-blue-50 text-blue-800 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors shadow-sm" title="Change Status"><FileText size={16} /><span className="hidden sm:inline">{activeChat.status || "New"}</span></button>
                     {menuOpen && (
                         <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-xl border border-slate-100 py-1 z-50 animate-in fade-in zoom-in-95">
                             {["Follow Up", "Closed", "Not Interested"].map((st) => (
-                                <button key={st} onClick={() => { onStatusChange(st); setMenuOpen(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 text-slate-700 font-medium">{st}</button>
+                                <button key={st} onClick={() => { onStatusChange(st); setMenuOpen(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 text-slate-700 font-medium" >
+                                    {st}
+                                </button>
                             ))}
                         </div>
                     )}
                 </div>
-                <button onClick={onReminder} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-full transition-colors"><Bell size={20} /></button>
-                <button onClick={onForward} className="p-2 text-slate-500 hover:bg-slate-200 rounded-full"><Share2 size={20} /></button>
-                <button onClick={onInfo} className="p-2 text-slate-500 hover:bg-slate-200 rounded-full"><Info size={20} /></button>
+                <button onClick={onReminder} className="p-2 text-indigo-500 hover:bg-indigo-200 rounded-full transition-colors" disabled={true} title="This feature is not available yet" ><Bell size={20} /></button>
+                <button onClick={onForward} className="p-2 text-slate-500 hover:bg-slate-200 rounded-full" disabled={true} title="This feature is not available yet"><Share2 size={20} /></button>
+                <button onClick={onInfo} className="p-2 text-slate-500 hover:bg-slate-200 rounded-full" title="Customer Info"><Info size={20} /></button>
             </div>
         </div>
     );
