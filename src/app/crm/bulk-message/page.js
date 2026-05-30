@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import { toast } from "react-toastify";
 import {
     Send, Hash, Loader2, CheckCircle2, AlertCircle,
-    Layers, ChevronRight, X
+    Layers, ChevronRight, X, Type
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import TemplateManagerPanel from "@/components/features/chat/Templatemanagerpanel";
+import { useTemplateStore } from "@/store/templateStore";
 
 export default function BulkTemplatePage() {
     const { data: session } = useSession();
@@ -17,26 +18,73 @@ export default function BulkTemplatePage() {
 
     // ─── Messaging state ──────────────────────────────────────────────────────
     const [numbersText, setNumbersText] = useState("");
-    const [templateId, setTemplateId] = useState("");         // internal SID — never shown in UI
-    const [selectedName, setSelectedName] = useState("");     // display label only
+    const [templateId, setTemplateId] = useState("");         // internal SID
+    const [selectedName, setSelectedName] = useState("");     // display label
+    
+    // ─── New Variable State ───────────────────────────────────────────────────
+    const { templates, fetchTemplates } = useTemplateStore();
+    const [templateVariables, setTemplateVariables] = useState({});
+    const [requiredVariablesCount, setRequiredVariablesCount] = useState(0);
+
     const [isSending, setIsSending] = useState(false);
     const [progress, setProgress] = useState({ sent: 0, total: 0, failed: 0 });
 
     // ─── Template panel state ─────────────────────────────────────────────────
     const [panelOpen, setPanelOpen] = useState(false);
 
+    // Load templates so we can analyze them for variables when selected
+    useEffect(() => {
+        fetchTemplates();
+    }, [fetchTemplates]);
+
     const handleTemplateSelect = (sid, name) => {
         setTemplateId(sid || "");
         setSelectedName(name || "");
+        
+        // Reset variables when template changes
+        setTemplateVariables({});
+        setRequiredVariablesCount(0);
+
+        if (sid) {
+            const selectedTemplate = templates.find(t => t.sid === sid || t._id === sid);
+            if (selectedTemplate && selectedTemplate.body) {
+                // Find highest variable number e.g. {{1}}, {{2}}
+                const matches = selectedTemplate.body.match(/\{\{(\d+)\}\}/g);
+                if (matches) {
+                    let highestVar = 0;
+                    matches.forEach(match => {
+                        const num = parseInt(match.replace(/[{}]/g, ''));
+                        if (num > highestVar) highestVar = num;
+                    });
+                    setRequiredVariablesCount(highestVar);
+                }
+            }
+        }
     };
 
-    // ─── Bulk send (unchanged logic) ──────────────────────────────────────────
+    const handleVariableChange = (index, value) => {
+        setTemplateVariables(prev => ({
+            ...prev,
+            [index.toString()]: value
+        }));
+    };
+
+    // ─── Bulk send logic ──────────────────────────────────────────────────────
     const handleBulkSend = async () => {
         const extracted = numbersText.match(/\d{10,15}/g) || [];
         const uniqueNumbers = [...new Set(extracted)];
 
         if (!uniqueNumbers.length || !templateId) {
             return toast.error("Please enter numbers and select a Template");
+        }
+
+        // Validate variables
+        if (requiredVariablesCount > 0) {
+            for (let i = 1; i <= requiredVariablesCount; i++) {
+                if (!templateVariables[i.toString()] || templateVariables[i.toString()].trim() === "") {
+                    return toast.error(`Please fill in Variable {{${i}}}`);
+                }
+            }
         }
 
         setIsSending(true);
@@ -49,7 +97,11 @@ export default function BulkTemplatePage() {
                 const res = await fetch("/api/bulk-message", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ numbers: batch, templateId }),
+                    body: JSON.stringify({ 
+                        numbers: batch, 
+                        templateId,
+                        contentVariables: Object.keys(templateVariables).length > 0 ? templateVariables : null
+                    }),
                 });
                 const data = await res.json();
                 setProgress(prev => ({
@@ -136,58 +188,89 @@ export default function BulkTemplatePage() {
                         <div className="lg:col-span-5 flex flex-col gap-6">
 
                             {/* Template Selector Card */}
-                            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                                <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-600 mb-4">
+                            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                                <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-600 bg-slate-50/50">
                                     <Layers size={16} className="text-[#00a884]" />
                                     Message Template
                                 </div>
 
-                                <div className="flex items-center gap-3">
-                                    {/* Selected chip / placeholder */}
-                                    <div
-                                        className={`flex-1 min-w-0 flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
-                                            templateId 
-                                                ? "bg-emerald-50 border-emerald-200 hover:bg-emerald-100/80 hover:border-emerald-300" 
-                                                : "bg-slate-50 border-dashed border-slate-300 hover:bg-slate-100 hover:border-slate-400"
-                                        }`}
-                                        onClick={() => setPanelOpen(true)}
-                                        title={templateId ? "Change template" : "Open template library"}
-                                    >
-                                        {templateId ? (
-                                            <>
-                                                <div className="w-8 h-8 rounded-lg flex-shrink-0 bg-emerald-100 border border-emerald-200 flex items-center justify-center">
-                                                    <Layers size={14} className="text-emerald-600" />
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="text-sm font-bold text-emerald-800 truncate">{selectedName}</div>
-                                                    <div className="text-[10px] font-mono text-emerald-600/70 mt-0.5">Template selected</div>
-                                                </div>
-                                                <button
-                                                    className="p-1 text-emerald-500 hover:text-red-500 transition-colors flex-shrink-0 bg-transparent border-none cursor-pointer"
-                                                    onClick={e => { e.stopPropagation(); handleTemplateSelect(null, null); }}
-                                                    title="Clear selection"
-                                                >
-                                                    <X size={16} />
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <div className="flex-1 text-sm font-semibold text-slate-500 px-2">
-                                                    No template selected
-                                                </div>
-                                                <ChevronRight size={16} className="text-slate-400" />
-                                            </>
-                                        )}
+                                <div className="p-6 flex flex-col gap-4">
+                                    <div className="flex items-center gap-3">
+                                        {/* Selected chip / placeholder */}
+                                        <div
+                                            className={`flex-1 min-w-0 flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
+                                                templateId 
+                                                    ? "bg-emerald-50 border-emerald-200 hover:bg-emerald-100/80 hover:border-emerald-300" 
+                                                    : "bg-slate-50 border-dashed border-slate-300 hover:bg-slate-100 hover:border-slate-400"
+                                            }`}
+                                            onClick={() => setPanelOpen(true)}
+                                            title={templateId ? "Change template" : "Open template library"}
+                                        >
+                                            {templateId ? (
+                                                <>
+                                                    <div className="w-8 h-8 rounded-lg flex-shrink-0 bg-emerald-100 border border-emerald-200 flex items-center justify-center">
+                                                        <Layers size={14} className="text-emerald-600" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="text-sm font-bold text-emerald-800 truncate">{selectedName}</div>
+                                                        <div className="text-[10px] font-mono text-emerald-600/70 mt-0.5">Template selected</div>
+                                                    </div>
+                                                    <button
+                                                        className="p-1 text-emerald-500 hover:text-red-500 transition-colors flex-shrink-0 bg-transparent border-none cursor-pointer"
+                                                        onClick={e => { e.stopPropagation(); handleTemplateSelect(null, null); }}
+                                                        title="Clear selection"
+                                                    >
+                                                        <X size={16} />
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className="flex-1 text-sm font-semibold text-slate-500 px-2">
+                                                        No template selected
+                                                    </div>
+                                                    <ChevronRight size={16} className="text-slate-400" />
+                                                </>
+                                            )}
+                                        </div>
+
+                                        {/* Open library button */}
+                                        <button 
+                                            className="flex items-center gap-2 px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-xs font-bold transition-colors hover:bg-slate-100 flex-shrink-0"
+                                            onClick={() => setPanelOpen(true)}
+                                        >
+                                            <Layers size={14} />
+                                            Library
+                                        </button>
                                     </div>
 
-                                    {/* Open library button */}
-                                    <button 
-                                        className="flex items-center gap-2 px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-xs font-bold transition-colors hover:bg-slate-100 flex-shrink-0"
-                                        onClick={() => setPanelOpen(true)}
-                                    >
-                                        <Layers size={14} />
-                                        Library
-                                    </button>
+                                    {/* --- Variable Input Area --- */}
+                                    {requiredVariablesCount > 0 && (
+                                        <div className="mt-2 bg-slate-50 border border-slate-200 rounded-xl p-4 animate-in fade-in slide-in-from-top-2">
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <Type size={14} className="text-blue-500" />
+                                                <span className="text-xs font-bold uppercase tracking-wider text-slate-600">Template Variables</span>
+                                            </div>
+                                            <div className="space-y-3">
+                                                {Array.from({ length: requiredVariablesCount }, (_, i) => i + 1).map(num => (
+                                                    <div key={num} className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-lg bg-blue-100 border border-blue-200 text-blue-700 font-mono text-xs font-bold flex items-center justify-center shrink-0">
+                                                            {'{'}{num}{'}'}
+                                                        </div>
+                                                        <input 
+                                                            type="text"
+                                                            value={templateVariables[num.toString()] || ""}
+                                                            onChange={(e) => handleVariableChange(num, e.target.value)}
+                                                            placeholder={`Value for variable ${num}...`}
+                                                            className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                                                        />
+                                                    </div>
+                                                ))}
+                                                <p className="text-[10px] text-slate-500 leading-tight">
+                                                    Note: These variables will be identical for every recipient in this bulk broadcast.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

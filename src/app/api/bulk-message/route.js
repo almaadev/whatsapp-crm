@@ -1,62 +1,83 @@
 import { NextResponse } from "next/server";
 import twilio from "twilio";
+import BulkMessage from "@/models/BulkMessage";
+import connectDB from "@/lib/mongodb";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-const twilioNumber = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER;
-
-// Bulk messages anuppum pothu API rate limit avoid panna oru small delay function
-const delay = (ms) => new Promise(res => setTimeout(res, ms));
 
 export async function POST(req) {
     try {
-        const { numbers, templateId, variables } = await req.json();
+        const session = await getServerSession(authOptions);
+        if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-        if (!numbers || !templateId) {
-            return NextResponse.json({ error: "Missing numbers or templateId" }, { status: 400 });
+        await connectDB();
+        
+        // Extract contentVariables from the body
+        const { numbers, templateId, contentVariables } = await req.json();
+
+        if (!numbers || !Array.isArray(numbers) || numbers.length === 0) {
+            return NextResponse.json({ error: "Invalid or empty phone numbers array." }, { status: 400 });
+        }
+        if (!templateId) {
+            return NextResponse.json({ error: "Template ID (SID) is required." }, { status: 400 });
         }
 
-        const formattedNumbers = numbers.map(num => {
-            let cleaned = num.toString().replace(/\D/g, '');
-            if (cleaned.length === 10) cleaned = '91' + cleaned;
-            return `whatsapp:+${cleaned}`;
+        const twilioPhoneNumber = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER || "whatsapp:+14155238886";
+        let successCount = 0;
+        let failedCount = 0;
+
+        const bulkRecord = await BulkMessage.create({
+            templateId,
+            totalRecipients: numbers.length,
+            sentBy: session.user.name || session.user.email,
+            status: "IN_PROGRESS"
         });
 
-        const results = [];
-        const chunkSize = 20; // Oru nerathukku 20 messages mattum anuppum batch size
+        for (const rawPhone of numbers) {
+            const phone = rawPhone.trim();
+            if (!phone) continue;
 
-        for (let i = 0; i < formattedNumbers.length; i += chunkSize) {
-            const chunk = formattedNumbers.slice(i, i + chunkSize);
-            
-            const chunkResults = await Promise.allSettled(chunk.map(phone => {
-                const messageParams = {
-                    from: twilioNumber,
-                    to: phone,
-                    contentSid: templateId,
-                };
-                
-                // 👇 FIX: Variables irunthaal mattum attach pannanum, illaiyel omit pannanum
-                if (variables && Object.keys(variables).length > 0) {
-                    messageParams.contentVariables = JSON.stringify(variables);
-                }
+            const formattedTo = phone.startsWith("whatsapp:") ? phone : `whatsapp:${phone}`;
+            const formattedFrom = twilioPhoneNumber.startsWith("whatsapp:") ? twilioPhoneNumber : `whatsapp:${twilioPhoneNumber}`;
 
-                return client.messages.create(messageParams);
-            }));
+            // Prepare the payload for Twilio Content API
+            const messagePayload = {
+                contentSid: templateId,
+                from: formattedFrom,
+                to: formattedTo,
+            };
 
-            results.push(...chunkResults);
-            
-            // Twilio API block aagama irukka, adutha chunk anuppurathukku munnadi 500ms delay
-            if (i + chunkSize < formattedNumbers.length) {
-                await delay(500); 
+            // Inject variables if they exist
+            if (contentVariables && Object.keys(contentVariables).length > 0) {
+                messagePayload.contentVariables = JSON.stringify(contentVariables);
+            }
+
+            try {
+                // Send the template message
+                await client.messages.create(messagePayload);
+                successCount++;
+            } catch (err) {
+                console.error(`Failed to send template to ${phone}:`, err.message);
+                failedCount++;
             }
         }
 
-        console.log("Bulk message results:", results);
-        const successCount = results.filter(r => r.status === 'fulfilled').length;
-        const failedCount = results.filter(r => r.status === 'rejected').length;
+        bulkRecord.successfulSends = successCount;
+        bulkRecord.failedSends = failedCount;
+        bulkRecord.status = "COMPLETED";
+        await bulkRecord.save();
 
-        return NextResponse.json({ success: true, successCount, failedCount });
+        return NextResponse.json({
+            success: true,
+            successCount,
+            failedCount,
+            total: numbers.length
+        }, { status: 200 });
+
     } catch (error) {
-        console.error("API Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error("Bulk Send Error:", error);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }
