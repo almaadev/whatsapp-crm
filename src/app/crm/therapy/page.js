@@ -121,23 +121,8 @@ function TherapyContent() {
         }
     }, [isAuthorized, fetchChats, debouncedSearch]);
 
-    const handleSendTemplate = useCallback(async (template) => {
+const handleSendTemplate = useCallback(async (template, variables) => {
         if (!selectedChat) return;
-
-        // Optimistic UI Update
-        const tempId = `temp-${Date.now()}`;
-        const tempMsg = { 
-            tempId, 
-            message: `Template: ${template.name}`, 
-            direction: "OUTBOUND", 
-            status: "SENT", 
-            createdAt: new Date().toISOString(), 
-            phone: selectedChat.phone,
-            isTemplate: true,
-            templateSid: template.sid
-        };
-        // Note: Make sure addMessage is exported from useProductChatStore
-        // useProductChatStore.getState().addMessage(tempMsg); 
 
         try {
             const res = await fetch('/api/messages/send-template', {
@@ -146,13 +131,15 @@ function TherapyContent() {
                 body: JSON.stringify({
                     phone: selectedChat.phone,
                     templateSid: template.sid,
-                    chatType: "Product Lead",
-                    associateName: session?.user?.name
+                    chatType: "MD Camp", // 🚨 NOTE: Change to "Product Lead" or "Therapy" in those pages
+                    associateName: session?.user?.name,
+                    contentVariables: variables // Dynamic Variables from Popup
                 })
             });
 
             if (!res.ok) throw new Error("Template failed");
-            // Refresh chats after send
+            
+            // Refresh chats after sending
             fetchChats("", false);
             setTimeout(scrollToBottom, 50);
         } catch (error) {
@@ -344,7 +331,7 @@ function TherapyContent() {
                                         replyText={replyText}
                                         setReplyText={setReplyText}
                                         handleSend={handleSend}
-                                        handleSendTemplate={handleSendTemplate}
+                                        onSendTemplate={handleSendTemplate}
                                         isChatClosed={isChatCurrentlyClosed}
                                         sending={sending}
                                     />

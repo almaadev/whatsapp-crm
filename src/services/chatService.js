@@ -96,11 +96,11 @@ export const chatService = {
     if (!res.ok) throw new Error("Failed to forward lead");
     return res.json();
   },
-  sendTemplateMessage: async (payload) => {
+  sendTemplateMessage: async ({ phone, templateSid, chatType, associateName, contentVariables }) => {
     const res = await fetch("/api/messages/send-template", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ phone, templateSid, chatType, associateName, contentVariables })
     });
     if (!res.ok) {
       const err = await res.json();

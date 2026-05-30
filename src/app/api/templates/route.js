@@ -16,7 +16,6 @@ export async function GET(req) {
         let allContents = [];
         let nextPageUrl = `https://content.twilio.com/v1/Content`;
 
-        // 1. Fetch ALL pages of templates from Twilio Content API
         while (nextPageUrl) {
             const twilioRes = await fetch(nextPageUrl, {
                 method: 'GET',
@@ -29,12 +28,10 @@ export async function GET(req) {
             nextPageUrl = twilioData.meta?.next_page_url || null; 
         }
 
-        // 2. PARALLEL FETCH: Get Approval Statuses for ALL templates
         const formattedTemplates = await Promise.all(
             allContents.map(async (content) => {
                 let approvalData = null;
 
-                // Hit the specific ApprovalRequests endpoint if the link exists
                 if (content.links && content.links.approval_fetch) {
                     try {
                         const approvalRes = await fetch(content.links.approval_fetch, {
@@ -49,9 +46,9 @@ export async function GET(req) {
                     }
                 }
 
-                // Extract WhatsApp specific details
+                // 🚨 FIX: Use content.approval_status as live fallback instead of hardcoded "draft"
                 let waData = {
-                    status: "draft",
+                    status: content.approval_status || "draft",
                     category: "UTILITY",
                     rejection_reason: "",
                     name: content.friendly_name
@@ -59,7 +56,7 @@ export async function GET(req) {
 
                 if (approvalData && approvalData.whatsapp) {
                     waData = {
-                        status: approvalData.whatsapp.status || "draft",
+                        status: approvalData.whatsapp.status || content.approval_status || "draft",
                         category: approvalData.whatsapp.category || "UTILITY",
                         rejection_reason: approvalData.whatsapp.rejection_reason || "",
                         content_type: approvalData.whatsapp.content_type || "",
@@ -68,14 +65,13 @@ export async function GET(req) {
                     };
                 }
 
-                // Determine Format
                 const types = content.types || {};
                 let tType = "TEXT";
                 if (types["whatsapp/card"]) tType = "WHATSAPP_CARD";
                 else if (types["twilio/call-to-action"] || types["twilio/quick-reply"]) tType = "CALL_TO_ACTION";
 
-                let bodyText = "Content synced from Twilio";
                 const typeKey = Object.keys(types)[0];
+                let bodyText = "Content synced from Twilio";
                 let headerType = "NONE";
                 let headerText = "";
                 let mediaUrl = "";
@@ -107,7 +103,7 @@ export async function GET(req) {
                 }
 
                 return {
-                    _id: content.sid, // Use SID as React key
+                    _id: content.sid,
                     sid: content.sid,
                     name: content.friendly_name || "Unnamed Template",
                     language: content.language || "en",
@@ -126,7 +122,6 @@ export async function GET(req) {
         );
 
         return NextResponse.json({ success: true, data: formattedTemplates });
-
     } catch (error) {
         console.error("GET Global Twilio Templates Error:", error);
         return NextResponse.json({ success: false, error: "Server Error" }, { status: 500 });

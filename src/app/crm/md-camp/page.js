@@ -121,23 +121,8 @@ function MDCampContent() {
       return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleSendTemplate = useCallback(async (template) => {
+const handleSendTemplate = useCallback(async (template, variables) => {
         if (!selectedChat) return;
-
-        // Optimistic UI Update
-        const tempId = `temp-${Date.now()}`;
-        const tempMsg = { 
-            tempId, 
-            message: `Template: ${template.name}`, 
-            direction: "OUTBOUND", 
-            status: "SENT", 
-            createdAt: new Date().toISOString(), 
-            phone: selectedChat.phone,
-            isTemplate: true,
-            templateSid: template.sid
-        };
-        // Note: Make sure addMessage is exported from useProductChatStore
-        // useProductChatStore.getState().addMessage(tempMsg); 
 
         try {
             const res = await fetch('/api/messages/send-template', {
@@ -146,19 +131,22 @@ function MDCampContent() {
                 body: JSON.stringify({
                     phone: selectedChat.phone,
                     templateSid: template.sid,
-                    chatType: "Product Lead",
-                    associateName: session?.user?.name
+                    chatType: "MD Camp", // 🚨 NOTE: Change to "Product Lead" or "Therapy" in those pages
+                    associateName: session?.user?.name,
+                    contentVariables: variables // Dynamic Variables from Popup
                 })
             });
 
             if (!res.ok) throw new Error("Template failed");
-            // Refresh chats after send
+            
+            // Refresh chats after sending
             fetchChats("", false);
             setTimeout(scrollToBottom, 50);
         } catch (error) {
             toast.error("Failed to send template.");
         }
     }, [selectedChat, session, fetchChats]);
+
 
   const lastMessage = selectedChat?.history?.length > 0 ? selectedChat.history[selectedChat.history.length - 1] : null;
   const IsChatClosed = lastMessage ? !!lastMessage.isChatClosed : false;
@@ -197,6 +185,7 @@ function MDCampContent() {
       if (success) setTimeout(scrollToBottom, 50);
   };
 
+  
   const handleStatusChange = async (newStatus) => {
       setIsStatusMenuOpen(false);
       if (!selectedChat) return;
@@ -321,7 +310,7 @@ function MDCampContent() {
                                 replyText={replyText}
                                 setReplyText={setReplyText}
                                 handleSend={handleSend}
-                                handleSendTemplate={handleSendTemplate}
+                                onSendTemplate={handleSendTemplate}
                                 isChatClosed={IsChatClosed}
                                 sending={sending}
                             />

@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState, memo, useMemo, useCallback } from 'react';
 import { useTemplateStore } from "@/store/templateStore";
-import { ChevronLeft, User, MapPin, ToggleLeft, ToggleRight, FileText, Info, Send, Layers, Search, X, Loader2, Edit2, Trash2, Tag, Plus, Save } from "lucide-react";
+import { ChevronLeft, User, MapPin, ToggleLeft, ToggleRight, FileText, Info, Send, Layers, Search, Variable,  X, Loader2, Edit2, Trash2, Tag, Plus, Save } from "lucide-react";
 import { toast } from "react-toastify";
 
 function useDebounce(value, delay) {
@@ -89,6 +89,10 @@ export const LeadChatInput = memo(function LeadChatInput({ replyText, setReplyTe
     const textareaRef = useRef(null);
     const [showBubble, setShowBubble] = useState(false);
     const [showSidebar, setShowSidebar] = useState(false);
+    
+    // Variable Modal State
+    const [varTemplate, setVarTemplate] = useState(null);
+    const [templateVars, setTemplateVars] = useState({});
 
     useEffect(() => {
         if (textareaRef.current) {
@@ -96,6 +100,30 @@ export const LeadChatInput = memo(function LeadChatInput({ replyText, setReplyTe
             textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
         }
     }, [replyText]);
+
+    const getRequiredVariablesCount = (bodyText) => {
+        const matches = bodyText ? bodyText.match(/\{\{(\d+)\}\}/g) : null;
+        let count = 0;
+        if (matches) {
+            matches.forEach(m => {
+                const num = parseInt(m.replace(/[{}]/g, ''));
+                if (num > count) count = num;
+            });
+        }
+        return count;
+    };
+
+    const handleTemplateSelect = (tpl) => {
+        const reqCount = getRequiredVariablesCount(tpl.body);
+        if (reqCount > 0) {
+            setVarTemplate({ template: tpl, reqCount });
+            setTemplateVars({});
+            setShowBubble(false);
+        } else {
+            onSendTemplate(tpl, {});
+            setShowBubble(false);
+        }
+    };
 
     const handleKeyDown = (e) => {
         if (e.key === '/' && replyText === "") {
@@ -111,8 +139,55 @@ export const LeadChatInput = memo(function LeadChatInput({ replyText, setReplyTe
 
     return (
         <div className="relative bg-[#f0f2f5] p-3 px-4 border-t border-slate-200 flex items-end gap-3 z-20">
-            {showBubble && <TemplateBubble onSelect={onSendTemplate} onManage={() => { setShowBubble(false); setShowSidebar(true); }} onClose={() => setShowBubble(false)} />}
+            {showBubble && <TemplateBubble onSelect={handleTemplateSelect} onManage={() => { setShowBubble(false); setShowSidebar(true); }} onClose={() => setShowBubble(false)} />}
             {showSidebar && <TemplateSidebar open={showSidebar} onClose={() => setShowSidebar(false)} />}
+
+            {/* VARIABLE FILLING MODAL FOR LEADS */}
+            {varTemplate && (
+                <div className="absolute bottom-[70px] left-4 mb-2 w-[calc(100%-2rem)] max-w-sm bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-emerald-500/30 p-4 z-50 animate-in zoom-in-95">
+                    <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-2">
+                        <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-md bg-emerald-100 flex items-center justify-center text-emerald-600"><Variable size={12} /></div>
+                            <h4 className="text-sm font-bold text-slate-800">Fill Template Variables</h4>
+                        </div>
+                        <button onClick={() => setVarTemplate(null)} className="text-slate-400 hover:text-rose-500 bg-slate-50 p-1.5 rounded-md"><X size={14} /></button>
+                    </div>
+                    
+                    <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 mb-4 max-h-24 overflow-y-auto custom-scrollbar">
+                        <p className="text-[11px] text-slate-600 font-mono leading-relaxed whitespace-pre-wrap">{varTemplate.template.body}</p>
+                    </div>
+
+                    <div className="space-y-3 mb-4 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                        {Array.from({ length: varTemplate.reqCount }, (_, i) => i + 1).map(num => (
+                            <div key={num} className="flex items-center gap-3">
+                                <span className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-xs shrink-0">{`{{${num}}}`}</span>
+                                <input
+                                    type="text"
+                                    placeholder={`Enter value for {{${num}}}`}
+                                    value={templateVars[num] || ""}
+                                    onChange={e => setTemplateVars({...templateVars, [num]: e.target.value})}
+                                    className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-sm"
+                                />
+                            </div>
+                        ))}
+                    </div>
+
+                    <button
+                        onClick={() => {
+                            for(let i = 1; i <= varTemplate.reqCount; i++) {
+                                if(!templateVars[i] || templateVars[i].trim() === "") {
+                                    return toast.error(`Please enter a value for variable {{${i}}}`);
+                                }
+                            }
+                            onSendTemplate(varTemplate.template, templateVars);
+                            setVarTemplate(null);
+                        }}
+                        className="w-full py-2.5 bg-[#00a884] text-white rounded-xl text-sm font-bold shadow-md hover:bg-emerald-600 active:scale-[0.98] transition flex justify-center items-center gap-2"
+                    >
+                        <Send size={14} /> Send Message
+                    </button>
+                </div>
+            )}
 
             <div className="flex-1 bg-white border border-slate-200 rounded-2xl flex items-center px-4 py-1.5 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all shadow-sm min-h-[44px]">
                 <textarea 
