@@ -1,40 +1,124 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import Template from "@/models/Template";
 import fs from "fs";
 import path from "path";
 
 export const dynamic = "force-dynamic";
 
+// ==========================================
+// GET: Fetch ALL templates & Statuses from Twilio (No DB)
+// ==========================================
 export async function GET(req) {
     try {
-        await connectDB();
         const session = await getServerSession(authOptions);
-
-        const isSuperAdmin = session?.user?.role === 'superAdmin';
-        const isAdmin = session?.user?.department === 'admin';
-
-        if (!session || (!isSuperAdmin && !isAdmin)) {
+        if (!session || (session.user.role !== 'superAdmin' && session.user.department !== 'admin')) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
 
-        const templates = await Template.find().sort({ createdAt: -1 });
-        return NextResponse.json({ success: true, templates });
+        const accountSid = process.env.TWILIO_ACCOUNT_SID;
+        const authToken = process.env.TWILIO_AUTH_TOKEN;
+        const authHeader = `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`;
+
+        let allContents = [];
+        let nextPageUrl = `https://content.twilio.com/v1/Content`;
+
+        // 1. Fetch ALL pages of templates from Twilio Content API
+        while (nextPageUrl) {
+            const twilioRes = await fetch(nextPageUrl, {
+                method: 'GET',
+                headers: { 'Authorization': authHeader }
+            });
+
+            if (twilioRes.ok) {
+                const twilioData = await twilioRes.json();
+                allContents = allContents.concat(twilioData.contents || []);
+                nextPageUrl = twilioData.meta?.next_page_url || null; 
+            } else {
+                console.error("Failed to fetch from Twilio API");
+                break;
+            }
+        }
+
+        // 2. PARALLEL FETCH: Get Approval Statuses for ALL templates
+        const formattedTemplates = await Promise.all(
+            allContents.map(async (content) => {
+                let approvalData = null;
+
+                // Hit the specific ApprovalRequests endpoint if the link exists
+                if (content.links && content.links.approval_fetch) {
+                    try {
+                        const approvalRes = await fetch(content.links.approval_fetch, {
+                            method: 'GET',
+                            headers: { 'Authorization': authHeader }
+                        });
+                        if (approvalRes.ok) {
+                            approvalData = await approvalRes.json();
+                        }
+                    } catch (e) {
+                        console.error(`Failed to fetch approval for ${content.sid}`);
+                    }
+                }
+
+                // Extract WhatsApp specific details
+                let waData = {
+                    status: "draft",
+                    category: "UTILITY",
+                    rejection_reason: "",
+                    name: content.friendly_name
+                };
+
+                if (approvalData && approvalData.whatsapp) {
+                    waData = {
+                        status: approvalData.whatsapp.status || "draft",
+                        category: approvalData.whatsapp.category || "UTILITY",
+                        rejection_reason: approvalData.whatsapp.rejection_reason || "",
+                        content_type: approvalData.whatsapp.content_type || "",
+                        type: approvalData.whatsapp.type || "whatsapp",
+                        name: approvalData.whatsapp.name || content.friendly_name
+                    };
+                }
+
+                // Determine Format
+                const types = content.types || {};
+                let tType = "TEXT";
+                if (types["whatsapp/card"]) tType = "WHATSAPP_CARD";
+                else if (types["twilio/call-to-action"] || types["twilio/quick-reply"]) tType = "CALL_TO_ACTION";
+
+                let bodyText = "Content synced from Twilio";
+                const typeKey = Object.keys(types)[0];
+                if (typeKey && types[typeKey] && types[typeKey].body) {
+                    bodyText = types[typeKey].body;
+                }
+
+                return {
+                    _id: content.sid, // Use SID as the React Key
+                    sid: content.sid,
+                    name: content.friendly_name || "Unnamed Template",
+                    language: content.language || "en",
+                    templateType: tType,
+                    body: bodyText,
+                    dateCreated: content.date_created,
+                    dateUpdated: content.date_updated,
+                    whatsapp: waData
+                };
+            })
+        );
+
+        return NextResponse.json({ success: true, templates: formattedTemplates });
     } catch (error) {
+        console.error("GET Twilio Templates Error:", error);
         return NextResponse.json({ success: false, error: "Server Error" }, { status: 500 });
     }
 }
 
+// ==========================================
+// POST: Create a new template in Twilio (No DB)
+// ==========================================
 export async function POST(req) {
     try {
-        await connectDB();
         const session = await getServerSession(authOptions);
-        const isSuperAdmin = session?.user?.role === 'superAdmin';
-        const isAdmin = session?.user?.department === 'admin';
-
-        if (!session || (!isSuperAdmin && !isAdmin)) {
+        if (!session || (session.user.role !== 'superAdmin' && session.user.department !== 'admin')) {
             return NextResponse.json({ error: "Forbidden: Admin access required." }, { status: 403 });
         }
 
@@ -43,7 +127,7 @@ export async function POST(req) {
         const body = formData.get("body");
         const category = formData.get("category") || "UTILITY";
         const language = formData.get("language") || "en";
-        const templateType = formData.get("templateType") || "TEXT"; // TEXT, WHATSAPP_CARD, CALL_TO_ACTION
+        const templateType = formData.get("templateType") || "TEXT"; 
         const headerType = formData.get("headerType") || "NONE"; 
         const headerText = formData.get("headerText") || "";
         const footerText = formData.get("footerText") || "";
@@ -56,7 +140,6 @@ export async function POST(req) {
 
         let mediaUrl = "";
 
-        // 1. Handle Server-Side Image Upload safely (Enforcing HTTP/HTTPS)
         if (imageFile && imageFile !== 'null') {
             const buffer = Buffer.from(await imageFile.arrayBuffer());
             const fileName = `${Date.now()}_${imageFile.name.replace(/\s+/g, '_')}`;
@@ -67,28 +150,21 @@ export async function POST(req) {
             
             let baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
             if (!baseUrl) {
-                // Determine Host and Protocol dynamically (especially for Ngrok)
                 const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || "localhost:3000";
                 const protocol = req.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
                 baseUrl = `${protocol}://${host}`;
             }
             baseUrl = baseUrl.replace(/\/+$/, "");
             mediaUrl = `${baseUrl}/uploads/templates/${fileName}`;
-
-            // Absolute Failsafe: Twilio strictly requires http/https
-            if (!mediaUrl.startsWith("http")) {
-                mediaUrl = "https://" + mediaUrl;
-            }
+            if (!mediaUrl.startsWith("http")) mediaUrl = "https://" + mediaUrl;
         }
 
         const accountSid = process.env.TWILIO_ACCOUNT_SID;
         const authToken = process.env.TWILIO_AUTH_TOKEN;
         const authHeader = `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`;
 
-        // 2. Build the Dynamic Twilio Payload
         let types = {};
         
-        // Format Actions
         const formattedActions = buttons.length > 0 ? buttons.map(b => {
             const action = { type: b.type, title: b.title };
             if (b.type === 'URL') action.url = b.value;
@@ -97,33 +173,21 @@ export async function POST(req) {
             return action;
         }) : undefined;
 
-        // 👇 FIX: Use Native WhatsApp Card Format (whatsapp/card)
         if (templateType === 'WHATSAPP_CARD') {
             types["whatsapp/card"] = { body: body };
             if (footerText) types["whatsapp/card"].footer = footerText;
-            
-            // WhatsApp Cards can ONLY have either Media OR Header Text, not both.
-            if (headerType === 'MEDIA' && mediaUrl) {
-                types["whatsapp/card"].media = [mediaUrl];
-            } else if (headerType === 'TEXT' && headerText) {
-                types["whatsapp/card"].header_text = headerText;
-            }
-
+            if (headerType === 'MEDIA' && mediaUrl) types["whatsapp/card"].media = [mediaUrl];
+            else if (headerType === 'TEXT' && headerText) types["whatsapp/card"].header_text = headerText;
             if (formattedActions) types["whatsapp/card"].actions = formattedActions;
 
-        // Call to Action / Quick Reply Format
         } else if (templateType === 'CALL_TO_ACTION' || (formattedActions && formattedActions.length > 0)) {
             let finalBody = body;
             if (headerType === 'TEXT' && headerText) finalBody = `*${headerText}*\n\n${finalBody}`;
             if (footerText) finalBody = `${finalBody}\n\n_${footerText}_`;
 
-            if (buttons.some(b => b.type === 'QUICK_REPLY')) {
-                types["twilio/quick-reply"] = { body: finalBody, actions: formattedActions };
-            } else {
-                types["twilio/call-to-action"] = { body: finalBody, actions: formattedActions };
-            }
+            if (buttons.some(b => b.type === 'QUICK_REPLY')) types["twilio/quick-reply"] = { body: finalBody, actions: formattedActions };
+            else types["twilio/call-to-action"] = { body: finalBody, actions: formattedActions };
 
-        // Basic Text Format
         } else {
             let finalBody = body;
             if (headerType === 'TEXT' && headerText) finalBody = `*${headerText}*\n\n${finalBody}`;
@@ -134,7 +198,7 @@ export async function POST(req) {
         const payload = { friendly_name, language, types };
         if (Object.keys(variables).length > 0) payload.variables = variables;
 
-        // 3. Call Twilio API to Create Content Template
+        // 1. Create in Twilio Content API
         const createRes = await fetch(`https://content.twilio.com/v1/Content`, {
             method: 'POST',
             headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' },
@@ -142,12 +206,9 @@ export async function POST(req) {
         });
 
         const data = await createRes.json();
-        if (!createRes.ok) {
-            console.error("Twilio Create Error:", data);
-            return NextResponse.json({ error: data.message || "Twilio API Error" }, { status: createRes.status });
-        }
+        if (!createRes.ok) return NextResponse.json({ error: data.message || "Twilio API Error" }, { status: createRes.status });
 
-        // 4. Submit for WhatsApp Approval
+        // 2. Submit for WhatsApp Approval
         const approvalRes = await fetch(`https://content.twilio.com/v1/Content/${data.sid}/ApprovalRequests/whatsapp`, {
             method: 'POST',
             headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' },
@@ -157,32 +218,9 @@ export async function POST(req) {
             })
         });
 
-        const approvalData = await approvalRes.json();
         const approvalStatus = approvalRes.ok ? "pending" : "failed_submission";
-        if(!approvalRes.ok) console.error("Twilio Approval Submit Error:", approvalData);
 
-        // 5. Save to Database
-        const newTemplate = await Template.create({
-            name: friendly_name,
-            sid: data.sid,
-            templateType: templateType,
-            language: language,
-            body: body,
-            mediaUrl: mediaUrl,
-            buttons: buttons,
-            category: category,
-            approvalStatus: approvalStatus,
-            createdBy: session.user.name || "admin"
-        });
-
-        return NextResponse.json({
-            success: true,
-            contentSid: data.sid,
-            friendlyName: data.friendly_name,
-            approvalStatus: approvalStatus,
-            mediaUrl: mediaUrl,
-            template: newTemplate
-        });
+        return NextResponse.json({ success: true, contentSid: data.sid, approvalStatus });
 
     } catch (error) {
         console.error("Create Template Error:", error);

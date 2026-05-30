@@ -1,24 +1,48 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
+import { twilioTemplateService } from "@/services/twilioTemplateService";
 import {
-  LayoutTemplate, ShieldAlert, Loader2, Menu, Send, CheckCircle2,
+  LayoutTemplate, ShieldAlert, Loader2, Menu, CheckCircle2,
   Clock, MessageSquare, AlertCircle, Save, Image as ImageIcon,
   Link as LinkIcon, Trash2, UploadCloud, Bold, Italic, Strikethrough,
   Variable, ExternalLink, PhoneCall, FastForward, Database,
-  RefreshCw, XCircle, Info, MoreVertical, Battery, Wifi, Signal,
-  Search, ChevronLeft, ChevronRight, Filter
+  RefreshCw, Info, XCircle, Search, ChevronLeft, ChevronRight, Signal , Wifi, Battery, MoreVertical , PauseCircle
 } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
+
+// --- NORMALIZATION LOGIC ---
+const normalizeStatus = (rawStatus) => {
+    if (!rawStatus) return "draft";
+    const s = rawStatus.toLowerCase();
+    if (s.includes("approve")) return "approved";
+    if (s.includes("reject") || s.includes("fail")) return "rejected";
+    if (s.includes("pend") || s.includes("submit")) return "pending";
+    if (s === "paused") return "paused";
+    if (s === "disabled") return "disabled";
+    return "draft"; 
+};
 
 export default function TemplateManager() {
   const { data: session, status } = useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Form State
+  // --- UI & API STATE ---
+  const [templates, setTemplates] = useState([]);
+  const [apiState, setApiState] = useState({ loading: true, error: null });
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
+
+  // --- FILTER & PAGINATION STATE ---
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState("ALL");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // --- FORM STATE ---
   const [formData, setFormData] = useState({
     category: "UTILITY", name: "", language: "en", templateType: "TEXT",
     headerType: "NONE", headerText: "", body: "", footerText: "",
@@ -27,126 +51,118 @@ export default function TemplateManager() {
   const [imagePreview, setImagePreview] = useState("");
   const fileInputRef = useRef(null);
   const [buttons, setButtons] = useState([]);
-  const [createdTemplate, setCreatedTemplate] = useState(null);
-
-  // Library State
-  const [templates, setTemplates] = useState([]);
-  const [loadingLibrary, setLoadingLibrary] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(null);
-
-  // Table Filters & Pagination State
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState("ALL");
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
 
   const isAuthorized = session?.user?.role === "superAdmin" || session?.user?.department === "admin";
 
-  const fetchTemplates = async () => {
-    setLoadingLibrary(true);
+  // --- CENTRALIZED FETCH LOGIC ---
+  const loadTemplatesFromTwilio = useCallback(async (showLoadingUI = true) => {
+    if (showLoadingUI) setApiState({ loading: true, error: null });
     try {
-      const res = await fetch("/api/admin/templates/create");
-      const data = await res.json();
-      if (data.success) {
-        setTemplates(data.templates);
-        autoSyncPendingTemplates(data.templates);
-      }
+      const data = await twilioTemplateService.getTemplates();
+      const normalized = data.map(t => ({ 
+          ...t, 
+          normalizedStatus: normalizeStatus(t.whatsapp?.status) 
+      }));
+      setTemplates(normalized);
+      setApiState({ loading: false, error: null });
     } catch (err) {
-      console.error("Error fetching templates");
-    } finally {
-      setLoadingLibrary(false);
+      setApiState({ loading: false, error: err.message });
+      toast.error("Failed to load templates from Twilio.");
     }
-  };
+  }, []);
 
   useEffect(() => {
-    if (isAuthorized) fetchTemplates();
-  }, [isAuthorized]);
+    if (isAuthorized && status === "authenticated") loadTemplatesFromTwilio(true);
+  }, [isAuthorized, status, loadTemplatesFromTwilio]);
 
-  const autoSyncPendingTemplates = async (currentTemplates) => {
-    const pendingTemplates = currentTemplates.filter(t => t.approvalStatus?.toLowerCase() === 'pending' || t.approvalStatus?.toLowerCase() === 'unsubmitted');
-    if (pendingTemplates.length > 0) {
-        setIsSyncing(true);
-        try {
-            for (const tpl of pendingTemplates) {
-                if(tpl.sid) await checkApprovalStatus(tpl.sid, false);
-            }
-        } catch (err) {
-            console.error("Auto-sync failed", err);
-        } finally {
-            setIsSyncing(false);
-        }
-    }
-  };
-
-  const handleGlobalSync = async () => {
+  // --- REFRESH BUTTON ---
+  const handleRefresh = async () => {
+      if (isSyncing) return;
       setIsSyncing(true);
-      const loadingId = toast.loading("Syncing all template statuses with Twilio...");
+      const loadingId = toast.loading("Syncing live data from Twilio...");
       try {
-          const res = await fetch("/api/admin/templates/create");
-          const data = await res.json();
-          if (data.success) {
-             const templatesWithSid = data.templates.filter(t => t.sid);
-             let updatedCount = 0;
-             for (const tpl of templatesWithSid) {
-                 const statusData = await checkApprovalStatus(tpl.sid, false);
-                 if (statusData && statusData.status !== tpl.approvalStatus) updatedCount++;
-             }
-             const finalRes = await fetch("/api/admin/templates/create");
-             const finalData = await finalRes.json();
-             if (finalData.success) setTemplates(finalData.templates);
-             toast.update(loadingId, { render: `Sync Complete! ${updatedCount} statuses updated.`, type: "success", isLoading: false, autoClose: 3000 });
-          }
+          await loadTemplatesFromTwilio(false);
+          toast.update(loadingId, { render: `Templates synchronized!`, type: "success", isLoading: false, autoClose: 2000 });
       } catch (err) {
-          toast.update(loadingId, { render: "Global sync failed.", type: "error", isLoading: false, autoClose: 3000 });
+          toast.update(loadingId, { render: "Sync failed.", type: "error", isLoading: false, autoClose: 2000 });
       } finally {
           setIsSyncing(false);
       }
   };
 
-  const checkApprovalStatus = async (sid, showToast = true) => {
-    let loadingId;
-    if (showToast) loadingId = toast.loading("Syncing status from Twilio...");
-    try {
-      const res = await fetch(`/api/admin/templates/approval?sid=${sid}`);
-      const data = await res.json();
-      if (data.success) {
-        if (showToast) toast.update(loadingId, { render: `Status: ${data.status.toUpperCase()}`, type: "success", isLoading: false, autoClose: 3000 });
-        setTemplates((prev) => prev.map((t) => t.sid === sid ? { ...t, approvalStatus: data.status, rejectionReason: data.rejectionReason } : t));
-        if (createdTemplate?.contentSid === sid) setCreatedTemplate((prev) => ({ ...prev, approvalStatus: data.status, rejectionReason: data.rejectionReason }));
-        return data; 
-      } else {
-        if (showToast) toast.update(loadingId, { render: data.error || "Failed to check status", type: "error", isLoading: false, autoClose: 3000 });
-        return null;
-      }
-    } catch (err) {
-      if (showToast) toast.update(loadingId, { render: "Network error", type: "error", isLoading: false, autoClose: 3000 });
-      return null;
-    }
-  };
-
+  // --- CRUD LOGIC ---
   const handleDeleteTemplate = async (template) => {
-    const isConfirmed = window.confirm(`Are you sure you want to permanently delete "${template.name}"?\nThis will remove it from both your CRM and Twilio.`);
+    const isConfirmed = window.confirm(`Are you sure you want to permanently delete "${template.name}"?`);
     if (!isConfirmed) return;
+    
     setIsDeleting(template.sid);
-    const loadingId = toast.loading("Deleting template from Twilio and CRM...");
+    const loadingId = toast.loading("Deleting template from Twilio...");
+    
     try {
-        const res = await fetch(`/api/templates/${template.sid}`, { method: "DELETE" });
-        const data = await res.json();
-        if (res.ok && data.success) {
-            toast.update(loadingId, { render: "Template permanently deleted.", type: "success", isLoading: false, autoClose: 3000 });
-            setTemplates((prev) => prev.filter(t => t.sid !== template.sid));
-        } else {
-            toast.update(loadingId, { render: data.error || "Failed to delete template.", type: "error", isLoading: false, autoClose: 5000 });
-        }
+        await twilioTemplateService.deleteTemplate(template.sid);
+        toast.update(loadingId, { render: "Template deleted successfully.", type: "success", isLoading: false, autoClose: 2000 });
+        // Update UI optimistically, then fetch
+        setTemplates(prev => prev.filter(t => t.sid !== template.sid));
+        await loadTemplatesFromTwilio(false);
     } catch (err) {
-        toast.update(loadingId, { render: "Network Error during deletion.", type: "error", isLoading: false, autoClose: 3000 });
+        toast.update(loadingId, { render: err.message || "Failed to delete template.", type: "error", isLoading: false, autoClose: 3000 });
     } finally {
         setIsDeleting(null);
     }
   };
 
-  // Form Handlers
+  const handleCreateTemplate = async (e) => {
+    e.preventDefault();
+    if (!formData.name || !formData.body) return toast.warning("Name and Body are required.");
+    if (formData.headerType === "MEDIA" && !imageFile) return toast.warning("Please upload a media image.");
+    for (let b of buttons) {
+      if (!b.title) return toast.warning("Please fill button titles.");
+      if (b.type !== "QUICK_REPLY" && !b.value) return toast.warning("Please fill button URL/Phone values.");
+    }
+
+    setIsCreating(true);
+    try {
+      const allText = (formData.headerText || "") + " " + (formData.body || "");
+      const variableMatches = allText.match(/\{\{(\d+)\}\}/g);
+      const varMap = {};
+      if (variableMatches) {
+        [...new Set(variableMatches)].forEach((match) => {
+          const num = match.replace(/[{}]/g, "");
+          varMap[num] = `Variable_${num}`;
+        });
+      }
+
+      const submitData = new FormData();
+      submitData.append("friendly_name", formData.name);
+      submitData.append("category", formData.category);
+      submitData.append("language", formData.language);
+      submitData.append("templateType", formData.templateType);
+      submitData.append("headerType", formData.headerType);
+      submitData.append("headerText", formData.headerText);
+      submitData.append("body", formData.body);
+      submitData.append("footerText", formData.footerText);
+      submitData.append("variables", JSON.stringify(varMap));
+      submitData.append("buttons", JSON.stringify(buttons));
+      if (imageFile) submitData.append("image", imageFile);
+
+      await twilioTemplateService.createTemplate(submitData);
+      toast.success("Template created in Twilio successfully!");
+      
+      // Reset Form
+      setFormData({ category: "UTILITY", name: "", language: "en", templateType: "TEXT", headerType: "NONE", headerText: "", body: "", footerText: "" });
+      setImageFile(null); setImagePreview(""); setButtons([]);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      
+      // Auto-refresh Twilio data
+      await loadTemplatesFromTwilio(false);
+    } catch (error) { 
+        toast.error(error.message || "Failed to create template."); 
+    } finally { 
+        setIsCreating(false); 
+    }
+  };
+
+  // --- FORM HELPERS ---
   const insertBodyVariable = () => {
     const currentBody = formData.body || "";
     const matches = currentBody.match(/\{\{(\d+)\}\}/g);
@@ -187,56 +203,7 @@ export default function TemplateManager() {
 
   const insertFormatting = (syntax) => setFormData((prev) => ({ ...prev, body: prev.body + syntax }));
 
-  const handleCreateTemplate = async (e) => {
-    e.preventDefault();
-    if (!formData.name || !formData.body) return toast.warning("Name and Body are required.");
-    if (formData.headerType === "MEDIA" && !imageFile) return toast.warning("Please upload a media image.");
-    for (let b of buttons) {
-      if (!b.title) return toast.warning("Please fill button titles.");
-      if (b.type !== "QUICK_REPLY" && !b.value) return toast.warning("Please fill button URL/Phone values.");
-    }
-
-    setIsCreating(true);
-    try {
-      const allText = (formData.headerText || "") + " " + (formData.body || "");
-      const variableMatches = allText.match(/\{\{(\d+)\}\}/g);
-      const varMap = {};
-      if (variableMatches) {
-        [...new Set(variableMatches)].forEach((match) => {
-          const num = match.replace(/[{}]/g, "");
-          varMap[num] = `Variable_${num}`;
-        });
-      }
-
-      const submitData = new FormData();
-      submitData.append("friendly_name", formData.name);
-      submitData.append("category", formData.category);
-      submitData.append("language", formData.language);
-      submitData.append("templateType", formData.templateType);
-      submitData.append("headerType", formData.headerType);
-      submitData.append("headerText", formData.headerText);
-      submitData.append("body", formData.body);
-      submitData.append("footerText", formData.footerText);
-      submitData.append("variables", JSON.stringify(varMap));
-      submitData.append("buttons", JSON.stringify(buttons));
-      if (imageFile) submitData.append("image", imageFile);
-
-      const res = await fetch("/api/admin/templates/create", { method: "POST", body: submitData });
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        toast.success("Template Saved! Fetching library...");
-        setCreatedTemplate({ ...data, rawBody: formData.body, variables: varMap });
-        setFormData({ category: "UTILITY", name: "", language: "en", templateType: "TEXT", headerType: "NONE", headerText: "", body: "", footerText: "" });
-        setImageFile(null); setImagePreview(""); setButtons([]);
-        if (fileInputRef.current) fileInputRef.current.value = "";
-        fetchTemplates(); 
-      } else {
-        toast.error(data.error || "Failed to create template");
-      }
-    } catch (error) { toast.error("Network Error"); } finally { setIsCreating(false); }
-  };
-
+  // --- UI RENDERING HELPERS ---
   const formatPreviewBody = (text) => {
     if (!text) return { __html: "Your message body will appear here..." };
     let formatted = text
@@ -247,68 +214,109 @@ export default function TemplateManager() {
     return { __html: formatted.replace(/\n/g, "<br/>") };
   };
 
-  const renderChannelEligibility = (status, rejectionReason) => {
-    const s = status?.toLowerCase();
-    if (s === "approved") {
+  const renderChannelEligibility = (tpl) => {
+    const normalizedStatus = tpl.normalizedStatus;
+    const rejectionReason = tpl.whatsapp?.rejection_reason;
+
+    if (normalizedStatus === "approved") {
         return (
             <div className="flex flex-col gap-1.5 min-w-[200px]">
                 <div className="flex items-start gap-2"><CheckCircle2 size={15} className="text-emerald-500 shrink-0 mt-0.5" strokeWidth={2.5} /><span className="text-[12.5px] text-slate-700 leading-tight">WhatsApp business initiated</span></div>
                 <div className="flex items-start gap-2"><CheckCircle2 size={15} className="text-emerald-500 shrink-0 mt-0.5" strokeWidth={2.5} /><span className="text-[12.5px] text-slate-700 leading-tight">WhatsApp user initiated</span></div>
-                <span className="inline-flex items-center w-max mt-1.5 text-[10px] font-bold uppercase tracking-widest text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shadow-sm">Approved</span>
+                <span className="inline-flex items-center w-max mt-1 text-[10px] font-bold uppercase tracking-widest text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shadow-sm">Approved</span>
             </div>
         );
     }
-    if (s === "rejected") {
+    if (normalizedStatus === "rejected") {
         return (
             <div className="flex flex-col gap-1.5 min-w-[200px]">
                 <div className="flex items-start gap-2 opacity-60"><Info size={15} className="text-rose-500 shrink-0 mt-0.5" strokeWidth={2.5} /><span className="text-[12.5px] text-slate-500 line-through leading-tight">WhatsApp business initiated</span></div>
                 <div className="flex items-start gap-2"><CheckCircle2 size={15} className="text-emerald-500 shrink-0 mt-0.5" strokeWidth={2.5} /><span className="text-[12.5px] text-slate-700 leading-tight">WhatsApp user initiated</span></div>
-                <div className="flex flex-col gap-1 mt-1.5 bg-rose-50 p-2 rounded-lg border border-rose-100">
+                <div className="flex flex-col gap-1 mt-1 bg-rose-50 p-2 rounded-lg border border-rose-100 max-w-[300px]">
                     <span className="inline-flex items-center w-max text-[10px] font-bold uppercase tracking-widest text-rose-700">Rejected</span>
-                    {rejectionReason && <span className="text-[11px] text-rose-600 font-medium leading-snug break-words">{rejectionReason}</span>}
+                    {rejectionReason && <p className="text-[11px] text-rose-600 font-medium leading-snug break-words whitespace-pre-wrap">{rejectionReason}</p>}
                 </div>
             </div>
         );
     }
-    if (s === "pending") {
+    if (normalizedStatus === "pending") {
          return (
             <div className="flex flex-col gap-1.5 min-w-[200px]">
                 <div className="flex items-start gap-2"><Clock size={15} className={`text-amber-500 shrink-0 mt-0.5 ${isSyncing ? "animate-spin" : ""}`} strokeWidth={2.5} /><span className="text-[12.5px] text-slate-700 leading-tight">WhatsApp business initiated</span></div>
                 <div className="flex items-start gap-2"><CheckCircle2 size={15} className="text-slate-300 shrink-0 mt-0.5" strokeWidth={2.5} /><span className="text-[12.5px] text-slate-700 leading-tight">WhatsApp user initiated</span></div>
-                <span className="inline-flex items-center w-max mt-1.5 text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 shadow-sm">Pending</span>
+                <span className="inline-flex items-center w-max mt-1 text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 shadow-sm">Pending Approval</span>
+            </div>
+        );
+    }
+    if (normalizedStatus === "paused") {
+         return (
+            <div className="flex flex-col gap-1.5 min-w-[200px]">
+                <div className="flex items-start gap-2 opacity-60"><PauseCircle size={15} className="text-orange-500 shrink-0 mt-0.5" strokeWidth={2.5} /><span className="text-[12.5px] text-slate-500 line-through leading-tight">WhatsApp business initiated</span></div>
+                <div className="flex items-start gap-2"><CheckCircle2 size={15} className="text-emerald-500 shrink-0 mt-0.5" strokeWidth={2.5} /><span className="text-[12.5px] text-slate-700 leading-tight">WhatsApp user initiated</span></div>
+                <span className="inline-flex items-center w-max mt-1 text-[10px] font-bold uppercase tracking-widest text-orange-700 bg-orange-50 px-2 py-0.5 rounded border border-orange-200 shadow-sm">Paused (Quality)</span>
+            </div>
+        );
+    }
+    if (normalizedStatus === "disabled") {
+         return (
+            <div className="flex flex-col gap-1.5 min-w-[200px]">
+                <div className="flex items-start gap-2 opacity-60"><XCircle size={15} className="text-rose-500 shrink-0 mt-0.5" strokeWidth={2.5} /><span className="text-[12.5px] text-slate-500 line-through leading-tight">WhatsApp business initiated</span></div>
+                <div className="flex items-start gap-2"><CheckCircle2 size={15} className="text-emerald-500 shrink-0 mt-0.5" strokeWidth={2.5} /><span className="text-[12.5px] text-slate-700 leading-tight">WhatsApp user initiated</span></div>
+                <span className="inline-flex items-center w-max mt-1 text-[10px] font-bold uppercase tracking-widest text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 shadow-sm">Disabled by Meta</span>
             </div>
         );
     }
     return (
         <div className="flex flex-col gap-1.5 min-w-[200px] opacity-70">
             <div className="flex items-start gap-2"><AlertCircle size={15} className="text-slate-400 shrink-0 mt-0.5" strokeWidth={2.5} /><span className="text-[12.5px] text-slate-500 italic leading-tight">Not Submitted</span></div>
-            <span className="inline-flex items-center w-max mt-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">Draft</span>
+            <span className="inline-flex items-center w-max mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">Draft</span>
         </div>
     );
   };
 
-  // --- FILTER & PAGINATION LOGIC ---
+  // --- FILTER & PAGINATION CALCULATIONS ---
+  const filterCounts = useMemo(() => {
+      const counts = { ALL: templates.length, APPROVED: 0, PENDING: 0, REJECTED: 0, DRAFT: 0, PAUSED: 0, DISABLED: 0 };
+      templates.forEach(t => {
+          const s = t.normalizedStatus.toUpperCase();
+          if (counts[s] !== undefined) counts[s]++;
+      });
+      return counts;
+  }, [templates]);
+
   const filteredTemplates = useMemo(() => {
     let filtered = templates;
+
     if (activeFilter !== "ALL") {
-        filtered = filtered.filter(t => t.approvalStatus?.toLowerCase() === activeFilter.toLowerCase());
+        filtered = filtered.filter(t => t.normalizedStatus.toUpperCase() === activeFilter);
     }
+
     if (searchQuery.trim() !== "") {
-        const lowerQuery = searchQuery.toLowerCase();
+        const q = searchQuery.toLowerCase().trim();
         filtered = filtered.filter(t => 
-            t.name?.toLowerCase().includes(lowerQuery) || 
-            t.sid?.toLowerCase().includes(lowerQuery) ||
-            t.language?.toLowerCase().includes(lowerQuery)
+            (t.name && t.name.toLowerCase().includes(q)) || 
+            (t.sid && t.sid.toLowerCase().includes(q)) ||
+            (t.whatsapp?.category && t.whatsapp.category.toLowerCase().includes(q)) ||
+            (t.language && t.language.toLowerCase().includes(q))
         );
     }
     return filtered;
   }, [templates, activeFilter, searchQuery]);
 
-  const totalPages = Math.ceil(filteredTemplates.length / itemsPerPage) || 1;
-  const currentTemplates = filteredTemplates.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(filteredTemplates.length / itemsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  
+  const currentTemplates = useMemo(() => {
+      const startIndex = (safeCurrentPage - 1) * itemsPerPage;
+      return filteredTemplates.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredTemplates, safeCurrentPage, itemsPerPage]);
 
   useEffect(() => {
-     setCurrentPage(1); // Reset to page 1 on filter change
+     if (currentPage !== safeCurrentPage) setCurrentPage(safeCurrentPage);
+  }, [safeCurrentPage, currentPage]);
+
+  useEffect(() => {
+     setCurrentPage(1);
   }, [activeFilter, searchQuery]);
 
 
@@ -333,18 +341,14 @@ export default function TemplateManager() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 custom-scrollbar">
-          {typeof window !== "undefined" && window.location.hostname === "localhost" && (
-              <div className="max-w-[1400px] mx-auto mb-6 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm font-medium flex items-start gap-3"><AlertCircle size={18} className="mt-0.5 shrink-0" /><p><strong>Localhost Warning:</strong> You are testing on localhost. Twilio cannot download images from localhost. Ensure your <code className="bg-amber-100 px-1 rounded">NEXT_PUBLIC_BASE_URL</code> is set to an Ngrok URL.</p></div>
-          )}
 
-          {/* Top Sections: Form & Preview (Untouched Logic, Styling Refinements) */}
+          {/* ================= BUILDER SECTION ================= */}
           <div className="max-w-[1400px] mx-auto grid grid-cols-1 xl:grid-cols-12 gap-8">
-            {/* COLUMN 1: FORM */}
             <div className="xl:col-span-7 space-y-6">
               <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
                 <div className="p-6 border-b border-slate-100 bg-slate-50/50"><h3 className="font-extrabold text-slate-800 flex items-center gap-2 text-lg"><MessageSquare size={20} className="text-[#00a884]" /> Template Details</h3></div>
                 <form onSubmit={handleCreateTemplate} className="p-6 space-y-6">
-                  {/* ... FORM CONTENT REMAINS IDENTICAL TO YOUR PREVIOUS CODE ... */}
+                  
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Template Type *</label>
@@ -530,8 +534,8 @@ export default function TemplateManager() {
             </div>
           </div>
 
-          {/* ================= REFACTORED TEMPLATE LIBRARY ================= */}
-          <div className="mt-16 max-w-[1400px] mx-auto bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/80 overflow-hidden flex flex-col">
+          {/* ================= REFACTORED TEMPLATE LIBRARY (Bottom) ================= */}
+          <div id="template-library-section" className="mt-16 max-w-[1400px] mx-auto bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/80 overflow-hidden flex flex-col">
             
             {/* Header & Controls */}
             <div className="p-5 md:p-6 lg:px-8 border-b border-slate-100 bg-white flex flex-col md:flex-row md:items-center justify-between gap-5">
@@ -542,20 +546,21 @@ export default function TemplateManager() {
                 <p className="text-sm text-slate-500 font-medium mt-1.5">Manage, track, and sync your WhatsApp campaign assets.</p>
               </div>
               
-              <div className="flex items-center gap-3 w-full md:w-auto">
-                <div className="relative flex-1 md:w-64">
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <div className="relative flex-1 md:w-64 min-w-[200px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                     <input 
                         type="text" 
-                        placeholder="Search templates or SID..." 
+                        placeholder="Search templates..." 
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] outline-none transition-all placeholder:text-slate-400 text-slate-700"
                     />
                 </div>
-                <button onClick={handleGlobalSync} disabled={isSyncing} className="py-2.5 px-4 bg-white rounded-xl border border-slate-200 shadow-sm hover:bg-slate-50 transition active:scale-95 disabled:opacity-50 text-sm font-bold text-slate-700 flex items-center gap-2 shrink-0">
-                    <RefreshCw size={16} className={`text-[#00a884] ${isSyncing ? "animate-spin" : ""}`} />
-                    <span className="hidden sm:inline">Sync API</span>
+                
+                <button onClick={handleRefresh} disabled={apiState.loading || isSyncing} className="py-2.5 px-4 bg-emerald-50 rounded-xl border border-emerald-200 shadow-sm hover:bg-emerald-100 transition active:scale-95 disabled:opacity-50 text-sm font-bold text-emerald-700 flex items-center gap-2 shrink-0">
+                    <RefreshCw size={16} className={`${apiState.loading || isSyncing ? "animate-spin" : ""}`} />
+                    <span className="hidden sm:inline">Refresh Twilio Data</span>
                 </button>
               </div>
             </div>
@@ -563,47 +568,67 @@ export default function TemplateManager() {
             {/* Filter Pills */}
             <div className="px-5 md:px-6 lg:px-8 py-4 bg-slate-50/50 border-b border-slate-100 overflow-x-auto hide-scrollbar">
                 <div className="flex items-center gap-2 w-max">
-                    {["ALL", "APPROVED", "PENDING", "REJECTED", "UNSUBMITTED"].map((filter) => (
-                        <button 
-                            key={filter}
-                            onClick={() => setActiveFilter(filter)}
-                            className={`px-4 py-1.5 rounded-full text-[13px] font-bold transition-all whitespace-nowrap ${
-                                activeFilter === filter 
-                                ? "bg-slate-800 text-white shadow-md shadow-slate-200" 
-                                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
-                            }`}
-                        >
-                            {filter}
-                            {filter === "ALL" && <span className="ml-1.5 opacity-70">({templates.length})</span>}
-                        </button>
-                    ))}
+                    {["ALL", "APPROVED", "PENDING", "REJECTED", "PAUSED", "DISABLED", "DRAFT"].map((filter) => {
+                        const count = filter === "ALL" ? templates.length : filterCounts[filter] || 0;
+                        return (
+                            <button 
+                                key={filter}
+                                onClick={() => setActiveFilter(filter)}
+                                className={`px-4 py-1.5 rounded-full text-[13px] font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                                    activeFilter === filter 
+                                    ? "bg-slate-800 text-white shadow-md shadow-slate-200" 
+                                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
+                                }`}
+                            >
+                                {filter}
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeFilter === filter ? "bg-slate-600 text-slate-200" : "bg-slate-100 text-slate-500 border border-slate-200"}`}>
+                                    {count}
+                                </span>
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
             {/* Content Area */}
             <div className="min-h-[400px] relative bg-white">
-              {loadingLibrary ? (
+              {apiState.loading ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm z-10">
                   <Loader2 size={40} className="animate-spin text-[#00a884] mb-4" />
-                  <p className="text-sm font-bold uppercase tracking-widest text-slate-400">Loading Library...</p>
+                  <p className="text-sm font-bold uppercase tracking-widest text-slate-400">Loading Library from Twilio...</p>
+                </div>
+              ) : apiState.error ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm z-10">
+                  <ShieldAlert size={40} className="text-rose-500 mb-4" />
+                  <p className="text-sm font-bold text-rose-600">{apiState.error}</p>
+                </div>
+              ) : templates.length === 0 ? (
+                // --- EMPTY STATE 1: NO TEMPLATES IN TWILIO ---
+                <div className="flex flex-col items-center justify-center p-16 md:p-24 text-center">
+                    <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-5 border border-slate-100 shadow-sm">
+                        <Database size={32} className="text-slate-300" />
+                    </div>
+                    <h4 className="text-xl font-bold text-slate-800 mb-2">Your Template Library is Empty</h4>
+                    <p className="text-sm text-slate-500 max-w-md mx-auto leading-relaxed mb-6">Your Twilio Content Library is completely empty. Create a template above to get started.</p>
                 </div>
               ) : currentTemplates.length === 0 ? (
+                // --- EMPTY STATE 2: NO SEARCH/FILTER RESULTS ---
                 <div className="flex flex-col items-center justify-center p-16 md:p-24 text-center">
                     <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mb-4 border border-slate-100">
-                        <Filter size={24} className="text-slate-400" />
+                        <Search size={24} className="text-slate-400" />
                     </div>
-                    <h4 className="text-lg font-bold text-slate-800 mb-1">No templates found</h4>
-                    <p className="text-sm text-slate-500 max-w-sm">We couldn't find any templates matching your current search or filter criteria.</p>
-                    {(searchQuery || activeFilter !== "ALL") && (
-                        <button onClick={() => { setSearchQuery(""); setActiveFilter("ALL"); }} className="mt-4 text-sm font-bold text-[#00a884] hover:underline">Clear all filters</button>
-                    )}
+                    <h4 className="text-lg font-bold text-slate-800 mb-1">No matches found</h4>
+                    <p className="text-sm text-slate-500 max-w-sm">We couldn't find any templates matching "{searchQuery}" or your current filter criteria.</p>
+                    <button onClick={() => { setSearchQuery(""); setActiveFilter("ALL"); }} className="mt-5 px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-200 transition">
+                        Clear all filters
+                    </button>
                 </div>
               ) : (
                 <>
                   {/* MOBILE VIEW (CARDS) */}
                   <div className="md:hidden flex flex-col divide-y divide-slate-100">
                       {currentTemplates.map((tpl) => (
-                          <div key={tpl._id} className="p-5 flex flex-col gap-4 hover:bg-slate-50/50 transition-colors">
+                          <div key={tpl._id || tpl.sid} className="p-5 flex flex-col gap-4 hover:bg-slate-50/50 transition-colors">
                               <div className="flex justify-between items-start gap-3">
                                   <div className="min-w-0 flex-1">
                                       <h4 className="font-extrabold text-slate-900 text-[15px] mb-1.5 break-words leading-snug">{tpl.name}</h4>
@@ -612,8 +637,8 @@ export default function TemplateManager() {
                                           <span className="text-[10px] font-bold text-slate-500 uppercase bg-slate-50 px-2 py-0.5 rounded border border-slate-200">{tpl.language === "en" ? "EN" : tpl.language === "ta" ? "TA" : tpl.language}</span>
                                       </div>
                                   </div>
-                                  <button onClick={() => handleDeleteTemplate(tpl)} disabled={isDeleting === tpl.sid} className="p-2 -mr-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all shrink-0">
-                                      {isDeleting === tpl.sid ? <Loader2 size={16} className="animate-spin text-rose-500" /> : <Trash2 size={16} />}
+                                  <button onClick={() => handleDeleteTemplate(tpl)} disabled={isDeleting === tpl.sid || isDeleting === tpl._id} className="p-2 -mr-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all shrink-0">
+                                      {(isDeleting === tpl.sid || isDeleting === tpl._id) ? <Loader2 size={16} className="animate-spin text-rose-500" /> : <Trash2 size={16} />}
                                   </button>
                               </div>
 
@@ -625,8 +650,8 @@ export default function TemplateManager() {
                               </div>
 
                               <div className="bg-slate-50/50 rounded-xl p-3.5 border border-slate-100">
-                                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Eligibility Status</p>
-                                  {renderChannelEligibility(tpl.approvalStatus, tpl.rejectionReason)}
+                                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">WhatsApp Status</p>
+                                  {renderChannelEligibility(tpl)}
                               </div>
                           </div>
                       ))}
@@ -639,13 +664,13 @@ export default function TemplateManager() {
                         <tr>
                             <th className="px-6 py-4 font-bold">Template Details</th>
                             <th className="px-6 py-4 font-bold">Format</th>
-                            <th className="px-6 py-4 font-bold">Channel Eligibility</th>
+                            <th className="px-6 py-4 font-bold">WhatsApp Status</th>
                             <th className="px-6 py-4 w-12"></th> 
                         </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-sm">
                         {currentTemplates.map((tpl) => (
-                            <tr key={tpl._id} className="hover:bg-slate-50/60 transition-colors group">
+                            <tr key={tpl._id || tpl.sid} className="hover:bg-slate-50/60 transition-colors group">
                             
                             <td className="px-6 py-5 align-top">
                                 <div className="font-extrabold text-slate-900 text-[14.5px] mb-1.5 whitespace-normal line-clamp-2 max-w-[280px] leading-snug">{tpl.name}</div>
@@ -669,12 +694,12 @@ export default function TemplateManager() {
                             </td>
 
                             <td className="px-6 py-5 align-top whitespace-normal max-w-[300px]">
-                                {renderChannelEligibility(tpl.approvalStatus, tpl.rejectionReason)}
+                                {renderChannelEligibility(tpl)}
                             </td>
                             
                             <td className="px-6 py-5 align-top text-right">
-                                <button onClick={() => handleDeleteTemplate(tpl)} disabled={isDeleting === tpl.sid} className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all disabled:opacity-50 opacity-0 group-hover:opacity-100 border border-transparent hover:border-rose-100 shadow-sm" title="Delete Template">
-                                    {isDeleting === tpl.sid ? <Loader2 size={18} className="animate-spin text-rose-500" /> : <Trash2 size={18} />}
+                                <button onClick={() => handleDeleteTemplate(tpl)} disabled={isDeleting === tpl.sid || isDeleting === tpl._id} className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all disabled:opacity-50 opacity-0 group-hover:opacity-100 border border-transparent hover:border-rose-100 shadow-sm" title="Delete Template">
+                                    {(isDeleting === tpl.sid || isDeleting === tpl._id) ? <Loader2 size={18} className="animate-spin text-rose-500" /> : <Trash2 size={18} />}
                                 </button>
                             </td>
 
@@ -688,16 +713,16 @@ export default function TemplateManager() {
             </div>
 
             {/* Pagination Footer */}
-            {!loadingLibrary && filteredTemplates.length > 0 && (
+            {!apiState.loading && filteredTemplates.length > 0 && (
                 <div className="p-4 md:p-6 border-t border-slate-100 bg-white flex flex-col sm:flex-row items-center justify-between gap-4">
                     <p className="text-sm font-medium text-slate-500">
-                        Showing <span className="font-bold text-slate-700">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-bold text-slate-700">{Math.min(currentPage * itemsPerPage, filteredTemplates.length)}</span> of <span className="font-bold text-slate-700">{filteredTemplates.length}</span> templates
+                        Showing <span className="font-bold text-slate-700">{(safeCurrentPage - 1) * itemsPerPage + 1}</span> to <span className="font-bold text-slate-700">{Math.min(safeCurrentPage * itemsPerPage, filteredTemplates.length)}</span> of <span className="font-bold text-slate-700">{filteredTemplates.length}</span> templates
                     </p>
                     
                     <div className="flex items-center gap-2">
                         <button 
                             onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
-                            disabled={currentPage === 1}
+                            disabled={safeCurrentPage === 1}
                             className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
                         >
                             <ChevronLeft size={18} />
@@ -705,13 +730,13 @@ export default function TemplateManager() {
                         
                         <div className="flex items-center gap-1">
                             {Array.from({ length: totalPages }, (_, i) => i + 1)
-                                .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                                .filter(p => p === 1 || p === totalPages || Math.abs(p - safeCurrentPage) <= 1)
                                 .map((p, i, arr) => (
                                     <React.Fragment key={p}>
                                         {i > 0 && arr[i - 1] !== p - 1 && <span className="px-2 text-slate-400">...</span>}
                                         <button 
                                             onClick={() => setCurrentPage(p)}
-                                            className={`w-8 h-8 rounded-lg text-sm font-bold transition-all ${currentPage === p ? 'bg-slate-800 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100 border border-transparent hover:border-slate-200'}`}
+                                            className={`w-8 h-8 rounded-lg text-sm font-bold transition-all ${safeCurrentPage === p ? 'bg-slate-800 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100 border border-transparent hover:border-slate-200'}`}
                                         >
                                             {p}
                                         </button>
@@ -722,7 +747,7 @@ export default function TemplateManager() {
 
                         <button 
                             onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
-                            disabled={currentPage === totalPages}
+                            disabled={safeCurrentPage === totalPages}
                             className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
                         >
                             <ChevronRight size={18} />

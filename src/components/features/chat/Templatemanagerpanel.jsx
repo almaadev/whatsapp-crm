@@ -1,162 +1,170 @@
-"use client";
-
-import { useState, useEffect, useRef } from "react";
-import { X, Plus, Trash2, CheckCircle2, Layers, Tag, Copy, Check, Edit2, Loader2, MessageSquare } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { useTemplateStore } from "@/store/templateStore";
 import { toast } from "react-toastify";
+import { 
+    Layers, Search, X, Loader2, LayoutTemplate, ExternalLink, Image as ImageIcon,
+    Clock, CheckCircle2, AlertCircle, Info, PhoneCall, FastForward, PauseCircle, XCircle
+} from "lucide-react";
 
-export default function TemplateManagerPanel({ open, onClose, selectedId, onSelect }) {
-    const [templates, setTemplates] = useState([]);
-    const [fetching, setFetching] = useState(false);
-    
-    // Form States
-    const [sidInput, setSidInput] = useState("");
-    const [nameInput, setNameInput] = useState("");
-    const [categoryInput, setCategoryInput] = useState("Marketing"); // Added Category State
-    const [editId, setEditId] = useState(null); 
+// --- NORMALIZATION LOGIC ---
+const normalizeStatus = (rawStatus) => {
+    if (!rawStatus) return "draft";
+    const s = rawStatus.toLowerCase();
+    if (s.includes("approve")) return "approved";
+    if (s.includes("reject") || s.includes("fail")) return "rejected";
+    if (s.includes("pend") || s.includes("submit")) return "pending";
+    if (s === "paused") return "paused";
+    if (s === "disabled") return "disabled";
+    return "draft"; 
+};
 
-    const [adding, setAdding] = useState(false);
-    const [deletingId, setDeletingId] = useState(null);
-    const [sidError, setSidError] = useState("");
-    const [copiedId, setCopiedId] = useState(null);
-    const [showAddForm, setShowAddForm] = useState(false);
-    
-    const panelRef = useRef(null);
-    const sidInputRef = useRef(null);
+export default function TemplateManagerPanel({ open, onClose, onSelect, selectedId }) {
+    const { templates, loading, forceRefresh } = useTemplateStore();
 
-    // Fetch Templates from MongoDB
-    const fetchTemplates = async () => {
-        setFetching(true);
-        try {
-            const res = await fetch("/api/templates");
-            const json = await res.json();
-            if (json.success) {
-                setTemplates(json.data);
-            }
-        } catch (error) {
-            console.error("Failed to load templates:", error);
-            toast.error("Could not load template library.");
-        } finally {
-            setFetching(false);
+    // ─── Local State ────────────────────────────────────────────────────────
+    const [searchQuery, setSearchQuery] = useState("");
+    const [activeFilter, setActiveFilter] = useState("ALL");
+    const [expandedRejections, setExpandedRejections] = useState({});
+
+    // Refresh store when panel opens
+    useEffect(() => {
+        if (open) {
+            forceRefresh();
+            setSearchQuery("");
+            setActiveFilter("ALL");
+            setExpandedRejections({});
         }
+    }, [open, forceRefresh]);
+
+    // ─── Helper: Format Preview Body ────────────────────────────────────────
+    const formatPreviewBody = (text) => {
+        if (!text) return { __html: "Your message body will appear here..." };
+        let formatted = text
+            .replace(/\*([^\*]+)\*/g, "<strong>$1</strong>")
+            .replace(/_([^_]+)_/g, "<em>$1</em>")
+            .replace(/~([^~]+)~/g, "<del>$1</del>")
+            .replace(/\{\{(\d+)\}\}/g, `<span class="bg-emerald-100 text-emerald-800 px-1 rounded font-mono text-[11px] mx-0.5">{{$1}}</span>`);
+        return { __html: formatted.replace(/\n/g, "<br/>") };
     };
 
-    useEffect(() => {
-        if (open) fetchTemplates();
-    }, [open]);
+    const toggleRejection = (e, sid) => {
+        e.stopPropagation();
+        setExpandedRejections(prev => ({
+            ...prev,
+            [sid]: !prev[sid]
+        }));
+    };
 
-    useEffect(() => {
-        if (open && showAddForm && sidInputRef.current) {
-            setTimeout(() => sidInputRef.current?.focus(), 180);
+    // ─── Filter Logic ───────────────────────────────────────────────────────
+    
+    // Normalize templates on the fly
+    const normalizedTemplates = useMemo(() => {
+        const rawTpls = Array.isArray(templates) ? templates : [];
+        return rawTpls.map(t => ({
+            ...t,
+            normalizedStatus: normalizeStatus(t.whatsapp?.status)
+        }));
+    }, [templates]);
+
+    const filterCounts = useMemo(() => {
+        const counts = { ALL: normalizedTemplates.length, APPROVED: 0, PENDING: 0, REJECTED: 0, PAUSED: 0, DISABLED: 0, DRAFT: 0 };
+        normalizedTemplates.forEach(t => {
+            const s = t.normalizedStatus.toUpperCase();
+            if (counts[s] !== undefined) counts[s]++;
+        });
+        return counts;
+    }, [normalizedTemplates]);
+
+    const filteredTemplates = useMemo(() => {
+        let filtered = [...normalizedTemplates];
+
+        // 1. Status Filter
+        if (activeFilter !== "ALL") {
+            filtered = filtered.filter(t => t.normalizedStatus.toUpperCase() === activeFilter);
         }
-    }, [open, showAddForm]);
 
-    // Close on Escape
-    useEffect(() => {
-        const handler = (e) => { if (e.key === "Escape" && open) onClose(); };
-        window.addEventListener("keydown", handler);
-        return () => window.removeEventListener("keydown", handler);
-    }, [open, onClose]);
-
-    const handleSave = async () => {
-        const sid = sidInput.trim();
-        const name = nameInput.trim();
-
-        if (!sid) { setSidError("Content SID is required"); return; }
-        if (!/^HX[a-fA-F0-9]{32}$/i.test(sid)) {
-            setSidError("Must be a valid Twilio Content SID (HX + 32 hex chars)");
-            return;
+        // 2. Search Filter
+        if (searchQuery.trim() !== "") {
+            const query = searchQuery.toLowerCase().trim();
+            filtered = filtered.filter(t => 
+                (t.name && t.name.toLowerCase().includes(query)) || 
+                (t.sid && t.sid.toLowerCase().includes(query)) ||
+                (t.whatsapp?.category && t.whatsapp.category.toLowerCase().includes(query)) ||
+                (t.language && t.language.toLowerCase().includes(query))
+            );
         }
-
-        setAdding(true);
-        setSidError("");
         
-        try {
-            // Added Category to Payload
-            const payload = { 
-                name: name || `Template ${templates.length + 1}`, 
-                sid, 
-                category: categoryInput 
-            };
-            const url = editId ? `/api/templates/${editId}` : "/api/templates";
-            const method = editId ? "PUT" : "POST";
+        return filtered;
+    }, [normalizedTemplates, activeFilter, searchQuery]);
 
-            const res = await fetch(url, {
-                method,
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-            });
 
-            const json = await res.json();
-            if (!res.ok || !json.success) throw new Error(json.error || "Failed to save template");
+    // ─── Render Helpers ───────────────────────────────────────────────────────
+    const renderChannelEligibility = (tpl) => {
+        const status = tpl.normalizedStatus;
+        const rejectionReason = tpl.whatsapp?.rejection_reason;
+        const isExpanded = expandedRejections[tpl.sid];
 
-            toast.success(editId ? "Template updated successfully!" : "Template added securely!");
-            
-            await fetchTemplates();
-            resetForm();
-        } catch (error) {
-            setSidError(error.message);
-        } finally {
-            setAdding(false);
+        if (status === "approved") {
+            return (
+                <span className="inline-flex items-center gap-1 w-max text-[10px] font-bold uppercase tracking-widest text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+                    <CheckCircle2 size={12} strokeWidth={2.5} /> Approved
+                </span>
+            );
         }
-    };
-
-    const handleDelete = async (id) => {
-        setDeletingId(id);
-        try {
-            const res = await fetch(`/api/templates/${id}`, { method: "DELETE" });
-            const json = await res.json();
-            
-            if (!res.ok || !json.success) throw new Error(json.error || "Failed to delete");
-            
-            await fetchTemplates();
-            
-            if (selectedId === templates.find(t => t._id === id)?.sid) {
-                onSelect(null, null);
-            }
-            toast.success("Template deleted from database.");
-        } catch (error) {
-            toast.error(error.message);
-        } finally {
-            setDeletingId(null);
+        if (status === "rejected") {
+            return (
+                <div className="flex flex-col gap-1 w-full">
+                    <span className="inline-flex items-center gap-1 w-max text-[10px] font-bold uppercase tracking-widest text-rose-700 bg-rose-50 px-2 py-1 rounded border border-rose-200">
+                        <XCircle size={12} strokeWidth={2.5} /> Rejected
+                    </span>
+                    {rejectionReason && (
+                        <div 
+                            onClick={(e) => toggleRejection(e, tpl.sid)}
+                            className="mt-1 cursor-pointer bg-rose-50/50 p-2 rounded border border-rose-100/50 hover:bg-rose-50 transition-colors"
+                        >
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                                <Info size={10} className="text-rose-500" />
+                                <span className="text-[9px] font-bold uppercase tracking-widest text-rose-600">Rejection Reason</span>
+                            </div>
+                            <p className={`text-[11px] text-rose-600 font-medium leading-snug whitespace-pre-wrap ${!isExpanded ? "line-clamp-2" : ""}`}>
+                                {rejectionReason}
+                            </p>
+                            {rejectionReason.length > 80 && (
+                                <p className="text-[9px] font-bold text-rose-400 mt-1 uppercase text-right">
+                                    {isExpanded ? "Show Less" : "Read More"}
+                                </p>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
         }
-    };
-
-    const triggerEdit = (tpl) => {
-        setEditId(tpl._id);
-        setNameInput(tpl.name);
-        setSidInput(tpl.sid);
-        setCategoryInput(tpl.category || "Marketing");
-        setShowAddForm(true);
-    };
-
-    const resetForm = () => {
-        setSidInput("");
-        setNameInput("");
-        setCategoryInput("Marketing");
-        setSidError("");
-        setEditId(null);
-        setShowAddForm(false);
-    };
-
-    const handleSelect = (tpl) => {
-        onSelect(tpl.sid, tpl.name);
-    };
-
-    const handleCopySid = async (tpl) => {
-        await navigator.clipboard.writeText(tpl.sid).catch(() => {});
-        setCopiedId(tpl._id);
-        setTimeout(() => setCopiedId(null), 1600);
-    };
-
-    const isSelected = (tpl) => tpl.sid === selectedId;
-
-    // --- Category Badge Colors ---
-    const getCategoryStyles = (category) => {
-        switch(category?.toLowerCase()) {
-            case "utility": return "bg-blue-50 text-blue-600 border-blue-200";
-            case "authentication": return "bg-amber-50 text-amber-600 border-amber-200";
-            default: return "bg-purple-50 text-purple-600 border-purple-200"; // Marketing default
+        if (status === "pending") {
+             return (
+                <span className="inline-flex items-center gap-1 w-max text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-200">
+                    <Clock size={12} strokeWidth={2.5} /> Pending
+                </span>
+            );
         }
+        if (status === "paused") {
+             return (
+                <span className="inline-flex items-center gap-1 w-max text-[10px] font-bold uppercase tracking-widest text-orange-700 bg-orange-50 px-2 py-1 rounded border border-orange-200">
+                    <PauseCircle size={12} strokeWidth={2.5} /> Paused
+                </span>
+            );
+        }
+        if (status === "disabled") {
+             return (
+                <span className="inline-flex items-center gap-1 w-max text-[10px] font-bold uppercase tracking-widest text-slate-700 bg-slate-100 px-2 py-1 rounded border border-slate-300">
+                    <XCircle size={12} strokeWidth={2.5} /> Disabled
+                </span>
+            );
+        }
+        return (
+            <span className="inline-flex items-center gap-1 w-max text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-slate-100 px-2 py-1 rounded border border-slate-200">
+                <AlertCircle size={12} strokeWidth={2.5} /> Draft
+            </span>
+        );
     };
 
     return (
@@ -166,175 +174,166 @@ export default function TemplateManagerPanel({ open, onClose, selectedId, onSele
                 className={`fixed inset-0 z-[999] bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`} 
                 onClick={onClose} 
             />
-
-            {/* Sliding Panel */}
-            <div 
-                ref={panelRef} 
-                className={`fixed top-0 right-0 h-[100dvh] w-full sm:w-[420px] bg-white border-l border-slate-200 shadow-2xl z-[1000] flex flex-col transform transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${open ? "translate-x-0" : "translate-x-full"}`}
-                role="dialog" 
-                aria-modal="true" 
-                aria-label="Template Manager"
-            >
+            
+            {/* Drawer Panel */}
+            <div className={`fixed top-0 right-0 h-[100dvh] w-full md:w-[600px] bg-slate-50 border-l border-slate-200 shadow-2xl z-[1000] flex flex-col transform transition-transform duration-300 ease-out ${open ? "translate-x-0" : "translate-x-full"}`}>
                 
                 {/* Header */}
-                <div className="p-6 border-b border-slate-100 bg-white flex items-center justify-between shrink-0">
-                    <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2">
-                            <Layers size={18} className="text-[#00a884]" />
-                            <span className="font-sans font-extrabold text-base text-slate-800 tracking-tight">
-                                Template Library
-                            </span>
-                            {templates.length > 0 && (
-                                <span className="font-mono text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5">
-                                    {templates.length}
-                                </span>
-                            )}
-                        </div>
-                        <span className="font-mono text-[10px] text-slate-500 tracking-wider">
-                            Twilio Content SID Database
-                        </span>
-                    </div>
-                    <button 
-                        className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center cursor-pointer text-slate-400 transition-all hover:bg-slate-100 hover:text-rose-500 hover:border-slate-300" 
-                        onClick={onClose} 
-                        aria-label="Close panel"
-                    >
-                        <X size={16} />
-                    </button>
-                </div>
-
-                {/* Body (Template List) */}
-                <div className="flex-1 overflow-y-auto p-5 bg-slate-50 flex flex-col gap-3 custom-scrollbar">
-                    {fetching ? (
-                        <div className="flex-1 flex flex-col items-center justify-center gap-3 p-10 text-center">
-                            <Loader2 size={24} className="animate-spin text-[#00a884]" />
-                            <p className="font-sans text-sm font-semibold text-slate-500">Syncing Database...</p>
-                        </div>
-                    ) : templates.length === 0 ? (
-                        <div className="flex-1 flex flex-col items-center justify-center gap-3 p-10 text-center">
-                            <div className="w-16 h-16 rounded-2xl bg-white border border-dashed border-slate-300 flex items-center justify-center text-slate-400 shadow-sm mb-2">
-                                <MessageSquare size={28} />
+                <div className="p-5 border-b border-slate-200 bg-white flex flex-col gap-4 shrink-0 z-10">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center shrink-0">
+                                <Layers size={20} />
                             </div>
                             <div>
-                                <p className="font-sans text-sm font-bold text-slate-700 mb-1">No templates saved</p>
-                                <p className="font-mono text-xs text-slate-400">Add a Content SID below to get started</p>
+                                <h3 className="font-extrabold text-slate-800 text-lg leading-none tracking-tight">Select Template</h3>
+                                <p className="text-[11px] text-slate-500 font-medium mt-1 uppercase tracking-wider">Campaign Library</p>
                             </div>
                         </div>
-                    ) : (
-                        templates.map((tpl) => {
-                            const selected = isSelected(tpl);
-                            const deleting = deletingId === tpl._id;
-
-                            return (
-                                <div
-                                    key={tpl._id}
-                                    className={`bg-white border rounded-xl p-4 flex items-center gap-3 cursor-pointer transition-all relative overflow-hidden shadow-sm animate-in fade-in slide-in-from-bottom-2 ${selected ? "bg-emerald-50/50 border-emerald-200 hover:bg-emerald-50" : "border-slate-200 hover:bg-slate-50 hover:border-slate-300 hover:shadow-md"} ${deleting ? "opacity-0 translate-x-4" : ""}`}
-                                    onClick={() => handleSelect(tpl)}
-                                >
-                                    {/* Active Stripe */}
-                                    {selected && <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#00a884] rounded-l-xl" />}
-
-                                    <div className={`w-9 h-9 rounded-lg shrink-0 flex items-center justify-center border transition-all ${selected ? "bg-emerald-100 border-emerald-300" : "bg-slate-50 border-slate-200"}`}>
-                                        <Tag size={15} className={selected ? "text-emerald-600" : "text-slate-400"} />
-                                    </div>
-
-                                    <div className="flex-1 min-w-0">
-                                        <div className={`text-sm font-bold whitespace-nowrap overflow-hidden text-ellipsis font-sans transition-colors ${selected ? "text-emerald-800" : "text-slate-800"}`}>
-                                            {tpl.name}
-                                        </div>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            {/* Category Badge */}
-                                            <span className={`font-sans text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${getCategoryStyles(tpl.category)}`}>
-                                                {tpl.category || "Marketing"}
-                                            </span>
-                                            <span className={`font-mono text-[10px] ${selected ? "text-emerald-600 font-semibold" : "text-slate-400"}`}>
-                                                {selected ? "Active Template" : new Date(tpl.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Hover Actions */}
-                                    <div className="flex gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                                        <button className="w-7 h-7 rounded-md bg-transparent cursor-pointer flex items-center justify-center text-slate-400 transition-all hover:bg-slate-200 hover:text-slate-700" onClick={() => handleCopySid(tpl)} title="Copy SID">
-                                            {copiedId === tpl._id ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
-                                        </button>
-                                        <button className="w-7 h-7 rounded-md bg-transparent cursor-pointer flex items-center justify-center text-slate-400 transition-all hover:bg-blue-100 hover:text-blue-600" onClick={() => triggerEdit(tpl)} title="Edit Template">
-                                            <Edit2 size={14} />
-                                        </button>
-                                        <button className="w-7 h-7 rounded-md bg-transparent cursor-pointer flex items-center justify-center text-slate-400 transition-all hover:bg-rose-100 hover:text-rose-600 disabled:opacity-50" onClick={() => handleDelete(tpl._id)} disabled={deleting} title="Delete">
-                                            {deleting ? <Loader2 size={14} className="animate-spin text-rose-500" /> : <Trash2 size={14} />}
-                                        </button>
-                                    </div>
-
-                                    {selected && (
-                                        <div className="w-5 h-5 rounded-full bg-[#00a884] flex items-center justify-center shrink-0 shadow-[0_2px_4px_rgba(0,168,132,0.3)] ml-1">
-                                            <CheckCircle2 size={12} color="#fff" strokeWidth={3} />
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })
-                    )}
-                </div>
-
-                {/* Footer Add/Edit Form */}
-                <div className="shrink-0 p-5 sm:p-6 bg-white border-t border-slate-200 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
-                    {!showAddForm ? (
-                        <button className="w-full py-3 px-4 bg-emerald-50 border border-dashed border-emerald-200 rounded-xl cursor-pointer text-[#00a884] font-sans text-sm font-bold flex items-center justify-center gap-2 transition-all hover:bg-emerald-100 hover:border-[#00a884]" onClick={() => setShowAddForm(true)}>
-                            <Plus size={16} strokeWidth={2.5} /> Add New Template
+                        <button className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all" onClick={onClose}>
+                            <X size={18} />
                         </button>
-                    ) : (
-                        <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2">
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-[10px] font-bold tracking-[0.05em] uppercase text-slate-500 mb-1.5 font-sans">Template Label</label>
-                                    <input 
-                                        type="text" 
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 font-sans text-sm text-slate-700 outline-none transition-all focus:border-[#00a884] focus:ring-2 focus:ring-[#00a884]/10 placeholder:text-slate-400" 
-                                        value={nameInput} 
-                                        onChange={e => setNameInput(e.target.value)} 
-                                        placeholder="e.g. Welcome Message" 
-                                        maxLength={40} 
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold tracking-[0.05em] uppercase text-slate-500 mb-1.5 font-sans">Category</label>
-                                    <select 
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 font-sans text-sm text-slate-700 outline-none transition-all focus:border-[#00a884] focus:ring-2 focus:ring-[#00a884]/10 cursor-pointer"
-                                        value={categoryInput}
-                                        onChange={(e) => setCategoryInput(e.target.value)}
-                                    >
-                                        <option value="Marketing">Marketing</option>
-                                        <option value="Utility">Utility</option>
-                                        <option value="Authentication">Authentication</option>
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            <div>
-                                <label className="block text-[10px] font-bold tracking-[0.05em] uppercase text-slate-500 mb-1.5 font-sans">Twilio Content SID <span className="text-rose-500">*</span></label>
-                                <input 
-                                    ref={sidInputRef} 
-                                    type="text" 
-                                    className={`w-full bg-slate-50 border rounded-lg px-3 py-2.5 font-mono text-sm text-slate-700 outline-none transition-all focus:ring-2 placeholder:text-slate-400 ${sidError ? "border-rose-300 focus:border-rose-400 focus:ring-rose-400/10" : "border-slate-200 focus:border-[#00a884] focus:ring-[#00a884]/10"}`} 
-                                    value={sidInput} 
-                                    onChange={e => { setSidInput(e.target.value); setSidError(""); }} 
-                                    onKeyDown={e => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") resetForm(); }} 
-                                    placeholder="HXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" 
-                                    spellCheck={false} 
-                                />
-                                {sidError && <div className="text-[11px] text-rose-500 font-medium font-sans mt-1">⚠ {sidError}</div>}
-                            </div>
+                    </div>
 
-                            <div className="flex gap-2 mt-1 border-t border-slate-100 pt-4">
-                                <button className="flex-1 py-2.5 px-4 bg-slate-100 border-none rounded-lg cursor-pointer text-slate-600 font-sans text-sm font-bold transition-all hover:bg-slate-200" onClick={resetForm}>
-                                    Cancel
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <input 
+                            type="text" 
+                            placeholder="Search by name, SID, language, category..." 
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-9 pr-4 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all placeholder:text-slate-400 text-slate-700"
+                        />
+                    </div>
+
+                    {/* Filter Pills */}
+                    <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1">
+                        {["ALL", "APPROVED", "PENDING", "REJECTED", "PAUSED", "DISABLED", "DRAFT"].map((filter) => {
+                            const count = filterCounts[filter] || 0;
+                            return (
+                                <button 
+                                    key={filter}
+                                    onClick={() => setActiveFilter(filter)}
+                                    className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                                        activeFilter === filter 
+                                        ? "bg-slate-800 text-white shadow-md shadow-slate-200" 
+                                        : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
+                                    }`}
+                                >
+                                    {filter}
+                                    <span className={`text-[9px] px-1.5 py-0.5 rounded-md ${activeFilter === filter ? "bg-slate-600 text-slate-200" : "bg-slate-100 text-slate-500"}`}>
+                                        {count}
+                                    </span>
                                 </button>
-                                <button className="flex-[2] py-2.5 px-4 bg-[#00a884] border-none rounded-lg cursor-pointer text-white font-sans text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-[0_2px_8px_rgba(0,168,132,0.25)] hover:bg-[#059669] hover:shadow-[0_4px_12px_rgba(0,168,132,0.3)] hover:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" onClick={handleSave} disabled={adding || !sidInput.trim()}>
-                                    {adding ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} strokeWidth={2.5} />}
-                                    {editId ? "Update Template" : "Save Template"}
-                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Content Area */}
+                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar relative bg-slate-50/50">
+                    {loading && normalizedTemplates.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-40 text-slate-400 gap-3">
+                            <Loader2 className="animate-spin text-emerald-500" size={24} />
+                            <span className="text-sm font-bold uppercase tracking-widest">Loading Library from Twilio...</span>
+                        </div>
+                    ) : filteredTemplates.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-40 text-center px-4">
+                            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center mb-3 border border-slate-200 shadow-sm">
+                                <Search size={20} className="text-slate-400" />
                             </div>
+                            <h4 className="text-sm font-bold text-slate-700">No templates found</h4>
+                            <p className="text-xs text-slate-500 mt-1">Try adjusting your search or filters.</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-4 pb-4">
+                            {filteredTemplates.map(tpl => {
+                                const isSelected = selectedId === tpl.sid;
+                                const isApproved = tpl.normalizedStatus === "approved";
+
+                                return (
+                                    <div 
+                                        key={tpl.sid} 
+                                        onClick={() => isApproved ? onSelect(tpl.sid, tpl.name) : toast.error("Only Approved templates can be selected for sending.")}
+                                        className={`bg-white rounded-2xl p-4 transition-all relative overflow-hidden group ${
+                                            isSelected 
+                                            ? "border-2 border-emerald-500 shadow-md ring-4 ring-emerald-500/10 cursor-pointer" 
+                                            : isApproved 
+                                                ? "border border-slate-200 hover:border-emerald-300 hover:shadow-md cursor-pointer"
+                                                : "border border-slate-200 opacity-70 cursor-not-allowed grayscale-[0.2]"
+                                        }`}
+                                    >
+                                        {isSelected && (
+                                            <div className="absolute top-0 right-0 w-12 h-12 overflow-hidden pointer-events-none z-20">
+                                                <div className="absolute top-0 right-0 w-[200%] h-[200%] bg-emerald-500 origin-bottom-left rotate-45 translate-x-1/2 -translate-y-1/2 flex items-end justify-center pb-1">
+                                                    <CheckCircle2 size={12} className="text-white -rotate-45 mb-1" />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
+                                            <div className="flex-1 min-w-0 pr-6">
+                                                <h4 className="font-extrabold text-slate-800 text-[15px] leading-snug truncate">{tpl.name}</h4>
+                                                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                                    <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">{tpl.sid}</span>
+                                                    <span className="text-[9px] font-bold text-slate-600 uppercase bg-slate-50 px-2 py-0.5 rounded border border-slate-200">{tpl.language}</span>
+                                                    
+                                                    {/* Format Badge */}
+                                                    <div className="flex items-center gap-1 text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">
+                                                        {tpl.templateType === "TEXT" && <LayoutTemplate size={10} className="text-slate-400" />}
+                                                        {tpl.templateType === "WHATSAPP_CARD" && <ImageIcon size={10} className="text-slate-400" />}
+                                                        {tpl.templateType === "CALL_TO_ACTION" && <ExternalLink size={10} className="text-slate-400" />}
+                                                        <span className="text-[9px] font-bold uppercase">{tpl.templateType === "TEXT" ? "Text" : tpl.templateType === "WHATSAPP_CARD" ? "Card" : "Action"}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Status Badge */}
+                                            <div className="shrink-0 flex items-start z-10">
+                                                {renderChannelEligibility(tpl)}
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-4">
+                                            {/* Preview Box */}
+                                            <div className="w-full">
+                                                <div className="bg-[#EFEAE2] rounded-xl p-3 h-full relative overflow-hidden flex flex-col min-h-[120px]">
+                                                    <div className="absolute inset-0 opacity-10 mix-blend-multiply pointer-events-none" style={{ backgroundImage: "url('https://i.pinimg.com/originals/97/c0/07/97c00759d90d786d9b6096d274ad3e07.png')", backgroundSize: '150px' }}></div>
+                                                    
+                                                    {/* Message Bubble */}
+                                                    <div className="bg-white rounded-lg rounded-tl-none p-2.5 shadow-sm max-w-[90%] relative z-10 text-[12px] leading-relaxed text-slate-800 border border-slate-100">
+                                                        {/* Header */}
+                                                        {tpl.headerType === "TEXT" && tpl.headerText && <div className="font-extrabold text-[13px] mb-1 leading-snug">{tpl.headerText}</div>}
+                                                        {tpl.headerType === "MEDIA" && (
+                                                            <div className="w-full h-20 bg-slate-100 rounded mb-2 flex items-center justify-center border border-slate-200 overflow-hidden relative">
+                                                                {tpl.mediaUrl ? <img src={tpl.mediaUrl} className="w-full h-full object-cover opacity-80" alt="media" /> : <ImageIcon size={20} className="text-slate-300" />}
+                                                            </div>
+                                                        )}
+                                                        
+                                                        {/* Body */}
+                                                        <div className="whitespace-pre-wrap word-break" dangerouslySetInnerHTML={formatPreviewBody(tpl.body)} />
+                                                        
+                                                        {/* Footer */}
+                                                        {tpl.footerText && <div className="text-[10px] text-slate-400 mt-1 font-medium leading-tight">{tpl.footerText}</div>}
+                                                    </div>
+
+                                                    {/* Buttons */}
+                                                    {tpl.buttons && tpl.buttons.length > 0 && (
+                                                        <div className="mt-1 flex flex-col gap-1 max-w-[90%] relative z-10">
+                                                            {tpl.buttons.map((btn, i) => (
+                                                                <div key={i} className="bg-white rounded-lg shadow-sm border border-slate-100 py-1.5 px-2 flex items-center justify-center gap-1.5 text-[11px] font-bold text-[#00a884]">
+                                                                    {btn.type === "URL" ? <ExternalLink size={12} /> : btn.type === "PHONE_NUMBER" ? <PhoneCall size={12} /> : <FastForward size={12} />}
+                                                                    <span className="truncate">{btn.title}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
                 </div>
