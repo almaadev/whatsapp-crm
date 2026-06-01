@@ -262,6 +262,24 @@ export default function MessageLogsPage() {
         return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold uppercase tracking-wider border border-amber-200/60"><Clock size={12}/> {statusStr}</span>;
     };
 
+    const isSuperAdmin = session?.user?.role === "superAdmin";
+      const haslogaccess =
+    isSuperAdmin || session?.user?.accessModules?.includes("Messages log");
+
+    if (!haslogaccess) {
+        return (    
+            <div className="flex h-[100dvh] bg-slate-50 overflow-hidden relative">
+                <Sidebar role={session?.user?.role} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
+                <div className="flex flex-1 w-full h-full flex-col items-center justify-center p-6 text-center">
+                    <ShieldAlert size={80} className="text-rose-400 mb-6" />
+                    <h2 className="text-3xl font-extrabold text-slate-800">Access Denied</h2>
+                    <p className="text-slate-500 mt-2">You do not have permission to view this page. Please contact your administrator.</p>
+                </div>
+            </div>
+        );
+    }
+
+
     const isDangerousQuery = !startDate && !endDate && !searchQuery;
 
     if (status === "loading") return <div className="flex h-screen items-center justify-center text-emerald-600 font-bold uppercase tracking-widest text-sm bg-slate-50"><Loader2 className="animate-spin mr-3"/> Authenticating...</div>;

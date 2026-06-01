@@ -21,7 +21,7 @@ import {
   MessageSquareText,
   History,
   ShieldAlert,
-  Settings, // Add Settings Icon
+  Settings, 
 } from "lucide-react";
 
 export default function Sidebar({
@@ -403,7 +403,9 @@ export default function Sidebar({
             </div>
           )}
 
-          <Link href="/crm/bulk-message">
+      { hasAccess("Bulk Messages")
+          && ( 
+                      <Link href="/crm/bulk-message">
             <NavItem
               isOpen={isExpanded}
               active={pathname === "/crm/bulk-message"}
@@ -411,8 +413,12 @@ export default function Sidebar({
               icon={<MessageSquareText size={22} />}
             />
           </Link>
+          )
+      }
 
-          <Link href="/crm/message-logs">
+      {
+        hasAccess("logs") && (
+                    <Link href="/crm/message-logs">
             <NavItem
               isOpen={isExpanded}
               active={pathname === "/crm/message-logs"}
@@ -420,6 +426,8 @@ export default function Sidebar({
               icon={<History size={22} />}
             />
           </Link>
+        )
+      }
 
           {hasAccess("Leads") && (
             <Link href="/crm/leads">
