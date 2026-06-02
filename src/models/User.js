@@ -2,7 +2,8 @@ import mongoose from "mongoose";
 
 const UserSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  preferredName: { type: String, unique: true, sparse: true }, 
+  // 🚨 FIX: Removed unique and sparse
+  preferredName: { type: String }, 
   email: { type: String, required: true, unique: true },
   number: { type: String }, 
   password: { type: String, required: true },

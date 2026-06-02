@@ -56,36 +56,29 @@ export async function PUT(req, { params }) {
           name: body.name,
           email: body.email,
           role: body.role,
-          number: body.number,
+          number: body.number || "",
           department: body.department,
           branch: body.branch,
           isAdmin: body.isAdmin,
           active: body.active,
-          accessModules: body.accessModules || []
-      },
-      $unset: {} 
+          accessModules: body.accessModules || [],
+          preferredName: body.preferredName || ""
+      }
     };
 
-    if (body.preferredName && body.preferredName.trim() !== "") {
-        updateData.$set.preferredName = body.preferredName.trim();
-    } else {
-        updateData.$unset.preferredName = "";
-    }
-
-    // if (body.number && body.number.trim() !== "") {
-    //     updateData.$set.number = body.number.trim();
+    // if (body.preferredName && body.preferredName.trim() !== "") {
+    //     updateData.$set.preferredName = body.preferredName.trim();
     // } else {
-    //     updateData.$unset.number = "";
+    //     updateData.$unset.preferredName = "";
     // }
+
 
     if (body.password && body.password.trim() !== "") {
       const salt = await bcrypt.genSalt(Number(process.env.SALT || 10));
       updateData.$set.password = await bcrypt.hash(body.password, salt);
     }
 
-    if (Object.keys(updateData.$unset).length === 0) {
-        delete updateData.$unset;
-    }
+
 
     await User.findByIdAndUpdate(id, updateData, { new: true, runValidators: true });
     if (redis && redis.status === 'ready') await redis.del("users:all");
@@ -93,7 +86,7 @@ export async function PUT(req, { params }) {
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error.code === 11000) {
-        return NextResponse.json({ error: "Email, Number or Preferred Name already exists" }, { status: 400 });
+        return NextResponse.json({ error: "This Email Address is already registered" }, { status: 400 });
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
