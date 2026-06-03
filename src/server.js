@@ -11,7 +11,7 @@ const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
 app.prepare().then(() => {
-  // 👇 FIX: Moved inside prepare()
+  
   const upgradeHandler = app.getUpgradeHandler(); 
 
   const httpServer = createServer(async (req, res) => {
@@ -50,7 +50,7 @@ app.prepare().then(() => {
 
   httpServer.on("error", (err) => console.error("Server Error:", err));
 
-  // HMR WebSockets-ai Next.js-kku pass pannanum
+  
   httpServer.on('upgrade', (req, socket, head) => {
     if (req.url.startsWith('/_next/')) {
       upgradeHandler(req, socket, head);

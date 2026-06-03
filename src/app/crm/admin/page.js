@@ -250,7 +250,7 @@ export default function AdminDashboard() {
     "Nov",
     "Dec",
   ];
-  const years = [2024, 2025, 2026, 2027];
+  const years = [2024, 2025, 2026];
 
   return (
     <div className="flex h-[100dvh] bg-[#f8fafc] font-sans overflow-hidden">
