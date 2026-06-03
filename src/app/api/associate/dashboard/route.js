@@ -33,7 +33,6 @@ export async function GET(req) {
         const targetMonth = monthParam ? parseInt(monthParam) : now.getUTCMonth() + 1; // 1-12
         const targetYear = yearParam ? parseInt(yearParam) : now.getUTCFullYear();
 
-        // UTC Normalization ensures no timezone shifting drops leads on the 1st/31st of the month
         const startDate = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 0, 0, 0, 0));
         const endDate = new Date(Date.UTC(targetYear, targetMonth, 0, 23, 59, 59, 999));
 
@@ -50,7 +49,7 @@ export async function GET(req) {
         }
 
         // ============================================================================
-        // 4. MONGODB AGGREGATION PIPELINE ($unwind & $group logic)
+        // 4. MONGODB AGGREGATION PIPELINE
         // ============================================================================
         
         const baseMatch = {
@@ -66,10 +65,6 @@ export async function GET(req) {
         if (allowedTypes.length > 0) {
             baseMatch["leads.leadType"] = { $in: allowedTypes };
         }
-
-        // TEMPORARY DEBUG LOGS
-        const rawLeadsCount = await Lead.countDocuments(baseMatch);
-
 
         const pipeline = [
             { $match: baseMatch },
@@ -91,7 +86,7 @@ export async function GET(req) {
                 } 
             },
             
-            // Match any document that had activity (created, followed-up, or closed) this month
+            // Match any document that had activity this month
             {
                 $match: {
                     $or: [
@@ -119,6 +114,8 @@ export async function GET(req) {
                     followUpCount: { $first: "$followUpCount" },
                     firstFollowUp: { $first: "$firstFollowUp" },
                     latestFollowUp: { $first: "$latestFollowUp" },
+                    assignedTo: { $first: "$assignedTo" },
+                    associateId: { $first: "$associateId" },
                     
                     // Push ONLY the follow-ups that occurred in the requested month
                     monthFollowUps: { 
@@ -138,7 +135,6 @@ export async function GET(req) {
         ];
 
         const aggregatedLeads = await Lead.aggregate(pipeline);
-        console.log("After Filter (Post-Aggregation):", aggregatedLeads.length);
 
         // ============================================================================
         // 5. METRIC CALCULATION & CUSTOMER MAPPING
@@ -159,35 +155,44 @@ export async function GET(req) {
                 ? custData.name 
                 : (lead.name && lead.name !== "Unknown" ? lead.name : lead.phone.replace("whatsapp:", ""));
 
-            // 1. This Month Leads → count leads where firstFollowUp.date is within selected month
+            const latest = lead.latestFollowUp || {};
+            const isCurrentHandler = latest.associateId === myId || latest.associateName === myName || lead.assignedTo === myName;
+
+            // 1. This Month Leads (New Leads Acquired by this Associate)
             const firstDate = new Date(lead.firstFollowUp?.date || lead.createdAt);
-            if (firstDate >= startDate && firstDate <= endDate) {
+            const firstHandlerId = lead.firstFollowUp?.associateId || lead.associateId;
+            if (firstDate >= startDate && firstDate <= endDate && (firstHandlerId === myId || lead.firstFollowUp?.associateName === myName)) {
                 totalThisMonth++;
             }
 
-            // 2. Monthly Goal → count leads closed in that month AND closedBy = current user
-            if (lead.isClosed && lead.closedById === myId && lead.closedAt) {
-                const closedDate = new Date(lead.closedAt);
-                if (closedDate >= startDate && closedDate <= endDate) {
-                    closedThisMonthCount++;
+            // 2. Monthly Goal (Achieved) -> Count EVERY closure event by this associate in the selected month
+            if (lead.monthFollowUps && lead.monthFollowUps.length > 0) {
+                lead.monthFollowUps.forEach(fu => {
+                    if (fu.status === "Closed" && (fu.associateId === myId || fu.associateName === myName)) {
+                        closedThisMonthCount++;
+                    }
+                });
+            }
+
+            // 3. Active Follow-ups & Pending Actions (Current Pipeline)
+            if (!lead.isClosed && isCurrentHandler) {
+                const currentStatus = latest.status || lead.status || "New";
+
+                if (currentStatus === "Follow Up") {
+                    const followUpDate = new Date(latest.date || lead.createdAt);
+                    const hoursDiff = (Date.now() - followUpDate.getTime()) / (1000 * 60 * 60);
+                    
+                    if (hoursDiff > 48) {
+                        pendingCount++; // Overdue
+                    } else {
+                        followUpCount++; // Active working pipeline
+                    }
+                } else if (currentStatus === "New" || currentStatus === "Not Interested") {
+                    pendingCount++; // Unhandled new/not interested leads
                 }
             }
 
-            // 3. Pending Actions → latest follow-up belongs to logged-in user AND status = "Follow Up" AND date > 48 hours
-            const latest = lead.latestFollowUp || {};
-            if (latest.status === "Follow Up" && latest.associateId === myId) {
-                const hoursDiff = (Date.now() - new Date(latest.date).getTime()) / (1000 * 60 * 60);
-                if (hoursDiff > 48) {
-                    pendingCount++; 
-                }
-            }
-
-            // 4. Your Follow Ups → count unique leads where ANY follow-up in that month has associateId = current user
-            const didUserFollowUpThisMonth = lead.monthFollowUps.some(fu => fu.associateId === myId);
-            if (didUserFollowUpThisMonth) {
-                followUpCount++;
-            }
-
+            // Format for UI
             let displayStatus = latest.status || "New";
             if (lead.isClosed) {
                 displayStatus = lead.closedBy === myName ? "Closed" : `Closed by ${lead.closedBy}`;
@@ -201,21 +206,29 @@ export async function GET(req) {
             return {
                 phone: lead.phone,
                 name: finalName,
-                status: displayStatus, // UI mapped display string
+                status: displayStatus, 
                 isClosed: lead.isClosed || false,
                 categoryParam,
                 timeSort: new Date(latest.date || lead.createdAt).getTime(),
                 
-                // Explicit new schema payload for frontend
                 firstFollowUp: lead.firstFollowUp || {},
                 latestFollowUp: latest,
                 
                 firstFollowUpUser: lead.firstFollowUp?.associateName || "Unknown",
-                currentHandler: latest.associateName || "Unassigned",
+                currentHandler: latest.associateName || lead.assignedTo || "Unassigned",
                 closedBy: lead.closedBy || null,
                 followUpCount: lead.followUpCount || 0,
             };
         });
+
+        // Debug Logs to terminal
+        console.log("================ METRICS DEBUG ================");
+        console.log("Associate:", myName);
+        console.log("Active Follow Ups:", followUpCount);
+        console.log("Pending:", pendingCount);
+        console.log("Achieved:", closedThisMonthCount);
+        console.log("Target:", target);
+        console.log("===============================================");
 
         formattedLeads.sort((a, b) => b.timeSort - a.timeSort);
 

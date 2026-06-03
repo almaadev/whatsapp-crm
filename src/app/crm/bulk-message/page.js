@@ -13,14 +13,14 @@ import {
   ChevronRight,
   X,
   Type,
-  ShieldAlert, // Added ShieldAlert for Unauthorized state
+  ShieldAlert,
+  Menu, // 🚀 Added Menu icon for mobile
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import TemplateManagerPanel from "@/components/features/chat/Templatemanagerpanel";
 import { useTemplateStore } from "@/store/templateStore";
 
 export default function BulkTemplatePage() {
-  // 🚨 Added status to useSession to handle loading state
   const { data: session, status } = useSession();
   const userRole = session?.user?.role || "associate";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -30,7 +30,7 @@ export default function BulkTemplatePage() {
   const [templateId, setTemplateId] = useState(""); // internal SID
   const [selectedName, setSelectedName] = useState(""); // display label
 
-  // ─── New Variable State ───────────────────────────────────────────────────
+  // ─── Variable State ───────────────────────────────────────────────────
   const { templates, fetchTemplates } = useTemplateStore();
   const [templateVariables, setTemplateVariables] = useState({});
   const [requiredVariablesCount, setRequiredVariablesCount] = useState(0);
@@ -141,8 +141,7 @@ export default function BulkTemplatePage() {
 
   // ─── Derived values ───────────────────────────────────────────────────────
   const done = progress.sent + progress.failed;
-  const pct =
-    progress.total > 0 ? Math.round((done / progress.total) * 100) : 0;
+  const pct = progress.total > 0 ? Math.round((done / progress.total) * 100) : 0;
   const extracted = numbersText.match(/\d{10,15}/g) || [];
   const recipientCount = [...new Set(extracted)].length;
   const canSend = !isSending && recipientCount > 0 && !!templateId;
@@ -157,22 +156,15 @@ export default function BulkTemplatePage() {
   }
 
   const isSuperAdmin = session?.user?.role === "superAdmin";
-  const hasBulkAccess =
-    isSuperAdmin || session?.user?.accessModules?.includes("Bulk Messages");
+  const hasBulkAccess = isSuperAdmin || session?.user?.accessModules?.includes("Bulk Messages");
 
   if (!hasBulkAccess) {
     return (
       <div className="flex h-[100dvh] bg-slate-50 overflow-hidden relative font-sans">
-        <Sidebar
-          role={userRole}
-          mobileOpen={mobileMenuOpen}
-          setMobileOpen={setMobileMenuOpen}
-        />
+        <Sidebar role={userRole} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
         <div className="flex flex-1 w-full h-full flex-col items-center justify-center p-6 text-center">
           <ShieldAlert size={80} className="text-rose-400 mb-6" />
-          <h2 className="text-3xl font-extrabold text-slate-800">
-            Access Denied
-          </h2>
+          <h2 className="text-3xl font-extrabold text-slate-800">Access Denied</h2>
           <p className="text-sm font-medium text-slate-500 mt-2 max-w-md">
             You do not have permission to access the Bulk Messages module.
             Please contact your administrator.
@@ -184,8 +176,17 @@ export default function BulkTemplatePage() {
 
   // ─── Normal Render ────────────────────────────────────────────────────────
   return (
-    <div className="flex h-[100dvh] bg-slate-50 overflow-hidden font-sans">
-      <div className="flex-shrink-0 z-40">
+    <div className="flex h-[100dvh] bg-slate-50 overflow-hidden font-sans relative">
+      {/* 🚀 ADDED: Mobile Overlay Backdrop */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-40 md:hidden backdrop-blur-sm transition-opacity"
+          onClick={() => setMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      <div className="flex-shrink-0 z-40 relative">
         <Sidebar
           role={userRole}
           mobileOpen={mobileMenuOpen}
@@ -193,41 +194,51 @@ export default function BulkTemplatePage() {
         />
       </div>
 
-      <div className="flex-1 flex flex-col overflow-y-auto custom-scrollbar">
-        <div className="p-6 md:p-10 max-w-6xl mx-auto w-full space-y-8">
-          {/* Header Section */}
-          <div className="flex flex-col gap-2 border-b border-slate-200 pb-6">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full w-max text-xs font-bold uppercase tracking-wider">
-              <Send size={12} />
-              Twilio Campaign
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto custom-scrollbar">
+        <div className="p-4 sm:p-6 md:p-10 max-w-6xl mx-auto w-full space-y-6 sm:space-y-8">
+          
+          {/* 🚀 ADDED: Header Section with Mobile Menu Button */}
+          <div className="flex items-start gap-4 border-b border-slate-200 pb-5 sm:pb-6">
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="md:hidden mt-1 flex items-center justify-center w-10 h-10 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors shrink-0"
+              aria-label="Open navigation"
+            >
+              <Menu size={20} />
+            </button>
+            <div className="flex flex-col gap-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full w-max text-[10px] sm:text-xs font-bold uppercase tracking-wider">
+                <Send size={12} />
+                Twilio Campaign
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight leading-tight">
+                Bulk Template Messenger
+              </h1>
+              <p className="text-xs sm:text-sm font-medium text-slate-500">
+                Send templated WhatsApp messages safely at 50 numbers per batch.
+              </p>
             </div>
-            <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">
-              Bulk Template Messenger
-            </h1>
-            <p className="text-sm font-medium text-slate-500">
-              Send templated WhatsApp messages safely at 50 numbers per batch.
-            </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* LEFT COLUMN - RECIPIENTS (7 columns wide) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">
+            {/* LEFT COLUMN - RECIPIENTS */}
             <div className="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-600">
+              <div className="px-5 sm:px-6 py-4 sm:py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-600">
                   <Hash size={16} className="text-[#00a884]" />
                   Recipients
                 </div>
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                <div className="flex items-center gap-2 text-[10px] sm:text-xs font-bold text-slate-500">
                   Detected
                   <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
                     {recipientCount}
                   </span>
-                  unique numbers
+                  <span className="hidden sm:inline">unique numbers</span>
                 </div>
               </div>
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 <textarea
-                  className="w-full h-[400px] p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/30 text-sm font-mono text-slate-700 leading-relaxed resize-none custom-scrollbar transition-all"
+                  className="w-full h-[300px] sm:h-[400px] p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/30 text-xs sm:text-sm font-mono text-slate-700 leading-relaxed resize-none custom-scrollbar transition-all"
                   value={numbersText}
                   onChange={(e) => setNumbersText(e.target.value)}
                   placeholder={
@@ -236,7 +247,7 @@ export default function BulkTemplatePage() {
                 />
 
                 <div className="flex items-center justify-between mt-3">
-                  <span className="text-[11px] font-mono text-slate-500">
+                  <span className="text-[10px] sm:text-[11px] font-mono text-slate-500">
                     Separated by comma, space, or newline
                   </span>
                   {numbersText && (
@@ -251,20 +262,20 @@ export default function BulkTemplatePage() {
               </div>
             </div>
 
-            {/* RIGHT COLUMN - CONFIG & ACTIONS (5 columns wide) */}
-            <div className="lg:col-span-5 flex flex-col gap-6">
+            {/* RIGHT COLUMN - CONFIG & ACTIONS */}
+            <div className="lg:col-span-5 flex flex-col gap-5 sm:gap-6">
               {/* Template Selector Card */}
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-600 bg-slate-50/50">
+                <div className="px-5 sm:px-6 py-4 sm:py-5 border-b border-slate-100 flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-600 bg-slate-50/50">
                   <Layers size={16} className="text-[#00a884]" />
                   Message Template
                 </div>
 
-                <div className="p-6 flex flex-col gap-4">
-                  <div className="flex items-center gap-3">
+                <div className="p-4 sm:p-6 flex flex-col gap-4">
+                  <div className="flex items-center gap-2 sm:gap-3">
                     {/* Selected chip / placeholder */}
                     <div
-                      className={`flex-1 min-w-0 flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
+                      className={`flex-1 min-w-0 flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-xl border transition-all cursor-pointer ${
                         templateId
                           ? "bg-emerald-50 border-emerald-200 hover:bg-emerald-100/80 hover:border-emerald-300"
                           : "bg-slate-50 border-dashed border-slate-300 hover:bg-slate-100 hover:border-slate-400"
@@ -280,10 +291,10 @@ export default function BulkTemplatePage() {
                             <Layers size={14} className="text-emerald-600" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm font-bold text-emerald-800 truncate">
+                            <div className="text-xs sm:text-sm font-bold text-emerald-800 truncate">
                               {selectedName}
                             </div>
-                            <div className="text-[10px] font-mono text-emerald-600/70 mt-0.5">
+                            <div className="text-[9px] sm:text-[10px] font-mono text-emerald-600/70 mt-0.5">
                               Template selected
                             </div>
                           </div>
@@ -300,7 +311,7 @@ export default function BulkTemplatePage() {
                         </>
                       ) : (
                         <>
-                          <div className="flex-1 text-sm font-semibold text-slate-500 px-2">
+                          <div className="flex-1 text-xs sm:text-sm font-semibold text-slate-500 px-2">
                             No template selected
                           </div>
                           <ChevronRight size={16} className="text-slate-400" />
@@ -310,11 +321,11 @@ export default function BulkTemplatePage() {
 
                     {/* Open library button */}
                     <button
-                      className="flex items-center gap-2 px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-xs font-bold transition-colors hover:bg-slate-100 flex-shrink-0"
+                      className="flex items-center gap-2 px-3 sm:px-4 py-3 sm:py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-[11px] sm:text-xs font-bold transition-colors hover:bg-slate-100 flex-shrink-0"
                       onClick={() => setPanelOpen(true)}
                     >
                       <Layers size={14} />
-                      Library
+                      <span className="hidden sm:inline">Library</span>
                     </button>
                   </div>
 
@@ -323,7 +334,7 @@ export default function BulkTemplatePage() {
                     <div className="mt-2 bg-slate-50 border border-slate-200 rounded-xl p-4 animate-in fade-in slide-in-from-top-2">
                       <div className="flex items-center gap-2 mb-3">
                         <Type size={14} className="text-blue-500" />
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                        <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-600">
                           Template Variables
                         </span>
                       </div>
@@ -345,11 +356,11 @@ export default function BulkTemplatePage() {
                                 handleVariableChange(num, e.target.value)
                               }
                               placeholder={`Value for variable ${num}...`}
-                              className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                              className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all w-full"
                             />
                           </div>
                         ))}
-                        <p className="text-[10px] text-slate-500 leading-tight">
+                        <p className="text-[9px] sm:text-[10px] text-slate-500 leading-tight">
                           Note: These variables will be identical for every
                           recipient in this bulk broadcast.
                         </p>
@@ -360,28 +371,28 @@ export default function BulkTemplatePage() {
               </div>
 
               {/* Stats Row */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center shadow-sm">
-                  <span className="text-2xl font-bold text-slate-800 leading-none mb-1">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 sm:p-4 flex flex-col items-center justify-center shadow-sm">
+                  <span className="text-xl sm:text-2xl font-bold text-slate-800 leading-none mb-1">
                     {recipientCount}
                   </span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-500">
                     Total
                   </span>
                 </div>
-                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex flex-col items-center justify-center shadow-sm">
-                  <span className="text-2xl font-bold text-emerald-600 leading-none mb-1">
+                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 sm:p-4 flex flex-col items-center justify-center shadow-sm">
+                  <span className="text-xl sm:text-2xl font-bold text-emerald-600 leading-none mb-1">
                     {progress.sent}
                   </span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600/70">
+                  <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-emerald-600/70">
                     Sent
                   </span>
                 </div>
-                <div className="bg-red-50 border border-red-100 rounded-xl p-4 flex flex-col items-center justify-center shadow-sm">
-                  <span className="text-2xl font-bold text-red-500 leading-none mb-1">
+                <div className="bg-red-50 border border-red-100 rounded-xl p-3 sm:p-4 flex flex-col items-center justify-center shadow-sm">
+                  <span className="text-xl sm:text-2xl font-bold text-red-500 leading-none mb-1">
                     {progress.failed}
                   </span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-red-600/70">
+                  <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-red-600/70">
                     Failed
                   </span>
                 </div>
@@ -389,33 +400,33 @@ export default function BulkTemplatePage() {
 
               {/* Progress Card */}
               {(isSending || progress.total > 0) && (
-                <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-sm">
                   <div className="flex justify-between items-center mb-3">
-                    <span className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                    <span className="text-xs sm:text-sm font-bold text-slate-700 flex items-center gap-2">
                       {isSending && (
                         <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                       )}
                       {isSending ? "Broadcasting..." : "Campaign Complete"}
                     </span>
-                    <span className="text-sm font-bold text-[#00a884] font-mono">
+                    <span className="text-xs sm:text-sm font-bold text-[#00a884] font-mono">
                       {pct}%
                     </span>
                   </div>
 
-                  <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden mb-4">
+                  <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden mb-3 sm:mb-4">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ease-out ${!isSending && pct === 100 ? "bg-[#059669]" : "bg-gradient-to-r from-emerald-400 to-[#00a884]"}`}
                       style={{ width: `${pct}%` }}
                     />
                   </div>
 
-                  <div className="flex justify-between items-center text-xs font-semibold text-slate-500">
-                    <div className="flex items-center gap-4">
-                      <span className="flex items-center gap-1.5 text-emerald-600">
-                        <CheckCircle2 size={14} /> {progress.sent} Delivered
+                  <div className="flex justify-between items-center text-[10px] sm:text-xs font-semibold text-slate-500">
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <span className="flex items-center gap-1 sm:gap-1.5 text-emerald-600">
+                        <CheckCircle2 size={12} className="sm:w-3.5 sm:h-3.5" /> {progress.sent} Delivered
                       </span>
-                      <span className="flex items-center gap-1.5 text-red-500">
-                        <AlertCircle size={14} /> {progress.failed} Failed
+                      <span className="flex items-center gap-1 sm:gap-1.5 text-red-500">
+                        <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {progress.failed} Failed
                       </span>
                     </div>
                     <span className="font-mono text-slate-400">
@@ -431,7 +442,7 @@ export default function BulkTemplatePage() {
               <button
                 onClick={handleBulkSend}
                 disabled={!canSend}
-                className={`w-full py-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md mt-auto
+                className={`w-full py-3 sm:py-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md mt-auto
                                     ${
                                       !canSend
                                         ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
@@ -440,7 +451,7 @@ export default function BulkTemplatePage() {
               >
                 {isSending ? (
                   <>
-                    <Loader2 size={18} className="animate-spin" />
+                    <Loader2 size={16} className="animate-spin sm:w-[18px] sm:h-[18px]" />
                     Batch{" "}
                     {Math.min(
                       Math.ceil((done + 1) / 50),
@@ -450,12 +461,12 @@ export default function BulkTemplatePage() {
                   </>
                 ) : (
                   <>
-                    <Send size={18} /> Launch Campaign
+                    <Send size={16} className="sm:w-[18px] sm:h-[18px]" /> Launch Campaign
                   </>
                 )}
               </button>
 
-              <p className="text-center text-[11px] font-semibold text-slate-400 tracking-wide uppercase">
+              <p className="text-center text-[10px] sm:text-[11px] font-semibold text-slate-400 tracking-wide uppercase">
                 Processed in Batches of 50 · Twilio Content API
               </p>
             </div>

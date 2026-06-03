@@ -42,13 +42,13 @@ export async function GET(req) {
         const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
         const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
-        // 5. Safe Case-Insensitive Filtering
+        // 5. 🚀 FIX: Correct Role and Department fetching based on your exact User Schema
         const users = await User.find({ 
-            role: 'associate', 
-            department: { $regex: "^sales$", $options: "i" } 
+            role: 'sales', 
+            department: { $regex: "^(telecalling|support)$", $options: "i" } 
         }).lean();
 
-        console.log("[Sales API] Session:", session.user.email, "| Users Found:", users.length);
+        console.log(`[Sales API] Session: ${session.user.email} | Users Found: ${users.length}`);
 
         // 6. Fallback Safety for Empty Datasets
         if (!users || users.length === 0) {
@@ -65,7 +65,9 @@ export async function GET(req) {
         const response = { success: true, roster, analytics: companyAnalytics };
         
         // 8. Cache & Return
-        if (redis && redis.status === 'ready') await redis.setex(cacheKey, 300, JSON.stringify(response));
+        if (redis && redis.status === 'ready') {
+            await redis.setex(cacheKey, 300, JSON.stringify(response));
+        }
 
         return NextResponse.json(response);
     } catch (error) {

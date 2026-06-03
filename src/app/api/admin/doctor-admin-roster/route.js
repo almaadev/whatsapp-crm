@@ -13,14 +13,14 @@ export async function GET(req) {
     await connectDB();
     const session = await getServerSession(authOptions);
 
-    // 1. Strict Authentication Check
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // 2. Strict Authorization Check
+    // 🚀 FIX: Added 'superAdmin' condition here to fix the 403 Forbidden error
     const isAllowed =
-      session.user.role === "doctor" && session.user.department === "admin";
+      session.user.role === 'superAdmin' || 
+      (session.user.role === "doctor" && session.user.department === "admin");
 
     if (!isAllowed) {
       return NextResponse.json(
@@ -29,14 +29,10 @@ export async function GET(req) {
       );
     }
 
-    // 3. Time Intelligence
     const { searchParams } = new URL(req.url);
-    const month =
-      parseInt(searchParams.get("month")) || new Date().getUTCMonth() + 1;
-    const year =
-      parseInt(searchParams.get("year")) || new Date().getUTCFullYear();
+    const month = parseInt(searchParams.get("month")) || new Date().getUTCMonth() + 1;
+    const year = parseInt(searchParams.get("year")) || new Date().getUTCFullYear();
 
-    // 4. Redis Cache Check
     const cacheKey = `roster:doctorAdmin:${month}:${year}`;
     if (redis && redis.status === "ready") {
       const cached = await redis.get(cacheKey);
@@ -51,40 +47,25 @@ export async function GET(req) {
       department: { $regex: "^(telecalling|support)$", $options: "i" },
     }).lean();
 
-    // 6. Fallback Safety for Empty Datasets
     if (!users || users.length === 0) {
       return NextResponse.json({
         success: true,
         roster: [],
-        analytics: {
-          totalLeads: 0,
-          totalPending: 0,
-          totalFollowUp: 0,
-          totalAchieved: 0,
-          totalTarget: 0,
-        },
+        analytics: { totalLeads: 0, totalPending: 0, totalFollowUp: 0, totalAchieved: 0, totalTarget: 0 },
       });
     }
 
-    // 7. Process Metrics
-    const { roster, companyAnalytics } = await processRosterMetrics(
-      users,
-      startDate,
-      endDate,
-    );
+    const { roster, companyAnalytics } = await processRosterMetrics(users, startDate, endDate);
 
     const response = { success: true, roster, analytics: companyAnalytics };
 
-    // 8. Cache & Return
-    if (redis && redis.status === "ready")
+    if (redis && redis.status === "ready") {
       await redis.setex(cacheKey, 300, JSON.stringify(response));
+    }
 
     return NextResponse.json(response);
   } catch (error) {
     console.error("Doctor Admin Roster API Error:", error);
-    return NextResponse.json(
-      { success: false, error: "Internal Server Error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ success: false, error: "Internal Server Error" }, { status: 500 });
   }
 }
