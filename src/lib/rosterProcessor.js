@@ -39,14 +39,24 @@ export async function processRosterMetrics(users, startDate, endDate) {
                 companyAnalytics.totalLeads++;
             }
 
-            // B. Achieved (Closed this month)
-            if (lead.isClosed && lead.closedById === userIdStr && lead.closedAt) {
-                const closedDate = new Date(lead.closedAt);
-                if (closedDate >= startDate && closedDate <= endDate) {
-                    achievedCount++;
-                    companyAnalytics.totalAchieved++;
+            // B. Achieved (Closed this month) - NEW LOGIC 🚀
+            // Iterate through every single follow-up to catch multiple closures for the same lead
+            history.forEach(followUp => {
+                if (followUp.status === "Closed") {
+                    const closedDate = new Date(followUp.date);
+                    
+                    // Check if this specific closure happened within the selected month & year
+                    if (closedDate >= startDate && closedDate <= endDate) {
+                        const handler = followUp.associateId || followUp.associateName;
+                        
+                        // Check if the current associate is the one who closed this specific follow-up
+                        if (handler === userIdStr || handler === userName) {
+                            achievedCount++;
+                            companyAnalytics.totalAchieved++;
+                        }
+                    }
                 }
-            }
+            });
 
             // C. Active Pipeline (Pending vs Follow Up)
             if (!lead.isClosed && isCurrent) {
