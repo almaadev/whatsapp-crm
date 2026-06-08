@@ -80,7 +80,7 @@ export async function PUT(req, { params }) {
 
 
 
-    await User.findByIdAndUpdate(id, updateData, { new: true, runValidators: true });
+    await User.findByIdAndUpdate(id, updateData, { returnDocument: 'after', runValidators: true });
     if (redis && redis.status === 'ready') await redis.del("users:all");
 
     return NextResponse.json({ success: true });
