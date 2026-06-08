@@ -66,19 +66,10 @@ export async function PUT(req, { params }) {
       }
     };
 
-    // if (body.preferredName && body.preferredName.trim() !== "") {
-    //     updateData.$set.preferredName = body.preferredName.trim();
-    // } else {
-    //     updateData.$unset.preferredName = "";
-    // }
-
-
     if (body.password && body.password.trim() !== "") {
       const salt = await bcrypt.genSalt(Number(process.env.SALT || 10));
       updateData.$set.password = await bcrypt.hash(body.password, salt);
     }
-
-
 
     await User.findByIdAndUpdate(id, updateData, { returnDocument: 'after', runValidators: true });
     if (redis && redis.status === 'ready') await redis.del("users:all");
@@ -86,7 +77,7 @@ export async function PUT(req, { params }) {
     return NextResponse.json({ success: true });
   } catch (error) {
    if (error.code === 11000 && error.keyValue) {
-        // Ethu field aanu duplicate aayathu ennu kandupidikkan
+        
         const duplicateField = Object.keys(error.keyValue)[0];
         
         let displayField = duplicateField;
@@ -95,7 +86,7 @@ export async function PUT(req, { params }) {
         else if (duplicateField === 'phone') displayField = 'Phone Number';
 
         return NextResponse.json({ 
-            error: `Ee ${displayField} already register cheythittundu. Dayavayi mattoru ${displayField} nalkuka.` 
+            error: `This ${displayField} is already registered. Please provide a different ${displayField}.` 
         }, { status: 400 });
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
