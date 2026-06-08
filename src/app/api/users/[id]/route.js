@@ -85,8 +85,18 @@ export async function PUT(req, { params }) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    if (error.code === 11000) {
-        return NextResponse.json({ error: "This Email Address is already registered" }, { status: 400 });
+   if (error.code === 11000 && error.keyValue) {
+        // Ethu field aanu duplicate aayathu ennu kandupidikkan
+        const duplicateField = Object.keys(error.keyValue)[0];
+        
+        let displayField = duplicateField;
+        if (duplicateField === 'preferredName') displayField = 'Preferred Name';
+        else if (duplicateField === 'email') displayField = 'Email';
+        else if (duplicateField === 'phone') displayField = 'Phone Number';
+
+        return NextResponse.json({ 
+            error: `Ee ${displayField} already register cheythittundu. Dayavayi mattoru ${displayField} nalkuka.` 
+        }, { status: 400 });
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
