@@ -3,6 +3,7 @@ import { useState } from "react";
 import { User, Mail, Lock, Shield, CheckCircle, AlertCircle, Plus, Phone, Briefcase, Tag, Building } from "lucide-react";
 import { useSession } from "next-auth/react";
 
+import { getDistricts } from "@/utils/district";
 
 export default function CreateUserForm() {
     const { data: session } = useSession();
@@ -18,15 +19,7 @@ export default function CreateUserForm() {
 
   const modulesList = ["Leads", "Customers", "Reports", "Chat Inbox", "Product Lead", "MD Camp", "Therapy"];
 
-  const tamilNaduDistricts = [
-    "Ariyalur", "Chengalpattu", "Chennai", "Coimbatore", "Cuddalore", "Dharmapuri",
-    "Dindigul", "Erode", "Kallakurichi", "Kanchipuram", "Kanyakumari", "Karur",
-    "Krishnagiri", "Madurai", "Mayiladuthurai", "Nagapattinam", "Namakkal", "Nilgiris",
-    "Perambalur", "Pudukkottai", "Ramanathapuram", "Ranipet", "Salem", "Sivaganga",
-    "Tenkasi", "Thanjavur", "Theni", "Thoothukudi", "Tiruchirappalli", "Tirunelveli",
-    "Tirupathur", "Tiruppur", "Tiruvallur", "Tiruvannamalai", "Tiruvarur", "Vellore",
-    "Viluppuram", "Virudhunagar"
-  ];
+  const tamilNaduDistricts =  getDistricts();
 
   const handleModuleChange = (module) => {
     setFormData(prev => ({

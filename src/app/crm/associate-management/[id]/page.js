@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "react-toastify";
-
+import { getDistricts } from "@/utils/district";
 import { 
     User, Mail, Lock, Shield, Phone, Briefcase, Tag, 
     ArrowLeft, Save, ShieldAlert, Building, LayoutGrid, 
@@ -27,15 +27,7 @@ export default function EditAssociatePage() {
 
   const modulesList = ["Leads", "Customers", "Reports", "Bulk Messages", "Messages log" ,"Chat Inbox", "Product Lead", "MD Camp", "Therapy"];
 
-  const tamilNaduDistricts = [
-    "Ariyalur", "Chengalpattu", "Chennai", "Coimbatore", "Cuddalore", "Dharmapuri",
-    "Dindigul", "Erode", "Kallakurichi", "Kanchipuram", "Kanyakumari", "Karur",
-    "Krishnagiri", "Madurai", "Mayiladuthurai", "Nagapattinam", "Namakkal", "Nilgiris",
-    "Perambalur", "Pudukkottai", "Ramanathapuram", "Ranipet", "Salem", "Sivaganga",
-    "Tenkasi", "Thanjavur", "Theni", "Thoothukudi", "Tiruchirappalli", "Tirunelveli",
-    "Tirupathur", "Tiruppur", "Tiruvallur", "Tiruvannamalai", "Tiruvarur", "Vellore",
-    "Viluppuram", "Virudhunagar"
-  ];
+  const tamilNaduDistricts = getDistricts();
 
   const isAuthorized =
     session?.user?.role === 'superAdmin' ||
