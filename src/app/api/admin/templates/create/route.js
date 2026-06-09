@@ -70,7 +70,7 @@ export async function GET(req) {
 
                 if (approvalData && approvalData.whatsapp) {
                     waData = {
-                        status: approvalData.whatsapp.status || "draft",
+                        status: approvalData.whatsapp.status ,
                         category: approvalData.whatsapp.category || "UTILITY",
                         rejection_reason: approvalData.whatsapp.rejection_reason || "",
                         content_type: approvalData.whatsapp.content_type || "",
