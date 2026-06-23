@@ -43,10 +43,9 @@ export async function GET(req, { params }) {
         }).lean();
 
         if (!customer) {
-            console.log(`[Customer API] 404 Not Found for phone query: ${rawPhone}. Tried variations:`, variations);
+           console.warn(`Customer not found for phone variations: ${variations.join(", ")}`);
             return NextResponse.json({ error: "Customer not found" }, { status: 404 });
         }
-        console.log(customer);
         const formattedData = {
             phone: customer.phone,
             name: customer.name || "Unknown",
@@ -59,7 +58,7 @@ export async function GET(req, { params }) {
             remarks: customer.remarks || "",
             saleAmount: customer.saleAmount || "0",
             associate: customer.assignedTo || "Unassigned",
-            visitCount: customer.visitCount || 1,
+            
             date: customer.createdAt ? new Date(customer.createdAt).toISOString() : null,
             isClosed: customer.isClosed || false,
             followUpStartDate: customer.followUpStartDate || null

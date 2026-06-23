@@ -6,9 +6,9 @@ import Customer from "@/models/Customer";
 import Lead from "@/models/Lead";
 import User from "@/models/User";
 import redis from "@/lib/redis";
+import { getUserNameById } from "@/utils/userUtils";
 
 export const dynamic = "force-dynamic";
-
 
 function normalisePhone(raw = "") {
   let p = raw.toString().trim();
@@ -17,7 +17,7 @@ function normalisePhone(raw = "") {
 }
 
 function rootLeadFields(body, resolvedName, resolvedCity, resolvedAddress, currentUser, associateId) {
-  const isClosed = body.status === "Closed";
+  const isClosed = body.status === "Closed" || body.status === "Not Interested";
   
   const fields = {
     name: resolvedName,
@@ -42,30 +42,23 @@ function rootLeadFields(body, resolvedName, resolvedCity, resolvedAddress, curre
   return fields;
 }
 
-function buildFollowUp(body, session) {
-  // Explicitly calculate dates here instead of Mongoose middleware to avoid "next is not a function" crashes
-  const d = body.date ? new Date(body.date) : new Date();
-  
-  return {
-    date: d,
-    year: d.getFullYear(),
-    month: d.getMonth() + 1,
-    day: d.getDate(),
-    enquiredFor: body.enquiredFor || "",
-    associateId: session.user.id || "",
-    associateName: session.user.name || "", 
-    priority: body.priority || "Medium",
-    status: body.status || "New",
-    overAllRemarks: body.overAllRemarks || "", // Mapped correctly
-    day1Remarks: body.day1Remarks || "",
-    day2Remarks: body.day2Remarks || "",
-    day3Remarks: body.day3Remarks || "",
-    saleAmount: body.saleAmount || "0",
-    leadType: body.leadType || "Direct Lead",
-    note: body.note || "",
-    nextFollowUp: body.nextFollowUp ? new Date(body.nextFollowUp) : undefined,
-  };
-}
+const buildFollowUp = async (body, session) => {
+    const associateId = body.associateId || session.user.id;
+    const resolvedAssociateName = await getUserNameById(associateId, session.user.name);
+
+    return {
+        date: body.date ? new Date(body.date) : new Date(),
+        leadType: body.leadType || "Direct Lead",
+        status: body.status || "New",
+        priority: body.priority || "Medium",
+        source: body.source || "Manual Entry",
+        enquiredFor: body.enquiredFor || "",
+        overAllRemarks: body.overAllRemarks || "",
+        saleAmount: body.saleAmount || 0,
+        associateId: associateId,
+        associateName: resolvedAssociateName, 
+    };
+};
 
 function mergeFollowUp(existing, body) {
   if (body.enquiredFor !== undefined) existing.enquiredFor = body.enquiredFor;
@@ -243,28 +236,33 @@ export async function POST(req) {
     }
 
     const cleanPhone = normalisePhone(mobileRaw);
-    const currentUser = session.user.name;
+    const currentUser = session.user.id ? await getUserNameById(session.user.id, session.user.name) : "Unknown";
     const userDoc = await User.findOne({ name: currentUser }).lean();
     const associateId = userDoc ? userDoc._id.toString() : session.user.id;
 
-    const customer = await Customer.findOne({ phone: cleanPhone }).lean();
-    const resolvedName = (body.name?.trim())
-      || (customer?.name && customer.name !== "Unknown" ? customer.name : "")
-      || "Unknown";
-    const resolvedCity = body.city?.trim() || customer?.city || "";
-    const resolvedAddress = body.address?.trim() || customer?.address || "";
-    const resolvedStatus = body.status || "New";
+    // Fetch existing customer to resolve missing fields
+    const existingCustomer = await Customer.findOne({ phone: cleanPhone }).lean();
     
-    Customer.findOneAndUpdate(
+    const resolvedName = (body.name?.trim())
+      || (existingCustomer?.name && existingCustomer.name !== "Unknown" ? existingCustomer.name : "")
+      || "Unknown";
+    const resolvedCity = body.city?.trim() || existingCustomer?.city || "";
+    const resolvedAddress = body.address?.trim() || existingCustomer?.address || "";
+    const resolvedStatus = body.status || "New";
+    const resolvedPriority = body.priority || "Medium";
+    
+    // 1. Get or Create the Customer
+    const updatedCustomer = await Customer.findOneAndUpdate(
       { phone: cleanPhone },
-      { $setOnInsert: { phone: cleanPhone }, $set: { name: resolvedName, city: resolvedCity, address: resolvedAddress, status: resolvedStatus } },
-      { upsert: true }
-    ).catch((e) => console.error("[Customer sync error]", e));
+      { 
+        $setOnInsert: { phone: cleanPhone }, 
+        $set: { name: resolvedName, city: resolvedCity, address: resolvedAddress, status: resolvedStatus, priority: resolvedPriority } 
+      },
+      { upsert: true, new: true } 
+    );
 
     const existingLead = await Lead.findOne({ phone: cleanPhone });
-    const rootFields = rootLeadFields(
-      body, resolvedName, resolvedCity, resolvedAddress, currentUser, associateId
-    );
+    const rootFields = rootLeadFields(body, resolvedName, resolvedCity, resolvedAddress, currentUser, associateId);
 
     const currentHandoff = {
       associateId: associateId || "system",
@@ -272,18 +270,30 @@ export async function POST(req) {
       assignedAt: new Date()
     };
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // IF LEAD DOES NOT EXIST - CREATE NEW
+    // ─────────────────────────────────────────────────────────────────────────
     if (!existingLead) {
+      const newFollowUp = await buildFollowUp(body, session);
+
       const newLead = await Lead.create({
         phone: cleanPhone,
+        customerProfile: updatedCustomer._id,
         ...rootFields,
         handledByHistory: [currentHandoff],
-        leads: [buildFollowUp(body, session)],
+        leads: [newFollowUp],
       });
+
+      updatedCustomer.leadProfile = newLead._id;
+      await updatedCustomer.save();
 
       await invalidateCache();
       return NextResponse.json({ success: true, lead: newLead, action: "created" });
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // UPDATE HANDOFF HISTORY IF HANDLER CHANGED
+    // ─────────────────────────────────────────────────────────────────────────
     if (!existingLead.handledByHistory) existingLead.handledByHistory = [];
     const lastHandler = existingLead.handledByHistory.length > 0 
         ? existingLead.handledByHistory[existingLead.handledByHistory.length - 1] 
@@ -293,35 +303,57 @@ export async function POST(req) {
       existingLead.handledByHistory.push(currentHandoff);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // 🚀 NEW TIMELINE LOGIC: "Should we Push or Merge?"
+    // ─────────────────────────────────────────────────────────────────────────
     const latestIdx = existingLead.leads.length - 1;
     const latestStatus = existingLead.leads[latestIdx]?.status ?? "New";
     const incomingStatus = body.status ?? latestStatus;
 
-    if (latestStatus === "Follow Up") {
-      Object.assign(existingLead, rootFields);
-      mergeFollowUp(existingLead.leads[latestIdx], body);
-      await customer && Customer.findOneAndUpdate({ phone: cleanPhone }, { name: resolvedName, city: resolvedCity, address: resolvedAddress, status: resolvedStatus });
-      await existingLead.save();
-      await invalidateCache();
-      return NextResponse.json({ success: true, lead: existingLead, action: "updated_followup" });
+    let shouldCreateNewEntry = false;
+
+    // Rule 1: If it's already Closed/Not Interested, only create new if transitioning back to Follow Up.
+    if (latestStatus === "Closed" || latestStatus === "Not Interested") {
+        if (incomingStatus === "Follow Up") {
+            shouldCreateNewEntry = true;
+        } else {
+            shouldCreateNewEntry = false; // Just update the closed note
+        }
+    } 
+    // Rule 2: If it's in Follow Up, only create new if transitioning to Closed/Not Interested.
+    else if (latestStatus === "Follow Up") {
+        if (incomingStatus === "Closed" || incomingStatus === "Not Interested") {
+            shouldCreateNewEntry = true;
+        } else {
+            shouldCreateNewEntry = false; // Just update priority or remarks
+        }
+    } 
+    // Rule 3: For 'New', just update the initial entry as they start working on it.
+    else {
+        shouldCreateNewEntry = false;
     }
 
-    const isMetadataOnlyChange = incomingStatus === latestStatus && ["Closed", "Not Interested", "New"].includes(latestStatus);
-
-    if (isMetadataOnlyChange) {
+    // ─────────────────────────────────────────────────────────────────────────
+    // APPLY THE DECISION
+    // ─────────────────────────────────────────────────────────────────────────
+    if (!shouldCreateNewEntry) {
+      // 👉 UPDATE EXISTING (MERGE)
       Object.assign(existingLead, rootFields);
       if (latestIdx >= 0) mergeFollowUp(existingLead.leads[latestIdx], body);
 
       await existingLead.save();
       await invalidateCache();
-      return NextResponse.json({ success: true, lead: existingLead, action: "updated_metadata" });
+      return NextResponse.json({ success: true, lead: existingLead, action: "updated_existing_entry" });
     } else {
+      // 👉 CREATE NEW (PUSH)
       Object.assign(existingLead, rootFields);
-      existingLead.leads.push(buildFollowUp(body, session));
+
+      const newFollowUp = await buildFollowUp(body, session);
+      existingLead.leads.push(newFollowUp);
 
       await existingLead.save();
       await invalidateCache();
-      return NextResponse.json({ success: true, lead: existingLead, action: "new_cycle" });
+      return NextResponse.json({ success: true, lead: existingLead, action: "pushed_new_entry" });
     }
 
   } catch (error) {

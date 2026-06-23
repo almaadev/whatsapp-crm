@@ -48,8 +48,6 @@ export async function GET(req) {
             department: { $regex: "^(telecalling|support)$", $options: "i" } 
         }).lean();
 
-        console.log(`[Sales API] Session: ${session.user.email} | Users Found: ${users.length}`);
-
         // 6. Fallback Safety for Empty Datasets
         if (!users || users.length === 0) {
             return NextResponse.json({

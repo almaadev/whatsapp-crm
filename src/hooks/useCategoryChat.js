@@ -1,0 +1,129 @@
+import { useEffect, useState, useRef, useCallback } from "react";
+import { getCategoryConfig } from "@/constants/categories";
+import { getCategoryChatStore } from "@/stores/categoryChatStore";
+import { categoryChatService } from "@/services/categoryChatService";
+import { connectSocket } from "@/services/socketService";
+import { toast } from "react-toastify";
+
+export function useCategoryChat(slug) {
+  const config = getCategoryConfig(slug);
+  const useStore = getCategoryChatStore(slug);
+
+  const store = useStore();
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+
+  const selectedChatRef = useRef(store.selectedChat);
+  const messagesRef = useRef(store.messages);
+
+  useEffect(() => {
+    selectedChatRef.current = store.selectedChat;
+    messagesRef.current = store.messages;
+  }, [store.selectedChat, store.messages]);
+
+  const fetchChats = useCallback(async (search = "") => {
+    try {
+      setLoading(true);
+      const data = await categoryChatService.getChats(slug, search);
+
+      if (!Array.isArray(data)) throw new Error("Invalid data format received");
+
+      const formattedData = data.map((chat) => ({
+        ...chat,
+        history: (chat.history || []).map((msg) => ({
+          ...msg,
+          timestamp: msg.timestamp || msg.createdAt || new Date().toISOString(),
+        })),
+      }));
+
+      useStore.getState().setMessages(formattedData);
+
+      const currentSelected = selectedChatRef.current;
+      if (currentSelected) {
+        const updatedSelected = formattedData.find((c) => c.phone === currentSelected.phone);
+        if (updatedSelected) {
+          useStore.getState().setSelectedChat(updatedSelected);
+        }
+      }
+    } catch (error) {
+      console.error(`Fetch Error in useCategoryChat(${slug}):`, error);
+    } finally {
+      setLoading(false);
+    }
+  }, [slug, useStore]);
+
+  const sendMessage = async (phone, message) => {
+    try {
+      setSending(true);
+      await categoryChatService.sendMessage(slug, phone, message);
+      return true;
+    } catch {
+      toast.error("Failed to send message");
+      return false;
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const updateStatus = async (phone, status) => {
+    try {
+      const res = await fetch("/api/lead-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, status }),
+      });
+      if (res.ok) {
+        useStore.getState().updateChatDetails(phone, { status });
+        toast.success(`Status updated to ${status}`);
+      }
+    } catch {
+      toast.error("Failed to update status");
+    }
+  };
+
+  useEffect(() => {
+    fetchChats();
+
+    const handleNewMessage = (msg) => {
+      const newMsg = {
+        ...msg,
+        timestamp: msg.timestamp || new Date().toISOString(),
+        chatType: config.chatType,
+      };
+
+      const currentState = useStore.getState();
+      currentState.addMessage(newMsg);
+
+      const updatedMessages = messagesRef.current.map((chat) => {
+        if (chat.phone === msg.phone) {
+          return { ...chat, history: [...(chat.history || []), newMsg] };
+        }
+        return chat;
+      });
+      currentState.setMessages(updatedMessages);
+
+      const activeChat = selectedChatRef.current;
+      if (activeChat?.phone === msg.phone) {
+        currentState.setSelectedChat({
+          ...activeChat,
+          history: [...(activeChat.history || []), newMsg],
+        });
+      }
+    };
+
+    const handleStatusUpdate = (update) => {
+      useStore.getState().updateMessageStatus(update.phone, update.sid, update.status);
+    };
+
+    const socket = connectSocket();
+    socket.on(config.socketEvent, handleNewMessage);
+    socket.on("message_status_update", handleStatusUpdate);
+
+    return () => {
+      socket.off(config.socketEvent, handleNewMessage);
+      socket.off("message_status_update", handleStatusUpdate);
+    };
+  }, [slug, config.chatType, config.socketEvent, fetchChats, useStore]);
+
+  return { loading, sending, fetchChats, sendMessage, updateStatus, useStore, config };
+}

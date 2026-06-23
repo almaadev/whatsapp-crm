@@ -21,9 +21,7 @@ export async function POST(req) {
                     await redis.setex(`blacklist:${jti}`, expTime, "revoked");
                 }
             }
-            
-            // 3. Log the audit event for compliance
-            console.log(`[AUDIT] Secure Logout | UserID: ${userId} | Email: ${token.email} | IP: ${ip} | Time: ${new Date().toISOString()}`);
+
         }
 
         const cookieStore = await cookies(); 
@@ -47,7 +45,6 @@ export async function POST(req) {
     } catch (error) {
         console.error("[LOGOUT API ERROR]", error);
         
-        // Even on error, forcefully clear cookies using NextResponse
         const response = NextResponse.json({ error: "Failed to process logout fully, forcing cookie clear." }, { status: 500 });
         response.cookies.delete("next-auth.session-token");
         response.cookies.delete("__Secure-next-auth.session-token");

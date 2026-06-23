@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
+import { useCrmLayout } from "@/components/layout/CrmShell";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
     Loader2, Menu, Calendar, 
@@ -12,17 +13,18 @@ import {
     ChevronRight, BarChart3, SlidersHorizontal, FileText, FileJson,
     Smartphone, Globe, ShieldAlert, AlertTriangle, Wallet, Edit2, Save, X
 } from "lucide-react";
-import Sidebar from "@/components/layout/Sidebar";
+
 
 export default function TwilioEnterpriseDashboard() {
     const { data: session, status } = useSession();
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    
+    const { setMobileOpen } = useCrmLayout();
     
     // --- DATA STATES ---
     const [loading, setLoading] = useState(true);
     const [fetching, setFetching] = useState(false);
     const [twilioData, setTwilioData] = useState({ balance: "0.00", currency: "USD", messages: [], analytics: {} });
-
+    
     const [exchangeRate, setExchangeRate] = useState(83.50);
     const [isEditingRate, setIsEditingRate] = useState(false);
     const [tempRate, setTempRate] = useState("");
@@ -272,8 +274,7 @@ export default function TwilioEnterpriseDashboard() {
     if (status === "loading") return <div className="flex h-screen items-center justify-center text-emerald-600 font-bold uppercase tracking-widest text-sm bg-slate-50"><Loader2 className="animate-spin mr-3"/> Authenticating...</div>;
     if (!session || !isAuthorized) {
         return (
-            <div className="flex h-[100dvh] bg-slate-50 overflow-hidden relative">
-                <Sidebar role={session?.user?.role} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
+            <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
                 <div className="flex flex-1 w-full h-full flex-col items-center justify-center p-6 text-center">
                     <ShieldAlert size={80} className="text-rose-400 mb-6" />
                     <h2 className="text-3xl font-extrabold text-slate-800">Clearance Required</h2>
@@ -286,10 +287,7 @@ export default function TwilioEnterpriseDashboard() {
     const currentBalanceInr = (currentBalanceNum * exchangeRate).toFixed(2);
 
     return (
-        <div className="flex h-[100dvh] bg-[#f8fafc] font-sans overflow-hidden text-slate-800 selection:bg-emerald-100 selection:text-emerald-900">
-            {mobileMenuOpen && <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 md:hidden" onClick={() => setMobileMenuOpen(false)} />}
-            <Sidebar role={session?.user?.role} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
-
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
             {/* --- EXPORT LOADING OVERLAY --- */}
             <AnimatePresence>
                 {exportLoading && (
@@ -353,9 +351,9 @@ export default function TwilioEnterpriseDashboard() {
                     <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
                     <div className="max-w-[1600px] mx-auto relative z-10 flex flex-col gap-6">
                         
-                        <div className="flex items-start justify-between">
+                        <div className="flex items-start justify-between select-none">
                             <div className="flex items-center gap-4">
-                                <button onClick={() => setMobileMenuOpen(true)} className="md:hidden p-2 -ml-2 text-slate-400 hover:bg-slate-100 rounded-xl transition-colors"><Menu size={24} /></button>
+                                <button onClick={() => setMobileOpen(true)} className="md:hidden p-2 -ml-2 text-slate-400 hover:bg-slate-100 rounded-xl transition-colors"><Menu size={24} /></button>
                                 <div>
                                     <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2 sm:gap-2.5">
                                         <BarChart3 className="text-emerald-500 hidden sm:block" size={28} /> 

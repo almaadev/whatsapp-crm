@@ -2,8 +2,12 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
-import Sidebar from "@/components/layout/Sidebar";
-
+import DashboardPage from "@/components/layout/DashboardPage";
+import LoadingScreen from "@/components/ui/LoadingScreen";
+import AccessDenied from "@/components/ui/AccessDenied";
+import KPICard from "@/components/ui/KpiCard";
+import { AnimatedCount } from "@/hooks/useCountUp";
+import { isAdminAuthorized, isSuperAdmin } from "@/utils/auth";
 import Link from "next/link";
 import {
   Users,
@@ -14,43 +18,18 @@ import {
   XCircle,
   ChevronRight,
   Shield,
-  Menu,
   Filter,
   Headset,
   Clock,
   CheckCircle,
-  ShieldAlert,
   Calendar,
   Search,
   ArrowUpDown,
-  Loader2,
 } from "lucide-react";
 import { toast } from "react-toastify";
 
-// --- Utility: Animated Counter ---
-function useCountUp(end, duration = 1000) {
-  const [count, setCount] = useState(0);
-  useEffect(() => {
-    let startTime = null;
-    const animate = (currentTime) => {
-      if (!startTime) startTime = currentTime;
-      const progress = Math.min((currentTime - startTime) / duration, 1);
-      setCount(Math.floor(progress * end));
-      if (progress < 1) requestAnimationFrame(animate);
-    };
-    requestAnimationFrame(animate);
-  }, [end, duration]);
-  return count;
-}
-
-const AnimatedCount = ({ end }) => {
-  const count = useCountUp(end);
-  return <>{count}</>;
-};
-
 export default function AdminDashboard() {
   const { data: session, status } = useSession();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // 🚀 FIX: Prevent fetching until localStorage is read to avoid hydration errors
   const [isInitialized, setIsInitialized] = useState(false);
@@ -80,11 +59,8 @@ export default function AdminDashboard() {
   const [editingId, setEditingId] = useState(null);
   const [tempTarget, setTempTarget] = useState(0);
 
-  const isSuperAdmin = session?.user?.role === "superAdmin";
-  const isAuthorized =
-    isSuperAdmin ||
-    (session?.user?.role === "sales" && session?.user?.department === "admin") ||
-    (session?.user?.role === "doctor" && session?.user?.department === "admin");
+  const isSuperAdminUser = isSuperAdmin(session?.user?.role);
+  const isAuthorized = isAdminAuthorized(session?.user?.role, session?.user?.department);
 
   // 🚀 FIX 1: Read from LocalStorage on initial load
   useEffect(() => {
@@ -120,7 +96,7 @@ export default function AdminDashboard() {
       let endpoint = "";
 
       // Role-Based Dynamic Routing
-      if (isSuperAdmin) {
+      if (isSuperAdminUser) {
         if (filterView === "sales") endpoint = "/api/admin/sales-admin-roster";
         else if (filterView === "doctor") endpoint = "/api/admin/doctor-admin-roster";
         else endpoint = "/api/admin/super-admin-roster";
@@ -227,30 +203,11 @@ export default function AdminDashboard() {
 
   // --- Render Gates ---
   if (status === "loading" || !isInitialized || (!isAuthorized && status !== "unauthenticated")) {
-    return (
-      <div className="flex h-screen items-center justify-center text-slate-500 font-bold tracking-widest uppercase text-sm">
-        <Loader2 className="animate-spin mr-2" size={20} /> Verifying Access & Preferences...
-      </div>
-    );
+    return <LoadingScreen message="Verifying Access & Preferences..." />;
   }
 
   if (!isAuthorized) {
-    return (
-      <div className="flex h-[100dvh] bg-slate-50 overflow-hidden relative">
-        <Sidebar
-          role={session?.user?.role}
-          mobileOpen={mobileMenuOpen}
-          setMobileOpen={setMobileMenuOpen}
-        />
-        <div className="flex flex-1 w-full h-full flex-col items-center justify-center p-6 text-center">
-          <ShieldAlert size={80} className="text-rose-400 mb-6" />
-          <h2 className="text-3xl font-extrabold text-slate-800">Clearance Required</h2>
-          <p className="text-slate-500 mt-2 font-medium">
-            This command center is restricted to administrative personnel.
-          </p>
-        </div>
-      </div>
-    );
+    return <AccessDenied title="Clearance Required" message="This command center is restricted to administrative personnel." />;
   }
 
   const companyProgress =
@@ -266,105 +223,76 @@ export default function AdminDashboard() {
   const years = [2024, 2025, 2026];
 
   return (
-    <div className="flex h-[100dvh] bg-[#f8fafc] font-sans overflow-hidden">
-      {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 bg-black/40 z-40 md:hidden backdrop-blur-sm transition-opacity"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
-
-      <Sidebar role={session?.user?.role} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
-
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
-        {/* --- HEADER --- */}
-        <header className="h-auto md:h-20 px-6 py-4 md:py-0 bg-white border-b border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between shrink-0 z-20 shadow-sm gap-4">
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <button
-              onClick={() => setMobileMenuOpen(true)}
-              className="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg"
-            >
-              <Menu size={24} />
-            </button>
-            <div>
-              <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
-                <Shield className="text-[#00a884]" size={24} />{" "}
-                {filterView === "sales"
-                  ? "Sales Overview"
-                  : filterView === "doctor"
-                    ? "Doctor Overview"
-                    : "Global Overview"}
-              </h1>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-0.5 ml-1">
-                Command Center
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
-            {/* Segmented Control - Super Admin Only */}
-            {isSuperAdmin && (
-              <div className="hidden lg:flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
-                <button
-                  onClick={() => setFilterView("all")}
-                  className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${filterView === "all" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"}`}
-                >
-                  Global
-                </button>
-                <button
-                  onClick={() => setFilterView("sales")}
-                  className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${filterView === "sales" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"}`}
-                >
-                  Sales HQ
-                </button>
-                <button
-                  onClick={() => setFilterView("doctor")}
-                  className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${filterView === "doctor" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"}`}
-                >
-                  Medical
-                </button>
-              </div>
-            )}
-
-            <Link
-              href="/crm/admin/reports"
-              className="hidden sm:flex items-center gap-2 text-slate-600 hover:text-[#00a884] font-bold text-sm bg-slate-50 px-4 py-2 rounded-xl border border-slate-200 hover:border-[#00a884]/30 transition-all shadow-sm group"
-            >
-              <Briefcase size={16} /> Reports{" "}
-              <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
-            </Link>
-
-            {/* Time Intelligence Filter */}
-            <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200 shadow-sm">
-              <Calendar size={16} className="text-slate-400 ml-2" />
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer py-1 pl-1 pr-2"
+    <DashboardPage
+      title={
+        filterView === "sales"
+          ? "Sales Overview"
+          : filterView === "doctor"
+            ? "Doctor Overview"
+            : "Global Overview"
+      }
+      subtitle="Command Center"
+      icon={Shield}
+      headerChildren={
+        <>
+          {isSuperAdminUser && (
+            <div className="hidden lg:flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
+              <button
+                onClick={() => setFilterView("all")}
+                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${filterView === "all" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"}`}
               >
-                {months.map((m, i) => (
-                  <option key={m} value={i + 1}>{m}</option>
-                ))}
-              </select>
-              <div className="w-px h-4 bg-slate-300"></div>
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(Number(e.target.value))}
-                className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer py-1 pl-2 pr-1"
+                Global
+              </button>
+              <button
+                onClick={() => setFilterView("sales")}
+                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${filterView === "sales" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"}`}
               >
-                {years.map((y) => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
+                Sales HQ
+              </button>
+              <button
+                onClick={() => setFilterView("doctor")}
+                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${filterView === "doctor" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                Medical
+              </button>
             </div>
-          </div>
-        </header>
+          )}
 
-        {/* --- SCROLLABLE CONTENT --- */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 custom-scrollbar">
-          <div className="max-w-[1400px] mx-auto space-y-6 md:space-y-8">
+          <Link
+            href="/crm/admin/reports"
+            className="hidden sm:flex items-center gap-2 text-slate-600 hover:text-[var(--brand-primary)] font-bold text-sm bg-slate-50 px-4 py-2 rounded-xl border border-slate-200 hover:border-[var(--brand-primary)]/30 transition-all shadow-sm group"
+          >
+            <Briefcase size={16} /> Reports{" "}
+            <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
+          </Link>
+
+          <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200 shadow-sm">
+            <Calendar size={16} className="text-slate-400 ml-2" />
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer py-1 pl-1 pr-2"
+            >
+              {months.map((m, i) => (
+                <option key={m} value={i + 1}>{m}</option>
+              ))}
+            </select>
+            <div className="w-px h-4 bg-slate-300"></div>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer py-1 pl-2 pr-1"
+            >
+              {years.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+        </>
+      }
+    >
             {/* Mobile Filter Pill */}
-            {isSuperAdmin && (
+            {isSuperAdminUser && (
               <div className="lg:hidden flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner w-full">
                 <button
                   onClick={() => setFilterView("all")}
@@ -598,44 +526,6 @@ export default function AdminDashboard() {
                 </table>
               </div>
             </div>
-
-          </div>
-        </main>
-      </div>
-    </div>
+    </DashboardPage>
   );
 }
-
-// --- Sub Component: KPI Card ---
-const KPICard = ({ title, value, icon, color, sub, alert, loading }) => {
-  const styles = {
-    rose: "from-rose-100/50 text-rose-600 border-rose-200",
-    amber: "from-amber-100/50 text-amber-600 border-amber-200",
-    emerald: "from-emerald-100/50 text-emerald-600 border-emerald-200",
-    blue: "from-blue-100/50 text-blue-600 border-blue-200",
-  };
-
-  return (
-    <div className={`bg-white rounded-2xl p-5 border border-slate-200 shadow-sm relative overflow-hidden transition-all hover:shadow-md hover:border-${color}-300 group ${alert ? "ring-1 ring-rose-400" : ""}`}>
-      <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${styles[color].split(" ")[0]} to-transparent opacity-50 rounded-bl-full -mr-8 -mt-8 transition-transform duration-500 group-hover:scale-125`}></div>
-      <div className="flex justify-between items-start relative z-10">
-        <div>
-          <h3 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">{title}</h3>
-          {loading ? (
-            <div className="w-16 h-8 bg-slate-100 rounded-lg animate-pulse my-1"></div>
-          ) : (
-            <span className="text-3xl font-extrabold text-slate-800 tracking-tight">
-              <AnimatedCount end={value} />
-            </span>
-          )}
-          <p className={`text-[10px] font-bold mt-2 uppercase tracking-wider ${alert ? "text-rose-500 animate-pulse" : "text-slate-400"}`}>
-            {sub}
-          </p>
-        </div>
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-slate-50 border ${styles[color].split(" ").slice(1).join(" ")}`}>
-          {icon}
-        </div>
-      </div>
-    </div>
-  );
-};

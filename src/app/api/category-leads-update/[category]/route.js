@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import Lead from "@/models/Lead"; // 👈 ONLY unified Lead Model
+import User from "@/models/User";
 import Customer from "@/models/Customer"; // Main Customer DB
 
 // Match category from URL to the unified leadType
@@ -30,11 +31,14 @@ export async function POST(req, { params }) {
         if (updateData.status) {
             updateData.isClosed = updateData.status === "Closed";
         }
-
+          const findUserNameById = async (id) => {
+            const user = await User.findById(id).lean();
+            return user ? user.name : "Unknown";
+          };
         // Attach associate info from session
         if (session?.user) {
-            updateData.assignedTo = session.user.name;
-            updateData.associate = session.user.name; // Keep both synced for unified UI
+            updateData.assignedTo = await findUserNameById(session.user.id);
+            updateData.associate = await findUserNameById(session.user.id); // Keep both synced for unified UI
             updateData.associateId = session.user.id;
         }
 

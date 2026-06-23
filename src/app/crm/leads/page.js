@@ -2,40 +2,20 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { usePathStore } from "@/store/pathStore";
+import { usePathStore } from "@/stores/pathStore";
+import DashboardPage from "@/components/layout/DashboardPage";
+import LoadingScreen from "@/components/ui/LoadingScreen";
+import SearchInput from "@/components/ui/SearchInput";
+import Pagination from "@/components/ui/Pagination";
+import Button from "@/components/ui/Button";
+import StatusBadge from "@/components/ui/StatusBadge";
+import EmptyState from "@/components/ui/EmptyState";
 import {
-    Save, User, Phone, MapPin, Tag, FileText, AlertCircle, Loader2, X, Plus, Search,
+    Save, User, Phone, MapPin, Tag, FileText, AlertCircle, Loader2, X, Plus,
     RefreshCcw, Flag, ChevronDown, ChevronUp, History, UserCircle, BadgeCheck, Clock,
-    TrendingUp, CornerDownRight, ArrowRight, Copy, Check, CheckCircle2, ChevronLeft, ChevronRight
+    TrendingUp, CornerDownRight, Copy, Check, ChevronRight
 } from "lucide-react";
-
 import { toast } from "react-toastify";
-import Sidebar from "@/components/layout/Sidebar";
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  STATUS & UI CONSTANTS
-// ─────────────────────────────────────────────────────────────────────────────
-const LIFECYCLE_CONFIG = {
-    "New": { color: "blue", icon: <AlertCircle size={12} /> },
-    "Follow Up": { color: "amber", icon: <Clock size={12} /> },
-    "Closed": { color: "emerald", icon: <BadgeCheck size={12} /> },
-    "Not Interested": { color: "slate", icon: <X size={12} /> },
-};
-
-const LifecycleBadge = ({ state }) => {
-    const cfg = LIFECYCLE_CONFIG[state] ?? LIFECYCLE_CONFIG["New"];
-    const cls = {
-        blue: "bg-blue-50 text-blue-700 border-blue-200",
-        amber: "bg-amber-50 text-amber-700 border-amber-200",
-        emerald: "bg-emerald-50 text-emerald-700 border-emerald-200",
-        slate: "bg-slate-100 text-slate-600 border-slate-200",
-    }[cfg.color];
-    return (
-        <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1  ${cls} whitespace-nowrap`}>
-            {cfg.icon} {state}
-        </span>
-    );
-};
 
 export default function LeadsPage() {
     const router = useRouter();
@@ -44,7 +24,6 @@ export default function LeadsPage() {
     const { setPath } = usePathStore();
     const pathname = usePathname();
 
-    const [mobileOpen, setMobileOpen] = useState(false);
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [loading, setLoading] = useState(false);
     const [fetchingLeads, setFetchingLeads] = useState(true);
@@ -179,58 +158,41 @@ export default function LeadsPage() {
     };
 
     if (status === "loading") {
-        return <div className="flex h-screen items-center justify-center text-slate-500">Loading...</div>;
+        return <LoadingScreen />;
     }
 
     return (
-        <div className="flex h-[100dvh] bg-[#f8fafc] overflow-hidden font-sans">
-            <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} role={role || "associate"} />
-
-            <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-                {/* --- HEADER --- */}
-                <header className="h-auto md:h-20 px-6 py-4 md:py-0 bg-white border-b border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between shrink-0 z-10 shadow-sm gap-4">
-                    <div className="flex items-center gap-3 w-full md:w-auto">
-                        <button onClick={() => setMobileOpen(true)} className="p-2 -ml-2 text-slate-500 md:hidden hover:bg-slate-100 rounded-lg">
-                            <MenuIcon />
-                        </button>
-                        <div>
-                            <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Lead Intelligence</h1>
-                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-0.5">Pipeline & Auditing</p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 w-full md:w-auto justify-end">
-                        <div className="flex items-center bg-slate-50 rounded-xl px-3 py-2 border border-slate-200 focus-within:border-[#00a884] focus-within:ring-2 focus-within:ring-[#00a884]/20 transition-all w-full md:w-64">
-                            <Search size={16} className="text-slate-400" />
-                            <input type="text" placeholder="Search pipeline..." className="bg-transparent border-none outline-none text-sm font-medium ml-2 w-full text-slate-700 placeholder:text-slate-400" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                        </div>
-
-                        <button onClick={fetchRecentLeads} disabled={fetchingLeads} className="p-2 text-slate-500 bg-slate-50 border border-slate-200 hover:bg-slate-100 rounded-xl transition-all" title="Refresh Pipeline">
-                            <RefreshCcw size={18} className={fetchingLeads ? "animate-spin" : ""} />
-                        </button>
-
-                        <button onClick={() => setShowCreateForm(true)} className="flex items-center justify-center gap-2 bg-[#00a884] hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-emerald-200/50 transition-all active:scale-95 shrink-0">
-                            <Plus size={18} /> <span className="hidden sm:inline">New Lead</span>
-                        </button>
-                    </div>
-                </header>
-
-                {/* --- MAIN CONTENT --- */}
-                <main className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar flex flex-col">
-                    <div className="max-w-[1700px] mx-auto w-full  flex flex-col space-y-4">
+        <DashboardPage
+            title="Customer Leads"
+            subtitle="Pipeline & Auditing"
+            maxWidth="1700px"
+            actions={
+                <>
+                    <SearchInput
+                        placeholder="Search pipeline..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full md:w-64"
+                    />
+                    <Button variant="icon" onClick={fetchRecentLeads} disabled={fetchingLeads} title="Refresh Pipeline">
+                        <RefreshCcw size={18} className={fetchingLeads ? "animate-spin" : ""} />
+                    </Button>
+                    <Button onClick={() => setShowCreateForm(true)}>
+                        <Plus size={18} /> <span className="hidden sm:inline">New Lead</span>
+                    </Button>
+                </>
+            }
+        >
                         {fetchingLeads && rawLeads.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-64 text-slate-400">
                                 <Loader2 size={32} className="animate-spin mb-3 text-[#00a884]" />
                                 <span className="text-sm font-bold uppercase tracking-wider">Syncing Leads Data...</span>
                             </div>
                         ) : processedLeads.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-64 text-slate-400 bg-white rounded-2xl border border-slate-200 shadow-sm">
-                                <History size={48} className="mb-4 opacity-20" />
-                                <p className="text-sm font-bold text-slate-600">No leads found in the pipeline.</p>
-                            </div>
+                            <EmptyState icon={History} title="No leads found in the pipeline." />
                         ) : (
                             <>
-                                <div className="flex flex-col  flex-1">
+                                <div className="flex flex-col flex-1">
                                     {paginatedLeads.map((lead, idx) => (
                                         <LeadIntelligenceRecord
                                             key={lead._id || idx}
@@ -243,7 +205,7 @@ export default function LeadsPage() {
                                 </div>
 
                                 {/* Pagination Footer */}
-                                <PaginationControls
+                                <Pagination
                                     currentPage={currentPage}
                                     totalPages={totalPages}
                                     totalRecords={processedLeads.length}
@@ -253,88 +215,41 @@ export default function LeadsPage() {
                                 />
                             </>
                         )}
-                    </div>
-                </main>
-
-                {/* --- CREATE FORM MODAL --- */}
-                {showCreateForm && (
-                    <CreateLeadModal
-                        formData={formData}
-                        handleChange={handleChange}
-                        handleSubmit={handleSubmit}
-                        setShowCreateForm={setShowCreateForm}
-                        loading={loading}
-                    />
-                )}
-            </div>
-        </div>
+            {showCreateForm && (
+                <CreateLeadModal
+                    formData={formData}
+                    handleChange={handleChange}
+                    handleSubmit={handleSubmit}
+                    setShowCreateForm={setShowCreateForm}
+                    loading={loading}
+                />
+            )}
+        </DashboardPage>
     );
 }
 
 
-const PaginationControls = ({ currentPage, totalPages, totalRecords, pageSize, onPageChange, onPageSizeChange }) => {
-    return (
-        <div className="mt-4 px-6 py-4 border border-slate-200 bg-white rounded-2xl shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="text-sm font-semibold text-slate-500 flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-start">
-                <span>Showing <strong className="text-slate-800">{Math.min((currentPage - 1) * pageSize + 1, totalRecords === 0 ? 0 : totalRecords)}</strong> to <strong className="text-slate-800">{Math.min(currentPage * pageSize, totalRecords)}</strong> of <strong className="text-slate-800">{totalRecords}</strong></span>
-                <div className="w-px h-4 bg-slate-300 hidden sm:block"></div>
-                <div className="flex items-center gap-2">
-                    <span className="hidden sm:inline">Per page:</span>
-                    <select value={pageSize} onChange={e => onPageSizeChange(Number(e.target.value))} className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold outline-none cursor-pointer focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] transition-all">
-                        {[10, 25, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}
-                    </select>
-                </div>
-            </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-end">
-                <button
-                    onClick={() => onPageChange(prev => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                >
-                    <ChevronLeft size={16} />
-                </button>
-
-                <div className="flex items-center gap-1">
-                    {[...Array(totalPages)].map((_, i) => {
-                        const page = i + 1;
-                        if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
-                            return (
-                                <button
-                                    key={page}
-                                    onClick={() => onPageChange(page)}
-                                    className={`w-8 h-8 flex items-center justify-center rounded-xl text-xs font-bold transition-all ${currentPage === page ? "bg-[#00a884] text-white shadow-md shadow-emerald-200" : "text-slate-600 hover:bg-slate-100"}`}
-                                >
-                                    {page}
-                                </button>
-                            );
-                        } else if (page === currentPage - 2 || page === currentPage + 2) {
-                            return <span key={page} className="text-slate-400 text-xs tracking-widest">...</span>;
-                        }
-                        return null;
-                    })}
-                </div>
-
-                <button
-                    onClick={() => onPageChange(prev => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages || totalPages === 0}
-                    className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                >
-                    <ChevronRight size={16} />
-                </button>
-            </div>
-        </div>
-    );
-};
+function LifecycleBadge({ state }) {
+    const icons = {
+        New: <AlertCircle size={12} />,
+        "Follow Up": <Clock size={12} />,
+        Closed: <BadgeCheck size={12} />,
+        "Not Interested": <X size={12} />,
+    };
+    return <StatusBadge state={state} icon={icons[state]} />;
+}
 
 function LeadIntelligenceRecord({ lead, handleCustomerRedirect, handleCopyPhone, copiedPhone }) {
     const [isExpanded, setIsExpanded] = useState(false);
 
     // --- Core Logic Derivations (Strictly from leads[] array) ---
     const interactionTimeline = lead.leads || [];
-    const interactionCount = interactionTimeline.length;
-    const latestFollowUp = interactionCount > 0 ? interactionTimeline[interactionCount - 1] : {};
-    const firstFollowUp = interactionCount > 0 ? interactionTimeline[0] : {};
+    
+    // 🚀 THE FIX: Pure Logic -> Count ONLY if status === "Closed"
+    const interactionCount = interactionTimeline.filter(item => item.status === "Closed").length;
+    
+    const latestFollowUp = interactionTimeline.length > 0 ? interactionTimeline[interactionTimeline.length - 1] : {};
+    const firstFollowUp = interactionTimeline.length > 0 ? interactionTimeline[0] : {};
     
     const firstHandler = firstFollowUp.associateName || lead.assignedTo || "Unassigned";
     const currentHandler = lead.assignedTo || "Unassigned";
@@ -353,9 +268,10 @@ function LeadIntelligenceRecord({ lead, handleCustomerRedirect, handleCopyPhone,
     }
 
     const lastActivityDate = latestFollowUp.date ? new Date(latestFollowUp.date) : new Date(lead.createdAt);
-
+    
+    
     return (
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden transition-all hover:shadow-md">
+        <div className={`bg-white  shadow-sm border border-slate-200 overflow-hidden transition-all hover:shadow-md`}>
 
             {/* --- SUMMARY LAYER (Always Visible) --- */}
             <div
@@ -405,7 +321,7 @@ function LeadIntelligenceRecord({ lead, handleCustomerRedirect, handleCopyPhone,
                 <div className="flex flex-col lg:items-end gap-1.5 shrink-0 border-l-2 border-transparent lg:border-slate-100 lg:pl-6">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
                         <History size={14} className="text-blue-500" />
-                        {interactionCount} Interaction{interactionCount !== 1 ? 's' : ''}
+                        {interactionCount} Closure{interactionCount !== 1 ? 's' : ''}
                     </div>
                     <div className="text-[11px] font-medium text-slate-500">
                         Last Active: {lastActivityDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
@@ -413,16 +329,14 @@ function LeadIntelligenceRecord({ lead, handleCustomerRedirect, handleCopyPhone,
                     <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">
                         <Tag size={10} /> {leadType}
                     </div>
-                                    {/* Sales Attribution Snippet (If Deal Closed) */}
-                {isClosed && revenueAttribution > 0 && (
-                    <div className="absolute top-4 right-4 lg:relative lg:top-0 lg:right-0 bg-gradient-to-r from-emerald-500 to-[#00a884] text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm">
-                        <TrendingUp size={14} />
-                        <span className="text-xs font-bold">₹{revenueAttribution.toLocaleString()}</span>
-                    </div>
-                )}
+                    {/* Sales Attribution Snippet (If Deal Closed) */}
+                    {isClosed && revenueAttribution > 0 && (
+                        <div className="absolute top-4 right-4 lg:relative lg:top-0 lg:right-0 bg-gradient-to-r from-emerald-500 to-[#00a884] text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm">
+                            <TrendingUp size={14} />
+                            <span className="text-xs font-bold">₹{revenueAttribution.toLocaleString()}</span>
+                        </div>
+                    )}
                 </div>
-
-
 
                 {/* Expansion Chevron */}
                 <div className="absolute bottom-4 right-4 lg:relative lg:bottom-0 lg:right-0 text-slate-400 p-1.5 hover:bg-slate-100 rounded-full transition-colors">
@@ -432,7 +346,7 @@ function LeadIntelligenceRecord({ lead, handleCustomerRedirect, handleCopyPhone,
 
             {/* --- DETAIL LAYER (Interaction Timeline) --- */}
             {isExpanded && (
-                <div className="bg-slate-50 border-t border-slate-200 p-5 lg:p-8 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="bg-slate-50 border-t border-slate-200 p-5 lg:p-8 crm-slide-in-top">
                     <div className="flex items-center justify-between mb-6">
                         <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-2">
                             <Clock size={16} className="text-[#00a884]" /> Interaction Timeline
@@ -440,7 +354,7 @@ function LeadIntelligenceRecord({ lead, handleCustomerRedirect, handleCopyPhone,
 
                         <div className="flex items-center gap-2">
                             <button onClick={() => handleCustomerRedirect(lead.phone)} className="text-[11px] font-bold bg-[#00a884] text-white px-3 py-1.5 rounded-lg hover:bg-emerald-600 transition-colors flex items-center gap-1.5 shadow-sm shadow-emerald-200">
-                                <User size={12} /> Open Profile
+                                <User size={12} /> See More
                             </button>
                         </div>
                     </div>
@@ -506,6 +420,7 @@ function LeadIntelligenceRecord({ lead, handleCustomerRedirect, handleCopyPhone,
                                                     Revenue Attribution: ₹{parseInt(fu.saleAmount).toLocaleString()}
                                                 </div>
                                             )}
+
                                         </div>
                                     </div>
                                 );
@@ -529,7 +444,7 @@ const DayNote = ({ day, text }) => (
 const CreateLeadModal = ({ formData, handleChange, handleSubmit, setShowCreateForm, loading }) => (
     <>
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 transition-opacity" onClick={() => setShowCreateForm(false)} />
-        <div className="fixed inset-y-0 right-0 w-full sm:w-[450px] bg-white z-50 shadow-2xl transform transition-transform duration-300 animate-in slide-in-from-right flex flex-col border-l border-slate-200">
+        <div className="fixed inset-y-0 right-0 w-full sm:w-[450px] bg-white z-50 shadow-2xl transform transition-transform duration-300 crm-slide-in-right flex flex-col border-l border-slate-200">
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
                 <h2 className="text-lg font-extrabold text-slate-800">Inject New Lead</h2>
                 <button onClick={() => setShowCreateForm(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition">
@@ -617,8 +532,4 @@ const CreateLeadModal = ({ formData, handleChange, handleSubmit, setShowCreateFo
             </div>
         </div>
     </>
-);
-
-const MenuIcon = () => (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
 );

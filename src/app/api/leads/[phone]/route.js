@@ -2,11 +2,15 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Lead from "@/models/Lead";
 import Customer from "@/models/Customer";
+import { requireSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req, { params }) {
   try {
+    const { error } = await requireSession();
+    if (error) return error;
+
     await connectDB();
 
     const resolvedParams = await params;
@@ -54,8 +58,6 @@ export async function GET(req, { params }) {
       day3Remarks: latest?.day3Remarks || "",
       saleAmount: latest?.saleAmount || "0",
       leadType: latest?.leadType || "Direct Lead",
-
-      // --- Arrays & Objects ---
       history: history,
       latestFollowUp: latest || {}
     };

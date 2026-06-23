@@ -15,11 +15,17 @@ export const authOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error("Invalid email or password");
+        }
+
         await connectDB();
 
-        const user = await User.findOne({ email: credentials.email });
+        const user = await User.findOne({
+          email: credentials.email.toLowerCase().trim(),
+        });
 
-        if (!user) {
+        if (!user || user.active === false) {
           throw new Error("Invalid email or password");
         }
 
@@ -42,7 +48,7 @@ export const authOptions = {
   ],
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 Days
+    maxAge: 24 * 60 * 60,
   },
   callbacks: {
     async jwt({ token, user }) {
@@ -51,8 +57,6 @@ export const authOptions = {
         token.role = user.role;
         token.department = user.department;
         token.accessModules = user.accessModules;
-        
-        // Assign a unique JWT ID for blacklisting capability
         token.jti = crypto.randomUUID();
       }
 

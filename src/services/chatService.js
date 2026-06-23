@@ -35,6 +35,10 @@ export const chatService = {
           uniqueConversations[msg.phone].direction = msg.direction; 
           uniqueConversations[msg.phone].read = msg.read;
           
+          // 🚀 FIX: Prevent Priority and Closed state from being stripped during array grouping!
+           uniqueConversations[msg.phone].priority = msg.priority;
+          if (msg.isChatClosed !== undefined) uniqueConversations[msg.phone].isChatClosed = msg.isChatClosed;
+
           if (msg.name && msg.name !== msg.phone) {
              uniqueConversations[msg.phone].name = msg.name;
           }
@@ -97,7 +101,7 @@ export const chatService = {
     return res.json();
   },
   sendTemplateMessage: async ({ phone, templateSid, chatType, associateName, contentVariables }) => {
-    const res = await fetch("/api/messages/send-template", {
+    const res = await fetch("/api/send-template", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ phone, templateSid, chatType, associateName, contentVariables })

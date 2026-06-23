@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import Sidebar from "@/components/layout/Sidebar";
+
 import Link from "next/link";
 import { toast } from "react-toastify";
 import { 
@@ -12,7 +12,8 @@ import {
 
 export default function AdminReportsPage() {
   const { data: session } = useSession();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  
   
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -50,7 +51,7 @@ export default function AdminReportsPage() {
         // Simulate a tiny delay for UX feedback on large datasets
         await new Promise(resolve => setTimeout(resolve, 600));
 
-        const headers = ["Name", "Phone", "Date", "Enquired For", "Status", "Sale Amount", "City", "Source", "Handler"];
+        const headers = ["Name", "Phone", "Date", "Enquired For", "Status", "Sale Amount", "City", "Source", "Associate"];
         
         const rows = allLeads.map(lead => [
             `"${lead.name || "Unknown"}"`,
@@ -61,7 +62,7 @@ export default function AdminReportsPage() {
             `"${lead.saleAmount || 0}"`,
             `"${lead.city || "-"}"`,
             `"${lead.source || "Manual"}"`,
-            `"${lead.handler || "Unassigned"}"`
+            `"${lead.associate || "Unassigned"}"`
         ]);
 
         const csvContent = [
@@ -90,9 +91,7 @@ export default function AdminReportsPage() {
   if (!session) return null;
 
   return (
-    <div className="flex h-[100dvh] bg-[#f8fafc] font-sans overflow-hidden">
-      <Sidebar role={session?.user?.role} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
-      
+    <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
       <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
         
         {/* --- HEADER --- */}

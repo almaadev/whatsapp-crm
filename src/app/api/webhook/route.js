@@ -2,289 +2,216 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Customer from "@/models/Customer";
 import Message from "@/models/Message";
-import ProductMessage from "@/models/ProductMessage";
-import MDCampMessage from "@/models/MDCampMessage";
-import TherapyMessage from "@/models/TherapyMessage";
 import redis from "@/lib/redis";
-import { Twilio } from "twilio";
+import { determineConversationRoute, getModelByCategory } from "@/services/chatRoutingService";
 
-const KEYWORD_ROUTES = [
-  {
-    type: "Product Lead",
-    keywords: ["support", "product", "inquiry", "buy", "order", "price",
-               "details", "medicine", "almaa product", "cost", "purchase"],
-  },
-  {
-    type: "MD Camp",
-    keywords: ["camp", "medical camp", "free checkup", "doctor camp",
-               "md camp", "mdcamp"],
-  },
-  {
-    type: "Therapy",
-    keywords: ["therapy", "massage", "pain relief", "treatment",
-               "varma", "siddha", "clinic"],
-  },
-];
+export const dynamic = "force-dynamic";
 
+const TWILIO_XML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 
-const MODEL_MAP = {
-  "Product Lead": ProductMessage,
-  "MD Camp":      MDCampMessage,
-  "Therapy":      TherapyMessage,
-  "Direct Lead":  Message,
-};
-
-
-async function resolveTargetCollection(phone, messageText, customer) {
-
-  // ── RULE 1: Active session check ─────────────────────────────────────────
-  if (customer?.lastInteractionAt) {
-    const elapsedMs  = Date.now() - new Date(customer.lastInteractionAt).getTime();
-    const WINDOW_MS  = 24 * 60 * 60 * 1000; // 24 hours
-
-    if (elapsedMs <= WINDOW_MS) {
-      const prevCategory = customer.activeRouteCategory || "Direct Lead";
-      const PrevModel    = MODEL_MAP[prevCategory] ?? Message;
-
-      const lastMsg = await PrevModel
-        .findOne({ phone })
-        .sort({ createdAt: -1 })
-        .lean();
-
-      // Only lock if the chat was NOT manually closed by an associate
-      if (!lastMsg || lastMsg.isChatClosed !== true) {
-
-        return prevCategory;
-      }
-
-    }
-  }
-
-  // ── RULE 2: Keyword-based routing ────────────────────────────────────────
-  const lowerMsg = messageText.toLowerCase();
-
-  for (const route of KEYWORD_ROUTES) {
-    if (route.keywords.some((kw) => lowerMsg.includes(kw))) {
-      return route.type; // keyword match → route to mapped collection
-    }
-  }
-
-
-  const [lastDirect, lastProduct, lastMDCamp, lastTherapy] = await Promise.all([
-    Message.findOne({ phone }).sort({ createdAt: -1 }).lean(),
-    ProductMessage.findOne({ phone }).sort({ createdAt: -1 }).lean(),
-    MDCampMessage.findOne({ phone }).sort({ createdAt: -1 }).lean(),
-    TherapyMessage.findOne({ phone }).sort({ createdAt: -1 }).lean(),
-  ]);
-
-  const candidates = [
-    { msg: lastDirect,   type: "Direct Lead"   },
-    { msg: lastProduct,  type: "Product Lead"  },
-    { msg: lastMDCamp,   type: "MD Camp"       },
-    { msg: lastTherapy,  type: "Therapy"       },
-  ]
-    .filter((c) => c.msg !== null)
-    .sort((a, b) =>
-      new Date(b.msg.createdAt) - new Date(a.msg.createdAt) // newest first
-    );
-
-  if (candidates.length > 0) {
-
-    return candidates[0].type;
-
-  }
-
-  return "Direct Lead";
+function twilioResponse(status = 200) {
+  return new NextResponse(TWILIO_XML, {
+    status,
+    headers: { "Content-Type": "text/xml" },
+  });
 }
 
+async function parseTwilioBody(req) {
+  let body = {};
+  const contentType = req.headers.get("content-type") || "";
+  const rawText = await req.text();
+
+  if (rawText) {
+    if (contentType.includes("application/json")) {
+      try {
+        body = JSON.parse(rawText);
+      } catch {
+        body = Object.fromEntries(new URLSearchParams(rawText).entries());
+      }
+    } else {
+      body = Object.fromEntries(new URLSearchParams(rawText).entries());
+    }
+  }
+
+  if (Object.keys(body).length === 0) {
+    const url = new URL(req.url);
+    body = Object.fromEntries(url.searchParams.entries());
+  }
+
+  return body;
+}
+
+function buildInboundMessages({ phone, messageText, twilioSid, profileName, body, numMedia }) {
+  const base = {
+    phone,
+    direction: "INBOUND",
+    status: "RECEIVED",
+    read: "FALSE",
+    isChatClosed: false,
+    senderName: profileName,
+    timestamp: new Date(),
+  };
+
+  if (numMedia > 0) {
+    return Array.from({ length: numMedia }, (_, i) => ({
+      ...base,
+      message: messageText,
+      twilioSid: numMedia > 1 ? `${twilioSid}_${i}` : twilioSid,
+      mediaUrl: body[`MediaUrl${i}`] || "",
+      mediaType: body[`MediaContentType${i}`] || "",
+    }));
+  }
+
+  return [{
+    ...base,
+    message: messageText,
+    twilioSid,
+    mediaUrl: "",
+    mediaType: "",
+  }];
+}
 
 export async function POST(req) {
   try {
+    console.log("\n💬 [WEBHOOK] Incoming WhatsApp Message...");
     await connectDB();
 
-    let body = {};
-    const contentType = req.headers.get("content-type") || "";
-    const rawText     = await req.text();
+    const body = await parseTwilioBody(req);
 
-    if (rawText) {
-      if (contentType.includes("application/json")) {
-        try { body = JSON.parse(rawText); } catch (e) {}
-      } else {
-        body = Object.fromEntries(new URLSearchParams(rawText).entries());
-      }
-    }
-
-    if (Object.keys(body).length === 0) {
-      const url = new URL(req.url);
-      body = Object.fromEntries(url.searchParams.entries());
-    }
-    
-    const twilioSID     =  body.sid  || "";
-    const messageStatus = body.MessageStatus || "";
-    
-    if (
-      messageStatus &&
-      ["sent", "delivered", "read", "failed"].includes(messageStatus.toLowerCase())
-    ) {
-      const formattedStatus = messageStatus.toUpperCase();
-
-      if (global.io) {
-        global.io.emit("message_status_update", {
-          sid:    twilioSID,
-          status: formattedStatus,
-        });
-      }
-
-      
-      await Promise.all([
-        Message.findOneAndUpdate(        { twilioSid: twilioSID }, { status: formattedStatus }),
-        ProductMessage.findOneAndUpdate( { twilioSid: twilioSID }, { status: formattedStatus }),
-        MDCampMessage.findOneAndUpdate(  { twilioSid: twilioSID }, { status: formattedStatus }),
-        TherapyMessage.findOneAndUpdate( { twilioSid: twilioSID }, { status: formattedStatus }),
-      ]);
-
-      return NextResponse.json({ success: true });
-    }
-
-    let phone       = body.From        || body.from        || "";
-    let messageText = body.Body        || body.body        || "";
-    let numMedia    = parseInt(body.NumMedia || body.numMedia || "0");
+    const twilioSid = body.MessageSid || body.SmsSid || body.sid || `in_${Date.now()}`;
+    let phone = body.From || body.from || "";
+    let messageText = (body.Body || body.body || "").replace(/\\n/g, "\n");
+    let numMedia = parseInt(body.NumMedia || body.numMedia || "0", 10);
     if (isNaN(numMedia)) numMedia = 0;
-    const profileName = body.ProfileName || body.profileName || phone;
 
-    if (phone && !phone.startsWith("whatsapp:")) phone = `whatsapp:${phone}`;
+    const profileName = body.ProfileName || body.profileName || phone || "Unknown";
+
+    if (phone && !phone.startsWith("whatsapp:")) {
+      phone = `whatsapp:${phone}`;
+    }
+
     if (!phone || (!messageText && numMedia === 0)) {
-      return NextResponse.json({ success: true, ignored: true });
+      console.log("ℹ️ [WEBHOOK] Ignored — no phone or content.");
+      return twilioResponse();
     }
 
-    messageText = messageText.replace(/\\n/g, "\n");
+    console.log(`📱 [WEBHOOK] Sender: ${phone} | Msg: "${messageText}" | Media: ${numMedia}`);
 
-    const customer = await Customer.findOne({ phone });
+    let customer = await Customer.findOne({ phone });
+    console.log(`👤 [WEBHOOK] Customer Found: ${!!customer}`);
 
-    // ── ROUTING DECISION ─────────────────────────────────────────────────────
-    //   All 4 rules are handled inside resolveTargetCollection()
-    const targetType = await resolveTargetCollection(phone, messageText, customer);
-  
-    
-    const MsgModel   = MODEL_MAP[targetType] ?? Message;
-
-    // ── SAVE MESSAGES ────────────────────────────────────────────────────────
-    const newMessages = [];
-
-    if (numMedia > 0) {
-      for (let i = 0; i < numMedia; i++) {
-        newMessages.push({
-          phone,
-          message:      messageText,
-          direction:    "INBOUND",
-          status:       "RECEIVED",
-          read:         "FALSE",
-          isChatClosed: false,
-          twilioSid:    twilioSID,
-          mediaUrl:     body[`MediaUrl${i}`],
-          mediaType:    body[`MediaContentType${i}`],
-          senderName:   profileName,
-        });
-      }
-    } else {
-      newMessages.push({
+    let targetCategory = "Direct Lead";
+    try {
+      targetCategory = await determineConversationRoute(
         phone,
-        message:      messageText,
-        direction:    "INBOUND",
-        status:       "RECEIVED",
-        read:         "FALSE",
-        isChatClosed: false,
-        twilioSid:    twilioSID,
-        senderName:   profileName,
+        messageText,
+        customer?.activeRouteCategory ?? null
+      );
+      console.log(`🚦 [WEBHOOK] Routing Decision: -> [${targetCategory}]`);
+    } catch (routeError) {
+      console.error("❌ [WEBHOOK] Routing failed, defaulting to Direct Lead:", routeError);
+      targetCategory = "Direct Lead";
+    }
+
+    if (!customer) {
+      customer = await Customer.create({
+        phone,
+        name: profileName,
+        status: "New",
+        activeRouteCategory: targetCategory,
+        lastInteractionAt: new Date(),
+        unreadCount: 1,
+        source: "Whatsapp",
       });
-    }
-
-    await MsgModel.insertMany(newMessages);
-
-    let indicationText = messageText;
-
-    if (targetType !== "Direct Lead") {
-      indicationText = `🔄 [ROUTED TO ${targetType.toUpperCase()}]\n\nCustomer said: ${messageText}`;
-
-      const sysMessages = [];
-      if (numMedia > 0) {
-        for (let i = 0; i < numMedia; i++) {
-          sysMessages.push({
-            phone,
-            message:      indicationText,
-            direction:    "INBOUND",
-            status:       "RECEIVED",
-            read:         "FALSE",
-            isChatClosed: false,
-            twilioSid:    `${twilioSID}_sys_${i}`,
-            mediaUrl:     body[`MediaUrl${i}`],
-            mediaType:    body[`MediaContentType${i}`],
-            senderName:   profileName,
-          });
-        }
-      } else {
-        sysMessages.push({
-          phone,
-          message:      indicationText,
-          direction:    "INBOUND",
-          status:       "RECEIVED",
-          read:         "FALSE",
-          isChatClosed: false,
-          twilioSid:    `${twilioSID}_sys`,
-          senderName:   profileName,
-        });
+    } else {
+      customer.activeRouteCategory = targetCategory;
+      customer.lastInteractionAt = new Date();
+      customer.unreadCount = (customer.unreadCount || 0) + 1;
+      if (customer.name === "Unknown" || customer.name === phone.replace("whatsapp:", "")) {
+        customer.name = profileName;
       }
-
-      await Message.insertMany(sysMessages);
+      await customer.save();
     }
 
-    // ── UPDATE CUSTOMER (extend / reset the 24-hour session window) ──────────
-    await Customer.findOneAndUpdate(
-      { phone },
-      {
-        $setOnInsert: { name: profileName },
-        $set: {
-          activeRouteCategory: targetType,
-          lastInteractionAt:   new Date(), // resets the 24-hour timer
-        },
-      },
-      { upsert: true }
-    );
+    const inboundMessages = buildInboundMessages({
+      phone,
+      messageText,
+      twilioSid,
+      profileName,
+      body,
+      numMedia,
+    }).map((msg) => ({
+      ...msg,
+      chatType: targetCategory,
+    }));
 
-    // ── SOCKET EVENTS ────────────────────────────────────────────────────────
+    const TargetModel = getModelByCategory(targetCategory);
+    const savedMessages = await TargetModel.insertMany(inboundMessages);
+    console.log(`💾 [WEBHOOK] ${savedMessages.length} message(s) saved to ${targetCategory}.`);
+
+    const indicationText = targetCategory !== "Direct Lead"
+      ? `🔄 [ROUTED TO ${targetCategory.toUpperCase()}]\n\nCustomer said: ${messageText || "(media)"}`
+      : messageText;
+
+    if (targetCategory !== "Direct Lead") {
+      const mirrorMessages = inboundMessages.map((msg, i) => ({
+        ...msg,
+        message: indicationText,
+        twilioSid: `${msg.twilioSid}_mirror`,
+      }));
+      await Message.insertMany(mirrorMessages);
+      console.log("💾 [WEBHOOK] Mirror saved to Global Inbox.");
+    }
+
     if (global.io) {
-      if (targetType === "Product Lead") global.io.emit("new_product_message", { phone, message: messageText });
-      if (targetType === "MD Camp")      global.io.emit("new_mdcamp_message",   { phone, message: messageText });
-      if (targetType === "Therapy")      global.io.emit("new_therapy_message",  { phone, message: messageText });
+      const lastSaved = savedMessages[savedMessages.length - 1];
+      const categoryEmit = {
+        phone,
+        name: profileName,
+        message: messageText || (numMedia > 0 ? "📷 Media" : ""),
+        direction: "INBOUND",
+        timestamp: lastSaved.timestamp || new Date(),
+        chatType: targetCategory,
+        mediaUrl: inboundMessages[0]?.mediaUrl || "",
+        mediaType: inboundMessages[0]?.mediaType || "",
+        isChatClosed: false,
+        read: "FALSE",
+      };
 
-      const catLabel =
-        targetType === "Product Lead" ? "Product Inquiry" :
-        targetType === "MD Camp"      ? "MD Camp"         :
-        targetType === "Therapy"      ? "Therapy"         : null;
+      const catLabel = targetCategory === "Product Lead"
+        ? "Product Inquiry"
+        : targetCategory === "MD Camp"
+          ? "MD Camp"
+          : targetCategory === "Therapy"
+            ? "Therapy"
+            : null;
+
+      if (targetCategory === "Product Lead") global.io.emit("new_product_message", categoryEmit);
+      else if (targetCategory === "MD Camp") global.io.emit("new_mdcamp_message", categoryEmit);
+      else if (targetCategory === "Therapy") global.io.emit("new_therapy_message", categoryEmit);
 
       global.io.emit("new_message", {
-        phone,
-        message:      indicationText,
-        direction:    "INBOUND",
+        ...categoryEmit,
+        message: indicationText || categoryEmit.message,
         categoryLabel: catLabel,
-        timestamp:    new Date().toISOString(),
-        mediaUrl:     numMedia > 0 ? body["MediaUrl0"]          : null,
-        mediaType:    numMedia > 0 ? body["MediaContentType0"]  : null,
       });
+
+      console.log("⚡ [WEBHOOK] Socket events emitted.");
     }
 
-    // ── REDIS CACHE INVALIDATION ─────────────────────────────────────────────
     if (redis && redis.status !== "disabled") {
       try {
         await redis.del("chats:all_data");
         await redis.del("chats:main_inbox_data");
-      } catch (e) { /* non-fatal */ }
+      } catch {
+        // non-fatal
+      }
     }
 
-    return NextResponse.json({ success: true, routedTo: targetType });
-
+    console.log("✅ [WEBHOOK] Processing Complete.\n");
+    return twilioResponse();
   } catch (error) {
-    console.error("Webhook Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("❌ [WEBHOOK] FATAL ERROR:", error);
+    return twilioResponse(500);
   }
 }

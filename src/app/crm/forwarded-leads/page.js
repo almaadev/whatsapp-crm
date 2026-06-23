@@ -3,24 +3,27 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import Sidebar from "@/components/layout/Sidebar";
-import { useChatStore } from "@/store/chatStore";
+
+import { useChatStore } from "@/stores/chatStore";
+import { isAdminAuthorized } from "@/utils/auth";
+import { useCrmLayout } from "@/components/layout/CrmShell";
 import { 
     Search, Share2, MessageSquare, Calendar, User, Phone, ArrowRight, Menu, ChevronLeft, ChevronRight, ArrowRightCircle 
 } from "lucide-react";
 
 export default function ForwardedLeadsPage() {
+    const { setMobileOpen } = useCrmLayout();
     const { data: session } = useSession();
     const router = useRouter();
     const setSelectedChat = useChatStore((s) => s.setSelectedChat);
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    
     const [leads, setLeads] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10; 
 
-    const isAdmin = session?.user?.role === 'admin';
+    const isAdmin = isAdminAuthorized(session?.user?.role, session?.user?.department);
 
     const parseDate = (dateString) => {
         if (!dateString) return new Date(0);
@@ -104,11 +107,9 @@ export default function ForwardedLeadsPage() {
     if (!session) return null;
 
     return (
-        <div className="flex h-[100dvh] bg-slate-50">
-            <Sidebar role={session?.user?.role} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
-
-            <main className="flex-1 p-4 md:p-8 overflow-y-auto w-full">
-                <button onClick={() => setMobileMenuOpen(true)} className="md:hidden mb-6 p-2 text-slate-600 bg-white rounded-lg shadow-sm border border-slate-200 hover:bg-slate-50 transition-all">
+        <div className="flex h-[100dvh]  bg-slate-50">
+            <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+                <button onClick={() => setMobileOpen(true)} className="md:hidden mb-6 p-2 text-slate-600 bg-white rounded-lg shadow-sm border border-slate-200 hover:bg-slate-50 transition-all">
                     <Menu size={24} />
                 </button>
 

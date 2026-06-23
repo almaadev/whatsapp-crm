@@ -2,11 +2,15 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Customer from "@/models/Customer";
 import redis from "@/lib/redis";
+import { requireSession } from "@/lib/session";
 
 const CHAT_CACHE_KEY = "chats:all_data";
 
 export async function POST(req) {
   try {
+    const { error } = await requireSession();
+    if (error) return error;
+
     const { phone } = await req.json();
     if (!phone) return NextResponse.json({ error: "Phone required" }, { status: 400 });
 

@@ -1,5 +1,5 @@
 export const categoryChatService = {
-    // Add search parameter here
+    
     getChats: async (category, search = "") => {
         let url = `/api/category-chats/${category}`;
         if (search) {
@@ -30,4 +30,5 @@ export const categoryChatService = {
         if (!res.ok) throw new Error("Failed to update status");
         return await res.json();
     }
+    
 };

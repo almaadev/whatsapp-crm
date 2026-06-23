@@ -16,7 +16,7 @@ export default function Providers({ children }) {
         closeOnClick
         rtl={false}
         pauseOnFocusLoss
-        draggable={false} 
+        draggable={true} 
         pauseOnHover
         theme="colored"
       />

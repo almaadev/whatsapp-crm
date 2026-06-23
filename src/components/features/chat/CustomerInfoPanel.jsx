@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { useChatStore } from "@/store/chatStore";
+import { useChatStore } from "@/stores/chatStore";
 import {
   X, User, MapPin, Globe, HelpCircle, DollarSign, FileText,
   Save, History, Tag, ChevronDown, ChevronUp, Clock, BadgeCheck,
@@ -55,12 +55,12 @@ export default function CustomerInfoPanel({
 
   const selectedChat = activeChat || globalSelectedChat;
 
-  const [loading,       setLoading]       = useState(false);
-  const [leadData,      setLeadData]      = useState(null); // Root document metadata
-  const [followUps,     setFollowUps]     = useState([]);   // Full leads[] history array
-  const [showHistory,   setShowHistory]   = useState(false);
-  const [formData,      setFormData]      = useState(EMPTY_FORM);
-  const [historyFilter, setHistoryFilter] = useState("All"); 
+  const [loading,        setLoading]       = useState(false);
+  const [leadData,       setLeadData]      = useState(null); 
+  const [followUps,      setFollowUps]     = useState([]);   
+  const [showHistory,    setShowHistory]   = useState(false);
+  const [formData,       setFormData]      = useState(EMPTY_FORM);
+  const [historyFilter,  setHistoryFilter] = useState("All"); 
 
   // ── Derived Values (Memoized for Performance) ──────────────────────────────
   const latestFollowUp = useMemo(() => {
@@ -71,14 +71,24 @@ export default function CustomerInfoPanel({
     return [...new Set(followUps.map(f => f.associateName).filter(Boolean))];
   }, [followUps]);
 
-  const filteredHistory = useMemo(() => {
-    if (historyFilter === "All") return followUps;
-    return followUps.filter(f => f.associateName === historyFilter);
+  // 🚀 THE FIX: Filter History & Cycle Counts
+  const { filteredHistory, closedCycleCount } = useMemo(() => {
+    // 1. Remove 'New' and 'Not Interested' to clean up the timeline
+    let validHistory = followUps.filter(f => f.status !== "New" && f.status !== "Not Interested");
+    
+    // 2. Count ONLY 'Closed' statuses for the cycle badge metric
+    const closedCount = followUps.filter(f => f.status === "Closed").length;
+
+    // 3. Apply the Associate dropdown filter if selected
+    if (historyFilter !== "All") {
+        validHistory = validHistory.filter(f => f.associateName === historyFilter);
+    }
+    
+    return { filteredHistory: validHistory, closedCycleCount: closedCount };
   }, [followUps, historyFilter]);
 
   // ── Fetch lead data directly from Unified API ──────────────────────────────
-useEffect(() => {
-    // Make sure we actually have a phone number to fetch
+  useEffect(() => {
     const phoneToFetch = activeChat?.phone || selectedChat?.phone;
     
     if (isOpen && phoneToFetch) {
@@ -88,19 +98,18 @@ useEffect(() => {
           const contentType = res.headers.get("content-type");
           if (!res.ok || !contentType || !contentType.includes("application/json")) {
             console.warn("API returned non-JSON or failed:", await res.text().catch(()=>""));
-            return {}; // Fail gracefully instead of crashing
+            return {};
           }
           return res.json();
         })
         .then((data) => {
-          if (!data || Object.keys(data).length === 0) return; // Skip if empty fallback
+          if (!data || Object.keys(data).length === 0) return;
           
           setLeadData(data);
           const fetchedLeads = data.history || [];
           setFollowUps(fetchedLeads);
 
           const latest = fetchedLeads.length > 0 ? fetchedLeads[fetchedLeads.length - 1] : {};
-          
           
           const initialFormData = {
             name: data.name || activeChat?.name || "",
@@ -162,8 +171,6 @@ useEffect(() => {
       date: new Date().toISOString(), 
     };
 
-    
-
     setLoading(true);
     try {
       const res = await fetch("/api/leads", {
@@ -194,6 +201,8 @@ useEffect(() => {
         updated_followup: "Follow-up updated!",
         updated_metadata: "Details saved!",
         new_cycle:        "New follow-up cycle started!",
+        pushed_new_entry: "New status logged!",
+        updated_existing_entry: "Details updated!"
       }[data.action] ?? "Saved successfully!";
 
       toast.success(actionMsg);
@@ -206,7 +215,6 @@ useEffect(() => {
     }
   };
 
-  // FIX 2: Always Show Remarks Section if data exists regardless of status
   const showDayWiseRemarks = 
     formData.status === "Follow Up" || 
     formData.day1Remarks || 
@@ -240,11 +248,11 @@ useEffect(() => {
             {formData.name || selectedChat?.phone}
           </p>
 
-          {/* Dynamic Follow-up Badge */}
-          {followUps.length > 0 && (
+          {/* 🚀 THE FIX: Cycle Badge now uses Closed Count ONLY */}
+          {closedCycleCount > 0 && (
             <span className="mt-1 flex items-center gap-1 text-xs font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
               <History size={12} />
-              {followUps.length} Follow-up {followUps.length === 1 ? "Cycle" : "Cycles"}
+              {closedCycleCount} Closed {closedCycleCount === 1 ? "Cycle" : "Cycles"}
             </span>
           )}
 
@@ -326,7 +334,7 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* ── Day-wise follow-up (Dynamic Visibility based on Data or Status) ── */}
+        {/* ── Day-wise follow-up ── */}
         {showDayWiseRemarks && (
           <div className="space-y-4 bg-emerald-50/50 p-5 rounded-2xl shadow-sm border border-emerald-100 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <h3 className="text-sm font-bold text-emerald-800 border-b border-emerald-200/50 pb-2">
@@ -345,7 +353,7 @@ useEffect(() => {
           </div>
         )}
 
-        {followUps.length > 0 && (
+        {filteredHistory.length > 0 && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
             <button
               onClick={() => setShowHistory((v) => !v)}
@@ -353,7 +361,7 @@ useEffect(() => {
             >
               <span className="flex items-center gap-2">
                 <RefreshCw size={14} className="text-emerald-600" />
-                Activity Timeline
+                Activity Timeline ({filteredHistory.length})
               </span>
               {showHistory ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </button>
@@ -361,7 +369,7 @@ useEffect(() => {
             {showHistory && (
               <div className="px-5 pb-4">
                 
-                {/* Future-Ready Associate Filter */}
+                {/* Associate Filter */}
                 {uniqueAssociates.length > 1 && (
                   <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
                     <Filter size={12} className="text-slate-400" />
@@ -381,12 +389,11 @@ useEffect(() => {
                     <div key={fu._id || idx} className="py-4 space-y-1.5">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-slate-500">
-                          Cycle {filteredHistory.length - idx}
+                           Entry {filteredHistory.length - idx}
                         </span>
                         <STATUS_BADGE status={fu.status} />
                       </div>
 
-                      {/* Explicit Date and Associate Auditing */}
                       <div className="flex items-center justify-between mt-1">
                         <p className="text-[11px] font-mono text-slate-400">
                           {fu.date ? new Date(fu.date).toLocaleString("en-IN", {
@@ -411,7 +418,6 @@ useEffect(() => {
                         </p>
                       )}
                       
-                      {/* Safely map day wise remarks in history timeline too */}
                       {fu.day1Remarks && <p className="text-xs text-slate-600 mt-1"><span className="font-semibold text-emerald-700">Day 1:</span> {fu.day1Remarks}</p>}
                       {fu.day2Remarks && <p className="text-xs text-slate-600 mt-1"><span className="font-semibold text-emerald-700">Day 2:</span> {fu.day2Remarks}</p>}
                       {fu.day3Remarks && <p className="text-xs text-slate-600 mt-1"><span className="font-semibold text-emerald-700">Day 3:</span> {fu.day3Remarks}</p>}
@@ -449,7 +455,6 @@ useEffect(() => {
     </div>
   );
 }
-
 
 function InputGroup({ label, name, value, onChange, type = "text", placeholder = "", icon, required }) {
   return (

@@ -4,29 +4,29 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { toast } from "react-toastify";
+import { useCrmLayout } from "@/components/layout/CrmShell";
 import { 
      Trash2, UserPlus, ShieldAlert, UserCog, 
     Search, MapPin, Mail, Phone, Briefcase, CheckCircle2, 
     XCircle, AlertTriangle, X, Loader2, Menu, Activity
 } from "lucide-react"; 
 
-import Sidebar from "@/components/layout/Sidebar";
+
 import CreateUserForm from "@/components/features/admin/CreateUserForm";
 
 
 export default function AssociateManagement() {
     const { data: session, status } = useSession();
 
+    const {setMobileOpen} = useCrmLayout()
     const [associates, setAssociates] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    
     const [searchQuery, setSearchQuery] = useState("");
 
     // Modal States
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [editingUser, setEditingUser] = useState(null);
-    const [saving, setSaving] = useState(false);
+
     
     // Delete Confirmation State
     const [deleteConfirmId, setDeleteConfirmId] = useState(null);
@@ -82,33 +82,7 @@ export default function AssociateManagement() {
         }
     };
 
-    const handleEditSave = async () => {
-        setSaving(true);
-        try {
-            const res = await fetch("/api/users", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    rowId: editingUser.id,
-                    leads: editingUser.leads,
-                    target: editingUser.target,
-                    achieved: editingUser.achieved
-                })
-            });
 
-            if (res.ok) {
-                toast.success("Performance targets updated successfully");
-                setIsEditModalOpen(false);
-                fetchAssociates(); 
-            } else {
-                toast.error("Failed to update targets");
-            }
-        } catch (error) {
-            toast.error("Error updating details");
-        } finally {
-            setSaving(false);
-        }
-    };
 
     // --- Access Control Gates ---
     if (status === "loading") {
@@ -117,8 +91,7 @@ export default function AssociateManagement() {
 
     if (!isAuthorized) {
         return (
-            <div className="flex h-[100dvh] bg-slate-50 overflow-hidden relative">
-                <Sidebar role={session?.user?.role} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
+            <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
                 <div className="flex flex-1 w-full h-full flex-col items-center justify-center p-6 text-center">
                     <ShieldAlert size={80} className="text-rose-400 mb-6" />
                     <h2 className="text-3xl font-extrabold text-slate-800">Clearance Required</h2>
@@ -129,19 +102,15 @@ export default function AssociateManagement() {
     }
 
     return (
-        <div className="flex h-[100dvh] bg-[#f8fafc] overflow-hidden font-sans relative">
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
             
-            {/* Mobile Sidebar Overlay */}
-            {mobileMenuOpen && <div className="fixed inset-0 bg-black/40 z-40 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setMobileMenuOpen(false)} />}
             
-            <Sidebar role={session?.user?.role} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
-
             <div className="flex flex-1 w-full h-full flex-col min-w-0 overflow-hidden relative">
                 
                 {/* --- HEADER --- */}
                 <header className="h-auto md:h-20 px-6 py-4 md:py-0 bg-white border-b border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between shrink-0 z-20 shadow-sm gap-4">
-                    <div className="flex items-center gap-3 w-full md:w-auto">
-                        <button onClick={() => setMobileMenuOpen(true)} className="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg"><Menu size={24} /></button>
+                    <div className="flex items-center gap-3 w-full md:w-auto select-none">
+                        <button onClick={() => setMobileOpen(true)} className="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg"><Menu size={24} /></button>
                         <div>
                             <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
                                 <Briefcase className="text-[#00a884]" size={24} /> Roster Management
@@ -184,7 +153,6 @@ export default function AssociateManagement() {
                                             <th className="px-6 py-4">Contact</th>
                                             <th className="px-6 py-4">Organization</th>
                                             <th className="px-6 py-4 text-center">Status</th>
-                                            <th className="px-6 py-4 text-center">Performance Targets</th>
                                             <th className="px-6 py-4 text-right">Actions</th>
                                         </tr>
                                     </thead>
@@ -236,17 +204,10 @@ export default function AssociateManagement() {
                                                             {associate.active ? 'Active' : 'Suspended'}
                                                         </span>
                                                     </td>
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex items-center justify-center gap-4 text-xs font-bold">
-                                                            <div className="text-center"><span className="block text-[10px] text-slate-400 uppercase tracking-widest mb-0.5">Target</span> <span className="text-slate-800">{associate.target || 0}</span></div>
-                                                            <div className="text-center"><span className="block text-[10px] text-slate-400 uppercase tracking-widest mb-0.5">Achieved</span> <span className="text-[#00a884]">{associate.achieved || 0}</span></div>
-                                                        </div>
-                                                    </td>
+
                                                     <td className="px-6 py-4 text-right">
                                                         <div className="flex items-center justify-end gap-2">
-                                                            <button onClick={() => { setEditingUser(associate); setIsEditModalOpen(true); }} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-200" title="Edit Targets">
-                                                                <Activity size={16} />
-                                                            </button>
+
                                                             <Link href={`/crm/associate-management/${associate.id}`}>
                                                                 <button className="p-1.5 text-[#00a884] hover:bg-emerald-50 rounded-lg transition-colors border border-transparent hover:border-emerald-200" title="Edit Full Profile">
                                                                     <UserCog size={16} />
@@ -294,7 +255,7 @@ export default function AssociateManagement() {
                                             <Link href={`/crm/associate-management/${associate.id}`} className="flex-1">
                                                 <button className="w-full py-2 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-100 flex items-center justify-center gap-1.5"><UserCog size={14}/> Edit Profile</button>
                                             </Link>
-                                            <button onClick={() => { setEditingUser(associate); setIsEditModalOpen(true); }} className="flex-1 py-2 bg-blue-50 border border-blue-100 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 flex items-center justify-center gap-1.5"><Activity size={14}/> Targets</button>
+                                            
                                         </div>
                                     </div>
                                 ))}
@@ -325,53 +286,7 @@ export default function AssociateManagement() {
                     </div>
                 )}
 
-                {/* Edit Targets Modal */}
-                {isEditModalOpen && editingUser && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm transition-opacity animate-in fade-in">
-                        <div className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4">
-                            <div className="px-6 py-5 flex items-center justify-between border-b border-slate-100">
-                                <div>
-                                    <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">Performance Targets</h3>
-                                </div>
-                                <button onClick={() => setIsEditModalOpen(false)} className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-full transition-colors"><X size={20} /></button>
-                            </div>
-                            
-                            <div className="p-6 space-y-5 bg-slate-50/50">
-                                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold">{editingUser.name.charAt(0).toUpperCase()}</div>
-                                    <div>
-                                        <p className="text-sm font-extrabold text-slate-800">{editingUser.name}</p>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase">{editingUser.role.replace('_', ' ')}</p>
-                                    </div>
-                                </div>
 
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Monthly Target Goal</label>
-                                        <input type="number" min="0" className="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] transition-all shadow-sm" value={editingUser.target || 0} onChange={e => setEditingUser({ ...editingUser, target: e.target.value })} />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1 text-blue-600"><AlertTriangle size={12}/> Leads Handled</label>
-                                            <input type="number" min="0" className="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm" value={editingUser.leads || 0} onChange={e => setEditingUser({ ...editingUser, leads: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1 text-emerald-600"><CheckCircle2 size={12}/> Closed Achieved</label>
-                                            <input type="number" min="0" className="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm" value={editingUser.achieved || 0} onChange={e => setEditingUser({ ...editingUser, achieved: e.target.value })} />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="pt-4 flex gap-3">
-                                    <button onClick={() => setIsEditModalOpen(false)} className="flex-1 py-3 text-sm rounded-xl text-slate-500 font-bold hover:bg-slate-200 transition-all bg-slate-100">Cancel</button>
-                                    <button onClick={handleEditSave} disabled={saving} className="flex-1 py-3 bg-[#00a884] text-white text-sm rounded-xl font-bold hover:bg-emerald-600 shadow-md shadow-emerald-200 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70">
-                                        {saving ? <Loader2 size={16} className="animate-spin" /> : "Save Metrics"}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
 
             </div>
         </div>

@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import Sidebar from "@/components/layout/Sidebar";
+import { useCrmLayout } from "@/components/layout/CrmShell";
 import ChatArea from "@/components/features/chat/ChatArea";
-import { useChatStore } from "@/store/chatStore";
+import { useChatStore } from "@/stores/chatStore";
 import { 
   ArrowLeft, User, Phone, MapPin, Briefcase, 
   FileText, Save, Loader2, MessageSquarePlus, CheckCircle, ShieldAlert 
@@ -16,7 +16,7 @@ import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png";
 export default function NewCustomerPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const {setMobileOpen} = useCrmLayout()
   const setSelectedChat = useChatStore((s) => s.setSelectedChat);
   const selectedChat = useChatStore((s) => s.selectedChat);
 
@@ -148,14 +148,10 @@ export default function NewCustomerPage() {
   // 👇 FIX: Access Denied Screen
   if (!isAuthorized) {
     return (
-        <div className="flex h-[100dvh] bg-gray-100 overflow-hidden relative">
-            <div className="flex-shrink-0 z-40">
-                <Sidebar role={userRole} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
-            </div>
-
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
             <div className="flex flex-1 w-full h-full relative overflow-hidden flex-col">
                 <div className="md:hidden h-14 bg-white border-b flex items-center px-4 shrink-0 justify-between z-30 shadow-sm">
-                    <button onClick={() => setMobileMenuOpen(true)} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-md">
+                    <button onClick={() => setMobileOpen(true)} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-md">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
                     </button>
                     <div className="font-semibold text-gray-700">
@@ -176,11 +172,9 @@ export default function NewCustomerPage() {
   }
 
   return (
-    <div className="flex h-[100dvh] bg-slate-50 overflow-hidden">
+    <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
         
         {/* 1. Sidebar */}
-        <Sidebar role={userRole || "sales"} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
-
         {/* 2. LEFT PANEL: Add Customer Form */}
         <div className="flex flex-col w-full md:w-[400px] border-r border-slate-200 bg-white h-full shrink-0 z-20 shadow-xl md:shadow-none absolute md:relative">
              

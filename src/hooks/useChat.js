@@ -1,145 +1,152 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+
 import { chatService } from "@/services/chatService";
-import { useChatStore } from "@/store/chatStore";
-import { toast } from "react-toastify"; 
-import { io } from "socket.io-client"; 
+import { connectSocket, disconnectSocket } from "@/services/socketService";
+
+import { useChatStore } from "@/stores/chatStore";
+
+import { playSafeAudio } from "@/utils/audio";
+import { getDisplayName } from "@/utils/chatHelpers";
+import { showChatNotification } from "@/utils/notification";
 
 export function useChat(role) {
   const [loading, setLoading] = useState(true);
-  const setMessages = useChatStore((s) => s.setMessages);
-  const addMessage = useChatStore((s) => s.addMessage); 
-  const updateMessageStatus = useChatStore((s) => s.updateMessageStatus);
-  
-  const addNotification = useChatStore((s) => s.addNotification);
 
-  const selectedChat = useChatStore((s) => s.selectedChat);
+  const setMessages = useChatStore((state) => state.setMessages);
+
+  const addMessage = useChatStore((state) => state.addMessage);
+
+  const addNotification = useChatStore((state) => state.addNotification);
+
+  const selectedChat = useChatStore((state) => state.selectedChat);
+
   const selectedChatRef = useRef(selectedChat);
 
   useEffect(() => {
     selectedChatRef.current = selectedChat;
   }, [selectedChat]);
 
-  const socketRef = useRef(null);
-
-  const playSafeAudio = (path) => {
+  const fetchChats = useCallback(async () => {
     try {
-        const audio = new Audio(path);
-        audio.play().catch((err) => {
-            if (err.name !== "NotAllowedError") {
-                console.error("Audio playback error:", err);
-            }
-        });
-    } catch (e) {
-        console.error("Audio setup error:", e);
+      const chats = await chatService.getMessages(role);
+
+      if (!Array.isArray(chats)) return;
+
+      const sortedChats = chats.sort(
+        (a, b) => new Date(b.lastSeenAt) - new Date(a.lastSeenAt),
+      );
+
+      setMessages(sortedChats);
+    } catch (error) {
+      console.error("Chat Fetch Error:", error);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [role, setMessages]);
+
+  const handleIncomingMessage = useCallback(
+    (newMessage) => {
+      addMessage(newMessage);
+
+      if (newMessage.direction !== "INBOUND") {
+        return;
+      }
+
+      try {
+        const state = useChatStore.getState();
+
+        const currentChat = selectedChatRef.current?.phone === newMessage.phone;
+
+        const contact = state.messages.find(
+          (item) => item.phone === newMessage.phone,
+        );
+
+        const displayName = getDisplayName(
+          newMessage.phone,
+          newMessage.name,
+          contact,
+        );
+
+        if (currentChat) {
+          playSafeAudio("/audio/incoming_message.mp3");
+          return;
+        }
+
+        playSafeAudio("/audio/notification.wav");
+
+        showChatNotification({
+          displayName,
+          phone: newMessage.phone,
+          message: newMessage.message,
+          addNotification,
+        });
+      } catch (error) {
+        console.error("Notification Processing Error:", error);
+      }
+    },
+    [addMessage, addNotification],
+  );
+
+  const handleStatusUpdate = useCallback(({ sid, status, phone }) => {
+    const state = useChatStore.getState();
+
+    const chats = state.messages;
+    const updateMessageStatus = state.updateMessageStatus;
+
+    const processChat = (chat) => {
+      if (!chat.history?.length) return;
+
+      let targetMessage = chat.history.find(
+        (msg) => msg.twilioSid === sid || msg.sid === sid,
+      );
+
+      if (!targetMessage) {
+        targetMessage = chat.history
+          .slice()
+          .reverse()
+          .find((msg) => msg.direction === "OUTBOUND");
+      }
+
+      if (!targetMessage) return;
+
+      const messageId =
+        targetMessage.tempId || targetMessage._id || targetMessage.id;
+
+      updateMessageStatus(chat.phone, messageId, status, sid);
+    };
+
+    if (phone) {
+      const targetChat = chats.find((chat) => chat.phone === phone);
+
+      if (targetChat) {
+        processChat(targetChat);
+      }
+    } else {
+      chats.forEach(processChat);
+    }
+  }, []);
 
   useEffect(() => {
     if (!role) return;
 
-    const fetchChats = async () => {
-      try {
-        const data = await chatService.getMessages(role);
-        if (data && Array.isArray(data)) {
-           const sortedData = data.sort((a, b) => new Date(b.lastSeenAt) - new Date(a.lastSeenAt));
-           setMessages(sortedData);
-        }
-      } catch (err) {
-        console.error("Fetch error:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchChats();
 
-    // 👇 FIX: Dynamically resolve the socket URL and configure robust timeout/transports
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || (process.env.NODE_ENV === "production" ? "https://crm.almaaerp.in" : (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"));
-    
-    const socket = io(socketUrl, {
-      path: "/socket.io/",
-      transports: ["websocket", "polling"], // Polling first prevents initial timeout failures in dev
-      secure: process.env.NODE_ENV === "production",
-      rejectUnauthorized: false,
-      reconnectionAttempts: 5,
-      timeout: 10000 // Increased to 10 seconds
-    }); 
-    
-    socketRef.current = socket;
+    const socket = connectSocket();
 
-    socket.on("connect", () => {
-        console.log("✅ Socket Connected to Server:", socket.id);
-    });
+    socket.on("new_message", handleIncomingMessage);
 
-    socket.on("connect_error", (err) => {
-        console.warn("⚠️ Socket Connection Warning:", err.message);
-    });
-
-    socket.on("new_message", (newMessage) => {
-        
-        addMessage(newMessage);
-
-        if (newMessage.direction === "INBOUND") {
-             try {
-                const isCurrentChat = selectedChatRef.current?.phone === newMessage.phone;
-
-                let displayName = newMessage.phone.replace("whatsapp:", "");
-
-                const currentMessages = useChatStore.getState().messages;
-                const contact = currentMessages.find(c => c.phone === newMessage.phone);
-
-                if (contact && contact.name && contact.name !== contact.phone) {
-                    displayName = contact.name;
-                } else if (newMessage.name && newMessage.name !== "Unknown" && newMessage.name !== "null" && newMessage.name.trim() !== "") {
-                    displayName = newMessage.name;
-                }
-
-                if (isCurrentChat) {
-                    playSafeAudio("/audio/incoming_message.mp3");
-                } else {
-                    playSafeAudio("/audio/notification.wav");
-                    toast.info(`Message from ${displayName}`);
-
-                    if (addNotification) {
-                        addNotification({
-                            id: Date.now(),
-                            name: displayName,
-                            phone: newMessage.phone,
-                            message: newMessage.message,
-                            timestamp: new Date(),
-                            type: 'message',
-                            read: false
-                        });
-                    }
-                }
-             } catch (e) {
-                console.error("Notification Logic Error:", e);
-             }
-        }
-    });
-
-    socket.on("message_status_update", ({ sid, status }) => {
-
-        const state = useChatStore.getState();
-        const allChats = state.messages;
-        
-        allChats.forEach(chat => {
-            if (chat.history) {
-                const msgToUpdate = chat.history.find(m => m.twilioSid === sid);
-                if (msgToUpdate) {
-                    updateMessageStatus(chat.phone, msgToUpdate.tempId || msgToUpdate.id, status);
-                }
-            }
-        });
-    });
+    socket.on("message_status_update", handleStatusUpdate);
 
     return () => {
-        if (socketRef.current) {
-            socketRef.current.disconnect();
-        }
-    };
-    
-  }, [role, setMessages, addMessage, updateMessageStatus, addNotification]); 
+      socket.off("new_message", handleIncomingMessage);
 
-  return { loading };
+      socket.off("message_status_update", handleStatusUpdate);
+
+      disconnectSocket();
+    };
+  }, [role, fetchChats, handleIncomingMessage, handleStatusUpdate]);
+
+  return {
+    loading,
+  };
 }

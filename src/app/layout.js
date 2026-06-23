@@ -6,8 +6,8 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata = {
-  title: "ALMAA HERBAL CRM",
-  description: "Doctor & Sales CRM",
+  title: "Almaa Herbal Nature CRM",
+  description: "A CRM platform for managing customers, sales, and communication for Almaa Herbal Nature.",
 };
 
 export default function RootLayout({ children }) {

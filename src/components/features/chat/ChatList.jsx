@@ -1,12 +1,13 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
-import { useChatStore } from "@/store/chatStore";
+import { useChatStore } from "@/stores/chatStore";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Search, PlusCircle, CheckCheck, Check, Clock, AlertCircle, ChevronDown, Trash2, X, AlertTriangle } from "lucide-react";
 
 export default function ChatList({ role, loading }) {
     const messages = useChatStore((s) => s.messages);
+    
     const { selectedChat, setSelectedChat, updateChatDetails } = useChatStore();
     const { data: session } = useSession();
 
@@ -33,6 +34,7 @@ export default function ChatList({ role, loading }) {
     }, [searchTerm, allCustomers]);
 
     const getPriorityStyles = (priority, isUnread) => {
+        
         if (isUnread) return "bg-emerald-50/40 border-l-emerald-400/50";
 
         switch (priority?.toLowerCase()) {
@@ -114,6 +116,25 @@ export default function ChatList({ role, loading }) {
         setSearchTerm("");
     };
 
+    // You can pass customer.activeRouteCategory or chat.chatType as the prop
+const InboxSourceBadge = ({ sourceType }) => {
+  const config = {
+    "Product Lead": { color: "bg-emerald-100 text-emerald-800", dot: "bg-emerald-500", label: "Product Lead" },
+    "MD Camp": { color: "bg-blue-100 text-blue-800", dot: "bg-blue-500", label: "MD Camp" },
+    "Therapy": { color: "bg-purple-100 text-purple-800", dot: "bg-purple-500", label: "Therapy" },
+    "Direct Lead": { color: "bg-slate-100 text-slate-800", dot: "bg-slate-500", label: "General Inbox" },
+  };
+
+  const style = config[sourceType] || config["Direct Lead"];
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${style.color}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`}></span>
+      {style.label}
+    </span>
+  );
+};
+
     // 👇 API Functions to trigger and confirm deletion
     const triggerDelete = (phonesArray) => {
         setDeleteModal({ isOpen: true, phones: phonesArray });
@@ -156,7 +177,7 @@ export default function ChatList({ role, loading }) {
             const phone = (chat.phone || "").toLowerCase();
             return name.includes(term) || phone.includes(term);
         });
-
+        
         const sorted = filtered.sort((a, b) => {
             return parseDate(b.lastSeenAt || b.timestamp) - parseDate(a.lastSeenAt || a.timestamp);
         });
@@ -178,7 +199,7 @@ export default function ChatList({ role, loading }) {
 
         return groups;
     }, [messages, searchTerm]);
-
+    
     const filteredCustomers = useMemo(() => {
         if (!searchTerm || !allCustomers) return [];
         const term = searchTerm.toLowerCase();
@@ -198,6 +219,7 @@ export default function ChatList({ role, loading }) {
 
     const renderChatGroup = (title, chats) => {
         if (chats.length === 0) return null;
+        
         return (
             <div className="mb-2">
                 <div className="sticky top-0 bg-white/95 backdrop-blur-sm px-5 py-2 z-10 border-b border-slate-50">
@@ -210,7 +232,7 @@ export default function ChatList({ role, loading }) {
                     const cleanPhone = chat.phone ? chat.phone.replace("whatsapp:", "") : "";
                     const displayName = chat.name || cleanPhone;
                     const dateObj = parseDate(chat.lastSeenAt || chat.timestamp);
-
+                    
                     const baseStyle = isSelected
                         ? "bg-slate-50 border-l-emerald-500"
                         : getPriorityStyles(chat.priority, isUnread);
@@ -319,7 +341,7 @@ export default function ChatList({ role, loading }) {
                                         <ChevronDown size={16} />
                                     </button>
                                     {activeChatMenu === chat.phone && (
-                                        <div className="absolute right-0 top-full mt-1 w-32 bg-white border border-slate-100 rounded-xl shadow-lg z-50 py-1 overflow-hidden">
+                                        <div className="absolute right-10 top-0 mt-1 w-32 bg-white border border-slate-100 rounded-xl shadow-lg z-50 py-1 overflow-hidden">
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();

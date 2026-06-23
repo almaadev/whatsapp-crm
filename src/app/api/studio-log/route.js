@@ -3,10 +3,16 @@ import connectDB from "@/lib/mongodb";
 import Message from "@/models/Message";
 import Customer from "@/models/Customer";
 import redis from "@/lib/redis";
+import { verifyStudioLogSecret } from "@/lib/session";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(req) {
   try {
-    // 1. Connect to MongoDB
+    if (!verifyStudioLogSecret(req)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     await connectDB();
 
     // 2. Read JSON Body
@@ -58,9 +64,13 @@ export async function POST(req) {
       });
     }
 
-    // 6. Clear Redis Cache
-    if (redis && redis.status !== 'disabled') {
-      try { await redis.del("chats:all_data"); } catch (e) { }
+    if (redis && redis.status !== "disabled") {
+      try {
+        await redis.del("chats:all_data");
+        await redis.del("chats:main_inbox_data");
+      } catch {
+        // non-fatal
+      }
     }
 
     return NextResponse.json({ success: true, method: "POST (MongoDB)" });

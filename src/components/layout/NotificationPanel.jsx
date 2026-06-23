@@ -1,5 +1,5 @@
 "use client";
-import { useChatStore } from "@/store/chatStore";
+import { useChatStore } from "@/stores/chatStore";
 import { X, Bell, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 

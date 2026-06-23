@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import Customer from "@/models/Customer";
 
+
 export const dynamic = "force-dynamic";
 
 // --- Formatter Helper to maintain UI consistency ---
@@ -19,7 +20,6 @@ const formatCustomerForUI = (c) => ({
     remarks: c.remarks || "",
     saleAmount: c.saleAmount || "0",
     associate: c.assignedTo || "Unassigned",
-    visitCount: c.visitCount || 1,
     date: c.updatedAt ? new Date(c.updatedAt).toISOString() : new Date().toISOString(),
     isClosed: c.isClosed || false
 });
@@ -69,8 +69,7 @@ export async function POST(req) {
                     address: address?.trim() || "",
                     source: source?.trim() || "Manual Entry",
                     status: "New" // Default state for manually added customers
-                },
-                $setOnInsert: { visitCount: 1 } // Initialize only if it's new
+                }
             },
             { new: true, upsert: true }
         );

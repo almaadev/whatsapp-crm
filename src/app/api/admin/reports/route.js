@@ -2,11 +2,15 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Lead from "@/models/Lead";
 import Customer from "@/models/Customer";
+import { requireAdmin } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
     try {
+        const { error } = await requireAdmin();
+        if (error) return error;
+
         await connectDB();
         
         // Single unified fetch
@@ -63,7 +67,7 @@ export async function GET() {
             saleAmount: lead.saleAmount || "0",
             city: lead.city || "-",
             source: lead.source || "Whatsapp",
-            handler: lead.assignedTo || lead.associate || "unassigned",
+            associate: lead.assignedTo || lead.associate || "unassigned",
             leadType: lead.leadType || "Direct Lead" // Native field from schema
         }));
 
@@ -75,7 +79,7 @@ export async function GET() {
                     date: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
                     enquiredFor: c.latestEnquiry || c.enquiredFor || "-",
                     status: c.status || "New", saleAmount: "0", city: c.city || "-",
-                    source: c.source || "Whatsapp", handler: c.assignedTo || "unassigned",
+                    source: c.source || "Whatsapp", associate: c.assignedTo || "unassigned",
                     leadType: "Customer Only"
                 });
             }

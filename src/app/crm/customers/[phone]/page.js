@@ -1,10 +1,10 @@
 "use client";
+import { useCrmLayout } from "@/components/layout/CrmShell";
 
 import { useState, useEffect, use } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { usePathStore } from "@/store/pathStore";
-import Sidebar from "@/components/layout/Sidebar";
+import { usePathStore } from "@/stores/pathStore";
 import {
     ChevronLeft, Edit2, Save, User, MapPin, Globe, 
     Briefcase, FileText, Menu, Phone, Copy, Check, 
@@ -13,20 +13,19 @@ import {
 import { getStatusColor } from "@/utils/colorUtils";
 import { toast } from "react-toastify";
 
+
 export default function CustomerDetailPage({ params }) {
     const unwrappedParams = use(params);
     const phone = decodeURIComponent(unwrappedParams.phone);
-
+    const {setMobileOpen} =  useCrmLayout()
     const lastPath = usePathStore((state) => state.lastpath);
     const { data: session } = useSession();
 
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [customer, setCustomer] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [saving, setSaving] = useState(false);
     const [copied, setCopied] = useState(false);
-    console.log(customer);
     const [formData, setFormData] = useState({
         name: "", city: "", address: "", associate: "", source: "",
         enquiredFor: "", status: "New", saleAmount: "", remarks: ""
@@ -57,6 +56,7 @@ export default function CustomerDetailPage({ params }) {
                         address: data.address || "",
                         associate: data.associate || "",
                         source: data.source || "",
+                        priority: data.priority || "Medium",
                         enquiredFor: data.enquiredFor || "",
                         status: data.status || "New",
                         saleAmount: data.saleAmount || "",
@@ -118,8 +118,7 @@ export default function CustomerDetailPage({ params }) {
 
     if (loading) {
         return (
-            <div className="flex h-screen bg-[#f8fafc]">
-                <Sidebar role={session?.user?.role || "sales"} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
+            <div className="flex h-screen w-screen bg-[#f8fafc]">
                 <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
                     <Loader2 size={32} className="animate-spin text-[#00a884] mb-4" />
                     <p className="text-sm font-bold uppercase tracking-widest">Loading Intelligence Profile...</p>
@@ -131,7 +130,6 @@ export default function CustomerDetailPage({ params }) {
     if (!customer) {
         return (
             <div className="flex h-screen bg-[#f8fafc]">
-                <Sidebar role={session?.user?.role || "sales"} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
                 <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
                     <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-6">
                         <User size={32} className="text-slate-300" />
@@ -147,15 +145,13 @@ export default function CustomerDetailPage({ params }) {
     const followUpLabel = getFollowUpLabel(customer);
 
     return (
-        <div className="flex h-[100dvh] bg-[#f8fafc] font-sans">
-            <Sidebar role={session?.user?.role || "sales"} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
-
-            <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        <div className="flex h-[100dvh] w-lvw bg-[#f8fafc] font-sans">
+            <main className="flex-1 flex flex-col  overflow-hidden relative">
                 
                 {/* --- HEADER --- */}
                 <header className="bg-white border-b border-slate-200 px-6 py-4 md:py-5 flex items-center justify-between shrink-0 z-20 shadow-sm sticky top-0">
                     <div className="flex items-center gap-4">
-                        <button onClick={() => setMobileMenuOpen(true)} className="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg"><Menu size={24} /></button>
+                        <button onClick={() => setMobileOpen(true)} className="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg"><Menu size={24} /></button>
                         <Link href={lastPath ? lastPath : "/crm/customers"} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition border border-transparent hover:border-slate-200">
                             <ChevronLeft size={20} />
                         </Link>
@@ -182,7 +178,8 @@ export default function CustomerDetailPage({ params }) {
                 </header>
 
                 <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 custom-scrollbar">
-                    <div className="max-w-[1400px] mx-auto space-y-6 lg:space-y-8">
+                    {/* CHANGED LINE BELOW: Removed max-w-[1400px] mx-auto and added w-full */}
+                    <div className="w-full space-y-6 lg:space-y-8">
 
                         {/* --- ZONE 1: PREMIUM HERO IDENTITY HEADER --- */}
                         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative">
@@ -227,6 +224,12 @@ export default function CustomerDetailPage({ params }) {
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Customer Tenure</p>
                                         <p className="text-sm font-bold text-[#00a884] flex items-center gap-1.5"><Clock size={14}/> {getDuration(customer.date)}</p>
                                     </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Priority Level</p>
+                                        <p className={`text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 ${getStatusColor(customer.priority)}`}>
+                                            <ShieldAlert size={14} className="shrink-0" /> {customer.priority || "Medium"}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -245,10 +248,7 @@ export default function CustomerDetailPage({ params }) {
                                         <StatRow icon={<Briefcase size={14} />} label="Active Enquiry" value={customer.enquiredFor} bold />
                                         <StatRow icon={<User size={14} />} label="Assigned Associate" value={customer.associate} />
                                         
-                                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex items-center justify-between">
-                                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5"><BadgeCheck size={14}/> Total Visits</span>
-                                            <span className="text-sm font-extrabold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">{customer.visitCount || 1}</span>
-                                        </div>
+
 
                                         <div className="bg-emerald-50/50 rounded-xl p-4 border border-emerald-100 flex items-center justify-between">
                                             <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5"><FileText size={14}/> Deal Value</span>
@@ -280,7 +280,7 @@ export default function CustomerDetailPage({ params }) {
                                         <InfoField type="text" label="City / Location" value={formData.city} onChange={v => setFormData({ ...formData, city: v })} isEditing={isEditing} icon={<MapPin size={14} />} />
                                         
                                         <div className="md:col-span-2">
-                                            <InfoField type="textArea" label="Complete Address" value={formData.address} onChange={v => setFormData({ ...formData, address: v })} isEditing={isEditing} icon={<MapPin size={14} />} />
+                                            <InfoField type="textArea" label="Address" value={formData.address} onChange={v => setFormData({ ...formData, address: v })} isEditing={isEditing} icon={<MapPin size={14} />} />
                                         </div>
                                         
                                         <InfoField type="select" label="Lead Source" value={formData.source} onChange={v => setFormData({ ...formData, source: v })} isEditing={isEditing} icon={<Globe size={14} />} options={["Facebook", "Instagram", "Google", "Referral", "Walk-in", "Whatsapp", "Manual Entry", "Direct Call"]} />

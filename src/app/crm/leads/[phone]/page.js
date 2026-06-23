@@ -1,8 +1,10 @@
 "use client";
+
 import { useState, useEffect, use, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useChatStore } from "@/store/chatStore";
-import { usePathStore } from "@/store/pathStore";
+import { useChatStore } from "@/stores/chatStore";
+import { usePathStore } from "@/stores/pathStore";
+import { useCrmLayout } from "@/components/layout/CrmShell";
 import {
   ArrowLeft, User, Phone, MapPin, Tag, FileText,
   MessageSquare, History, Briefcase, Clock,
@@ -11,7 +13,6 @@ import {
   ChevronDown, ChevronUp, Filter, ChevronLeft, ChevronRight, X, CheckCircle2
 } from "lucide-react";
 import Link from "next/link";
-import Sidebar from "@/components/layout/Sidebar";
 import { toast } from "react-toastify";
 import { useSession } from "next-auth/react";
 
@@ -47,13 +48,13 @@ export default function LeadDetailsPage({ params }) {
   const unwrappedParams  = use(params);
   const phone = decodeURIComponent(unwrappedParams.phone);
 
+  const {setMobileOpen} = useCrmLayout()
   const { data: session }       = useSession();
   const router                  = useRouter();
   const { setSelectedChat }     = useChatStore();
   const lastPath = usePathStore((state) => state.lastpath);
   
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [lead, setLead]             = useState(null); 
+    const [lead, setLead]             = useState(null); 
   const [loading, setLoading]       = useState(true);
   const [copied, setCopied]         = useState(false);
 
@@ -89,14 +90,16 @@ export default function LeadDetailsPage({ params }) {
   }, [phone]);
 
   // ── DERIVED INTELLIGENCE LAYER ────────────────────────────────────────────
-  const intelligence = useMemo(() => {
+const intelligence = useMemo(() => {
       if (!lead) return null;
 
       const timeline = lead.history || [];
-      const interactionCount = timeline.length;
       
-      const firstFollowUp = interactionCount > 0 ? timeline[0] : {};
-      const latestFollowUp = interactionCount > 0 ? timeline[interactionCount - 1] : {};
+      // 🚀 THE FIX: Pure Logic -> Count ONLY if status === "Closed"
+      const interactionCount = timeline.filter(item => item.status === "Closed").length;
+      
+      const firstFollowUp = timeline.length > 0 ? timeline[0] : {};
+      const latestFollowUp = timeline.length > 0 ? timeline[timeline.length - 1] : {};
 
       const originHandler = firstFollowUp.associateName || lead.assignedTo || "Unassigned";
       const currentHandler = latestFollowUp.associateName || lead.assignedTo || "Unassigned";
@@ -196,7 +199,7 @@ export default function LeadDetailsPage({ params }) {
   // ── Render States ─────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <Shell mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} session={session}>
+      <Shell>
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3 text-slate-400">
             <Loader2 size={32} className="animate-spin text-[#00a884]" />
@@ -209,7 +212,7 @@ export default function LeadDetailsPage({ params }) {
 
   if (!lead || !intelligence) {
     return (
-      <Shell mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} session={session}>
+      <Shell>
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-white m-6 rounded-2xl border border-slate-200 shadow-sm">
           <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6 border border-slate-100">
             <User size={32} className="text-slate-300" />
@@ -227,7 +230,7 @@ export default function LeadDetailsPage({ params }) {
   }
 
   return (
-    <Shell mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} session={session}>
+    <Shell>
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#f8fafc]">
 
         {/* ── HEADER ── */}
@@ -236,7 +239,7 @@ export default function LeadDetailsPage({ params }) {
             <button onClick={() => setMobileOpen(true)} className="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-700 transition hover:bg-slate-100 rounded-lg"><Menu size={24} /></button>
             <Link href={lastPath ? lastPath : "/crm/leads"} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition border border-transparent hover:border-slate-200"><ArrowLeft size={20} /></Link>
             <div>
-                <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 leading-tight tracking-tight">Lead Intelligence</h1>
+                <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 leading-tight tracking-tight">Lead & Customer History</h1>
                 <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">Audit & Interaction Record</p>
             </div>
           </div>
@@ -281,11 +284,7 @@ export default function LeadDetailsPage({ params }) {
                 <div className="flex flex-col lg:items-start gap-2.5 flex-1 min-w-0 border-l-2 border-transparent lg:border-slate-100 lg:pl-8">
                     <div className="flex flex-wrap items-center gap-2">
                         <LifecycleBadge state={intelligence.currentStatus} />
-                        {intelligence.isClosed && (
-                            <span className="text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 px-2.5 py-1 rounded-full flex items-center gap-1 whitespace-nowrap">
-                                <CheckCircle2 size={12} /> {intelligence.ownershipTransitionText}
-                            </span>
-                        )}
+
                         <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border whitespace-nowrap ${intelligence.currentPriority === "High" ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-slate-50 text-slate-600 border-slate-200"}`}>
                             {intelligence.currentPriority === "High" && <AlertCircle size={12} />}
                             {intelligence.currentPriority} Priority
@@ -500,11 +499,10 @@ export default function LeadDetailsPage({ params }) {
 //  SUB-COMPONENTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Shell({ children, mobileOpen, setMobileOpen, session }) {
+function Shell({ children }) {
   return (
-    <div className="flex h-screen bg-[#f8fafc] font-sans">
-      <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} role={session?.user?.role || "associate"} />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">{children}</div>
+    <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
+      {children}
     </div>
   );
 }

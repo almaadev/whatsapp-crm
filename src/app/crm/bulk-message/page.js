@@ -1,7 +1,7 @@
 "use client";
+import { useCrmLayout } from "@/components/layout/CrmShell";
 
 import { useState, useEffect } from "react";
-import Sidebar from "@/components/layout/Sidebar";
 import { toast } from "react-toastify";
 import {
   Send,
@@ -17,14 +17,14 @@ import {
   Menu, // 🚀 Added Menu icon for mobile
 } from "lucide-react";
 import { useSession } from "next-auth/react";
-import TemplateManagerPanel from "@/components/features/chat/Templatemanagerpanel";
-import { useTemplateStore } from "@/store/templateStore";
+import TemplateManagerPanel from "@/components/templates/TemplateManagerPanel";
+import { useTemplateStore } from "@/stores/templateStore";
 
 export default function BulkTemplatePage() {
+  const { setMobileOpen } = useCrmLayout();
   const { data: session, status } = useSession();
   const userRole = session?.user?.role || "associate";
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
+  
   // ─── Messaging state ──────────────────────────────────────────────────────
   const [numbersText, setNumbersText] = useState("");
   const [templateId, setTemplateId] = useState(""); // internal SID
@@ -160,8 +160,7 @@ export default function BulkTemplatePage() {
 
   if (!hasBulkAccess) {
     return (
-      <div className="flex h-[100dvh] bg-slate-50 overflow-hidden relative font-sans">
-        <Sidebar role={userRole} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
         <div className="flex flex-1 w-full h-full flex-col items-center justify-center p-6 text-center">
           <ShieldAlert size={80} className="text-rose-400 mb-6" />
           <h2 className="text-3xl font-extrabold text-slate-800">Access Denied</h2>
@@ -176,23 +175,10 @@ export default function BulkTemplatePage() {
 
   // ─── Normal Render ────────────────────────────────────────────────────────
   return (
-    <div className="flex h-[100dvh] bg-slate-50 overflow-hidden font-sans relative">
+    <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
       {/* 🚀 ADDED: Mobile Overlay Backdrop */}
-      {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 bg-black/40 z-40 md:hidden backdrop-blur-sm transition-opacity"
-          onClick={() => setMobileMenuOpen(false)}
-          aria-hidden="true"
-        />
-      )}
-
       <div className="flex-shrink-0 z-40 relative">
-        <Sidebar
-          role={userRole}
-          mobileOpen={mobileMenuOpen}
-          setMobileOpen={setMobileMenuOpen}
-        />
-      </div>
+        </div>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto custom-scrollbar">
         <div className="p-4 sm:p-6 md:p-10 max-w-6xl mx-auto w-full space-y-6 sm:space-y-8">
@@ -200,7 +186,7 @@ export default function BulkTemplatePage() {
           {/* 🚀 ADDED: Header Section with Mobile Menu Button */}
           <div className="flex items-start gap-4 border-b border-slate-200 pb-5 sm:pb-6">
             <button
-              onClick={() => setMobileMenuOpen(true)}
+              onClick={() => setMobileOpen(true)}
               className="md:hidden mt-1 flex items-center justify-center w-10 h-10 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors shrink-0"
               aria-label="Open navigation"
             >
@@ -209,7 +195,7 @@ export default function BulkTemplatePage() {
             <div className="flex flex-col gap-2">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full w-max text-[10px] sm:text-xs font-bold uppercase tracking-wider">
                 <Send size={12} />
-                Twilio Campaign
+                Almaa Campaign 
               </div>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight leading-tight">
                 Bulk Template Messenger

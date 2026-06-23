@@ -4,6 +4,8 @@ import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
 import { motion, AnimatePresence } from "framer-motion";
+import { useCrmLayout } from "@/components/layout/CrmShell";
+
 import { 
     Loader2, Menu, Calendar, 
     ArrowUpRight, ArrowDownLeft, CheckCircle2, 
@@ -12,12 +14,12 @@ import {
     ChevronRight, BarChart3, SlidersHorizontal, FileText, FileJson,
     Smartphone, Globe, ShieldAlert, AlertTriangle
 } from "lucide-react";
-import Sidebar from "@/components/layout/Sidebar";
+
 
 export default function MessageLogsPage() {
     const { data: session, status } = useSession();
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     
+    const {setMobileOpen} = useCrmLayout()
     // --- DATA STATES ---
     const [loading, setLoading] = useState(true);
     const [fetching, setFetching] = useState(false);
@@ -268,8 +270,7 @@ export default function MessageLogsPage() {
 
     if (!haslogaccess) {
         return (    
-            <div className="flex h-[100dvh] bg-slate-50 overflow-hidden relative">
-                <Sidebar role={session?.user?.role} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
+            <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
                 <div className="flex flex-1 w-full h-full flex-col items-center justify-center p-6 text-center">
                     <ShieldAlert size={80} className="text-rose-400 mb-6" />
                     <h2 className="text-3xl font-extrabold text-slate-800">Access Denied</h2>
@@ -285,8 +286,7 @@ export default function MessageLogsPage() {
     if (status === "loading") return <div className="flex h-screen items-center justify-center text-emerald-600 font-bold uppercase tracking-widest text-sm bg-slate-50"><Loader2 className="animate-spin mr-3"/> Authenticating...</div>;
     if (!session || !isAuthorized) {
         return (
-            <div className="flex h-[100dvh] bg-slate-50 overflow-hidden relative">
-                <Sidebar role={session?.user?.role} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
+            <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
                 <div className="flex flex-1 w-full h-full flex-col items-center justify-center p-6 text-center">
                     <ShieldAlert size={80} className="text-rose-400 mb-6" />
                     <h2 className="text-3xl font-extrabold text-slate-800">Clearance Required</h2>
@@ -296,11 +296,8 @@ export default function MessageLogsPage() {
     }
 
     return (
-        <div className="flex h-[100dvh] bg-[#f8fafc] font-sans overflow-hidden text-slate-800 selection:bg-emerald-100 selection:text-emerald-900">
-            {mobileMenuOpen && <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 md:hidden" onClick={() => setMobileMenuOpen(false)} />}
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
             
-            <Sidebar role={session?.user?.role} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
-
             {/* --- EXPORT LOADING OVERLAY --- */}
             <AnimatePresence>
                 {exportLoading && (
@@ -366,7 +363,7 @@ export default function MessageLogsPage() {
                         
                         <div className="flex items-start justify-between">
                             <div className="flex items-center gap-4">
-                                <button onClick={() => setMobileMenuOpen(true)} className="md:hidden p-2 -ml-2 text-slate-400 hover:bg-slate-100 rounded-xl transition-colors">
+                                <button onClick={() => setMobileOpen(true)} className="md:hidden p-2 -ml-2 text-slate-400 hover:bg-slate-100 rounded-xl transition-colors">
                                     <Menu size={24} />
                                 </button>
                                 <div>

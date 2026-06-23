@@ -6,7 +6,6 @@ if (!MONGODB_URI) {
   throw new Error("Please define the MONGODB_URI environment variable inside .env");
 }
 
-
 let cached = global.mongoose;
 
 if (!cached) {
@@ -21,10 +20,10 @@ async function connectDB() {
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
+      family: 4, // FIX: Forces Mongoose to use IPv4 instead of IPv6
     };
 
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-      
       return mongoose;
     });
   }

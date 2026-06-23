@@ -3,7 +3,6 @@ import mongoose from "mongoose";
 const FollowUpSchema = new mongoose.Schema(
   {
     date:          { type: Date, required: true },
-    // Derived date fields for ultra-fast analytics/aggregations
     year:          { type: Number },
     month:         { type: Number }, // 1-12
     day:           { type: Number }, // 1-31

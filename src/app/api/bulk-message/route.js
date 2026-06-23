@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import twilio from "twilio";
 import BulkMessage from "@/models/BulkMessage";
 import connectDB from "@/lib/mongodb";
+import User from "@/models/User";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
@@ -57,17 +58,24 @@ export async function POST(req) {
 
         const twilioPhoneNumber = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER || "whatsapp:+14155238886";
         const formattedFrom = twilioPhoneNumber.startsWith("whatsapp:") ? twilioPhoneNumber : `whatsapp:${twilioPhoneNumber}`;
-
+        const callbackUrl = process.env.NEXT_PUBLIC_BASE_URL ? `${process.env.NEXT_PUBLIC_BASE_URL}/api/webhook/status` : "https://pediatric-opossum-gambling.ngrok-free.dev/api/webhook/status";
         let successCount = 0;
         let failedCount = 0;
 
+          const findUserNameById = async (id) => {
+            const user = await User.findById(id).lean();
+            return user ? user.name : "Unknown";
+          };
+
         const bulkRecord = await BulkMessage.create({
             templateId,
-            accountSid: process.env.TWILIO_ACCOUNT_SID || "unknown", 
+            accountSid: process.env.TWILIO_ACCOUNT_SID || "unknown",
+            contentSid: templateId, 
             body: `Template Broadcast (SID: ${templateId})`, 
             totalRecipients: numbers.length,
-            sentBy: session.user.name || session.user.email,
-            status: "IN_PROGRESS"
+            sentBy: await findUserNameById(session.user.id),
+            status: "IN_PROGRESS",
+            callbackUrl: callbackUrl
         });
 
         for (const rawPhone of numbers) {

@@ -4,9 +4,13 @@ import Customer from "@/models/Customer";
 import Lead from "@/models/Lead";
 import User from "@/models/User";
 import redis from "@/lib/redis";
+import { requireSession } from "@/lib/session";
 
 export async function POST(req) {
   try {
+    const { session, error } = await requireSession();
+    if (error) return error;
+
     await connectDB();
     const { phone, status, associateName, notes, priority } = await req.json();
     
@@ -16,14 +20,15 @@ export async function POST(req) {
     const isClosed = status === "Closed";
     
     // Get Associate ID
-    const userDoc = await User.findOne({ name: associateName });
+    const resolvedAssociateName = associateName || session.user.name;
+    const userDoc = await User.findOne({ name: resolvedAssociateName });
     const associateId = userDoc ? userDoc._id.toString() : "";
 
     // 1. Update Customer Record (If exists)
     let customer = await Customer.findOne({ phone: cleanPhone });
     if (customer) {
         customer.status = status;
-        customer.assignedTo = associateName;
+        customer.assignedTo = resolvedAssociateName;
         customer.isClosed = isClosed;
         if (priority) customer.priority = priority;
         if (notes) customer.remarks = notes;
@@ -46,7 +51,7 @@ export async function POST(req) {
         day: now.getUTCDate(),
         enquiredFor: customer?.enquiredFor || "",
         associateId: associateId,
-        associateName: associateName,
+        associateName: resolvedAssociateName,
         priority: priority || "Medium",
         status: status,
         overAllRemarks: notes || "",
@@ -61,14 +66,14 @@ export async function POST(req) {
             city: customer?.city || "",
             address: customer?.address || "",
             source: customer?.source || "Whatsapp",
-            assignedTo: associateName,
+            assignedTo: resolvedAssociateName,
             associateId: associateId,
             isClosed: isClosed,
             leads: [newFollowUpEntry]
         });
 
         if (isClosed) {
-            lead.closedBy = associateName;
+            lead.closedBy = resolvedAssociateName;
             lead.closedById = associateId;
             lead.closedAt = now;
         }
@@ -84,13 +89,13 @@ export async function POST(req) {
         lead.leads.push(newFollowUpEntry);
 
         // Update Top-Level Ownership & Closure tracking
-        lead.assignedTo = associateName;
+        lead.assignedTo = resolvedAssociateName;
         lead.associateId = associateId;
         lead.isClosed = isClosed;
 
         if (isClosed) {
             // Only set closed data if it wasn't already closed, or update it to the current closer
-            lead.closedBy = associateName;
+            lead.closedBy = resolvedAssociateName;
             lead.closedById = associateId;
             lead.closedAt = now;
         } else {
@@ -102,10 +107,10 @@ export async function POST(req) {
 
         // Track ownership changes (Handoffs) if the assigned user changes
         const previousHandler = lead.assignedTo;
-        if (previousHandler !== associateName) {
+        if (previousHandler !== resolvedAssociateName) {
              lead.handledByHistory.push({
                  associateId: associateId,
-                 associateName: associateName,
+                 associateName: resolvedAssociateName,
                  assignedAt: now
              });
         }
@@ -114,8 +119,13 @@ export async function POST(req) {
     }
 
     // Invalidate Redis cache
-    if (redis && redis.status === 'ready') {
-        try { await redis.del("chats:all_data"); } catch(e) {}
+if (redis && redis.status === 'ready') {
+        try { 
+            await redis.del("chats:all_data"); 
+            await redis.del("chats:main_inbox_data"); // <-- Add this line!
+        } catch(e) {
+            console.error("Redis Cache Clear Error:", e);
+        }
     }
     
     return NextResponse.json({ success: true });

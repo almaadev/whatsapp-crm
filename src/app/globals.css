@@ -1,49 +1,109 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc; /* Slate-50 */
-  --foreground: #0f172a; /* Slate-900 */
-  --primary: #059669; /* Emerald-600 */
-  --sidebar-bg: #0f172a; /* Slate-900 */
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --primary: #059669;
+  --sidebar-bg: #0f172a;
+
+  /* Brand tokens */
+  --brand-primary: #00a884;
+  --brand-primary-hover: #059669;
+  --brand-sidebar: #20bb68;
+  --brand-sidebar-footer: #17bb61;
+  --brand-sidebar-active: #1aa159;
+  --brand-sidebar-border: #0b8343;
+  --chat-wallpaper: #efeae2;
+}
+
+@theme inline {
+  --color-brand: var(--brand-primary);
+  --color-brand-sidebar: var(--brand-sidebar);
 }
 
 @layer base {
   body {
     @apply bg-slate-50 text-slate-900 antialiased;
-    overflow: hidden; 
+    overflow: hidden;
   }
 }
 
 @layer utilities {
-  .no-scrollbar::-webkit-scrollbar { display: none; }
-  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 
-  /* Premium Slim Scrollbar */
-  .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
-  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
   .custom-scrollbar::-webkit-scrollbar-thumb {
     @apply bg-slate-300 hover:bg-slate-400 rounded-full transition-colors;
+  }
+
+  .crm-fade-in {
+    animation: crmFadeIn 0.2s ease-out;
+  }
+
+  .crm-slide-in-top {
+    animation: crmSlideInTop 0.2s ease-out;
+  }
+
+  .crm-slide-in-right {
+    animation: crmSlideInRight 0.3s ease-out;
+  }
+}
+
+@keyframes crmFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes crmSlideInTop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes crmSlideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
   }
 }
 
 @layer utilities {
   .has-tooltip {
     position: relative;
-    /* Ensures the pseudo-element is positioned relative to the span */
   }
 
   .has-tooltip:hover::after {
-    content: attr(data-tooltip); /* Gets content from the data attribute */
+    content: attr(data-tooltip);
     @apply absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1;
-    @apply  text-gray-800 text-base py-1 px-2;
+    @apply text-gray-800 text-base py-1 px-2;
     @apply whitespace-nowrap z-20;
-    /* Additional styles for the tooltip appearance */
   }
 
   .has-tooltip:hover::before {
-    content: '';
+    content: "";
     @apply absolute bottom-full left-1/2 transform -translate-x-1/2 translate-y-full;
-    
-    /* Optional: a small triangle "arrow" for the tooltip */
   }
 }

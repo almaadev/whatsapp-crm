@@ -3,7 +3,7 @@
 const nextConfig = {
   /* config options here */
   reactCompiler: true,
-  allowedDevOrigins: ['http://localhost:3000','pediatric-opossum-gambling.ngrok-free.dev'],
+  allowedDevOrigins: ['http://localhost:3000','nonarsenic-nonparous-clotilde.ngrok-free.dev'],
 
   experimental: {
     serverActions: {

@@ -3,8 +3,8 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
-import Sidebar from "@/components/layout/Sidebar";
-import { usePathStore } from "@/store/pathStore";
+import { useCrmLayout } from "@/components/layout/CrmShell";
+import { usePathStore } from "@/stores/pathStore";
 import {
     Users, Clock, CheckCircle2, Target, Calendar,
     Filter, Search, ArrowRight, UserCircle,
@@ -149,6 +149,7 @@ export default function AssociateDashboard() {
     const { setPath } = usePathStore();
     const { data: session, status } = useSession();
     
+    const {setMobileOpen} = useCrmLayout()
     // --- Routing & Authorization State ---
     const [isAuthorized, setIsAuthorized] = useState(false);
 
@@ -161,7 +162,7 @@ export default function AssociateDashboard() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [retryCount, setRetryCount] = useState(0);
-    const [mobileOpen, setMobileOpen] = useState(false);
+    
     
     // --- Filters ---
     const [searchQuery, setSearchQuery] = useState("");
@@ -217,9 +218,9 @@ export default function AssociateDashboard() {
                 if (!signal.aborted) setLoading(false);
             }
         };
-
+        
         fetchDashboard();
-
+        
         // Cleanup: Abort stale requests if month/year changes rapidly
         return () => controller.abort();
     }, [selectedMonth, selectedYear, isAuthorized, retryCount]);
@@ -264,26 +265,20 @@ export default function AssociateDashboard() {
     // Prevent rendering dashboard flash before redirect finishes
     if (!isAuthorized || status === "loading") {
         return (
-            <div className="flex items-center justify-center h-screen bg-slate-50 text-slate-400">
+            <div className="flex items-center justify-center w-screen  bg-slate-50 text-slate-400">
                 <RefreshCw className="animate-spin mr-2" size={24} />
-                <span className="font-bold tracking-widest uppercase text-sm">Securing Session...</span>
+                <span className="font-bold tracking-widest uppercase text-sm">Loading Session...</span>
             </div>
         );
     }
 
     return (
-        <div className="flex h-[100dvh] bg-slate-50 font-sans overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
             {/* Mobile Overlay */}
-            {mobileOpen && (
-                <div className="fixed inset-0 bg-black/40 z-40 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setMobileOpen(false)} aria-hidden="true" />
-            )}
-
-            <Sidebar role={userRole} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
-
             <div className="flex-1 flex flex-col h-full overflow-hidden relative min-w-0">
                 
                 {/* ── HEADER ── */}
-                <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 z-20 shrink-0 shadow-sm">
+                <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 z-20 shrink-0 shadow-sm select-none">
                     <div className="flex items-center gap-3">
                         <button className="md:hidden flex items-center justify-center w-10 h-10 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors shrink-0" onClick={() => setMobileOpen(true)} aria-label="Open navigation">
                             <Menu size={20} />
@@ -424,12 +419,18 @@ export default function AssociateDashboard() {
                                                                 </div>
                                                             </div>
                                                         </td>
-                                                        <td className="px-4 sm:px-6 py-3 sm:py-4 hidden md:table-cell">
-                                                            <div className="flex flex-col gap-1 text-xs">
-                                                                <div className="flex items-center gap-1.5 font-bold text-slate-700"><Activity size={13} className="text-blue-500" /> {lead.followUpCount} Interactions</div>
-                                                                <div className="text-slate-500 font-medium">Last: {lead.latestFollowUp?.date ? new Date(lead.latestFollowUp.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "N/A"}</div>
-                                                            </div>
-                                                        </td>
+<td className="px-4 sm:px-6 py-3 sm:py-4 hidden md:table-cell">
+    <div className="flex flex-col gap-1 text-xs">
+        <div className="flex items-center gap-1.5 font-bold text-slate-700">
+            <Activity size={13} className="text-blue-500" /> 
+            {/* 🚀 Changed text to reflect Closures */}
+            {lead.followUpCount} Closure{lead.followUpCount !== 1 ? 's' : ''}
+        </div>
+        <div className="text-slate-500 font-medium">
+            Last: {lead.latestFollowUp?.date ? new Date(lead.latestFollowUp.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "N/A"}
+        </div>
+    </div>
+</td>
                                                         <td className="px-4 sm:px-6 py-3 sm:py-4 max-w-[200px] hidden lg:table-cell">
                                                             <div className="flex items-start gap-2">
                                                                 <MessageSquare size={13} className="text-slate-400 mt-0.5 shrink-0" />

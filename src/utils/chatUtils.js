@@ -56,7 +56,10 @@ export const MessageStatusIcon = ({ status }) => {
         case "SENDING": return <Clock size={12} className="text-slate-400 shrink-0" />;
         case "SENT": return <Check size={14} className="text-slate-400 shrink-0" />;
         case "DELIVERED": return <CheckCheck size={14} className="text-slate-400 shrink-0" />;
+        case "UNDELIVERED": return <AlertCircle size={12} className="text-red-500 shrink-0" />;
+        case "QUEUED" : return <Clock size={12} className="text-yellow-500 shrink-0" />;
         case "READ": return <CheckCheck size={14} className="text-blue-500 shrink-0" />;
+        case "PENDING": return <Clock size={12} className="text-yellow-500 shrink-0" />;
         case "FAILED": return <AlertCircle size={12} className="text-red-500 shrink-0" />;
         default: return null;
     }
