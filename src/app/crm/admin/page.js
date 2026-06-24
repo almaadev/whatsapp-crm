@@ -8,7 +8,7 @@ import AccessDenied from "@/components/ui/AccessDenied";
 import KPICard from "@/components/ui/KpiCard";
 import { AnimatedCount } from "@/hooks/useCountUp";
 import { isAdminAuthorized, isSuperAdmin } from "@/utils/auth";
-import Link from "next/link";
+
 import {
   Users,
   TrendingUp,
@@ -16,7 +16,6 @@ import {
   Edit2,
   Save,
   XCircle,
-  ChevronRight,
   Shield,
   Filter,
   Headset,
@@ -258,13 +257,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          <Link
-            href="/crm/admin/reports"
-            className="hidden sm:flex items-center gap-2 text-slate-600 hover:text-[var(--brand-primary)] font-bold text-sm bg-slate-50 px-4 py-2 rounded-xl border border-slate-200 hover:border-[var(--brand-primary)]/30 transition-all shadow-sm group"
-          >
-            <Briefcase size={16} /> Reports{" "}
-            <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
-          </Link>
+
 
           <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200 shadow-sm">
             <Calendar size={16} className="text-slate-400 ml-2" />
