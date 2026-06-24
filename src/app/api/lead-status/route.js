@@ -33,10 +33,6 @@ export async function POST(req) {
         if (priority) customer.priority = priority;
         if (notes) customer.remarks = notes;
         
-        // Only increment visit count if it's not a closed status update
-        if (!isClosed) {
-           customer.visitCount = (customer.visitCount || 0) + 1;
-        }
         await customer.save();
     }
 

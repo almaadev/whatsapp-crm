@@ -14,6 +14,7 @@ import {
   Users,
   Share2,
   List,
+  Send,
   ChevronDown,
   MessageSquareText,
   History,
@@ -373,12 +374,12 @@ export default function Sidebar({
 
       { hasAccess("Bulk Messages")
           && ( 
-                      <Link href="/crm/bulk-message">
+              <Link href="/crm/bulk-message">
             <NavItem
               isOpen={isExpanded}
               active={pathname === "/crm/bulk-message"}
               label="Bulk Messages"
-              icon={<MessageSquareText size={22} />}
+              icon={<Send size={22} />}
             />
           </Link>
           )

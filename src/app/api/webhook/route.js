@@ -95,6 +95,25 @@ export async function POST(req) {
       return twilioResponse();
     }
 
+    // 🚀 NEW: INTERCEPT STOP / START OPT-OUT LOGIC
+    const incomingTextUpper = messageText.trim().toUpperCase();
+    if (incomingTextUpper === "STOP" || incomingTextUpper === "UNSUBSCRIBE") {
+        await Customer.findOneAndUpdate(
+            { phone },
+            { isOptedOut: true },
+            { upsert: true }
+        );
+        console.log(`🚫 [WEBHOOK] Opt-out registered for ${phone}`);
+        return twilioResponse(); 
+    } else if (incomingTextUpper === "START") {
+        await Customer.findOneAndUpdate(
+            { phone },
+            { isOptedOut: false },
+            { upsert: true }
+        );
+        console.log(`✅ [WEBHOOK] Opt-in registered for ${phone}`);
+    }
+
     console.log(`📱 [WEBHOOK] Sender: ${phone} | Msg: "${messageText}" | Media: ${numMedia}`);
 
     let customer = await Customer.findOne({ phone });
