@@ -6,7 +6,6 @@ const MessageBubble = memo(function MessageBubble({ msg, currentMsgDate, onMedia
   const isMe = msg.direction?.toUpperCase() === "OUTBOUND";
 
   const isTemplateMessage = msg.isTemplate || (msg.message && (msg.message.startsWith("Template:") || msg.message.startsWith("Template Sent (SID:")));
-console.log(msg);
 
   return (
     <div className={`flex w-full ${isMe ? "justify-end" : "justify-start"} group mb-1 min-w-0`}>
@@ -39,13 +38,15 @@ console.log(msg);
             <span>{msg.message}</span>
             <span className="inline-flex items-center gap-1 float-right mt-2 ml-3">
               <span className="text-[10px] text-slate-500 whitespace-nowrap">{formatBubbleTime(currentMsgDate)}</span>
-              {isMe && <MessageStatusIcon status={msg.status} />}
+              {/* 🚀 FIX: Fallback to messageStatus for refreshed page data */}
+              {isMe && <MessageStatusIcon status={msg.messageStatus || msg.status} />}
             </span>
           </div>
         ) : (
           <div className="flex justify-end items-center gap-1 mt-1">
             <span className="text-[10px] text-slate-500 whitespace-nowrap">{formatBubbleTime(currentMsgDate)}</span>
-            {isMe && <MessageStatusIcon status={msg.status} />}
+            {/* 🚀 FIX: Fallback to messageStatus for refreshed page data */}
+            {isMe && <MessageStatusIcon status={msg.messageStatus || msg.status} />}
           </div>
         )}
       </div>

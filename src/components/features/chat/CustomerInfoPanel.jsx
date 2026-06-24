@@ -8,9 +8,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-toastify";
 
-// ─────────────────────────────────────────────────────────────────────────────
 //  STATUS CONFIG  (colour + icon per status value)
-// ─────────────────────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
   "New":            { color: "blue",    icon: <AlertCircle  size={11} /> },
   "Follow Up":      { color: "amber",   icon: <Clock        size={11} /> },
@@ -26,6 +24,7 @@ const STATUS_BADGE = ({ status }) => {
     emerald:"bg-emerald-50 text-emerald-700 border-emerald-200",
     slate:  "bg-slate-100 text-slate-600  border-slate-200",
   }[cfg.color];
+
   return (
     <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${cls}`}>
       {cfg.icon} {status}
@@ -33,9 +32,7 @@ const STATUS_BADGE = ({ status }) => {
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 //  EMPTY FORM STATE
-// ─────────────────────────────────────────────────────────────────────────────
 const EMPTY_FORM = {
   name: "", city: "", address: "",
   source: "Whatsapp", enquiredFor: "", status: "New",
@@ -44,9 +41,7 @@ const EMPTY_FORM = {
   leadType: "Direct Lead", adType: "",
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 //  COMPONENT
-// ─────────────────────────────────────────────────────────────────────────────
 export default function CustomerInfoPanel({
   isOpen, onClose, activeChat = null,
 }) {
@@ -62,7 +57,7 @@ export default function CustomerInfoPanel({
   const [formData,       setFormData]      = useState(EMPTY_FORM);
   const [historyFilter,  setHistoryFilter] = useState("All"); 
 
-  // ── Derived Values (Memoized for Performance) ──────────────────────────────
+  //   Derived Values (Memoized for Performance) 
   const latestFollowUp = useMemo(() => {
     return followUps.length > 0 ? followUps[followUps.length - 1] : null;
   }, [followUps]);
@@ -71,7 +66,7 @@ export default function CustomerInfoPanel({
     return [...new Set(followUps.map(f => f.associateName).filter(Boolean))];
   }, [followUps]);
 
-  // 🚀 THE FIX: Filter History & Cycle Counts
+  //   THE FIX: Filter History & Cycle Counts
   const { filteredHistory, closedCycleCount } = useMemo(() => {
     // 1. Remove 'New' and 'Not Interested' to clean up the timeline
     let validHistory = followUps.filter(f => f.status !== "New" && f.status !== "Not Interested");
@@ -87,7 +82,7 @@ export default function CustomerInfoPanel({
     return { filteredHistory: validHistory, closedCycleCount: closedCount };
   }, [followUps, historyFilter]);
 
-  // ── Fetch lead data directly from Unified API ──────────────────────────────
+  //   Fetch lead data directly from Unified API 
   useEffect(() => {
     const phoneToFetch = activeChat?.phone || selectedChat?.phone;
     
@@ -108,7 +103,6 @@ export default function CustomerInfoPanel({
           setLeadData(data);
           const fetchedLeads = data.history || [];
           setFollowUps(fetchedLeads);
-
           const latest = fetchedLeads.length > 0 ? fetchedLeads[fetchedLeads.length - 1] : {};
           
           const initialFormData = {
@@ -135,8 +129,8 @@ export default function CustomerInfoPanel({
         .finally(() => setLoading(false));
     }
   }, [isOpen, activeChat, selectedChat]);
-    
-  // ── Form handlers ──────────────────────────────────────────────────────────
+   
+  //   Form handlers 
   const handleChange = (e) =>
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
@@ -178,7 +172,6 @@ export default function CustomerInfoPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
       const data = await res.json();
       
       if (!res.ok) {
@@ -216,29 +209,27 @@ export default function CustomerInfoPanel({
   };
 
   const showDayWiseRemarks = 
-    formData.status === "Follow Up" || 
-    formData.day1Remarks || 
-    formData.day2Remarks || 
+    formData.status === "Follow Up" ||
+    formData.day1Remarks ||
+    formData.day2Remarks ||
     formData.day3Remarks;
 
   return (
     <div className={`
-      fixed inset-y-0 right-0 w-[420px] bg-white shadow-2xl transform transition-transform
-      duration-300 ease-in-out z-50 border-l border-slate-200 flex flex-col
+      absolute inset-y-0 right-0 w-[420px] bg-white shadow-2xl transform transition-transform
+      duration-300 ease-in-out z-[60] border-l border-slate-200 flex flex-col
       ${isOpen ? "translate-x-0" : "translate-x-full"}
     `}>
-
-      {/* ── Header ── */}
+      {/* 🚀 FIX: Ensure Header shows completely with a visible Close Button */}
       <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100 shrink-0 bg-white">
         <h2 className="font-bold text-slate-800 text-lg">Customer Details</h2>
-        <button onClick={onClose} className="text-slate-400 hover:text-slate-700 transition">
-          <X size={20} />
+        <button onClick={onClose} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 rounded-lg transition-colors">
+          <X size={16} /> Close
         </button>
       </div>
 
-      {/* ── Scrollable body ── */}
+      {/*   Scrollable body   */}
       <div className="flex-1 p-6 overflow-y-auto space-y-5 custom-scrollbar bg-slate-50/50">
-
         {/* Avatar + name */}
         <div className="flex flex-col items-center relative">
           <div className="w-20 h-20 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-full flex items-center justify-center text-3xl font-bold text-emerald-700 shadow-sm border-4 border-white">
@@ -247,8 +238,7 @@ export default function CustomerInfoPanel({
           <p className="text-slate-900 font-bold text-lg mt-3">
             {formData.name || selectedChat?.phone}
           </p>
-
-          {/* 🚀 THE FIX: Cycle Badge now uses Closed Count ONLY */}
+          
           {closedCycleCount > 0 && (
             <span className="mt-1 flex items-center gap-1 text-xs font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
               <History size={12} />
@@ -271,9 +261,8 @@ export default function CustomerInfoPanel({
           )}
         </div>
 
-        {/* ── Core fields card ── */}
+        {/*   Core fields card   */}
         <div className="space-y-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-
           <InputGroup label="Full Name" name="name" value={formData.name}
             onChange={handleChange} icon={<User size={14} />} required />
 
@@ -284,7 +273,6 @@ export default function CustomerInfoPanel({
               onChange={handleChange} icon={<MapPin size={14} />} placeholder="Full address..." />
           </div>
 
-          {/* Source */}
           <SelectGroup label="Source" name="source" value={formData.source}
             onChange={handleChange} icon={<Globe size={14} />}
             options={["Whatsapp","Facebook","Instagram","Google","Referral","Direct","Manual Entry","Phone Call"]} />
@@ -292,12 +280,10 @@ export default function CustomerInfoPanel({
           <InputGroup label="Enquired For" name="enquiredFor" value={formData.enquiredFor}
             onChange={handleChange} icon={<HelpCircle size={14} />} placeholder="e.g. Treatment" />
 
-          {/* Lead Type */}
           <SelectGroup label="Lead Type" name="leadType" value={formData.leadType}
             onChange={handleChange} icon={<Tag size={14} />}
             options={["Direct Lead","Product Lead","MD Camp","Therapy"]} />
 
-          {/* Status + Priority row */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5">Status</label>
@@ -309,7 +295,6 @@ export default function CustomerInfoPanel({
                 <option value="Not Interested">Not Interested</option>
               </select>
             </div>
-
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5">Priority</label>
               <select name="priority" value={formData.priority} onChange={handleChange}
@@ -334,7 +319,7 @@ export default function CustomerInfoPanel({
           </div>
         </div>
 
-        {/* ── Day-wise follow-up ── */}
+        {/*   Day-wise follow-up   */}
         {showDayWiseRemarks && (
           <div className="space-y-4 bg-emerald-50/50 p-5 rounded-2xl shadow-sm border border-emerald-100 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <h3 className="text-sm font-bold text-emerald-800 border-b border-emerald-200/50 pb-2">
@@ -393,12 +378,11 @@ export default function CustomerInfoPanel({
                         </span>
                         <STATUS_BADGE status={fu.status} />
                       </div>
-
                       <div className="flex items-center justify-between mt-1">
                         <p className="text-[11px] font-mono text-slate-400">
                           {fu.date ? new Date(fu.date).toLocaleString("en-IN", {
                             day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute:"2-digit"
-                          }) : "—"}
+                          }) : "-"}
                         </p>
                         {fu.associateName && (
                           <p className="text-[10px] bg-slate-50 border border-slate-200 px-2 py-0.5 rounded text-slate-600 font-medium">
@@ -406,12 +390,13 @@ export default function CustomerInfoPanel({
                           </p>
                         )}
                       </div>
-
+                      
                       {fu.enquiredFor && (
                         <p className="text-xs text-slate-700 mt-2">
                           <span className="font-bold text-slate-500">Enquiry:</span> {fu.enquiredFor}
                         </p>
                       )}
+                      
                       {fu.overAllRemarks && (
                         <p className="text-xs text-slate-600 italic bg-slate-50 p-2 rounded-lg mt-1 border border-slate-100">
                           "{fu.overAllRemarks}"

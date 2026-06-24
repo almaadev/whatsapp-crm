@@ -213,6 +213,7 @@ export async function GET(req) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  POST /api/leads  
 // ─────────────────────────────────────────────────────────────────────────────
+
 export async function POST(req) {
   try {
     const session = await getServerSession(authOptions);
@@ -222,7 +223,8 @@ export async function POST(req) {
 
     await connectDB();
     const body = await req.json();
-
+    
+    
     const mobileRaw = body.phone || body.mobile;
     if (!mobileRaw) {
       return NextResponse.json({ error: "Validation Error: Mobile number is required" }, { status: 400 });
@@ -240,6 +242,18 @@ export async function POST(req) {
     const userDoc = await User.findOne({ name: currentUser }).lean();
     const associateId = userDoc ? userDoc._id.toString() : session.user.id;
 
+    // 🛑 1. FETCH EXISTING LEAD FIRST TO APPLY "CLOSED" RULE
+    const existingLead = await Lead.findOne({ phone: cleanPhone });
+    let wasAlreadyClosed = false;
+
+    if (existingLead && existingLead.leads?.length > 0) {
+      const latestStatus = existingLead.leads[existingLead.leads.length - 1].status;
+      if (latestStatus === "Closed") {
+        wasAlreadyClosed = true;
+        body.status = "Closed"; // Intercept: Force status to remain "Closed"
+      }
+    }
+
     // Fetch existing customer to resolve missing fields
     const existingCustomer = await Customer.findOne({ phone: cleanPhone }).lean();
     
@@ -248,10 +262,10 @@ export async function POST(req) {
       || "Unknown";
     const resolvedCity = body.city?.trim() || existingCustomer?.city || "";
     const resolvedAddress = body.address?.trim() || existingCustomer?.address || "";
-    const resolvedStatus = body.status || "New";
+    const resolvedStatus = body.status || "New"; // Safely defaults back to Closed if intercepted
     const resolvedPriority = body.priority || "Medium";
     
-    // 1. Get or Create the Customer
+    // 2. Get or Create the Customer
     const updatedCustomer = await Customer.findOneAndUpdate(
       { phone: cleanPhone },
       { 
@@ -261,8 +275,15 @@ export async function POST(req) {
       { upsert: true, new: true } 
     );
 
-    const existingLead = await Lead.findOne({ phone: cleanPhone });
     const rootFields = rootLeadFields(body, resolvedName, resolvedCity, resolvedAddress, currentUser, associateId);
+
+    // 🛑 PREVENT OVERWRITING ORIGINAL CLOSURE DETAILS
+    if (wasAlreadyClosed) {
+      delete rootFields.closedBy;
+      delete rootFields.closedById;
+      delete rootFields.closedAt;
+      rootFields.isClosed = true;
+    }
 
     const currentHandoff = {
       associateId: associateId || "system",
@@ -270,9 +291,7 @@ export async function POST(req) {
       assignedAt: new Date()
     };
 
-    // ─────────────────────────────────────────────────────────────────────────
     // IF LEAD DOES NOT EXIST - CREATE NEW
-    // ─────────────────────────────────────────────────────────────────────────
     if (!existingLead) {
       const newFollowUp = await buildFollowUp(body, session);
 
@@ -312,15 +331,19 @@ export async function POST(req) {
 
     let shouldCreateNewEntry = false;
 
-    // Rule 1: If it's already Closed/Not Interested, only create new if transitioning back to Follow Up.
-    if (latestStatus === "Closed" || latestStatus === "Not Interested") {
+    // Rule 1: If it's already Closed, strictly update fields but never create a new entry
+    if (latestStatus === "Closed") {
+        shouldCreateNewEntry = false;
+    } 
+    // Rule 2: If it's Not Interested, only create new if transitioning back to Follow Up.
+    else if (latestStatus === "Not Interested") {
         if (incomingStatus === "Follow Up") {
             shouldCreateNewEntry = true;
         } else {
-            shouldCreateNewEntry = false; // Just update the closed note
+            shouldCreateNewEntry = false; // Just update note
         }
     } 
-    // Rule 2: If it's in Follow Up, only create new if transitioning to Closed/Not Interested.
+    // Rule 3: If it's in Follow Up, only create new if transitioning to Closed/Not Interested.
     else if (latestStatus === "Follow Up") {
         if (incomingStatus === "Closed" || incomingStatus === "Not Interested") {
             shouldCreateNewEntry = true;
@@ -328,7 +351,7 @@ export async function POST(req) {
             shouldCreateNewEntry = false; // Just update priority or remarks
         }
     } 
-    // Rule 3: For 'New', just update the initial entry as they start working on it.
+    // Rule 4: For 'New', just update the initial entry as they start working on it.
     else {
         shouldCreateNewEntry = false;
     }

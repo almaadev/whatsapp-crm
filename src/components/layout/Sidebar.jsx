@@ -5,7 +5,6 @@ import Link from "next/link";
 import Image from 'next/image';
 import { usePathname } from "next/navigation";
 import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png";
-import twilioLogo from "@/../public/logo/twilio.svg"
 import SignOutModal from "@/components/modals/SignOutModal";
 
 import {
@@ -16,7 +15,6 @@ import {
   List,
   Send,
   ChevronDown,
-  MessageSquareText,
   History,
   FileBarChart,
 } from "lucide-react";
@@ -237,8 +235,8 @@ export default function Sidebar({
                           : "text-white/80 hover:text-white hover:bg-white/10 hover:translate-x-1"
                       }`}
                     >
-                      <Image src={twilioLogo} sizes={9} alt="Twilio Logo" />
                       <span>Twilio Center</span>
+                      
                     </div>
                   </Link>
                   <Link href="/crm/admin/reports">
