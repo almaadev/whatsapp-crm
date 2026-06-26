@@ -3,7 +3,12 @@ import connectDB from "@/lib/mongodb";
 import Customer from "@/models/Customer";
 import Message from "@/models/Message";
 import redis from "@/lib/redis";
-import { determineConversationRoute, getModelByCategory } from "@/services/chatRoutingService";
+import twilio from "twilio";
+
+import {
+  determineConversationRoute,
+  getModelByCategory,
+} from "@/services/chatRoutingService";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +46,14 @@ async function parseTwilioBody(req) {
   return body;
 }
 
-function buildInboundMessages({ phone, messageText, twilioSid, profileName, body, numMedia }) {
+function buildInboundMessages({
+  phone,
+  messageText,
+  twilioSid,
+  profileName,
+  body,
+  numMedia,
+}) {
   const base = {
     phone,
     direction: "INBOUND",
@@ -62,13 +74,15 @@ function buildInboundMessages({ phone, messageText, twilioSid, profileName, body
     }));
   }
 
-  return [{
-    ...base,
-    message: messageText,
-    twilioSid,
-    mediaUrl: "",
-    mediaType: "",
-  }];
+  return [
+    {
+      ...base,
+      message: messageText,
+      twilioSid,
+      mediaUrl: "",
+      mediaType: "",
+    },
+  ];
 }
 
 export async function POST(req) {
@@ -77,14 +91,14 @@ export async function POST(req) {
     await connectDB();
 
     const body = await parseTwilioBody(req);
-
-    const twilioSid = body.MessageSid || body.SmsSid || body.sid || `in_${Date.now()}`;
-    let phone = body.From || body.from || "";
-    let messageText = (body.Body || body.body || "").replace(/\\n/g, "\n");
-    let numMedia = parseInt(body.NumMedia || body.numMedia || "0", 10);
+    
+    const twilioSid = body.sid;
+    let phone = body.from || "";
+    let messageText = body.body.replace(/\\n/g, "\n");
+    let numMedia = parseInt(body.numMedia || "0", 10);
     if (isNaN(numMedia)) numMedia = 0;
 
-    const profileName = body.ProfileName || body.profileName || phone || "Unknown";
+    const profileName = phone || "Unknown";
 
     if (phone && !phone.startsWith("whatsapp:")) {
       phone = `whatsapp:${phone}`;
@@ -95,40 +109,112 @@ export async function POST(req) {
       return twilioResponse();
     }
 
-    // 🚀 NEW: INTERCEPT STOP / START OPT-OUT LOGIC
-    const incomingTextUpper = messageText.trim().toUpperCase();
-    if (incomingTextUpper === "STOP" || incomingTextUpper === "UNSUBSCRIBE") {
-        await Customer.findOneAndUpdate(
-            { phone },
-            { isOptedOut: true },
-            { upsert: true }
-        );
-        console.log(`🚫 [WEBHOOK] Opt-out registered for ${phone}`);
-        return twilioResponse(); 
-    } else if (incomingTextUpper === "START") {
-        await Customer.findOneAndUpdate(
-            { phone },
-            { isOptedOut: false },
-            { upsert: true }
-        );
-        console.log(`✅ [WEBHOOK] Opt-in registered for ${phone}`);
-    }
-
-    console.log(`📱 [WEBHOOK] Sender: ${phone} | Msg: "${messageText}" | Media: ${numMedia}`);
-
+    // 🚀 FETCH CUSTOMER EARLY TO CHECK OPT-OUT STATUS
     let customer = await Customer.findOne({ phone });
     console.log(`👤 [WEBHOOK] Customer Found: ${!!customer}`);
 
+    // 🚀 EXACT MATCH LOGIC (Ignores sentences)
+    const incomingTextUpper = messageText.trim().toUpperCase();
+    const isStopCommand = incomingTextUpper === "STOP" || incomingTextUpper === "UNSUBSCRIBE";
+    const isStartCommand = incomingTextUpper === "START";
+
+    const STOP_MESSAGE =
+      "You have successfully unsubscribed from our WhatsApp updates.\nYou will no longer receive promotional messages from us.\nIf you wish to receive updates again, simply reply *START*.\nThank you!";
+    const START_MESSAGE =
+      "Welcome back! \nYou have successfully subscribed to our WhatsApp updates.\nYou'll now receive our latest updates and promotional messages.\nThank you for staying connected with us!";
+
+    let sid = "sys_msg_" + Date.now();
+    const myTwilioNumber = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER;
+    const callbackUrl = process.env.NEXT_PUBLIC_BASE_URL
+      ? `${process.env.NEXT_PUBLIC_BASE_URL}/api/webhook/status`
+      : "https://nonarsenic-nonparous-clotilde.ngrok-free.dev/api/webhook/status";
+
+    if (isStopCommand) {
+      if (customer && customer.isOptedOut === true) {
+        // Already Opted Out: Ignore twilio reply, let it pass to CRM
+        console.log(
+          `ℹ️ [WEBHOOK] ${phone} is already opted out. Passing "STOP" to CRM.`,
+        );
+      } else {
+        // Perform Opt-Out
+        await Customer.findOneAndUpdate(
+          { phone },
+          { isOptedOut: true },
+          { upsert: true },
+        );
+        try {
+          const client = twilio(
+            process.env.TWILIO_ACCOUNT_SID,
+            process.env.TWILIO_AUTH_TOKEN,
+          );
+          const sent = await client.messages.create({
+            body: STOP_MESSAGE,
+            from: myTwilioNumber,
+            to: phone.startsWith("whatsapp:") ? phone : `whatsapp:${phone}`,
+            statusCallback: callbackUrl,
+          });
+          sid = sent.sid;
+        } catch (e) {
+          console.error("Twilio Send Error:", e);
+        }
+
+        console.log(`🚫 [WEBHOOK] Opt-out registered for ${phone}`);
+        return twilioResponse(); // Return so it DOES NOT go to CRM
+      }
+    } else if (isStartCommand) {
+      // Check if already opted in (New customers are assumed false/opted-in by default)
+      const alreadyOptedIn = customer ? customer.isOptedOut === false : true;
+
+      if (alreadyOptedIn) {
+        // Already Opted In: Ignore twilio reply, let it pass to CRM
+        console.log(
+          `ℹ️ [WEBHOOK] ${phone} is already opted in. Passing "START" to CRM.`,
+        );
+      } else {
+        // Perform Opt-In
+        await Customer.findOneAndUpdate(
+          { phone },
+          { isOptedOut: false },
+          { upsert: true },
+        );
+        try {
+          const client = twilio(
+            process.env.TWILIO_ACCOUNT_SID,
+            process.env.TWILIO_AUTH_TOKEN,
+          );
+          const sent = await client.messages.create({
+            body: START_MESSAGE,
+            from: myTwilioNumber,
+            to: phone.startsWith("whatsapp:") ? phone : `whatsapp:${phone}`,
+            statusCallback: callbackUrl,
+          });
+          sid = sent.sid;
+        } catch (e) {
+          console.error("Twilio Send Error:", e);
+        }
+        console.log(`✅ [WEBHOOK] Opt-in registered for ${phone}`);
+        // NOTE: Does NOT return here, so "START" flows into the CRM as usual.
+      }
+    }
+
+    console.log(
+      `📱 [WEBHOOK] Sender: ${phone} | Msg: "${messageText}" | Media: ${numMedia}`,
+    );
+
+    // Continue with Routing Logic...
     let targetCategory = "Direct Lead";
     try {
       targetCategory = await determineConversationRoute(
         phone,
         messageText,
-        customer?.activeRouteCategory ?? null
+        customer?.activeRouteCategory ?? null,
       );
       console.log(`🚦 [WEBHOOK] Routing Decision: -> [${targetCategory}]`);
     } catch (routeError) {
-      console.error("❌ [WEBHOOK] Routing failed, defaulting to Direct Lead:", routeError);
+      console.error(
+        "❌ [WEBHOOK] Routing failed, defaulting to Direct Lead:",
+        routeError,
+      );
       targetCategory = "Direct Lead";
     }
 
@@ -146,7 +232,10 @@ export async function POST(req) {
       customer.activeRouteCategory = targetCategory;
       customer.lastInteractionAt = new Date();
       customer.unreadCount = (customer.unreadCount || 0) + 1;
-      if (customer.name === "Unknown" || customer.name === phone.replace("whatsapp:", "")) {
+      if (
+        customer.name === "Unknown" ||
+        customer.name === phone.replace("whatsapp:", "")
+      ) {
         customer.name = profileName;
       }
       await customer.save();
@@ -166,11 +255,14 @@ export async function POST(req) {
 
     const TargetModel = getModelByCategory(targetCategory);
     const savedMessages = await TargetModel.insertMany(inboundMessages);
-    console.log(`💾 [WEBHOOK] ${savedMessages.length} message(s) saved to ${targetCategory}.`);
+    console.log(
+      `💾 [WEBHOOK] ${savedMessages.length} message(s) saved to ${targetCategory}.`,
+    );
 
-    const indicationText = targetCategory !== "Direct Lead"
-      ? `🔄 [ROUTED TO ${targetCategory.toUpperCase()}]\n\nCustomer said: ${messageText || "(media)"}`
-      : messageText;
+    const indicationText =
+      targetCategory !== "Direct Lead"
+        ? `🔄 [ROUTED TO ${targetCategory.toUpperCase()}]\n\nCustomer said: ${messageText || "(media)"}`
+        : messageText;
 
     if (targetCategory !== "Direct Lead") {
       const mirrorMessages = inboundMessages.map((msg, i) => ({
@@ -197,17 +289,21 @@ export async function POST(req) {
         read: "FALSE",
       };
 
-      const catLabel = targetCategory === "Product Lead"
-        ? "Product Inquiry"
-        : targetCategory === "MD Camp"
-          ? "MD Camp"
-          : targetCategory === "Therapy"
-            ? "Therapy"
-            : null;
+      const catLabel =
+        targetCategory === "Product Lead"
+          ? "Product Inquiry"
+          : targetCategory === "MD Camp"
+            ? "MD Camp"
+            : targetCategory === "Therapy"
+              ? "Therapy"
+              : null;
 
-      if (targetCategory === "Product Lead") global.io.emit("new_product_message", categoryEmit);
-      else if (targetCategory === "MD Camp") global.io.emit("new_mdcamp_message", categoryEmit);
-      else if (targetCategory === "Therapy") global.io.emit("new_therapy_message", categoryEmit);
+      if (targetCategory === "Product Lead")
+        global.io.emit("new_product_message", categoryEmit);
+      else if (targetCategory === "MD Camp")
+        global.io.emit("new_mdcamp_message", categoryEmit);
+      else if (targetCategory === "Therapy")
+        global.io.emit("new_therapy_message", categoryEmit);
 
       global.io.emit("new_message", {
         ...categoryEmit,
