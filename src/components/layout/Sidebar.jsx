@@ -8,7 +8,6 @@ import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png";
 import SignOutModal from "@/components/modals/SignOutModal";
 
 import {
-  Zap,
   LayoutDashboard,
   MessagesSquare,
   Users,
@@ -217,6 +216,19 @@ export default function Sidebar({
                       Template Manager
                     </div>
                   </Link>
+
+                                    <Link
+                    href="/crm/admin/keyword-automation"
+                    className={`py-2 px-3 rounded-lg text-sm transition-all duration-200 flex items-center  gap-2  ${
+                      pathname === "/crm/admin/keyword-automation"
+                        ? "bg-white text-[var(--brand-sidebar-active)] font-bold shadow-sm translate-x-1"
+                          : "text-white/80 hover:text-white hover:bg-white/10 hover:translate-x-1"
+                    }`}
+                  >
+                    
+                    <span>Automatic-reply</span>
+                  </Link>
+                  
                   {/* 👇 Twilio Logs is now here */}
                   <Link href="/crm/admin/twilio">
                     <div
@@ -229,17 +241,7 @@ export default function Sidebar({
                       <span>Twilio Center</span>
                     </div>
                   </Link>
-                  <Link
-                    href="/crm/admin/keyword-automation"
-                    className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${
-                      pathname === "/crm/admin/keyword-automation"
-                        ? "bg-blue-50 text-blue-600"
-                        : "text-gray-600 hover:bg-gray-50"
-                    }`}
-                  >
-                    <Zap className="w-5 h-5" />
-                    <span>Keyword Auto-Reply</span>
-                  </Link>
+
                   <Link href="/crm/admin/reports">
                     <div
                       className={`py-2 px-3 rounded-lg text-sm transition-all duration-200 flex items-center gap-2 ${

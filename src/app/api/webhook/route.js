@@ -91,11 +91,21 @@ export async function POST(req) {
     console.log("\n💬 [WEBHOOK] Incoming WhatsApp Message...");
     await connectDB();
 
-  const body = await parseTwilioBody(req);
+    const body = await parseTwilioBody(req);
     
-    // 🚀 FIX: Fallback to empty string if undefined and support Twilio's capitalized keys
     const twilioSid = body.MessageSid || body.sid || "";
-    let phone = body.From || body.from || "";
+    
+    // 🚀 NEW: Robust Phone Formatting (Strictly forces "whatsapp:+")
+    let rawPhone = body.From || body.from || "";
+    let phone = "";
+    if (rawPhone) {
+      // Remove any existing "whatsapp:" prefix and trim spaces
+      let cleaned = rawPhone.replace("whatsapp:", "").trim();
+      // Ensure it starts with a '+'
+      if (!cleaned.startsWith("+")) cleaned = `+${cleaned}`;
+      // Rebuild the perfect format
+      phone = `whatsapp:${cleaned}`; 
+    }
     
     // Safely extract the body text and replace linebreaks
     const rawMessage = body.Body || body.body || ""; 
@@ -104,11 +114,7 @@ export async function POST(req) {
     let numMedia = parseInt(body.NumMedia || body.numMedia || "0", 10);
     if (isNaN(numMedia)) numMedia = 0;
 
-    const profileName = phone || "Unknown";
-
-    if (phone && !phone.startsWith("whatsapp:")) {
-      phone = `whatsapp:${phone}`;
-    }
+    const profileName = body.ProfileName || phone || "Unknown";
 
     if (!phone || (!messageText && numMedia === 0)) {
       console.log("ℹ️ [WEBHOOK] Ignored — no phone or content.");
@@ -206,11 +212,6 @@ export async function POST(req) {
     console.log(
       `📱 [WEBHOOK] Sender: ${phone} | Msg: "${messageText}" | Media: ${numMedia}`,
     );
-
-    // 🚀 --- NEW: KEYWORD AUTO-REPLY MIDDLEWARE ---
-    // This runs asynchronously. If a match is found, it sends the template. 
-    // The webhook will continue to save the customer's incoming message to the CRM.
-    await processKeywordAutoReply(phone, messageText);
 
     // Continue with Routing Logic...
     let targetCategory = "Direct Lead";
@@ -324,6 +325,12 @@ export async function POST(req) {
 
       console.log("⚡ [WEBHOOK] Socket events emitted.");
     }
+
+    // 🚀 --- MOVED: KEYWORD AUTO-REPLY MIDDLEWARE ---
+    // Moved here so the customer's message saves to the DB and emits to UI first.
+    // This ensures the auto-reply always appears AFTER the user's message chronologically.
+    await processKeywordAutoReply(phone, messageText);
+    // ----------------------------------------------
 
     if (redis && redis.status !== "disabled") {
       try {
