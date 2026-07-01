@@ -522,7 +522,7 @@ export default function TwilioEnterpriseDashboard() {
                         </AnimatePresence>
 
                         {/* --- DATA PRESENTATION --- */}
-                        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200 overflow-hidden flex flex-col flex-1 min-h-[400px]">
+                        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200 overflow-hidden flex flex-col flex-1 min-h-[700px]">
                             {loading || fetching ? (
                                 <div className="flex-1 flex flex-col items-center justify-center p-12 sm:p-20 min-h-[300px]">
                                     <div className="relative"><div className="absolute inset-0 bg-emerald-500 rounded-full blur-xl opacity-20 animate-pulse"></div><Loader2 size={40} className="animate-spin text-emerald-500 relative z-10" /></div>
@@ -538,7 +538,7 @@ export default function TwilioEnterpriseDashboard() {
                             ) : (
                                 <>
                                     {/* DESKTOP TABLE */}
-                                    <div className="hidden lg:block overflow-x-auto w-full flex-1 min-h-[300px]">
+                                    <div className="hidden lg:block overflow-x-auto w-full flex-1 min-h-[400px]">
                                         <table className="w-full text-left border-collapse whitespace-nowrap min-w-[900px]">
                                             <thead className="bg-slate-50/80 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200 sticky top-0 z-10 backdrop-blur-md">
                                                 <tr>

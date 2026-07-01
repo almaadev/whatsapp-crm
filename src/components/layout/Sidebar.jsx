@@ -2,7 +2,7 @@
 import { useSession, signOut } from "next-auth/react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from 'next/image';
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png";
 import SignOutModal from "@/components/modals/SignOutModal";
@@ -25,12 +25,11 @@ export default function Sidebar({
   mobileOpen = false,
   setMobileOpen = () => {},
   setIsDesktopExpanded,
-  isDesktopExpanded
+  isDesktopExpanded,
 }) {
   const { data: session } = useSession();
   const pathname = usePathname();
-  
-  
+
   const [showSignOut, setShowSignOut] = useState(false);
 
   // Added Twilio to Admin Checks
@@ -49,8 +48,6 @@ export default function Sidebar({
       pathname.startsWith("/crm/therapy"),
   );
 
-  
-  
   const displayRole = role || "";
   const department = session?.user?.department || "";
 
@@ -66,7 +63,6 @@ export default function Sidebar({
   }, [setMobileOpen]);
 
   const isExpanded = mobileOpen || isDesktopExpanded;
-
 
   const handleConfirmSignOut = async () => {
     try {
@@ -105,7 +101,7 @@ export default function Sidebar({
       >
         {/* Header */}
         <div
-          className={`flex items-center h-20 px-4 shrink-0 border-b border-white/10 ${isExpanded ? "justify-between" : "justify-center"}`}
+          className={`flex items-center h-20  ${isExpanded ? "px-4" : "px-2"} shrink-0 border-b border-white/10 ${isExpanded ? "justify-between" : "justify-center"}`}
         >
           {isExpanded ? (
             <div className="flex items-center gap-3 overflow-hidden">
@@ -129,24 +125,18 @@ export default function Sidebar({
               </div>
             </div>
           ) : (
-            <div className="w-24 h-18 flex items-center justify-center p-1">
+            <div className="flex items-center justify-center">
               <Image
                 src={AlmaaLogo.src}
                 alt="Almaa"
-                height={50}
+                height={100}
                 width={100}
                 className="w-full h-full object-contain"
                 draggable={false}
               />
             </div>
           )}
-
-
         </div>
-
-
-
-
 
         {/* Nav Links */}
         <nav className="flex-1 flex flex-col gap-2 p-4 mt-0 overflow-y-auto custom-scrollbar">
@@ -226,6 +216,19 @@ export default function Sidebar({
                       Template Manager
                     </div>
                   </Link>
+
+                                    <Link
+                    href="/crm/admin/keyword-automation"
+                    className={`py-2 px-3 rounded-lg text-sm transition-all duration-200 flex items-center  gap-2  ${
+                      pathname === "/crm/admin/keyword-automation"
+                        ? "bg-white text-[var(--brand-sidebar-active)] font-bold shadow-sm translate-x-1"
+                          : "text-white/80 hover:text-white hover:bg-white/10 hover:translate-x-1"
+                    }`}
+                  >
+                    
+                    <span>Automatic-reply</span>
+                  </Link>
+                  
                   {/* 👇 Twilio Logs is now here */}
                   <Link href="/crm/admin/twilio">
                     <div
@@ -236,9 +239,9 @@ export default function Sidebar({
                       }`}
                     >
                       <span>Twilio Center</span>
-                      
                     </div>
                   </Link>
+
                   <Link href="/crm/admin/reports">
                     <div
                       className={`py-2 px-3 rounded-lg text-sm transition-all duration-200 flex items-center gap-2 ${
@@ -370,31 +373,27 @@ export default function Sidebar({
             </div>
           )}
 
-      { hasAccess("Bulk Messages")
-          && ( 
-              <Link href="/crm/bulk-message">
-            <NavItem
-              isOpen={isExpanded}
-              active={pathname === "/crm/bulk-message"}
-              label="Bulk Messages"
-              icon={<Send size={22} />}
-            />
-          </Link>
-          )
-      }
+          {hasAccess("Bulk Messages") && (
+            <Link href="/crm/bulk-message">
+              <NavItem
+                isOpen={isExpanded}
+                active={pathname === "/crm/bulk-message"}
+                label="Bulk Messages"
+                icon={<Send size={22} />}
+              />
+            </Link>
+          )}
 
-      {
-        hasAccess("logs") && (
-                    <Link href="/crm/message-logs">
-            <NavItem
-              isOpen={isExpanded}
-              active={pathname === "/crm/message-logs"}
-              label="Message Logs"
-              icon={<History size={22} />}
-            />
-          </Link>
-        )
-      }
+          {hasAccess("logs") && (
+            <Link href="/crm/message-logs">
+              <NavItem
+                isOpen={isExpanded}
+                active={pathname === "/crm/message-logs"}
+                label="Message Logs"
+                icon={<History size={22} />}
+              />
+            </Link>
+          )}
 
           {hasAccess("Leads") && (
             <Link href="/crm/leads">
@@ -432,13 +431,16 @@ export default function Sidebar({
 
         {/* Footer */}
 
-        {isExpanded &&  <div className="border-t border-white/10 px-4 py-4 shrink-0 bg-(--brand-sidebar-footer)">
-          <div className="space-y-1 text-white/80 text-xs">
-            <p className="font-semibold text-white">Almaa Whatsapp CRM</p>
-            <p className="leading-relaxed">Managed by Almaa Software Systems</p>
+        {isExpanded && (
+          <div className="border-t border-white/10 px-4 py-4 shrink-0 bg-(--brand-sidebar-footer)">
+            <div className="space-y-1 text-white/80 text-xs">
+              <p className="font-semibold text-white">Almaa Whatsapp CRM</p>
+              <p className="leading-relaxed">
+                Managed by Almaa Software Systems
+              </p>
+            </div>
           </div>
-        </div>}
-
+        )}
       </aside>
     </>
   );

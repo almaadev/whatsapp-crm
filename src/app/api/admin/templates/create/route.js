@@ -140,10 +140,12 @@ export async function POST(req) {
 
         let mediaUrl = "";
 
-        if (imageFile && imageFile !== 'null') {
+if (imageFile && imageFile !== 'null') {
             const buffer = Buffer.from(await imageFile.arrayBuffer());
             const fileName = `${Date.now()}_${imageFile.name.replace(/\s+/g, '_')}`;
-            const uploadDir = path.join(process.cwd(), "public", "uploads", "templates");
+            
+            // 🚀 FIX 1: Save the file to your new folder inside src/app
+            const uploadDir = path.join(process.cwd(), "src", "app", "uploads", "templates");
             
             if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
             fs.writeFileSync(path.join(uploadDir, fileName), buffer);
@@ -155,7 +157,9 @@ export async function POST(req) {
                 baseUrl = `${protocol}://${host}`;
             }
             baseUrl = baseUrl.replace(/\/+$/, "");
-            mediaUrl = `${baseUrl}/uploads/templates/${fileName}`;
+            
+            // 🚀 FIX 2: Point Twilio to your new API route instead of the static public folder
+            mediaUrl = `${baseUrl}/api/uploads/templates/${fileName}`;
             if (!mediaUrl.startsWith("http")) mediaUrl = "https://" + mediaUrl;
         }
 
