@@ -8,7 +8,7 @@ import { usePathStore } from "@/stores/pathStore";
 import {
     ChevronLeft, Edit2, Save, User, MapPin, Globe, 
     Briefcase, FileText, Menu, Phone, Copy, Check, 
-    Calendar, Clock, ShieldAlert, BadgeCheck, Loader2
+    Calendar, Clock, ShieldAlert, Loader2
 } from "lucide-react";
 import { getStatusColor } from "@/utils/colorUtils";
 import { toast } from "react-toastify";
@@ -145,7 +145,7 @@ export default function CustomerDetailPage({ params }) {
     const followUpLabel = getFollowUpLabel(customer);
 
     return (
-        <div className="flex h-[100dvh] w-lvw bg-[#f8fafc] font-sans">
+        <div className="flex h-[100dvh] w-full bg-[#f8fafc] font-sans">
             <main className="flex-1 flex flex-col  overflow-hidden relative">
                 
                 {/* --- HEADER --- */}
