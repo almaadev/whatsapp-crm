@@ -363,9 +363,9 @@ function LeadIntelligenceRecord({ lead, handleCustomerRedirect, handleCopyPhone,
                         {interactionTimeline.length === 0 ? (
                             <div className="text-sm text-slate-500 font-medium pb-2">No timeline data available.</div>
                         ) : (
-                            [...interactionTimeline].reverse().map((fu, idx, arr) => {
+                            [...interactionTimeline].reverse().slice(0, 2).map((fu, idx, arr) => {
                                 const previousInteraction = arr[idx + 1];
-                                const ownershipChanged = previousInteraction && previousInteraction.associateName !== fu.associateName;
+                                const leadTransferred = previousInteraction && previousInteraction.associateName !== fu.associateName;
 
                                 return (
                                     <div key={fu._id || idx} className="relative">
@@ -373,9 +373,9 @@ function LeadIntelligenceRecord({ lead, handleCustomerRedirect, handleCopyPhone,
 
                                         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm relative hover:border-[#00a884]/30 transition-colors">
 
-                                            {ownershipChanged && (
+                                            {leadTransferred && (
                                                 <div className="absolute -top-3 left-4 bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
-                                                    <RefreshCcw size={10} /> Ownership Transition
+                                                    <RefreshCcw size={10} /> Lead Transition
                                                 </div>
                                             )}
 
@@ -387,8 +387,8 @@ function LeadIntelligenceRecord({ lead, handleCustomerRedirect, handleCopyPhone,
                                                     </span>
                                                 </div>
                                                 <div className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 w-max">
-                                                    <UserCircle size={12} className={ownershipChanged ? "text-blue-500" : "text-slate-400"} />
-                                                    Handled by: <span className={ownershipChanged ? "text-blue-700" : "text-slate-700"}>{fu.associateName || "Unknown"}</span>
+                                                    <UserCircle size={12} className={leadTransferred ? "text-blue-500" : "text-slate-400"} />
+                                                    Handled by: <span className={leadTransferred ? "text-blue-700" : "text-slate-700"}>{fu.associateName || "Unknown"}</span>
                                                 </div>
                                             </div>
 
