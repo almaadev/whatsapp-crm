@@ -9,6 +9,14 @@ import { playSafeAudio } from "@/utils/audio";
 import { getDisplayName } from "@/utils/chatHelpers";
 import { showChatNotification } from "@/utils/notification";
 
+/**
+ * Custom hook for managing the main chat interface logic.
+ * Handles fetching initial chats, setting up socket listeners for real-time incoming messages,
+ * and processing message status updates.
+ *
+ * @param {string} role - The role of the user, used for fetching appropriate messages.
+ * @returns {Object} An object containing the `loading` state.
+ */
 export function useChat(role) {
   const [loading, setLoading] = useState(true);
 

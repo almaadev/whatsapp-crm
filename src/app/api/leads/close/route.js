@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { revalidatePath } from "next/cache";
 import { authOptions } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
+import connectDB from "@/lib/db/mongodb";
 import Customer from "@/models/Customer";
 import Lead from "@/models/Lead";
 import User from "@/models/User";
-import redis from "@/lib/redis";
+import redis from "@/lib/db/redis";
 
 export async function POST(req) {
   try {

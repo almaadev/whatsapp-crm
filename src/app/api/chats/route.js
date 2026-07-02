@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
+import connectDB from "@/lib/db/mongodb";
 import Customer from "@/models/Customer";
 import Message from "@/models/Message";
 import Lead from "@/models/Lead";
-import redis from "@/lib/redis";
+import redis from "@/lib/db/redis";
 import twilio from "twilio";
 
 const REDIS_CACHE_TTL = 30;

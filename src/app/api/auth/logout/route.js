@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
-import redis from "@/lib/redis";
+import redis from "@/lib/db/redis";
 import { cookies } from "next/headers";
 
 export async function POST(req) {

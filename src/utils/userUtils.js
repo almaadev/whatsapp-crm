@@ -1,4 +1,4 @@
-import connectDB from "@/lib/mongodb";
+import connectDB from "@/lib/db/mongodb";
 import User from "@/models/User";
 import mongoose from "mongoose";
 

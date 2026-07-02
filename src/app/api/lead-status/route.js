@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
+import connectDB from "@/lib/db/mongodb";
 import Customer from "@/models/Customer";
 import Lead from "@/models/Lead";
 import User from "@/models/User";
-import redis from "@/lib/redis";
+import redis from "@/lib/db/redis";
 import { requireSession } from "@/lib/session";
 
 export async function POST(req) {

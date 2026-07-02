@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import twilio from "twilio";
-import connectDB from "@/lib/mongodb";
+import connectDB from "@/lib/db/mongodb";
 import Message from "@/models/Message";
 import Customer from "@/models/Customer";
 import User from "@/models/User";

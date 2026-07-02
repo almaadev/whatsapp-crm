@@ -20,6 +20,18 @@ import {
 } from "lucide-react";
 import { isAdminAuthorized, hasModuleAccess } from "@/utils/auth";
 
+/**
+ * Renders the sidebar navigation for the CRM layout.
+ * Controls access to various modules (Admin, Chat, Leads, etc.) based on user roles and session data.
+ *
+ * @param {Object} props
+ * @param {string} props.role - The role of the user (e.g., 'admin', 'associate').
+ * @param {boolean} props.mobileOpen - State controlling if the mobile sidebar is open.
+ * @param {Function} props.setMobileOpen - Setter to toggle mobile sidebar state.
+ * @param {Function} props.setIsDesktopExpanded - Setter to toggle desktop sidebar expansion.
+ * @param {boolean} props.isDesktopExpanded - State indicating if desktop sidebar is expanded.
+ * @returns {JSX.Element} The Sidebar component
+ */
 export default function Sidebar({
   role,
   mobileOpen = false,

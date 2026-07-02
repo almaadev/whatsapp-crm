@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import twilio from "twilio";
 
-import connectDB from "@/lib/mongodb";
+import connectDB from "@/lib/db/mongodb";
 import Customer from "@/models/Customer";
 import BulkMessage from "@/models/BulkMessage";
 import { getServerSession } from "next-auth";

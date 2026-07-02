@@ -1,9 +1,9 @@
 import CredentialsProvider from "next-auth/providers/credentials";
-import connectDB from "./mongodb";
+import connectDB from "./db/mongodb";
 import User from "@/models/User";
 import bcrypt from "bcryptjs";
 
-import redis from "./redis";
+import redis from "./db/redis";
 import crypto from "crypto";
 
 export const authOptions = {

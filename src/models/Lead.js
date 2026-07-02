@@ -1,5 +1,8 @@
 import mongoose from "mongoose";
 
+/**
+ * Schema for tracking individual follow-up interactions on a Lead.
+ */
 const FollowUpSchema = new mongoose.Schema(
   {
     date:          { type: Date, required: true },
@@ -37,6 +40,10 @@ const HandoffSchema = new mongoose.Schema(
   { _id: false }
 );
 
+/**
+ * Schema representing a Customer Lead and its entire lifecycle.
+ * Tracks ownership, handoffs, and an array of follow-up interactions.
+ */
 const LeadSchema = new mongoose.Schema(
   {
     phone:       { type: String, required: true, unique: true, index: true },

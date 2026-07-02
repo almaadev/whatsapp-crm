@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
+import connectDB from "@/lib/db/mongodb";
 import Message from "@/models/Message";
 import ProductMessage from "@/models/ProductMessage";
 import MDCampMessage from "@/models/MDCampMessage";
 import TherapyMessage from "@/models/TherapyMessage";
-import redis from "@/lib/redis";
+import redis from "@/lib/db/redis";
 
 // All Twilio Outbound Statuses
 const TWILIO_STATUSES = [

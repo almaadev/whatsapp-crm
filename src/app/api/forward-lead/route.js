@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import twilio from "twilio";
-import connectDB from "@/lib/mongodb";
+import connectDB from "@/lib/db/mongodb";
 import Customer from "@/models/Customer";
 import Message from "@/models/Message";
-import redis from "@/lib/redis"; 
+import redis from "@/lib/db/redis"; 
 
 export async function POST(req) {
   try {

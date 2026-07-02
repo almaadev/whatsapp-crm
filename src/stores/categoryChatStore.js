@@ -171,6 +171,13 @@ function buildCategoryStore() {
 
 const storeCache = new Map();
 
+/**
+ * Gets or creates a Zustand store for a specific category (slug).
+ * Ensures that each category (e.g., product-lead, md-camp) has its own independent state.
+ *
+ * @param {string} slug - The category slug.
+ * @returns {import("zustand").UseBoundStore} The Zustand store for the category.
+ */
 export function getCategoryChatStore(slug) {
   if (!storeCache.has(slug)) {
     storeCache.set(slug, buildCategoryStore());

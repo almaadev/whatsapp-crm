@@ -1,4 +1,4 @@
-import connectDB from "@/lib/mongodb";
+import { findLastMessageByPhone, getModelByCategory } from "../repositories/messageRepository";
 import Message from "@/models/Message";
 import ProductMessage from "@/models/ProductMessage";
 import MDCampMessage from "@/models/MDCampMessage";
@@ -19,29 +19,17 @@ export const KEYWORD_ROUTES = [
   }
 ];
 
-export const getModelByCategory = (category) => {
-  switch (category) {
-    case "Product Lead": return ProductMessage;
-    case "MD Camp": return MDCampMessage;
-    case "Therapy": return TherapyMessage;
-    default: return Message;
-  }
-};
+export { getModelByCategory };
 
 export const checkIsChatClosed = async (phone, category) => {
   const Model = getModelByCategory(category);
-  const lastMsg = await Model.findOne({ phone })
-    .sort({ timestamp: -1, createdAt: -1 })
-    .lean();
-
+  const lastMsg = await findLastMessageByPhone(phone, Model);
   if (!lastMsg) return true;
-
   return lastMsg.isChatClosed === true;
 };
 
 export const matchKeywordRoute = (messageText) => {
   if (!messageText) return "Direct Lead";
-
   const msgLower = messageText.toLowerCase();
 
   for (const route of KEYWORD_ROUTES) {
@@ -49,19 +37,15 @@ export const matchKeywordRoute = (messageText) => {
       return route.type;
     }
   }
-
   return "Direct Lead";
 };
 
-/**
- * When no keyword matches, continue the most recent open conversation.
- */
 export const resolveMostRecentCategory = async (phone) => {
   const [lastDirect, lastProduct, lastMDCamp, lastTherapy] = await Promise.all([
-    Message.findOne({ phone }).sort({ timestamp: -1, createdAt: -1 }).lean(),
-    ProductMessage.findOne({ phone }).sort({ timestamp: -1, createdAt: -1 }).lean(),
-    MDCampMessage.findOne({ phone }).sort({ timestamp: -1, createdAt: -1 }).lean(),
-    TherapyMessage.findOne({ phone }).sort({ timestamp: -1, createdAt: -1 }).lean(),
+    findLastMessageByPhone(phone, Message),
+    findLastMessageByPhone(phone, ProductMessage),
+    findLastMessageByPhone(phone, MDCampMessage),
+    findLastMessageByPhone(phone, TherapyMessage),
   ]);
 
   const candidates = [
@@ -86,8 +70,6 @@ export const resolveMostRecentCategory = async (phone) => {
 };
 
 export const determineConversationRoute = async (phone, incomingMessage, currentActiveCategory) => {
-  await connectDB();
-
   let targetCategory = "Direct Lead";
   let requiresRouting = true;
 

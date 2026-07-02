@@ -8,6 +8,13 @@ import SignOutModal from "@/components/modals/SignOutModal";
 import NotificationPanel from "./NotificationPanel";
 import { useChatStore } from "@/stores/chatStore";
 
+/**
+ * Renders the top navigation bar of the CRM layout.
+ * Includes toggles for the sidebar (mobile/desktop), notifications panel,
+ * and user profile dropdown for signing out.
+ *
+ * @returns {JSX.Element} The Topbar component
+ */
 export default function Topbar() {
   const { setMobileOpen, isDesktopExpanded, setIsDesktopExpanded } =
     useCrmLayout();

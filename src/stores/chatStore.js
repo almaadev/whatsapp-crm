@@ -1,5 +1,9 @@
 import { create } from "zustand";
 
+/**
+ * Zustand store for managing general chat state (inbox, leads, etc.).
+ * Handles message deduplication, optimistic updates, and real-time state mutations.
+ */
 export const useChatStore = create((set, get) => ({
   selectedChat: null,
   messages: [],

@@ -40,13 +40,22 @@ export default function LeadsPage() {
         source: "Manual Entry", enquiredFor: "", priority: "Medium", status: "New", remarks: ""
     });
 
+    const [paginatedLeads, setPaginatedLeads] = useState([]);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalRecords, setTotalRecords] = useState(0);
+
     const fetchRecentLeads = async () => {
         setFetchingLeads(true);
         try {
-            const res = await fetch("/api/leads");
+            const query = new URLSearchParams({ page: currentPage, limit: pageSize });
+            if (searchTerm) query.append("search", searchTerm);
+            
+            const res = await fetch(`/api/leads?${query.toString()}`);
             if (res.ok) {
                 const data = await res.json();
-                setRawLeads(data);
+                setPaginatedLeads(data.leads || []);
+                setTotalPages(data.totalPages || 1);
+                setTotalRecords(data.total || 0);
             } else {
                 const err = await res.json();
                 throw new Error(err.error || "Failed to fetch");
@@ -61,7 +70,7 @@ export default function LeadsPage() {
 
     useEffect(() => {
         fetchRecentLeads();
-    }, []);
+    }, [currentPage, pageSize, searchTerm]);
 
     // Reset pagination when search query or page size changes
     useEffect(() => {
@@ -73,34 +82,7 @@ export default function LeadsPage() {
         router.push(`/crm/leads/${phone.replace('whatsapp:', '')}`);
     };
 
-    // --- Data Processing (Derive strictly from leads[] array) ---
-    const processedLeads = useMemo(() => {
-        let list = [...rawLeads];
-
-        if (searchTerm) {
-            const lowerTerm = searchTerm.toLowerCase();
-            list = list.filter(lead =>
-                (lead.name && lead.name.toLowerCase().includes(lowerTerm)) ||
-                (lead.phone && lead.phone.includes(lowerTerm)) ||
-                (lead.city && lead.city.toLowerCase().includes(lowerTerm)) ||
-                (lead.leadType && lead.leadType.toLowerCase().includes(lowerTerm))
-            );
-        }
-
-        // Sort by the latest interaction timestamp in the leads[] array
-        return list.sort((a, b) => {
-            const aLatest = a.leads?.length ? new Date(a.leads[a.leads.length - 1].date).getTime() : new Date(a.createdAt).getTime();
-            const bLatest = b.leads?.length ? new Date(b.leads[b.leads.length - 1].date).getTime() : new Date(b.createdAt).getTime();
-            return bLatest - aLatest;
-        });
-    }, [rawLeads, searchTerm]);
-
-    // --- Pagination Processing ---
-    const { paginatedLeads, totalPages } = useMemo(() => {
-        const total = Math.ceil(processedLeads.length / pageSize);
-        const paginated = processedLeads.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-        return { paginatedLeads: paginated, totalPages: total };
-    }, [processedLeads, currentPage, pageSize]);
+    // Pagination and search resets handled effectively by useEffect deps.
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -183,12 +165,12 @@ export default function LeadsPage() {
                 </>
             }
         >
-                        {fetchingLeads && rawLeads.length === 0 ? (
+                        {fetchingLeads && paginatedLeads.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-64 text-slate-400">
                                 <Loader2 size={32} className="animate-spin mb-3 text-[#00a884]" />
                                 <span className="text-sm font-bold uppercase tracking-wider">Syncing Leads Data...</span>
                             </div>
-                        ) : processedLeads.length === 0 ? (
+                        ) : paginatedLeads.length === 0 ? (
                             <EmptyState icon={History} title="No leads found in the pipeline." />
                         ) : (
                             <>
@@ -208,7 +190,7 @@ export default function LeadsPage() {
                                 <Pagination
                                     currentPage={currentPage}
                                     totalPages={totalPages}
-                                    totalRecords={processedLeads.length}
+                                    totalRecords={totalRecords}
                                     pageSize={pageSize}
                                     onPageChange={setCurrentPage}
                                     onPageSizeChange={setPageSize}
@@ -242,33 +224,18 @@ function LifecycleBadge({ state }) {
 function LeadIntelligenceRecord({ lead, handleCustomerRedirect, handleCopyPhone, copiedPhone }) {
     const [isExpanded, setIsExpanded] = useState(false);
 
-    // --- Core Logic Derivations (Strictly from leads[] array) ---
+    // All fields are perfectly computed and provided directly by the backend API
     const interactionTimeline = lead.leads || [];
-    
-    // 🚀 THE FIX: Pure Logic -> Count ONLY if status === "Closed"
-    const interactionCount = interactionTimeline.filter(item => item.status === "Closed").length;
-    
-    const latestFollowUp = interactionTimeline.length > 0 ? interactionTimeline[interactionTimeline.length - 1] : {};
-    const firstFollowUp = interactionTimeline.length > 0 ? interactionTimeline[0] : {};
-    
-    const firstHandler = firstFollowUp.associateName || lead.assignedTo || "Unassigned";
-    const currentHandler = lead.assignedTo || "Unassigned";
-
-    const leadLifecycleState = latestFollowUp.status || lead.status || "New";
-    const leadType = latestFollowUp.leadType || lead.leadType || "Direct Lead";
-    const revenueAttribution = parseInt(latestFollowUp.saleAmount) || 0;
-
-    const isClosed = leadLifecycleState === "Closed";
-    const closedBy = isClosed ? (latestFollowUp.associateName || lead.closedBy || currentHandler) : null;
-
-    // Ownership Intelligence Resolution
-    let ownershipTransitionText = null;
-    if (isClosed) {
-        ownershipTransitionText = (closedBy && closedBy !== firstHandler) ? `Closed by ${closedBy}` : "Automatically Closed";
-    }
-
-    const lastActivityDate = latestFollowUp.date ? new Date(latestFollowUp.date) : new Date(lead.createdAt);
-    
+    const interactionCount = lead.interactionCount || 0;
+    const currentHandler = lead.currentHandler || "Admin";
+    const leadLifecycleState = lead.status || "New";
+    const leadType = lead.leadType || "Direct Lead";
+    const revenueAttribution = lead.revenueAttribution || 0;
+    const isClosed = lead.isClosed || false;
+    const ownershipTransitionText = lead.ownershipTransitionText;
+    const lastActivityDate = lead.lastActivityDate ? new Date(lead.lastActivityDate) : new Date();
+    const displayName = lead.displayName || lead.phone.replace('whatsapp:', '');
+    const displayCity = lead.displayCity || "Unknown Location";
     
     return (
         <div className={`bg-white  shadow-sm border border-slate-200 overflow-hidden transition-all hover:shadow-md`}>
@@ -281,11 +248,11 @@ function LeadIntelligenceRecord({ lead, handleCustomerRedirect, handleCopyPhone,
                 {/* 1. Identity Section */}
                 <div className="flex items-center gap-4 flex-1 min-w-0">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-100 to-teal-50 text-emerald-700 flex items-center justify-center font-extrabold text-lg shrink-0 border border-emerald-200">
-                        {lead.name?.charAt(0).toUpperCase() || "#"}
+                        {displayName.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                            <h3 className="font-extrabold text-slate-800 text-base truncate">{lead.name || "Unknown Lead"}</h3>
+                            <h3 className="font-extrabold text-slate-800 text-base truncate">{displayName}</h3>
                             <button
                                 onClick={(e) => handleCopyPhone(e, lead.phone.replace('whatsapp:', ''))}
                                 className="text-slate-400 hover:text-[#00a884] transition-colors"
@@ -296,7 +263,7 @@ function LeadIntelligenceRecord({ lead, handleCustomerRedirect, handleCopyPhone,
                         </div>
                         <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-1">
                             <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">{lead.phone.replace('whatsapp:', '')}</span>
-                            {lead.city && <span className="flex items-center gap-1 truncate"><MapPin size={12} className="shrink-0" /> {lead.city}</span>}
+                            <span className="flex items-center gap-1 truncate"><MapPin size={12} className="shrink-0" /> {displayCity}</span>
                         </div>
                     </div>
                 </div>
@@ -305,7 +272,7 @@ function LeadIntelligenceRecord({ lead, handleCustomerRedirect, handleCopyPhone,
                 <div className="flex flex-col lg:items-start gap-1.5 flex-1 min-w-0 border-l-2 border-transparent lg:border-slate-100 lg:pl-6">
                     <div className="flex items-center gap-2">
                         <LifecycleBadge state={leadLifecycleState} />
-                        {isClosed && (
+                        {isClosed && ownershipTransitionText && (
                             <span className="text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1 whitespace-nowrap">
                                 {ownershipTransitionText}
                             </span>

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
+import connectDB from "@/lib/db/mongodb";
 import Lead from "@/models/Lead";
 import Customer from "@/models/Customer";
 import { requireSession } from "@/lib/session";

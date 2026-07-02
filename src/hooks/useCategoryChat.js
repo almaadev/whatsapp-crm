@@ -5,6 +5,14 @@ import { categoryChatService } from "@/services/categoryChatService";
 import { connectSocket } from "@/services/socketService";
 import { toast } from "react-toastify";
 
+/**
+ * Custom hook for managing category-specific chats (e.g., Product Lead, MD Camp).
+ * Handles fetching chats for a specific slug, sending messages, updating statuses,
+ * and listening for real-time socket events related to the category.
+ *
+ * @param {string} slug - The category slug identifier (e.g., 'product-lead', 'md-camp').
+ * @returns {Object} Tools and state needed by the category inbox UI.
+ */
 export function useCategoryChat(slug) {
   const config = getCategoryConfig(slug);
   const useStore = getCategoryChatStore(slug);

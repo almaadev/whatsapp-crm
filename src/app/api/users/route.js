@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth"; 
 import { authOptions } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
+import connectDB from "@/lib/db/mongodb";
 import User from "@/models/User";
-import redis from "@/lib/redis"; 
+import redis from "@/lib/db/redis"; 
 import bcrypt from "bcryptjs"; 
 
 const USER_CACHE_KEY = "users:all";

@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
+import connectDB from "@/lib/db/mongodb";
 import Customer from "@/models/Customer";
 import Message from "@/models/Message";
-import redis from "@/lib/redis";
+import redis from "@/lib/db/redis";
 import twilio from "twilio";
-import { processKeywordAutoReply } from "@/lib/keywordMatcher";
+import { processKeywordAutoReply } from "@/lib/services/keywordMatcher";
 
 import {
   determineConversationRoute,
   getModelByCategory,
-} from "@/services/chatRoutingService";
+} from "@/lib/services/chatRoutingService";
 
 export const dynamic = "force-dynamic";
 
