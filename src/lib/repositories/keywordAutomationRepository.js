@@ -6,7 +6,9 @@ export async function findAllAutomations(filter = {}) {
 
 export async function findAutomationByKeyword(keyword) {
   // exact match or we might want to do case-insensitive search if needed
-  return await KeywordAutomation.findOne({ keyword: keyword.toUpperCase() }).lean();
+  return await KeywordAutomation.findOne({
+    keyword: keyword.toUpperCase(),
+  }).lean();
 }
 
 export async function createAutomation(data) {
@@ -14,7 +16,11 @@ export async function createAutomation(data) {
 }
 
 export async function updateAutomation(id, data) {
-  return await KeywordAutomation.findByIdAndUpdate(id, { $set: data }, { new: true });
+  return await KeywordAutomation.findByIdAndUpdate(
+    id,
+    { $set: data },
+    { new: true },
+  );
 }
 
 export async function deleteAutomation(id) {

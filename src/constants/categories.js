@@ -3,6 +3,7 @@ import { Package, Tent, HeartPulse } from "lucide-react";
 export const CATEGORY_SLUGS = ["product", "mdcamp", "therapy"];
 
 export const CATEGORY_CONFIG = {
+  
   product: {
     slug: "product",
     chatType: "Product Lead",

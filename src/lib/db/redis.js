@@ -3,7 +3,6 @@ import Redis from "ioredis";
 const globalForRedis = global;
 
 const createRedisClient = () => {
-
   if (!process.env.REDIS_URL) {
     return {
       status: "disabled",
@@ -21,9 +20,8 @@ const createRedisClient = () => {
   });
 
   client.on("error", (err) => {
-
     if (err.code !== "ECONNREFUSED") {
-        console.warn("Redis Error:", err.message);
+      console.warn("Redis Error:", err.message);
     }
   });
 

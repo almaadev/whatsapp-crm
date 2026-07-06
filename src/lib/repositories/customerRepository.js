@@ -12,7 +12,7 @@ export async function upsertCustomer(phone, data) {
   return await Customer.findOneAndUpdate(
     { phone },
     { $set: data },
-    { upsert: true, new: true }
+    { upsert: true, new: true },
   );
 }
 
@@ -20,7 +20,7 @@ export async function updateCustomerOptOutStatus(phone, isOptedOut) {
   return await Customer.findOneAndUpdate(
     { phone },
     { isOptedOut },
-    { upsert: true, new: true }
+    { upsert: true, new: true },
   );
 }
 
