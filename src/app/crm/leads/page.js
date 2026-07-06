@@ -11,492 +11,719 @@ import Button from "@/components/ui/Button";
 import StatusBadge from "@/components/ui/StatusBadge";
 import EmptyState from "@/components/ui/EmptyState";
 import {
-    Save, User, Phone, MapPin, Tag, FileText, AlertCircle, Loader2, X, Plus,
-    RefreshCcw, Flag, ChevronDown, ChevronUp, History, UserCircle, BadgeCheck, Clock,
-    TrendingUp, CornerDownRight, Copy, Check, ChevronRight
+  Save,
+  User,
+  Phone,
+  MapPin,
+  Tag,
+  FileText,
+  AlertCircle,
+  Loader2,
+  X,
+  Plus,
+  RefreshCcw,
+  Flag,
+  ChevronDown,
+  ChevronUp,
+  History,
+  UserCircle,
+  BadgeCheck,
+  Clock,
+  TrendingUp,
+  CornerDownRight,
+  Copy,
+  Check,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "react-toastify";
 
 export default function LeadsPage() {
-    const router = useRouter();
-    const { data: session, status } = useSession();
-    const role = session?.user?.role;
-    const { setPath } = usePathStore();
-    const pathname = usePathname();
+  const router = useRouter();
+  const { data: session, status } = useSession();
+  const role = session?.user?.role;
+  const { setPath } = usePathStore();
+  const pathname = usePathname();
 
-    const [showCreateForm, setShowCreateForm] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const [fetchingLeads, setFetchingLeads] = useState(true);
-    const [rawLeads, setRawLeads] = useState([]);
-    const [searchTerm, setSearchTerm] = useState("");
-    const [copiedPhone, setCopiedPhone] = useState(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [fetchingLeads, setFetchingLeads] = useState(true);
+  const [rawLeads, setRawLeads] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [copiedPhone, setCopiedPhone] = useState(null);
 
-    // --- Pagination State ---
-    const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
+  // --- Pagination State ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
-    const [formData, setFormData] = useState({
-        phone: "", name: "", city: "", address: "",
-        source: "Manual Entry", enquiredFor: "", priority: "Medium", status: "New", remarks: ""
-    });
+  const [formData, setFormData] = useState({
+    phone: "",
+    name: "",
+    city: "",
+    address: "",
+    source: "Manual Entry",
+    enquiredFor: "",
+    priority: "Medium",
+    status: "New",
+    remarks: "",
+  });
 
-    const [paginatedLeads, setPaginatedLeads] = useState([]);
-    const [totalPages, setTotalPages] = useState(1);
-    const [totalRecords, setTotalRecords] = useState(0);
+  const [paginatedLeads, setPaginatedLeads] = useState([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
 
-    const fetchRecentLeads = async () => {
-        setFetchingLeads(true);
-        try {
-            const query = new URLSearchParams({ page: currentPage, limit: pageSize });
-            if (searchTerm) query.append("search", searchTerm);
-            
-            const res = await fetch(`/api/leads?${query.toString()}`);
-            if (res.ok) {
-                const data = await res.json();
-                setPaginatedLeads(data.leads || []);
-                setTotalPages(data.totalPages || 1);
-                setTotalRecords(data.total || 0);
-            } else {
-                const err = await res.json();
-                throw new Error(err.error || "Failed to fetch");
-            }
-        } catch (err) {
-            console.error("Error fetching leads:", err);
-            toast.error("Failed to sync leads database.");
-        } finally {
-            setFetchingLeads(false);
-        }
-    };
+  const fetchRecentLeads = async () => {
+    setFetchingLeads(true);
+    try {
+      const query = new URLSearchParams({ page: currentPage, limit: pageSize });
+      if (searchTerm) query.append("search", searchTerm);
 
-    useEffect(() => {
-        fetchRecentLeads();
-    }, [currentPage, pageSize, searchTerm]);
+      const res = await fetch(`/api/leads?${query.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPaginatedLeads(data.leads || []);
+        setTotalPages(data.totalPages || 1);
+        setTotalRecords(data.total || 0);
+      } else {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to fetch");
+      }
+    } catch (err) {
+      console.error("Error fetching leads:", err);
+      toast.error("Failed to sync leads database.");
+    } finally {
+      setFetchingLeads(false);
+    }
+  };
 
-    // Reset pagination when search query or page size changes
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [searchTerm, pageSize]);
+  useEffect(() => {
+    fetchRecentLeads();
+  }, [currentPage, pageSize, searchTerm]);
 
-    const handleCustomerRedirect = (phone) => {
-        setPath(pathname);
-        router.push(`/crm/leads/${phone.replace('whatsapp:', '')}`);
-    };
+  // Reset pagination when search query or page size changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, pageSize]);
 
-    // Pagination and search resets handled effectively by useEffect deps.
+  const handleCustomerRedirect = (phone) => {
+    setPath(pathname);
+    router.push(`/crm/leads/${phone.replace("whatsapp:", "")}`);
+  };
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
+  // Pagination and search resets handled effectively by useEffect deps.
 
-    const handleCopyPhone = (e, phone) => {
-        e.preventDefault();
-        e.stopPropagation();
-        navigator.clipboard.writeText(phone);
-        setCopiedPhone(phone);
-        setTimeout(() => setCopiedPhone(null), 2000);
-        toast.success("Phone number copied!");
-    };
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
+  const handleCopyPhone = (e, phone) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigator.clipboard.writeText(phone);
+    setCopiedPhone(phone);
+    setTimeout(() => setCopiedPhone(null), 2000);
+    toast.success("Phone number copied!");
+  };
 
-        if (!formData.phone) {
-            toast.error("Phone number is required");
-            setLoading(false);
-            return;
-        }
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
 
-        try {
-            const res = await fetch("/api/leads", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    ...formData,
-                    overAllRemarks: formData.remarks,
-                    date: new Date().toISOString()
-                }),
-            });
-
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Failed to create lead");
-
-            toast.success("Lead created successfully!");
-            fetchRecentLeads();
-            setFormData({
-                phone: "", name: "", city: "",
-                source: "Manual Entry", enquiredFor: "",
-                priority: "Medium", status: "New", remarks: ""
-            });
-            setShowCreateForm(false);
-
-        } catch (error) {
-            console.error("Error creating lead:", error);
-            toast.error(error.message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    if (status === "loading") {
-        return <LoadingScreen />;
+    if (!formData.phone) {
+      toast.error("Phone number is required");
+      setLoading(false);
+      return;
     }
 
-    return (
-        <DashboardPage
-            title="Customer Leads"
-            subtitle="Pipeline & Auditing"
-            maxWidth="1700px"
-            actions={
-                <>
-                    <SearchInput
-                        placeholder="Search pipeline..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full md:w-64"
-                    />
-                    <Button variant="icon" onClick={fetchRecentLeads} disabled={fetchingLeads} title="Refresh Pipeline">
-                        <RefreshCcw size={18} className={fetchingLeads ? "animate-spin" : ""} />
-                    </Button>
-                    <Button onClick={() => setShowCreateForm(true)}>
-                        <Plus size={18} /> <span className="hidden sm:inline">New Lead</span>
-                    </Button>
-                </>
-            }
-        >
-                        {fetchingLeads && paginatedLeads.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-64 text-slate-400">
-                                <Loader2 size={32} className="animate-spin mb-3 text-[#00a884]" />
-                                <span className="text-sm font-bold uppercase tracking-wider">Syncing Leads Data...</span>
-                            </div>
-                        ) : paginatedLeads.length === 0 ? (
-                            <EmptyState icon={History} title="No leads found in the pipeline." />
-                        ) : (
-                            <>
-                                <div className="flex flex-col flex-1">
-                                    {paginatedLeads.map((lead, idx) => (
-                                        <LeadIntelligenceRecord
-                                            key={lead._id || idx}
-                                            lead={lead}
-                                            handleCustomerRedirect={handleCustomerRedirect}
-                                            handleCopyPhone={handleCopyPhone}
-                                            copiedPhone={copiedPhone}
-                                        />
-                                    ))}
-                                </div>
+    try {
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...formData,
+          overAllRemarks: formData.remarks,
+          date: new Date().toISOString(),
+        }),
+      });
 
-                                {/* Pagination Footer */}
-                                <Pagination
-                                    currentPage={currentPage}
-                                    totalPages={totalPages}
-                                    totalRecords={totalRecords}
-                                    pageSize={pageSize}
-                                    onPageChange={setCurrentPage}
-                                    onPageSizeChange={setPageSize}
-                                />
-                            </>
-                        )}
-            {showCreateForm && (
-                <CreateLeadModal
-                    formData={formData}
-                    handleChange={handleChange}
-                    handleSubmit={handleSubmit}
-                    setShowCreateForm={setShowCreateForm}
-                    loading={loading}
-                />
-            )}
-        </DashboardPage>
-    );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create lead");
+
+      toast.success("Lead created successfully!");
+      fetchRecentLeads();
+      setFormData({
+        phone: "",
+        name: "",
+        city: "",
+        source: "Manual Entry",
+        enquiredFor: "",
+        priority: "Medium",
+        status: "New",
+        remarks: "",
+      });
+      setShowCreateForm(false);
+    } catch (error) {
+      console.error("Error creating lead:", error);
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (status === "loading") {
+    return <LoadingScreen />;
+  }
+
+  return (
+    <DashboardPage
+      title="Customer Leads"
+      subtitle="Pipeline & Auditing"
+      maxWidth="1700px"
+      actions={
+        <>
+          <SearchInput
+            placeholder="Search pipeline..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full md:w-64"
+          />
+          <Button
+            variant="icon"
+            onClick={fetchRecentLeads}
+            disabled={fetchingLeads}
+            title="Refresh Pipeline"
+          >
+            <RefreshCcw
+              size={18}
+              className={fetchingLeads ? "animate-spin" : ""}
+            />
+          </Button>
+          <Button onClick={() => setShowCreateForm(true)}>
+            <Plus size={18} />{" "}
+            <span className="hidden sm:inline">New Lead</span>
+          </Button>
+        </>
+      }
+    >
+      {fetchingLeads && paginatedLeads.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+          <Loader2 size={32} className="animate-spin mb-3 text-[#00a884]" />
+          <span className="text-sm font-bold uppercase tracking-wider">
+            Syncing Leads Data...
+          </span>
+        </div>
+      ) : paginatedLeads.length === 0 ? (
+        <EmptyState icon={History} title="No leads found in the pipeline." />
+      ) : (
+        <>
+          <div className="flex flex-col flex-1">
+            {paginatedLeads.map((lead, idx) => (
+              <LeadIntelligenceRecord
+                key={lead._id || idx}
+                lead={lead}
+                handleCustomerRedirect={handleCustomerRedirect}
+                handleCopyPhone={handleCopyPhone}
+                copiedPhone={copiedPhone}
+              />
+            ))}
+          </div>
+
+          {/* Pagination Footer */}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalRecords={totalRecords}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
+        </>
+      )}
+      {showCreateForm && (
+        <CreateLeadModal
+          formData={formData}
+          handleChange={handleChange}
+          handleSubmit={handleSubmit}
+          setShowCreateForm={setShowCreateForm}
+          loading={loading}
+        />
+      )}
+    </DashboardPage>
+  );
 }
-
 
 function LifecycleBadge({ state }) {
-    const icons = {
-        New: <AlertCircle size={12} />,
-        "Follow Up": <Clock size={12} />,
-        Closed: <BadgeCheck size={12} />,
-        "Not Interested": <X size={12} />,
-    };
-    return <StatusBadge state={state} icon={icons[state]} />;
+  const icons = {
+    New: <AlertCircle size={12} />,
+    "Follow Up": <Clock size={12} />,
+    Closed: <BadgeCheck size={12} />,
+    "Not Interested": <X size={12} />,
+  };
+  return <StatusBadge state={state} icon={icons[state]} />;
 }
 
-function LeadIntelligenceRecord({ lead, handleCustomerRedirect, handleCopyPhone, copiedPhone }) {
-    const [isExpanded, setIsExpanded] = useState(false);
+function LeadIntelligenceRecord({
+  lead,
+  handleCustomerRedirect,
+  handleCopyPhone,
+  copiedPhone,
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
 
-    // All fields are perfectly computed and provided directly by the backend API
-    const interactionTimeline = lead.leads || [];
-    const interactionCount = lead.interactionCount || 0;
-    const currentHandler = lead.currentHandler || "Admin";
-    const leadLifecycleState = lead.status || "New";
-    const leadType = lead.leadType || "Direct Lead";
-    const revenueAttribution = lead.revenueAttribution || 0;
-    const isClosed = lead.isClosed || false;
-    const ownershipTransitionText = lead.ownershipTransitionText;
-    const lastActivityDate = lead.lastActivityDate ? new Date(lead.lastActivityDate) : new Date();
-    const displayName = lead.displayName || lead.phone.replace('whatsapp:', '');
-    const displayCity = lead.displayCity || "Unknown Location";
-    
-    return (
-        <div className={`bg-white  shadow-sm border border-slate-200 overflow-hidden transition-all hover:shadow-md`}>
+  // All fields are perfectly computed and provided directly by the backend API
+  const interactionTimeline = lead.leads || [];
+  const interactionCount = lead.interactionCount || 0;
+  const currentHandler = lead.currentHandler || "Admin";
+  const leadLifecycleState = lead.status || "New";
+  const leadType = lead.leadType || "Direct Lead";
+  const revenueAttribution = lead.revenueAttribution || 0;
+  const isClosed = lead.isClosed || false;
+  const ownershipTransitionText = lead.ownershipTransitionText;
+  const lastActivityDate = lead.lastActivityDate
+    ? new Date(lead.lastActivityDate)
+    : new Date();
+  const displayName = lead.displayName || lead.phone.replace("whatsapp:", "");
+  const displayCity = lead.displayCity || "Unknown Location";
 
-            {/* --- SUMMARY LAYER (Always Visible) --- */}
-            <div
-                className="flex flex-col lg:flex-row lg:items-center justify-between p-5 cursor-pointer hover:bg-slate-50 transition-colors gap-4 lg:gap-6 relative"
-                onClick={() => setIsExpanded(!isExpanded)}
-            >
-                {/* 1. Identity Section */}
-                <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-100 to-teal-50 text-emerald-700 flex items-center justify-center font-extrabold text-lg shrink-0 border border-emerald-200">
-                        {displayName.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                            <h3 className="font-extrabold text-slate-800 text-base truncate">{displayName}</h3>
-                            <button
-                                onClick={(e) => handleCopyPhone(e, lead.phone.replace('whatsapp:', ''))}
-                                className="text-slate-400 hover:text-[#00a884] transition-colors"
-                                title="Copy Phone"
-                            >
-                                {copiedPhone === lead.phone.replace('whatsapp:', '') ? <Check size={14} className="text-[#00a884]" /> : <Copy size={14} />}
-                            </button>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-1">
-                            <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">{lead.phone.replace('whatsapp:', '')}</span>
-                            <span className="flex items-center gap-1 truncate"><MapPin size={12} className="shrink-0" /> {displayCity}</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* 2. Lifecycle & Ownership Section */}
-                <div className="flex flex-col lg:items-start gap-1.5 flex-1 min-w-0 border-l-2 border-transparent lg:border-slate-100 lg:pl-6">
-                    <div className="flex items-center gap-2">
-                        <LifecycleBadge state={leadLifecycleState} />
-                        {isClosed && ownershipTransitionText && (
-                            <span className="text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1 whitespace-nowrap">
-                                {ownershipTransitionText}
-                            </span>
-                        )}
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 mt-0.5 bg-slate-50 px-2 py-1 rounded border border-slate-100 w-max">
-                        <UserCircle size={12} className="text-slate-400" />
-                        Handler: <span className="text-[#00a884]">{currentHandler}</span>
-                    </div>
-                </div>
-
-                {/* 3. Activity & Context Section */}
-                <div className="flex flex-col lg:items-end gap-1.5 shrink-0 border-l-2 border-transparent lg:border-slate-100 lg:pl-6">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                        <History size={14} className="text-blue-500" />
-                        {interactionCount} Closure{interactionCount !== 1 ? 's' : ''}
-                    </div>
-                    <div className="text-[11px] font-medium text-slate-500">
-                        Last Active: {lastActivityDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-                    </div>
-                    <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">
-                        <Tag size={10} /> {leadType}
-                    </div>
-                    {/* Sales Attribution Snippet (If Deal Closed) */}
-                    {isClosed && revenueAttribution > 0 && (
-                        <div className="absolute top-4 right-4 lg:relative lg:top-0 lg:right-0 bg-gradient-to-r from-emerald-500 to-[#00a884] text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm">
-                            <TrendingUp size={14} />
-                            <span className="text-xs font-bold">₹{revenueAttribution.toLocaleString()}</span>
-                        </div>
-                    )}
-                </div>
-
-                {/* Expansion Chevron */}
-                <div className="absolute bottom-4 right-4 lg:relative lg:bottom-0 lg:right-0 text-slate-400 p-1.5 hover:bg-slate-100 rounded-full transition-colors">
-                    {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                </div>
+  return (
+    <div
+      className={`bg-white  shadow-sm border border-slate-200 overflow-hidden transition-all hover:shadow-md`}
+    >
+      {/* --- SUMMARY LAYER (Always Visible) --- */}
+      <div
+        className="flex flex-col lg:flex-row lg:items-center justify-between p-5 cursor-pointer hover:bg-slate-50 transition-colors gap-4 lg:gap-6 relative"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        {/* 1. Identity Section */}
+        <div className="flex items-center gap-4 flex-1 min-w-0">
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-100 to-teal-50 text-emerald-700 flex items-center justify-center font-extrabold text-lg shrink-0 border border-emerald-200">
+            {displayName.charAt(0).toUpperCase()}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h3 className="font-extrabold text-slate-800 text-base truncate">
+                {displayName}
+              </h3>
+              <button
+                onClick={(e) =>
+                  handleCopyPhone(e, lead.phone.replace("whatsapp:", ""))
+                }
+                className="text-slate-400 hover:text-[#00a884] transition-colors"
+                title="Copy Phone"
+              >
+                {copiedPhone === lead.phone.replace("whatsapp:", "") ? (
+                  <Check size={14} className="text-[#00a884]" />
+                ) : (
+                  <Copy size={14} />
+                )}
+              </button>
             </div>
-
-            {/* --- DETAIL LAYER (Interaction Timeline) --- */}
-            {isExpanded && (
-                <div className="bg-slate-50 border-t border-slate-200 p-5 lg:p-8 crm-slide-in-top">
-                    <div className="flex items-center justify-between mb-6">
-                        <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                            <Clock size={16} className="text-[#00a884]" /> Interaction Timeline
-                        </h4>
-
-                        <div className="flex items-center gap-2">
-                            <button onClick={() => handleCustomerRedirect(lead.phone)} className="text-[11px] font-bold bg-[#00a884] text-white px-3 py-1.5 rounded-lg hover:bg-emerald-600 transition-colors flex items-center gap-1.5 shadow-sm shadow-emerald-200">
-                                <User size={12} /> See More
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="ml-2 border-l-2 border-slate-200 pl-6 space-y-8 relative">
-                        {interactionTimeline.length === 0 ? (
-                            <div className="text-sm text-slate-500 font-medium pb-2">No timeline data available.</div>
-                        ) : (
-                            [...interactionTimeline].reverse().slice(0, 2).map((fu, idx, arr) => {
-                                const previousInteraction = arr[idx + 1];
-                                const leadTransferred = previousInteraction && previousInteraction.associateName !== fu.associateName;
-
-                                return (
-                                    <div key={fu._id || idx} className="relative">
-                                        <div className="absolute -left-[31px] top-1 w-4 h-4 rounded-full bg-slate-100 border-2 border-[#00a884] shadow-sm"></div>
-
-                                        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm relative hover:border-[#00a884]/30 transition-colors">
-
-                                            {leadTransferred && (
-                                                <div className="absolute -top-3 left-4 bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
-                                                    <RefreshCcw size={10} /> Lead Transition
-                                                </div>
-                                            )}
-
-                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                                                <div className="flex items-center gap-3">
-                                                    <LifecycleBadge state={fu.status} />
-                                                    <span className="text-[11px] font-mono text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
-                                                        {new Date(fu.date).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                                                    </span>
-                                                </div>
-                                                <div className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 w-max">
-                                                    <UserCircle size={12} className={leadTransferred ? "text-blue-500" : "text-slate-400"} />
-                                                    Handled by: <span className={leadTransferred ? "text-blue-700" : "text-slate-700"}>{fu.associateName || "Unknown"}</span>
-                                                </div>
-                                            </div>
-
-                                            {fu.enquiredFor && (
-                                                <div className="mb-2 text-sm text-slate-800">
-                                                    <span className="font-bold text-slate-500 mr-2 text-xs">Enquiry:</span>
-                                                    <span className="font-semibold">{fu.enquiredFor}</span>
-                                                </div>
-                                            )}
-
-                                            {fu.overAllRemarks && (
-                                                <div className="bg-[#f8fafc] border border-slate-100 rounded-lg p-3 text-sm text-slate-600 font-medium italic mt-2">
-                                                    <CornerDownRight size={14} className="inline mr-2 text-slate-400" />
-                                                    "{fu.overAllRemarks}"
-                                                </div>
-                                            )}
-
-                                            {(fu.day1Remarks || fu.day2Remarks || fu.day3Remarks) && (
-                                                <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 border-t border-slate-100 pt-3">
-                                                    {fu.day1Remarks && <DayNote day={1} text={fu.day1Remarks} />}
-                                                    {fu.day2Remarks && <DayNote day={2} text={fu.day2Remarks} />}
-                                                    {fu.day3Remarks && <DayNote day={3} text={fu.day3Remarks} />}
-                                                </div>
-                                            )}
-
-                                            {fu.status === "Closed" && parseInt(fu.saleAmount) > 0 && (
-                                                <div className="mt-3 flex items-center gap-2 bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs font-bold px-3 py-2 rounded-lg w-max">
-                                                    <TrendingUp size={14} className="text-emerald-500" />
-                                                    Revenue Attribution: ₹{parseInt(fu.saleAmount).toLocaleString()}
-                                                </div>
-                                            )}
-
-                                        </div>
-                                    </div>
-                                );
-                            })
-                        )}
-                    </div>
-                </div>
-            )}
+            <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-1">
+              <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">
+                {lead.phone.replace("whatsapp:", "")}
+              </span>
+              <span className="flex items-center gap-1 truncate">
+                <MapPin size={12} className="shrink-0" /> {displayCity}
+              </span>
+            </div>
+          </div>
         </div>
-    );
+
+        {/* 2. Lifecycle & Ownership Section */}
+        <div className="flex flex-col lg:items-start gap-1.5 flex-1 min-w-0 border-l-2 border-transparent lg:border-slate-100 lg:pl-6">
+          <div className="flex items-center gap-2">
+            <LifecycleBadge state={leadLifecycleState} />
+            {isClosed && ownershipTransitionText && (
+              <span className="text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1 whitespace-nowrap">
+                {ownershipTransitionText}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 mt-0.5 bg-slate-50 px-2 py-1 rounded border border-slate-100 w-max">
+            <UserCircle size={12} className="text-slate-400" />
+            Handler: <span className="text-[#00a884]">{currentHandler}</span>
+          </div>
+        </div>
+
+        {/* 3. Activity & Context Section */}
+        <div className="flex flex-col lg:items-end gap-1.5 shrink-0 border-l-2 border-transparent lg:border-slate-100 lg:pl-6">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+            <History size={14} className="text-blue-500" />
+            {interactionCount} Closure{interactionCount !== 1 ? "s" : ""}
+          </div>
+          <div className="text-[11px] font-medium text-slate-500">
+            Last Active:{" "}
+            {lastActivityDate.toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </div>
+          <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">
+            <Tag size={10} /> {leadType}
+          </div>
+          {/* Sales Attribution Snippet (If Deal Closed) */}
+          {isClosed && revenueAttribution > 0 && (
+            <div className="absolute top-4 right-4 lg:relative lg:top-0 lg:right-0 bg-gradient-to-r from-emerald-500 to-[#00a884] text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm">
+              <TrendingUp size={14} />
+              <span className="text-xs font-bold">
+                ₹{revenueAttribution.toLocaleString()}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Expansion Chevron */}
+        <div className="absolute bottom-4 right-4 lg:relative lg:bottom-0 lg:right-0 text-slate-400 p-1.5 hover:bg-slate-100 rounded-full transition-colors">
+          {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </div>
+      </div>
+
+      {/* --- DETAIL LAYER (Interaction Timeline) --- */}
+      {isExpanded && (
+        <div className="bg-slate-50 border-t border-slate-200 p-5 lg:p-8 crm-slide-in-top">
+          <div className="flex items-center justify-between mb-6">
+            <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+              <Clock size={16} className="text-[#00a884]" /> Interaction
+              Timeline
+            </h4>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleCustomerRedirect(lead.phone)}
+                className="text-[11px] font-bold bg-[#00a884] text-white px-3 py-1.5 rounded-lg hover:bg-emerald-600 transition-colors flex items-center gap-1.5 shadow-sm shadow-emerald-200"
+              >
+                <User size={12} /> See More
+              </button>
+            </div>
+          </div>
+
+          <div className="ml-2 border-l-2 border-slate-200 pl-6 space-y-8 relative">
+            {interactionTimeline.length === 0 ? (
+              <div className="text-sm text-slate-500 font-medium pb-2">
+                No timeline data available.
+              </div>
+            ) : (
+              [...interactionTimeline]
+                .reverse()
+                .slice(0, 2)
+                .map((fu, idx, arr) => {
+                  const previousInteraction = arr[idx + 1];
+                  const leadTransferred =
+                    previousInteraction &&
+                    previousInteraction.associateName !== fu.associateName;
+
+                  return (
+                    <div key={fu._id || idx} className="relative">
+                      <div className="absolute -left-[31px] top-1 w-4 h-4 rounded-full bg-slate-100 border-2 border-[#00a884] shadow-sm"></div>
+
+                      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm relative hover:border-[#00a884]/30 transition-colors">
+                        {leadTransferred && (
+                          <div className="absolute -top-3 left-4 bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                            <RefreshCcw size={10} /> Lead Transition
+                          </div>
+                        )}
+
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                          <div className="flex items-center gap-3">
+                            <LifecycleBadge state={fu.status} />
+                            <span className="text-[11px] font-mono text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                              {new Date(fu.date).toLocaleString("en-IN", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
+                          <div className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 w-max">
+                            <UserCircle
+                              size={12}
+                              className={
+                                leadTransferred
+                                  ? "text-blue-500"
+                                  : "text-slate-400"
+                              }
+                            />
+                            Handled by:{" "}
+                            <span
+                              className={
+                                leadTransferred
+                                  ? "text-blue-700"
+                                  : "text-slate-700"
+                              }
+                            >
+                              {fu.associateName || "Unknown"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {fu.enquiredFor && (
+                          <div className="mb-2 text-sm text-slate-800">
+                            <span className="font-bold text-slate-500 mr-2 text-xs">
+                              Enquiry:
+                            </span>
+                            <span className="font-semibold">
+                              {fu.enquiredFor}
+                            </span>
+                          </div>
+                        )}
+
+                        {fu.overAllRemarks && (
+                          <div className="bg-[#f8fafc] border border-slate-100 rounded-lg p-3 text-sm text-slate-600 font-medium italic mt-2">
+                            <CornerDownRight
+                              size={14}
+                              className="inline mr-2 text-slate-400"
+                            />
+                            "{fu.overAllRemarks}"
+                          </div>
+                        )}
+
+                        {(fu.day1Remarks ||
+                          fu.day2Remarks ||
+                          fu.day3Remarks) && (
+                          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 border-t border-slate-100 pt-3">
+                            {fu.day1Remarks && (
+                              <DayNote day={1} text={fu.day1Remarks} />
+                            )}
+                            {fu.day2Remarks && (
+                              <DayNote day={2} text={fu.day2Remarks} />
+                            )}
+                            {fu.day3Remarks && (
+                              <DayNote day={3} text={fu.day3Remarks} />
+                            )}
+                          </div>
+                        )}
+
+                        {fu.status === "Closed" &&
+                          parseInt(fu.saleAmount) > 0 && (
+                            <div className="mt-3 flex items-center gap-2 bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs font-bold px-3 py-2 rounded-lg w-max">
+                              <TrendingUp
+                                size={14}
+                                className="text-emerald-500"
+                              />
+                              Revenue Attribution: ₹
+                              {parseInt(fu.saleAmount).toLocaleString()}
+                            </div>
+                          )}
+                      </div>
+                    </div>
+                  );
+                })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 const DayNote = ({ day, text }) => (
-    <div className="bg-white border border-slate-100 rounded-md p-2 shadow-sm">
-        <div className="text-[10px] font-extrabold text-[#00a884] uppercase tracking-wider mb-1">Day {day} Progression</div>
-        <p className="text-[11px] text-slate-600 font-medium leading-relaxed">{text}</p>
+  <div className="bg-white border border-slate-100 rounded-md p-2 shadow-sm">
+    <div className="text-[10px] font-extrabold text-[#00a884] uppercase tracking-wider mb-1">
+      Day {day} Progression
     </div>
+    <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+      {text}
+    </p>
+  </div>
 );
 
+const CreateLeadModal = ({
+  formData,
+  handleChange,
+  handleSubmit,
+  setShowCreateForm,
+  loading,
+}) => (
+  <>
+    <div
+      className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 transition-opacity"
+      onClick={() => setShowCreateForm(false)}
+    />
+    <div className="fixed inset-y-0 right-0 w-full sm:w-[450px] bg-white z-50 shadow-2xl transform transition-transform duration-300 crm-slide-in-right flex flex-col border-l border-slate-200">
+      <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+        <h2 className="text-lg font-extrabold text-slate-800">
+          Inject New Lead
+        </h2>
+        <button
+          onClick={() => setShowCreateForm(false)}
+          className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition"
+        >
+          <X size={20} />
+        </button>
+      </div>
 
-const CreateLeadModal = ({ formData, handleChange, handleSubmit, setShowCreateForm, loading }) => (
-    <>
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 transition-opacity" onClick={() => setShowCreateForm(false)} />
-        <div className="fixed inset-y-0 right-0 w-full sm:w-[450px] bg-white z-50 shadow-2xl transform transition-transform duration-300 crm-slide-in-right flex flex-col border-l border-slate-200">
-            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
-                <h2 className="text-lg font-extrabold text-slate-800">Inject New Lead</h2>
-                <button onClick={() => setShowCreateForm(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition">
-                    <X size={20} />
-                </button>
+      <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-5">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                Phone Number <span className="text-rose-500">*</span>
+              </label>
+              <div className="relative">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                  <Phone size={16} />
+                </div>
+                <input
+                  type="tel"
+                  name="phone"
+                  placeholder="e.g. 919876543210"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] outline-none text-sm font-medium transition-all shadow-sm"
+                  required
+                />
+              </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="space-y-5">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Phone Number <span className="text-rose-500">*</span></label>
-                            <div className="relative">
-                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Phone size={16} /></div>
-                                <input type="tel" name="phone" placeholder="e.g. 919876543210" value={formData.phone} onChange={handleChange} className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] outline-none text-sm font-medium transition-all shadow-sm" required />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Name</label>
-                                <div className="relative">
-                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><User size={16} /></div>
-                                    <input type="text" name="name" placeholder="Full Name" value={formData.name} onChange={handleChange} className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] outline-none text-sm font-medium transition-all shadow-sm" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">City</label>
-                                <div className="relative">
-                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><MapPin size={16} /></div>
-                                    <input type="text" name="city" placeholder="Location" value={formData.city} onChange={handleChange} className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] outline-none text-sm font-medium transition-all shadow-sm" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Initial Status</label>
-                                <div className="relative">
-                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Flag size={16} /></div>
-                                    <select name="status" value={formData.status} onChange={handleChange} className="w-full pl-10 pr-3 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] outline-none text-sm font-medium cursor-pointer appearance-none shadow-sm transition-all">
-                                        <option value="New">New</option>
-                                        <option value="Follow Up">Follow Up</option>
-                                        <option value="Closed">Closed</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Priority</label>
-                                <div className="relative">
-                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><AlertCircle size={16} /></div>
-                                    <select name="priority" value={formData.priority} onChange={handleChange} className="w-full pl-10 pr-3 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] outline-none text-sm font-medium cursor-pointer appearance-none shadow-sm transition-all">
-                                        <option value="Low">Low</option>
-                                        <option value="Medium">Medium</option>
-                                        <option value="High">High</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Enquired for</label>
-                            <div className="relative">
-                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Tag size={16} /></div>
-                                <input type="text" name="enquiredFor" placeholder="e.g., Joint Pain Therapy" value={formData.enquiredFor} onChange={handleChange} className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] outline-none text-sm font-medium transition-all shadow-sm" />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Initial Remarks</label>
-                            <div className="relative">
-                                <div className="absolute left-3 top-3 text-slate-400"><FileText size={16} /></div>
-                                <textarea name="remarks" placeholder="Detailed notes..." value={formData.remarks} onChange={handleChange} rows={3} className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] outline-none text-sm font-medium resize-none transition-all shadow-sm" />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="pt-4 flex gap-3 mt-6 border-t border-slate-200">
-                        <button type="button" onClick={() => setShowCreateForm(false)} className="flex-1 py-3 text-sm rounded-xl text-slate-500 font-bold hover:bg-slate-100 transition-all border border-transparent hover:border-slate-200">Cancel</button>
-                        <button type="submit" disabled={loading} className="flex-1 py-3 bg-[#00a884] text-white text-sm rounded-xl font-bold hover:bg-emerald-600 shadow-lg shadow-emerald-200/50 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70">
-                            {loading ? <Loader2 size={18} className="animate-spin" /> : <><Save size={18} /> Inject Lead</>}
-                        </button>
-                    </div>
-                </form>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                  Name
+                </label>
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                    <User size={16} />
+                  </div>
+                  <input
+                    type="text"
+                    name="name"
+                    placeholder="Full Name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] outline-none text-sm font-medium transition-all shadow-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                  City
+                </label>
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                    <MapPin size={16} />
+                  </div>
+                  <input
+                    type="text"
+                    name="city"
+                    placeholder="Location"
+                    value={formData.city}
+                    onChange={handleChange}
+                    className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] outline-none text-sm font-medium transition-all shadow-sm"
+                  />
+                </div>
+              </div>
             </div>
-        </div>
-    </>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                  Initial Status
+                </label>
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                    <Flag size={16} />
+                  </div>
+                  <select
+                    name="status"
+                    value={formData.status}
+                    onChange={handleChange}
+                    className="w-full pl-10 pr-3 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] outline-none text-sm font-medium cursor-pointer appearance-none shadow-sm transition-all"
+                  >
+                    <option value="New">New</option>
+                    <option value="Follow Up">Follow Up</option>
+                    <option value="Closed">Closed</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                  Priority
+                </label>
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                    <AlertCircle size={16} />
+                  </div>
+                  <select
+                    name="priority"
+                    value={formData.priority}
+                    onChange={handleChange}
+                    className="w-full pl-10 pr-3 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] outline-none text-sm font-medium cursor-pointer appearance-none shadow-sm transition-all"
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                Enquired for
+              </label>
+              <div className="relative">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                  <Tag size={16} />
+                </div>
+                <input
+                  type="text"
+                  name="enquiredFor"
+                  placeholder="e.g., Joint Pain Therapy"
+                  value={formData.enquiredFor}
+                  onChange={handleChange}
+                  className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] outline-none text-sm font-medium transition-all shadow-sm"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                Initial Remarks
+              </label>
+              <div className="relative">
+                <div className="absolute left-3 top-3 text-slate-400">
+                  <FileText size={16} />
+                </div>
+                <textarea
+                  name="remarks"
+                  placeholder="Detailed notes..."
+                  value={formData.remarks}
+                  onChange={handleChange}
+                  rows={3}
+                  className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] outline-none text-sm font-medium resize-none transition-all shadow-sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-4 flex gap-3 mt-6 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={() => setShowCreateForm(false)}
+              className="flex-1 py-3 text-sm rounded-xl text-slate-500 font-bold hover:bg-slate-100 transition-all border border-transparent hover:border-slate-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 py-3 bg-[#00a884] text-white text-sm rounded-xl font-bold hover:bg-emerald-600 shadow-lg shadow-emerald-200/50 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70"
+            >
+              {loading ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <>
+                  <Save size={18} /> Inject Lead
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </>
 );

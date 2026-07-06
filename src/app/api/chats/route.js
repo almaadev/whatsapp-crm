@@ -174,7 +174,7 @@ export async function POST(req) {
           name: name || phone,
         });
         
-        // ... rest of your io.emit logic ...
+        
       }
 
       if (redis && redis.status === "ready") await redis.del("chats:main_inbox_data");

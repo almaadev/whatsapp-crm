@@ -68,6 +68,7 @@ function mergeFollowUp(existing, body) {
 
 export const leadService = {
   async getLeads(params) {
+    console.log("Fetching leads with params:", params);
     const { from, to, month, year, today, associate, isClosed, view, search, page = 1, limit = 10 } = params;
     const match = {};
 
