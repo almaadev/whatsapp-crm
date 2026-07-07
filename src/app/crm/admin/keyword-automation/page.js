@@ -5,6 +5,7 @@ import {
   Loader2, MessageSquareCode, Check, X, 
   AlertCircle, Activity
 } from "lucide-react";
+import api from "@/lib/axios";
 
 export default function KeywordAutomationPage() {
   const [keywords, setKeywords] = useState([]);
@@ -19,8 +20,7 @@ export default function KeywordAutomationPage() {
   const fetchKeywords = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/keyword-automation");
-      const json = await res.json();
+      const { data: json } = await api.get("/api/keyword-automation");
       if (json.success) setKeywords(json.data);
     } catch (err) {
       console.error("Failed to fetch keywords", err);
@@ -58,12 +58,11 @@ export default function KeywordAutomationPage() {
       const url = currentEdit ? `/api/keyword-automation/${currentEdit}` : "/api/keyword-automation";
       const method = currentEdit ? "PUT" : "POST";
       
-      const res = await fetch(url, {
+      const { data: result } = await api({
         method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        url,
+        data: formData,
       });
-      const result = await res.json();
 
       if (!result.success) throw new Error(result.error);
       
@@ -78,7 +77,7 @@ export default function KeywordAutomationPage() {
 
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this automated keyword?")) return;
-    await fetch(`/api/keyword-automation/${id}`, { method: "DELETE" });
+    await api.delete(`/api/keyword-automation/${id}`);
     fetchKeywords();
   };
 
@@ -86,11 +85,7 @@ export default function KeywordAutomationPage() {
     const updatedStatus = !currentStatus;
     // Optimistic UI update
     setKeywords(keywords.map(k => k._id === id ? { ...k, isActive: updatedStatus } : k));
-    await fetch(`/api/keyword-automation/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isActive: updatedStatus }),
-    });
+    await api.patch(`/api/keyword-automation/${id}`, { isActive: updatedStatus });
   };
 
   const filteredKeywords = keywords.filter((k) =>

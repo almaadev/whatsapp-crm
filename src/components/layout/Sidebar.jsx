@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png";
 import SignOutModal from "@/components/modals/SignOutModal";
+import api from "@/lib/axios";
 
 import {
   LayoutDashboard,
@@ -78,7 +79,7 @@ export default function Sidebar({
 
   const handleConfirmSignOut = async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await api.post("/api/auth/logout");
     } catch (error) {
       console.error("Secure logout API failed:", error);
     } finally {

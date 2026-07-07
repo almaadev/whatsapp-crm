@@ -8,6 +8,7 @@ import LoadingScreen from "@/components/ui/LoadingScreen";
 import AccessDenied from "@/components/ui/AccessDenied";
 import { hasModuleAccess } from "@/utils/auth";
 import { toast } from "react-toastify";
+import api from "@/lib/axios";
 import { User, Search, Lock } from "lucide-react";
 import CustomerInfoPanel from "@/components/features/chat/CustomerInfoPanel";
 import ChatHeader from "@/components/features/chat/ChatHeader";
@@ -67,18 +68,13 @@ function CategoryInboxContent({ slug }) {
     async (template, variables) => {
       if (!selectedChat) return;
       try {
-        const res = await fetch("/api/send-template", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            phone: selectedChat.phone,
-            templateSid: template.sid,
-            chatType,
-            associateName: session?.user?.name,
-            contentVariables: variables,
-          }),
+        await api.post("/api/send-template", {
+          phone: selectedChat.phone,
+          templateSid: template.sid,
+          chatType,
+          associateName: session?.user?.name,
+          contentVariables: variables,
         });
-        if (!res.ok) throw new Error("Template failed");
         fetchChats(debouncedSearch);
         setTimeout(scrollToBottom, 50);
       } catch {
@@ -104,20 +100,12 @@ function CategoryInboxContent({ slug }) {
     updateChatDetails(selectedChat.phone, { history: updatedHistory });
 
     try {
-      const res = await fetch("/api/chats/status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: selectedChat.phone,
-          isChatClosed: newClosedState,
-          chatType,
-        }),
+      const res = await api.post("/api/chats/status", {
+        phone: selectedChat.phone,
+        isChatClosed: newClosedState,
+        chatType,
       });
-      if (res.ok) {
-        toast.success(newClosedState ? "Chat Marked as Closed" : "Chat Marked as Active");
-      } else {
-        throw new Error("Failed to sync toggle");
-      }
+      toast.success(newClosedState ? "Chat Marked as Closed" : "Chat Marked as Active");
     } catch {
       toast.error("Failed to update Chat Control Status");
       const revertedHistory = [...selectedChat.history];

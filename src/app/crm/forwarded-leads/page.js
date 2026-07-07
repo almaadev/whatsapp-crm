@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { useChatStore } from "@/stores/chatStore";
 import { isAdminAuthorized } from "@/utils/auth";
+import api from "@/lib/axios";
 import { useCrmLayout } from "@/components/layout/CrmShell";
 import { 
     Search, Share2, MessageSquare, Calendar, User, Phone, ArrowRight, Menu, ChevronLeft, ChevronRight, ArrowRightCircle 
@@ -47,8 +48,7 @@ export default function ForwardedLeadsPage() {
 
         async function fetchForwardedLeads() {
             try {
-                const res = await fetch("/api/chats");
-                const data = await res.json();
+                const { data } = await api.get("/api/chats");
                 
                 const rawList = data.filter(chat => chat.lastForwardedTo && chat.lastForwardedTo.length > 0);
                 

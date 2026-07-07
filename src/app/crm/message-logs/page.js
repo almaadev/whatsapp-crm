@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCrmLayout } from "@/components/layout/CrmShell";
+import api from "@/lib/axios";
 
 import {
   Loader2,
@@ -138,10 +139,9 @@ export default function MessageLogsPage() {
       if (clientMediaOnly) url += `&mediaOnly=true`;
       if (clientFailedOnly) url += `&failedOnly=true`;
 
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("Export failed");
-
-      const blob = await res.blob();
+      const res = await api.get(url, { responseType: 'blob' });
+      
+      const blob = res.data;
       downloadBlob(blob, `enterprise_message_archive_${Date.now()}.csv`);
       toast.success("Enterprise archive downloaded safely.");
     } catch (err) {
@@ -166,10 +166,9 @@ export default function MessageLogsPage() {
       if (optStatus !== "all")
         url += `&status=${encodeURIComponent(optStatus)}`;
 
-      const res = await fetch(url);
-      const data = await res.json();
+      const { data } = await api.get(url);
 
-      if (res.ok && data.success) {
+      if (data.success) {
         setMessageData({
           messages: data.messages || [],
           analytics: data.analytics || {},

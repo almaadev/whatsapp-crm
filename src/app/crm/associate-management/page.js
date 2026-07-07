@@ -10,6 +10,7 @@ import {
     Search, MapPin, Mail, Phone, Briefcase, CheckCircle2, 
     XCircle, AlertTriangle, X, Loader2, Menu, Activity
 } from "lucide-react"; 
+import api from "@/lib/axios";
 
 
 import CreateUserForm from "@/components/features/admin/CreateUserForm";
@@ -36,13 +37,8 @@ export default function AssociateManagement() {
     const fetchAssociates = async () => {
         setLoading(true);
         try {
-            const res = await fetch("/api/users");
-            if (res.ok) {
-                const data = await res.json();
-                setAssociates(data);
-            } else {
-                toast.error("Failed to fetch associate roster");
-            }
+            const { data } = await api.get("/api/users");
+            setAssociates(data);
         } catch (error) {
             toast.error("Error connecting to server");
         } finally {
@@ -68,13 +64,9 @@ export default function AssociateManagement() {
 
     const handleDelete = async (id) => {
         try {
-            const res = await fetch(`/api/users?id=${id}`, { method: "DELETE" });
-            if (res.ok) {
-                toast.success("Associate removed from system");
-                setAssociates(prev => prev.filter(a => a.id !== id));
-            } else {
-                toast.error("Failed to delete associate");
-            }
+            await api.delete(`/api/users?id=${id}`);
+            toast.success("Associate removed from system");
+            setAssociates(prev => prev.filter(a => a.id !== id));
         } catch (error) {
             toast.error("Error deleting associate");
         } finally {

@@ -7,10 +7,10 @@ import { useCrmLayout } from "@/components/layout/CrmShell";
 import ChatArea from "@/components/features/chat/ChatArea";
 import { useChatStore } from "@/stores/chatStore";
 import { 
-  ArrowLeft, User, Phone, MapPin, Briefcase, 
   FileText, Save, Loader2, MessageSquarePlus, CheckCircle, ShieldAlert 
 } from "lucide-react"; // 👇 FIX: Added ShieldAlert
 import { toast } from "react-toastify";
+import api from "@/lib/axios";
 import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png"; 
 
 export default function NewCustomerPage() {
@@ -68,10 +68,8 @@ export default function NewCustomerPage() {
       setChecking(true);
       const formattedPhone = `whatsapp:+91${rawMobile.slice(-10)}`;
       try {
-          const chatRes = await fetch("/api/chats");
-          if (chatRes.ok) {
-              const chats = await chatRes.json();
-              const found = chats.find(c => c.phone === formattedPhone);
+          const { data: chats } = await api.get("/api/chats");
+          const found = chats.find(c => c.phone === formattedPhone);
               if (found) {
                   setExistingCustomer(found);
                   setSelectedChat(found);
@@ -79,7 +77,6 @@ export default function NewCustomerPage() {
                   setExistingCustomer(null);
                   setSelectedChat(null);
               }
-          }
       } catch (e) { console.error(e); }
       finally { setChecking(false); }
   };
@@ -108,17 +105,10 @@ export default function NewCustomerPage() {
     const formattedPhone = `whatsapp:+91${cleanMobile.slice(-10)}`;
 
     try {
-      const res = await fetch("/api/customers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            ...formData,
-            phone: formattedPhone 
-        }),
+      const { data } = await api.post("/api/customers", {
+          ...formData,
+          phone: formattedPhone 
       });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create customer");
 
       toast.success("Customer added!");
       

@@ -7,6 +7,7 @@ import { useCrmLayout } from "./CrmShell";
 import SignOutModal from "@/components/modals/SignOutModal";
 import NotificationPanel from "./NotificationPanel";
 import { useChatStore } from "@/stores/chatStore";
+import api from "@/lib/axios";
 
 /**
  * Renders the top navigation bar of the CRM layout.
@@ -44,7 +45,7 @@ export default function Topbar() {
 
   const handleConfirmSignOut = async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await api.post("/api/auth/logout");
     } catch (error) {
       console.error("Secure logout API failed:", error);
     } finally {

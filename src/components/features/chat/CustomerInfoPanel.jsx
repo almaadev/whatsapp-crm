@@ -7,6 +7,7 @@ import {
   AlertCircle, RefreshCw, Filter
 } from "lucide-react";
 import { toast } from "react-toastify";
+import api from "@/lib/axios";
 
 //  STATUS CONFIG  (colour + icon per status value)
 const STATUS_CONFIG = {
@@ -88,16 +89,8 @@ export default function CustomerInfoPanel({
     
     if (isOpen && phoneToFetch) {
       setLoading(true);
-      fetch(`/api/leads/${encodeURIComponent(phoneToFetch)}`)
-        .then(async (res) => {
-          const contentType = res.headers.get("content-type");
-          if (!res.ok || !contentType || !contentType.includes("application/json")) {
-            console.warn("API returned non-JSON or failed:", await res.text().catch(()=>""));
-            return {};
-          }
-          return res.json();
-        })
-        .then((data) => {
+      api.get(`/api/leads/${encodeURIComponent(phoneToFetch)}`)
+        .then(({ data }) => {
           if (!data || Object.keys(data).length === 0) return;
           
           setLeadData(data);
@@ -167,18 +160,8 @@ export default function CustomerInfoPanel({
 
     setLoading(true);
     try {
-      const res = await fetch("/api/leads", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
+      const { data } = await api.post("/api/leads", payload);
       
-      if (!res.ok) {
-        console.error("Save Error Response:", data);
-        throw new Error(data.error || "Failed to save lead");
-      }
-
       updateChatDetails(selectedChat.phone, {
         ...formData,
         interest: formData.enquiredFor,

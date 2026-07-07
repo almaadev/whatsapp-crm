@@ -1,4 +1,4 @@
-import axios from "axios";
+import api from "@/lib/axios";
 
 /**
  * Service for handling chat-related API calls (inbox, sending, updating status).
@@ -12,7 +12,7 @@ export const chatService = {
  */
 getMessages: async (role) => {
 try {
-const { data } = await axios.get(`/api/chats`); 
+const { data } = await api.get(`/api/chats`); 
 
 if (!Array.isArray(data)) return [];
 
@@ -63,62 +63,31 @@ return [];
 },
 
 sendMessage: async (payload) => {
-const response = await axios.post("/api/chats", payload);
+const response = await api.post("/api/chats", payload);
 return response.data; 
 }
 ,
 updateChatControlStatus: async(phone, isChatClosed, chatType) => {
-const res = await fetch("/api/chats/status", {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify({ phone, isChatClosed, chatType })
-});
-if (!res.ok) {
-const err = await res.json();
-throw new Error(err.error || "Failed to sync toggle");
-}
-return res.json();
+const { data } = await api.post("/api/chats/status", { phone, isChatClosed, chatType });
+return data;
 },
 
 updateLeadLifecycle: async(payload) => {
-const res = await fetch("/api/lead-status", {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify(payload),
-});
-if (!res.ok) throw new Error("Failed to update lead status");
-return res.json();
+const { data } = await api.post("/api/lead-status", payload);
+return data;
 },
 
 setReminder: async(payload) => {
-const res = await fetch("/api/reminders", {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify(payload)
-});
-if (!res.ok) throw new Error("Failed to set reminder");
-return res.json();
+const { data } = await api.post("/api/reminders", payload);
+return data;
 },
 
 forwardLead: async(payload) => {
-const res = await fetch("/api/forward-lead", {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify(payload)
-});
-if (!res.ok) throw new Error("Failed to forward lead");
-return res.json();
+const { data } = await api.post("/api/forward-lead", payload);
+return data;
 },
 sendTemplateMessage: async ({ phone, templateSid, chatType, associateName, contentVariables }) => {
-const res = await fetch("/api/send-template", {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify({ phone, templateSid, chatType, associateName, contentVariables })
-});
-if (!res.ok) {
-const err = await res.json();
-throw new Error(err.error || "Failed to send template");
-}
-return res.json();
+const { data } = await api.post("/api/send-template", { phone, templateSid, chatType, associateName, contentVariables });
+return data;
 }
 };

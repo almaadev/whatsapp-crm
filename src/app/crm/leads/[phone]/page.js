@@ -16,6 +16,7 @@ import {
 import Link from "next/link";
 import { toast } from "react-toastify";
 import { useSession } from "next-auth/react";
+import api from "@/lib/axios";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  MODERN ENTERPRISE STATUS BADGES
@@ -73,8 +74,7 @@ export default function LeadDetailsPage({ params }) {
     const fetchLead = async () => {
       try {
         setLoading(true);
-        const res  = await fetch(`/api/leads/${encodeURIComponent(phone)}`, { cache: "no-store" });
-        const data = await res.json();
+        const { data }  = await api.get(`/api/leads/${encodeURIComponent(phone)}`);
         
         if (Object.keys(data).length > 0) setLead(data);
       } catch (err) {

@@ -4,6 +4,7 @@ import { useChatStore } from "@/stores/chatStore";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Search, PlusCircle, CheckCheck, Check, Clock, AlertCircle, ChevronDown, Trash2, X, AlertTriangle } from "lucide-react";
+import api from "@/lib/axios";
 
 export default function ChatList({ role, loading }) {
     const messages = useChatStore((s) => s.messages);
@@ -26,9 +27,8 @@ export default function ChatList({ role, loading }) {
 
     useEffect(() => {
         if (searchTerm.length > 0 && !allCustomers) {
-            fetch("/api/customers")
-                .then(res => res.json())
-                .then(data => setAllCustomers(Array.isArray(data) ? data : []))
+            api.get("/api/customers")
+                .then(({ data }) => setAllCustomers(Array.isArray(data) ? data : []))
                 .catch(err => console.error("Failed to fetch customers", err));
         }
     }, [searchTerm, allCustomers]);
@@ -86,11 +86,7 @@ export default function ChatList({ role, loading }) {
         if (chat.direction === "INBOUND" && chat.read === "FALSE") {
             updateChatDetails(chat.phone, { read: "TRUE" });
             try {
-                await fetch("/api/chats/mark-read", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ phone: chat.phone })
-                });
+                await api.post("/api/chats/mark-read", { phone: chat.phone });
             } catch (err) {
                 console.error("Failed to mark chat as read", err);
             }
@@ -144,25 +140,19 @@ const InboxSourceBadge = ({ sourceType }) => {
         const phonesArray = deleteModal.phones;
         setIsDeleting(true);
         try {
-            const res = await fetch("/api/chats", {
-                method: "DELETE",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ phones: phonesArray })
+            const { data: res } = await api.delete("/api/chats", {
+                data: { phones: phonesArray }
             });
 
-            if (res.ok) {
-                if (selectedChat && phonesArray.includes(selectedChat.phone)) {
-                    setSelectedChat(null);
-                }
-                setIsSelectionMode(false);
-                setSelectedPhones(new Set());
-                setActiveChatMenu(null);
-                setDeleteModal({ isOpen: false, phones: [] });
-
-                window.location.reload();
-            } else {
-                alert("Failed to delete chats.");
+            if (selectedChat && phonesArray.includes(selectedChat.phone)) {
+                setSelectedChat(null);
             }
+            setIsSelectionMode(false);
+            setSelectedPhones(new Set());
+            setActiveChatMenu(null);
+            setDeleteModal({ isOpen: false, phones: [] });
+
+            window.location.reload();
         } catch (err) {
             console.error("Delete Error", err);
             alert("An error occurred while deleting.");

@@ -10,6 +10,7 @@ import {
     Filter, Search, ArrowRight, UserCircle,
     Activity, Tag, MessageSquare, Menu, AlertCircle, RefreshCw
 } from "lucide-react";
+import api from "@/lib/axios";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  ROUTING & NAVIGATION UTILITIES
@@ -205,15 +206,12 @@ export default function AssociateDashboard() {
             setError(null);
             
             try {
-                const res = await fetch(`/api/associate/dashboard?month=${selectedMonth}&year=${selectedYear}`, { signal });
-                if (!res.ok) throw new Error("Failed to sync dashboard data.");
-                
-                const data = await res.json();
+                const { data } = await api.get(`/api/associate/dashboard?month=${selectedMonth}&year=${selectedYear}`, { signal });
                 setDashboardData(data);
             } catch (err) {
-                if (err.name === "AbortError") return; // Ignore stale request cancellations
+                if (err.name === "CanceledError" || err.code === "ERR_CANCELED") return; // Ignore stale request cancellations
                 console.error("Dashboard fetch error:", err);
-                setError(err.message || "An unexpected error occurred.");
+                setError(err.response?.data?.message || err.message || "An unexpected error occurred.");
             } finally {
                 if (!signal.aborted) setLoading(false);
             }

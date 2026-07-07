@@ -8,6 +8,7 @@ import AccessDenied from "@/components/ui/AccessDenied";
 import KPICard from "@/components/ui/KpiCard";
 import { AnimatedCount } from "@/hooks/useCountUp";
 import { isAdminAuthorized, isSuperAdmin } from "@/utils/auth";
+import api from "@/lib/axios";
 
 import {
   Users,
@@ -110,8 +111,7 @@ export default function AdminDashboard() {
         return;
       }
 
-      const res = await fetch(`${endpoint}?month=${selectedMonth}&year=${selectedYear}`);
-      const data = await res.json();
+      const { data } = await api.get(`${endpoint}?month=${selectedMonth}&year=${selectedYear}`);
 
       if (data.success) {
         setAssociates(data.roster || []);
@@ -179,15 +179,11 @@ export default function AdminDashboard() {
     setEditingId(null);
 
     try {
-      await fetch("/api/users", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rowId: id,
-          target: tempTarget,
-          leads: associate.totalLeads,
-          achieved: associate.achievedCount,
-        }),
+      await api.put("/api/users", {
+        rowId: id,
+        target: tempTarget,
+        leads: associate.totalLeads,
+        achieved: associate.achievedCount,
       });
       toast.success("Target updated successfully");
     } catch (error) {

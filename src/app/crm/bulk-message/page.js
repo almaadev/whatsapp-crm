@@ -23,6 +23,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
+import api from "@/lib/axios";
 import TemplateManagerPanel from "@/components/templates/TemplateManagerPanel";
 import { useTemplateStore } from "@/stores/templateStore";
 
@@ -57,8 +58,7 @@ export default function BulkTemplatePage() {
 
   const fetchCampaigns = async () => {
     try {
-      const res = await fetch("/api/bulk-message");
-      const data = await res.json();
+      const { data } = await api.get("/api/bulk-message");
       if (data.success) setCampaigns(data.campaigns);
     } catch (err) {
       console.error("Failed to fetch campaigns");
@@ -123,21 +123,16 @@ export default function BulkTemplatePage() {
     for (let i = 0; i < uniqueNumbers.length; i += batchSize) {
       const batch = uniqueNumbers.slice(i, i + batchSize);
       try {
-        const res = await fetch("/api/bulk-message", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            campaignName,
-            campaignId: currentCampaignId,
-            numbers: batch,
-            templateId,
-            contentVariables:
-              Object.keys(templateVariables).length > 0
-                ? templateVariables
-                : null,
-          }),
+        const { data } = await api.post("/api/bulk-message", {
+          campaignName,
+          campaignId: currentCampaignId,
+          numbers: batch,
+          templateId,
+          contentVariables:
+            Object.keys(templateVariables).length > 0
+              ? templateVariables
+              : null,
         });
-        const data = await res.json();
 
         if (data.success && data.campaignId) {
           currentCampaignId = data.campaignId;
@@ -204,10 +199,7 @@ export default function BulkTemplatePage() {
 
     setIsDeleting(id);
     try {
-      const res = await fetch(`/api/bulk-message?id=${id}`, {
-        method: "DELETE",
-      });
-      const data = await res.json();
+      const { data } = await api.delete(`/api/bulk-message?id=${id}`);
 
       if (data.success) {
         toast.success("Campaign history deleted");

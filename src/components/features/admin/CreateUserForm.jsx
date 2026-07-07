@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { User, Mail, Lock, Shield, CheckCircle, AlertCircle, Plus, Phone, Briefcase, Tag, Building } from "lucide-react";
 import { useSession } from "next-auth/react";
-
+import api from "@/lib/axios";
 import { getDistricts } from "@/utils/district";
 
 export default function CreateUserForm() {
@@ -56,32 +56,15 @@ export default function CreateUserForm() {
     setStatus({ type: "", message: "" });
     
     try {
-      const res = await fetch("/api/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+      await api.post("/api/users", formData);
+      setStatus({ type: "success", message: "User created successfully!" });
+      setFormData({ 
+        name: "", preferredName: "", email: "", number: "", password: "", branch: "",
+        role: "sales", department: "telecalling", isAdmin: false, active: true, accessModules: [] 
       });
-      
-      const contentType = res.headers.get("content-type");
-
-      if (res.ok) {
-        setStatus({ type: "success", message: "User created successfully!" });
-        setFormData({ 
-          name: "", preferredName: "", email: "", number: "", password: "", branch: "",
-          role: "sales", department: "telecalling", isAdmin: false, active: true, accessModules: [] 
-        });
-      } else {
-        if (contentType && contentType.includes("application/json")) {
-            const errorData = await res.json();
-            setStatus({ type: "error", message: errorData.error || "Failed to create user." });
-        } else {
-            const htmlText = await res.text();
-            console.error("Server HTML Error:", htmlText);
-            setStatus({ type: "error", message: "Server error occurred. Check terminal for details." });
-        }
-      }
     } catch (err) {
-      setStatus({ type: "error", message: "An unexpected error occurred." });
+      const errorMessage = err.response?.data?.error || "An unexpected error occurred.";
+      setStatus({ type: "error", message: errorMessage });
     } finally {
         setLoading(false);
     }

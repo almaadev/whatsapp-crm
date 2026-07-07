@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { usePathStore } from "@/stores/pathStore";
+import api from "@/lib/axios";
 
 import DashboardPage from "@/components/layout/DashboardPage";
 import LoadingScreen from "@/components/ui/LoadingScreen";
@@ -60,10 +61,9 @@ export default function CustomersPage() {
   useEffect(() => {
     const fetchCustomers = async () => {
       try {
-        const res = await fetch("/api/customers", { cache: "no-store" });
-        const data = await res.json();
+        const { data } = await api.get("/api/customers");
 
-        if (res.ok && Array.isArray(data)) {
+        if (Array.isArray(data)) {
           setRawCustomers(data);
         }
       } catch (error) {
@@ -325,14 +325,7 @@ const AddCustomerModal = ({ onClose, onSuccess }) => {
 
     setSaving(true);
     try {
-      const res = await fetch("/api/customers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      const result = await res.json();
-
-      if (!res.ok) throw new Error(result.error || "Failed to add customer");
+      const { data: result } = await api.post("/api/customers", formData);
 
       toast.success("Customer added successfully!");
       onSuccess(result.data);

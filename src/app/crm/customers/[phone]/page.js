@@ -11,6 +11,7 @@ import {
     MessageCircle, Building, AlertCircle, XCircle
 } from "lucide-react";
 import { toast } from "react-toastify";
+import api from "@/lib/axios";
 
 // Modern Enterprise Status Badges
 const StatusBadge = ({ status, labelOverride }) => {
@@ -61,9 +62,8 @@ export default function CustomerDetailPage({ params }) {
         if (!session) return;
         const rawPhone = phone.replace(/\D/g, '');
 
-        fetch(`/api/customers/${rawPhone}`, { cache: 'no-store' })
-            .then(res => res.json())
-            .then(data => {
+        api.get(`/api/customers/${rawPhone}`)
+            .then(({ data }) => {
                 if (data && !data.error) {
                     setCustomer(data);
                     setFormData({
@@ -91,13 +91,7 @@ export default function CustomerDetailPage({ params }) {
         setSaving(true);
         try {
             const rawPhone = phone.replace(/\D/g, '');
-            const res = await fetch(`/api/customers/${rawPhone}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(formData),
-            });
-            const json = await res.json();
-            if (!res.ok) throw new Error(json.error || "Failed to update profile");
+            const { data } = await api.put(`/api/customers/${rawPhone}`, formData);
 
             setCustomer(prev => ({ ...prev, ...formData }));
             setIsEditing(false);

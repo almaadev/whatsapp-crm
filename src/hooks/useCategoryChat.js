@@ -4,6 +4,7 @@ import { getCategoryChatStore } from "@/stores/categoryChatStore";
 import { categoryChatService } from "@/services/categoryChatService";
 import { connectSocket } from "@/services/socketService";
 import { toast } from "react-toastify";
+import api from "@/lib/axios";
 
 /**
  * Custom hook for managing category-specific chats (e.g., Product Lead, MD Camp).
@@ -75,15 +76,9 @@ export function useCategoryChat(slug) {
 
   const updateStatus = async (phone, status) => {
     try {
-      const res = await fetch("/api/lead-status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, status }),
-      });
-      if (res.ok) {
-        useStore.getState().updateChatDetails(phone, { status });
-        toast.success(`Status updated to ${status}`);
-      }
+      await api.post("/api/lead-status", { phone, status });
+      useStore.getState().updateChatDetails(phone, { status });
+      toast.success(`Status updated to ${status}`);
     } catch {
       toast.error("Failed to update status");
     }

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import api from "@/lib/axios";
 
 export const useTemplateStore = create((set, get) => ({
   templates: [],
@@ -9,8 +10,7 @@ export const useTemplateStore = create((set, get) => ({
     if (get().fetched) return;
     set({ loading: true });
     try {
-      const res = await fetch("/api/templates");
-      const json = await res.json();
+      const { data: json } = await api.get("/api/templates");
       if (json.success) {
         set({ templates: json.data, fetched: true });
       }

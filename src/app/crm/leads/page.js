@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { usePathStore } from "@/stores/pathStore";
+import api from "@/lib/axios";
 import DashboardPage from "@/components/layout/DashboardPage";
 import LoadingScreen from "@/components/ui/LoadingScreen";
 import SearchInput from "@/components/ui/SearchInput";
@@ -77,16 +78,10 @@ export default function LeadsPage() {
       const query = new URLSearchParams({ page: currentPage, limit: pageSize });
       if (searchTerm) query.append("search", searchTerm);
 
-      const res = await fetch(`/api/leads?${query.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        setPaginatedLeads(data.leads || []);
-        setTotalPages(data.totalPages || 1);
-        setTotalRecords(data.total || 0);
-      } else {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to fetch");
-      }
+      const { data } = await api.get(`/api/leads?${query.toString()}`);
+      setPaginatedLeads(data.leads || []);
+      setTotalPages(data.totalPages || 1);
+      setTotalRecords(data.total || 0);
     } catch (err) {
       console.error("Error fetching leads:", err);
       toast.error("Failed to sync leads database.");
@@ -136,18 +131,11 @@ export default function LeadsPage() {
     }
 
     try {
-      const res = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formData,
-          overAllRemarks: formData.remarks,
-          date: new Date().toISOString(),
-        }),
+      const { data } = await api.post("/api/leads", {
+        ...formData,
+        overAllRemarks: formData.remarks,
+        date: new Date().toISOString(),
       });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create lead");
 
       toast.success("Lead created successfully!");
       fetchRecentLeads();

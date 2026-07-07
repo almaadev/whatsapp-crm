@@ -3,7 +3,8 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { X, Send, User, Phone, MessageSquare, Share2, CheckCircle2, RotateCcw } from "lucide-react";
 import { useChatStore } from "@/stores/chatStore";
-import { toast } from "react-toastify"; 
+import { toast } from "react-toastify";
+import api from "@/lib/axios";
 
 export default function ForwardLeadModal({ isOpen, onClose, customer, onConfirm }) {
     const [targetPhone, setTargetPhone] = useState("+91");
@@ -46,19 +47,12 @@ export default function ForwardLeadModal({ isOpen, onClose, customer, onConfirm 
         if (!selectedChat) return;
         setToggleLoading(true);
         try {
-            const res = await fetch("/api/leads/close", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    mobile: selectedChat.phone,
-                    currentState: selectedChat.isClosed
-                }),
+            const { data } = await api.post("/api/leads/close", {
+                mobile: selectedChat.phone,
+                currentState: selectedChat.isClosed
             });
-            const data = await res.json();
-            if (res.ok) {
-                updateChatDetails(selectedChat.phone, { isClosed: data.newState });
-                toast.success(data.newState === "TRUE" ? "Lead marked as completed" : "Lead re-opened");
-            }
+            updateChatDetails(selectedChat.phone, { isClosed: data.newState });
+            toast.success(data.newState === "TRUE" ? "Lead marked as completed" : "Lead re-opened");
         } catch (error) {
             toast.error("Error updating status.");
         } finally {

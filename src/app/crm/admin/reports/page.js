@@ -5,7 +5,8 @@ import { useSession } from "next-auth/react";
 
 import Link from "next/link";
 import { toast } from "react-toastify";
-import { 
+import api from "@/lib/axios";
+import {
   ChevronLeft, Download, TrendingUp, Users, 
   Activity, MapPin, Loader2, BarChart3, Lock, PieChart, LineChart
 } from "lucide-react";
@@ -24,8 +25,7 @@ export default function AdminReportsPage() {
 
     async function loadData() {
       try {
-        const res = await fetch("/api/admin/reports");
-        const data = await res.json();
+        const { data } = await api.get("/api/admin/reports");
 
         if (data.success) {
             // We only need the raw CSV data now, as visual reporting is under development
@@ -151,8 +151,8 @@ export default function AdminReportsPage() {
                     <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2 pl-2">
                         <Lock size={16} className="text-slate-400" /> Upcoming Modules
                     </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <ComingSoonCard icon={<TrendingUp size={24}/>} title="Revenue Growth Analytics" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        
                         <ComingSoonCard icon={<Users size={24}/>} title="Associate Performance Trends" />
                         <ComingSoonCard icon={<PieChart size={24}/>} title="Conversion Funnel Insights" />
                         <ComingSoonCard icon={<MapPin size={24}/>} title="Branch-wise Breakdown" />
