@@ -4,10 +4,12 @@ import { useState, useRef, useEffect, memo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useChatStore } from "@/features/chat/stores/chatStore";
 import { chatService } from "@/features/chat/services/chatService";
-import CustomerInfoPanel from "@/components/features/chat/CustomerInfoPanel";
-import ForwardLeadModal from "@/shared/components/modals/ForwardLeadModal";
-import ReminderModal from "@/shared/components/modals/ReminderModal";
-import PriorityModal from "@/shared/components/modals/PriorityModal";
+import dynamic from "next/dynamic";
+
+const CustomerInfoPanel = dynamic(() => import("@/components/features/chat/CustomerInfoPanel"), { ssr: false });
+const ForwardLeadModal = dynamic(() => import("@/shared/components/modals/ForwardLeadModal"), { ssr: false });
+const ReminderModal = dynamic(() => import("@/shared/components/modals/ReminderModal"), { ssr: false });
+const PriorityModal = dynamic(() => import("@/shared/components/modals/PriorityModal"), { ssr: false });
 
 import {
   parseMessageDate,

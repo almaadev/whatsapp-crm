@@ -5,6 +5,7 @@ import {
     Layers, Search, X, Loader2, LayoutTemplate, ExternalLink, Image as ImageIcon,
     Clock, CheckCircle2, AlertCircle, Info, PhoneCall, FastForward, PauseCircle, XCircle, Signal 
 } from "lucide-react";
+import { useDebounce } from "@/shared/hooks/useDebounce";
 
 // --- NORMALIZATION LOGIC ---
 const normalizeStatus = (rawStatus) => {
@@ -24,6 +25,7 @@ export default function TemplateManagerPanel({ open, onClose, onSelect, selected
 
     // ─── Local State ────────────────────────────────────────────────────────
     const [searchQuery, setSearchQuery] = useState("");
+    const debouncedSearchQuery = useDebounce(searchQuery, 300);
     const [activeFilter, setActiveFilter] = useState("ALL");
     const [expandedRejections, setExpandedRejections] = useState({});
 
@@ -85,8 +87,8 @@ export default function TemplateManagerPanel({ open, onClose, onSelect, selected
         }
 
         // 2. Search Filter
-        if (searchQuery.trim() !== "") {
-            const query = searchQuery.toLowerCase().trim();
+        if (debouncedSearchQuery.trim() !== "") {
+            const query = debouncedSearchQuery.toLowerCase().trim();
             filtered = filtered.filter(t => 
                 (t.name && t.name.toLowerCase().includes(query)) || 
                 (t.sid && t.sid.toLowerCase().includes(query)) ||
@@ -96,7 +98,7 @@ export default function TemplateManagerPanel({ open, onClose, onSelect, selected
         }
         
         return filtered;
-    }, [normalizedTemplates, activeFilter, searchQuery]);
+    }, [normalizedTemplates, activeFilter, debouncedSearchQuery]);
 
 
     // ─── Render Helpers ───────────────────────────────────────────────────────

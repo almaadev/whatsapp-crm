@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { toast } from "react-toastify";
+import { useDebounce } from "@/shared/hooks/useDebounce";
 import { reportRepository } from "@/shared/api/repositories/reportRepository";
 import { userRepository } from "@/shared/api/repositories/userRepository";
 
@@ -22,6 +23,7 @@ export function useDashboardState(session, isAuthorized, isSuperAdminUser) {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [filterView, setFilterView] = useState("all");
   const [sortConfig, setSortConfig] = useState({
     key: "achievedCount",
@@ -109,8 +111,8 @@ export function useDashboardState(session, isAuthorized, isSuperAdminUser) {
   const processedRoster = useMemo(() => {
     let result = [...associates];
 
-    if (searchQuery) {
-      const lower = searchQuery.toLowerCase();
+    if (debouncedSearchQuery) {
+      const lower = debouncedSearchQuery.toLowerCase();
       result = result.filter(
         (a) =>
           a.name.toLowerCase().includes(lower) ||
@@ -128,7 +130,7 @@ export function useDashboardState(session, isAuthorized, isSuperAdminUser) {
       });
     }
     return result;
-  }, [associates, searchQuery, sortConfig]);
+  }, [associates, debouncedSearchQuery, sortConfig]);
 
   // 5. Actions
   const handleSort = useCallback((key) => {

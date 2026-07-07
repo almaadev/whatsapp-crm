@@ -10,7 +10,10 @@ import { hasModuleAccess } from "@/shared/utils/auth";
 import { toast } from "react-toastify";
 import { chatRepository } from "@/shared/api/repositories/chatRepository";
 import { User, Search, Lock } from "lucide-react";
-import CustomerInfoPanel from "@/components/features/chat/CustomerInfoPanel";
+import dynamic from "next/dynamic";
+import { useDebounce } from "@/shared/hooks/useDebounce";
+
+const CustomerInfoPanel = dynamic(() => import("@/components/features/chat/CustomerInfoPanel"), { ssr: false });
 import ChatHeader from "@/components/features/chat/ChatHeader";
 import MessageList from "@/components/features/chat/MessageList";
 import ChatInput from "@/components/features/chat/ChatInput";
@@ -25,7 +28,7 @@ function CategoryInboxContent({ slug }) {
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const debouncedSearch = useDebounce(searchTerm, 300);
   const messagesEndRef = useRef(null);
 
   const { loading, sending, fetchChats, sendMessage, updateStatus, useStore, config } =
@@ -46,11 +49,6 @@ function CategoryInboxContent({ slug }) {
   }, [selectedChat?.history]);
 
   useEffect(() => {
-    const handler = setTimeout(() => setDebouncedSearch(searchTerm), 500);
-    return () => clearTimeout(handler);
-  }, [searchTerm]);
-
-  useEffect(() => {
     if (isAuthorized) fetchChats(debouncedSearch);
   }, [debouncedSearch, isAuthorized, fetchChats]);
 
@@ -68,7 +66,7 @@ function CategoryInboxContent({ slug }) {
     async (template, variables) => {
       if (!selectedChat) return;
       try {
-        await api.post("/api/send-template", {
+        await chatRepository.sendTemplate({
           phone: selectedChat.phone,
           templateSid: template.sid,
           chatType,

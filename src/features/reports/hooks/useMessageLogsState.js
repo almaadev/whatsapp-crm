@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { toast } from "react-toastify";
+import { useDebounce } from "@/shared/hooks/useDebounce";
 import { reportRepository } from "@/shared/api/repositories/reportRepository";
 
 const getFormattedDateTime = (date) => {
@@ -36,6 +37,7 @@ export function useMessageLogsState(isAuthorized) {
 
   // --- CLIENT UI STATES ---
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [clientDirection, setClientDirection] = useState("all");
   const [clientMediaOnly, setClientMediaOnly] = useState(false);
   const [clientFailedOnly, setClientFailedOnly] = useState(false);
@@ -138,8 +140,8 @@ export function useMessageLogsState(isAuthorized) {
   // --- CLIENT-SIDE PROCESSING ---
   const filteredMessages = useMemo(() => {
     return messageData.messages.filter((msg) => {
-      if (searchQuery) {
-        const lowerQ = searchQuery.toLowerCase();
+      if (debouncedSearchQuery) {
+        const lowerQ = debouncedSearchQuery.toLowerCase();
         const toMatch = msg.to ? msg.to.toLowerCase().includes(lowerQ) : false;
         const fromMatch = msg.from
           ? msg.from.toLowerCase().includes(lowerQ)
@@ -167,7 +169,7 @@ export function useMessageLogsState(isAuthorized) {
     });
   }, [
     messageData.messages,
-    searchQuery,
+    debouncedSearchQuery,
     clientDirection,
     clientMediaOnly,
     clientFailedOnly,

@@ -1,5 +1,42 @@
+import React, { memo, useCallback } from "react";
 import { Search, User } from "lucide-react";
 import { formatSafeTime, getDisplayMessage } from "@/shared/utils/chatDisplay";
+
+const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emptyFallback }) {
+  if (!chat) return null;
+  const displayMsg = getDisplayMessage(chat, emptyFallback);
+  const lastHistoryMsg = chat.history?.length > 0 ? chat.history[chat.history.length - 1] : null;
+  const displayTime = chat.lastSeenAt || lastHistoryMsg?.createdAt || lastHistoryMsg?.timestamp || chat.createdAt;
+
+  return (
+    <div
+      onClick={() => onClick(chat)}
+      className={`flex items-center px-3 py-2.5 cursor-pointer hover:bg-[#f5f6f6] transition-colors ${
+        isSelected ? "bg-[#f0f2f5]" : ""
+      }`}
+    >
+      <div className="w-12 h-12 bg-slate-300 rounded-full flex items-center justify-center text-white shrink-0 overflow-hidden mr-3">
+        <User size={28} className="mt-2 opacity-80" />
+      </div>
+      <div className="flex-1 min-w-0 border-b border-slate-100 pb-3 pt-1">
+        <div className="flex justify-between items-center mb-0.5">
+          <h3 className="font-semibold text-[#111b21] text-[16px] leading-tight line-clamp-1">
+            {chat.name || chat.phone}
+          </h3>
+          <span className="text-[12px] text-[#667781]">{formatSafeTime(displayTime)}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <p className="text-[13px] text-[#667781] line-clamp-1 pr-2">{displayMsg}</p>
+          {chat.status && (
+            <span className="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded-md font-bold shrink-0">
+              {chat.status}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+});
 
 /**
  * Renders the list of chats for the selected category.
@@ -23,6 +60,10 @@ export default function ChatListPanel({
   const messages = useStore((s) => s.messages);
   const selectedChat = useStore((s) => s.selectedChat);
   const setSelectedChat = useStore((s) => s.setSelectedChat);
+
+  const handleChatSelect = useCallback((chat) => {
+    setSelectedChat(chat);
+  }, [setSelectedChat]);
 
   return (
     <div
@@ -61,49 +102,15 @@ export default function ChatListPanel({
         {loading ? (
           <p className="text-center text-slate-400 mt-10 text-sm">Loading chats...</p>
         ) : (
-          messages?.map((chat) => {
-            if (!chat) return null;
-            const displayMsg = getDisplayMessage(chat, emptyFallback);
-            const lastHistoryMsg =
-              chat.history?.length > 0 ? chat.history[chat.history.length - 1] : null;
-            const displayTime =
-              chat.lastSeenAt ||
-              lastHistoryMsg?.createdAt ||
-              lastHistoryMsg?.timestamp ||
-              chat.createdAt;
-
-            return (
-              <div
-                key={chat.phone}
-                onClick={() => setSelectedChat(chat)}
-                className={`flex items-center px-3 py-2.5 cursor-pointer hover:bg-[#f5f6f6] transition-colors ${
-                  selectedChat?.phone === chat.phone ? "bg-[#f0f2f5]" : ""
-                }`}
-              >
-                <div className="w-12 h-12 bg-slate-300 rounded-full flex items-center justify-center text-white shrink-0 overflow-hidden mr-3">
-                  <User size={28} className="mt-2 opacity-80" />
-                </div>
-                <div className="flex-1 min-w-0 border-b border-slate-100 pb-3 pt-1">
-                  <div className="flex justify-between items-center mb-0.5">
-                    <h3 className="font-semibold text-[#111b21] text-[16px] leading-tight line-clamp-1">
-                      {chat.name || chat.phone}
-                    </h3>
-                    <span className="text-[12px] text-[#667781]">
-                      {formatSafeTime(displayTime)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <p className="text-[13px] text-[#667781] line-clamp-1 pr-2">{displayMsg}</p>
-                    {chat.status && (
-                      <span className="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded-md font-bold shrink-0">
-                        {chat.status}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })
+          messages?.map((chat) => (
+            <ChatListItem 
+              key={chat?.phone || Math.random()} 
+              chat={chat} 
+              isSelected={selectedChat?.phone === chat?.phone} 
+              onClick={handleChatSelect} 
+              emptyFallback={emptyFallback} 
+            />
+          ))
         )}
       </div>
     </div>
