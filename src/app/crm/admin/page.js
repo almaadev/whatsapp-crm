@@ -1,14 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
-import DashboardPage from "@/components/layout/DashboardPage";
-import LoadingScreen from "@/components/ui/LoadingScreen";
-import AccessDenied from "@/components/ui/AccessDenied";
-import KPICard from "@/components/ui/KpiCard";
-import { AnimatedCount } from "@/hooks/useCountUp";
-import { isAdminAuthorized, isSuperAdmin } from "@/utils/auth";
-import api from "@/lib/axios";
+import DashboardPage from "@/shared/components/layout/DashboardPage";
+import LoadingScreen from "@/shared/components/ui/LoadingScreen";
+import AccessDenied from "@/shared/components/ui/AccessDenied";
+import KPICard from "@/shared/components/ui/KpiCard";
+import { AnimatedCount } from "@/shared/hooks/useCountUp";
+import { isAdminAuthorized, isSuperAdmin } from "@/shared/utils/auth";
+import { useDashboardState } from "@/features/admin/hooks/useDashboardState";
 
 import {
   Users,
@@ -26,178 +25,21 @@ import {
   Search,
   ArrowUpDown,
 } from "lucide-react";
-import { toast } from "react-toastify";
 
 export default function AdminDashboard() {
   const { data: session, status } = useSession();
-  
-  // 🚀 FIX: Prevent fetching until localStorage is read to avoid hydration errors
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  // Data States
-  const [associates, setAssociates] = useState([]);
-  const [analytics, setAnalytics] = useState({
-    totalLeads: 0,
-    totalPending: 0,
-    totalFollowUp: 0,
-    totalAchieved: 0,
-    totalTarget: 0,
-  });
-
-  // Filter States
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterView, setFilterView] = useState("all"); 
-  const [sortConfig, setSortConfig] = useState({
-    key: "achievedCount",
-    direction: "desc",
-  });
-
-  // Edit State
-  const [editingId, setEditingId] = useState(null);
-  const [tempTarget, setTempTarget] = useState(0);
 
   const isSuperAdminUser = isSuperAdmin(session?.user?.role);
   const isAuthorized = isAdminAuthorized(session?.user?.role, session?.user?.department);
 
-  // 🚀 FIX 1: Read from LocalStorage on initial load
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const storedView = localStorage.getItem("dashboard_filterView");
-      const storedMonth = localStorage.getItem("dashboard_selectedMonth");
-      const storedYear = localStorage.getItem("dashboard_selectedYear");
-
-      if (storedView) setFilterView(storedView);
-      if (storedMonth) setSelectedMonth(Number(storedMonth));
-      if (storedYear) setSelectedYear(Number(storedYear));
-      
-      setIsInitialized(true);
-    }
-  }, []);
-
-  // 🚀 FIX 2: Save to LocalStorage whenever filters change
-  useEffect(() => {
-    if (isInitialized && typeof window !== "undefined") {
-      localStorage.setItem("dashboard_filterView", filterView);
-      localStorage.setItem("dashboard_selectedMonth", selectedMonth.toString());
-      localStorage.setItem("dashboard_selectedYear", selectedYear.toString());
-    }
-  }, [filterView, selectedMonth, selectedYear, isInitialized]);
-
-  // Data Fetching Logic
-  const fetchData = async () => {
-    setLoading(true);
-    // 🚀 FIX 3: Clear old data immediately to prevent flashing ghost data
-    setAssociates([]); 
-    
-    try {
-      let endpoint = "";
-
-      // Role-Based Dynamic Routing
-      if (isSuperAdminUser) {
-        if (filterView === "sales") endpoint = "/api/admin/sales-admin-roster";
-        else if (filterView === "doctor") endpoint = "/api/admin/doctor-admin-roster";
-        else endpoint = "/api/admin/super-admin-roster";
-      } else if (session?.user?.role === "sales" && session?.user?.department === "admin") {
-        endpoint = "/api/admin/sales-admin-roster";
-      } else if (session?.user?.role === "doctor" && session?.user?.department === "admin") {
-        endpoint = "/api/admin/doctor-admin-roster";
-      }
-
-      if (!endpoint) {
-        setLoading(false);
-        return;
-      }
-
-      const { data } = await api.get(`${endpoint}?month=${selectedMonth}&year=${selectedYear}`);
-
-      if (data.success) {
-        setAssociates(data.roster || []);
-        setAnalytics(data.analytics || {
-          totalLeads: 0, totalPending: 0, totalFollowUp: 0, totalAchieved: 0, totalTarget: 0,
-        });
-      } else {
-        console.error("API Error Response:", data.error);
-        toast.error(data.error || "Failed to load dashboard metrics.");
-      }
-    } catch (err) {
-      console.error("Dashboard Data Error:", err);
-      toast.error("Failed to load dashboard metrics.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 🚀 FIX 4: Refetch data only after initialization is complete
-  useEffect(() => {
-    if (isAuthorized && isInitialized) {
-      fetchData();
-    }
-  }, [isAuthorized, selectedMonth, selectedYear, filterView, isInitialized]);
-
-  // --- Sorting & Filtering Logic ---
-  const processedRoster = useMemo(() => {
-    let result = [...associates];
-
-    if (searchQuery) {
-      const lower = searchQuery.toLowerCase();
-      result = result.filter(
-        (a) =>
-          a.name.toLowerCase().includes(lower) ||
-          a.branch.toLowerCase().includes(lower),
-      );
-    }
-
-    if (sortConfig.key) {
-      result.sort((a, b) => {
-        if (a[sortConfig.key] < b[sortConfig.key])
-          return sortConfig.direction === "asc" ? -1 : 1;
-        if (a[sortConfig.key] > b[sortConfig.key])
-          return sortConfig.direction === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-    return result;
-  }, [associates, searchQuery, sortConfig]);
-
-  const handleSort = (key) => {
-    let direction = "desc";
-    if (sortConfig.key === key && sortConfig.direction === "desc") direction = "asc";
-    setSortConfig({ key, direction });
-  };
-
-  // --- Handlers ---
-  const saveEdit = async (id) => {
-    const associate = associates.find((a) => a.id === id);
-    if (!associate) return;
-
-    setAssociates((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, target: Number(tempTarget) } : a)),
-    );
-    setEditingId(null);
-
-    try {
-      await api.put("/api/users", {
-        rowId: id,
-        target: tempTarget,
-        leads: associate.totalLeads,
-        achieved: associate.achievedCount,
-      });
-      toast.success("Target updated successfully");
-    } catch (error) {
-      toast.error("Failed to update target");
-    }
-  };
-
-  const startEdit = (associate) => {
-    setEditingId(associate.id);
-    setTempTarget(associate.target);
-  };
+  const { state, setters, derived, actions } = useDashboardState(
+    session,
+    isAuthorized,
+    isSuperAdminUser
+  );
 
   // --- Render Gates ---
-  if (status === "loading" || !isInitialized || (!isAuthorized && status !== "unauthenticated")) {
+  if (status === "loading" || !state.isInitialized || (!isAuthorized && status !== "unauthenticated")) {
     return <LoadingScreen message="Verifying Access & Preferences..." />;
   }
 
@@ -206,12 +48,12 @@ export default function AdminDashboard() {
   }
 
   const companyProgress =
-    analytics.totalTarget > 0
-      ? Math.min(100, Math.round((analytics.totalAchieved / analytics.totalTarget) * 100))
+    state.analytics.totalTarget > 0
+      ? Math.min(100, Math.round((state.analytics.totalAchieved / state.analytics.totalTarget) * 100))
       : 0;
   const companyConversion =
-    analytics.totalLeads > 0
-      ? Math.round((analytics.totalAchieved / analytics.totalLeads) * 100)
+    state.analytics.totalLeads > 0
+      ? Math.round((state.analytics.totalAchieved / state.analytics.totalLeads) * 100)
       : 0;
 
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -220,9 +62,9 @@ export default function AdminDashboard() {
   return (
     <DashboardPage
       title={
-        filterView === "sales"
+        state.filterView === "sales"
           ? "Sales Overview"
-          : filterView === "doctor"
+          : state.filterView === "doctor"
             ? "Doctor Overview"
             : "Global Overview"
       }
@@ -233,20 +75,20 @@ export default function AdminDashboard() {
           {isSuperAdminUser && (
             <div className="hidden lg:flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
               <button
-                onClick={() => setFilterView("all")}
-                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${filterView === "all" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"}`}
+                onClick={() => setters.setFilterView("all")}
+                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${state.filterView === "all" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"}`}
               >
                 Global
               </button>
               <button
-                onClick={() => setFilterView("sales")}
-                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${filterView === "sales" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"}`}
+                onClick={() => setters.setFilterView("sales")}
+                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${state.filterView === "sales" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"}`}
               >
                 Sales HQ
               </button>
               <button
-                onClick={() => setFilterView("doctor")}
-                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${filterView === "doctor" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"}`}
+                onClick={() => setters.setFilterView("doctor")}
+                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${state.filterView === "doctor" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"}`}
               >
                 Medical
               </button>
@@ -258,8 +100,8 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200 shadow-sm">
             <Calendar size={16} className="text-slate-400 ml-2" />
             <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              value={state.selectedMonth}
+              onChange={(e) => setters.setSelectedMonth(Number(e.target.value))}
               className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer py-1 pl-1 pr-2"
             >
               {months.map((m, i) => (
@@ -268,8 +110,8 @@ export default function AdminDashboard() {
             </select>
             <div className="w-px h-4 bg-slate-300"></div>
             <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              value={state.selectedYear}
+              onChange={(e) => setters.setSelectedYear(Number(e.target.value))}
               className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer py-1 pl-2 pr-1"
             >
               {years.map((y) => (
@@ -284,20 +126,20 @@ export default function AdminDashboard() {
             {isSuperAdminUser && (
               <div className="lg:hidden flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner w-full">
                 <button
-                  onClick={() => setFilterView("all")}
-                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${filterView === "all" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"}`}
+                  onClick={() => setters.setFilterView("all")}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${state.filterView === "all" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"}`}
                 >
                   Global
                 </button>
                 <button
-                  onClick={() => setFilterView("sales")}
-                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${filterView === "sales" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"}`}
+                  onClick={() => setters.setFilterView("sales")}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${state.filterView === "sales" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"}`}
                 >
                   Sales
                 </button>
                 <button
-                  onClick={() => setFilterView("doctor")}
-                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${filterView === "doctor" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"}`}
+                  onClick={() => setters.setFilterView("doctor")}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${state.filterView === "doctor" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"}`}
                 >
                   Medical
                 </button>
@@ -314,7 +156,7 @@ export default function AdminDashboard() {
                   <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full mb-4">
                     <span className="w-2 h-2 rounded-full bg-[#00a884] animate-pulse"></span>
                     <span className="text-xs font-bold uppercase tracking-widest text-emerald-50">
-                      {months[selectedMonth - 1]} {selectedYear} Performance
+                      {months[state.selectedMonth - 1]} {state.selectedYear} Performance
                     </span>
                   </div>
                   <h2 className="text-sm font-medium text-slate-400 uppercase tracking-widest mb-2">
@@ -322,10 +164,10 @@ export default function AdminDashboard() {
                   </h2>
                   <div className="flex items-baseline gap-3">
                     <span className="text-5xl md:text-6xl font-extrabold text-white tracking-tight">
-                      <AnimatedCount end={analytics.totalAchieved} />
+                      <AnimatedCount end={state.analytics.totalAchieved} />
                     </span>
                     <span className="text-xl md:text-2xl text-slate-500 font-medium">
-                      / {analytics.totalTarget} Target
+                      / {state.analytics.totalTarget} Target
                     </span>
                   </div>
                 </div>
@@ -356,10 +198,10 @@ export default function AdminDashboard() {
 
             {/* 2. KPI Widgets */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6">
-              <KPICard title="Total Leads" value={analytics.totalLeads} icon={<Headset size={20} />} color="blue" sub="Acquired this month" loading={loading} />
-              <KPICard title="Pending Action" value={analytics.totalPending} icon={<Clock size={20} />} color="rose" sub="Overdue > 48 hours" alert={analytics.totalPending > 0} loading={loading} />
-              <KPICard title="Active Pipeline" value={analytics.totalFollowUp} icon={<Filter size={20} />} color="amber" sub="Healthy follow-ups" loading={loading} />
-              <KPICard title="Successfully Converted" value={analytics.totalAchieved} icon={<CheckCircle size={20} />} color="emerald" sub="Deals closed this month" loading={loading} />
+              <KPICard title="Total Leads" value={state.analytics.totalLeads} icon={<Headset size={20} />} color="blue" sub="Acquired this month" loading={state.loading} />
+              <KPICard title="Pending Action" value={state.analytics.totalPending} icon={<Clock size={20} />} color="rose" sub="Overdue > 48 hours" alert={state.analytics.totalPending > 0} loading={state.loading} />
+              <KPICard title="Active Pipeline" value={state.analytics.totalFollowUp} icon={<Filter size={20} />} color="amber" sub="Healthy follow-ups" loading={state.loading} />
+              <KPICard title="Successfully Converted" value={state.analytics.totalAchieved} icon={<CheckCircle size={20} />} color="emerald" sub="Deals closed this month" loading={state.loading} />
             </div>
 
             {/* 3. Associate Performance Matrix */}
@@ -373,8 +215,8 @@ export default function AdminDashboard() {
                   <input
                     type="text"
                     placeholder="Search associate or branch..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    value={state.searchQuery}
+                    onChange={(e) => setters.setSearchQuery(e.target.value)}
                     className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] transition-all shadow-sm"
                   />
                 </div>
@@ -384,31 +226,31 @@ export default function AdminDashboard() {
                 <table className="w-full text-left border-collapse">
                   <thead className="bg-slate-50/80 text-slate-500 text-[10px] uppercase font-bold tracking-wider border-b border-slate-200">
                     <tr>
-                      <th className="px-6 py-4 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSort("name")}>
+                      <th className="px-6 py-4 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => actions.handleSort("name")}>
                         <div className="flex items-center gap-1">Associate Identity <ArrowUpDown size={12} /></div>
                       </th>
-                      <th className="px-6 py-4 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSort("branch")}>
+                      <th className="px-6 py-4 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => actions.handleSort("branch")}>
                         <div className="flex items-center gap-1">Branch <ArrowUpDown size={12} /></div>
                       </th>
-                      <th className="px-6 py-4 text-center cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSort("pendingCount")}>
+                      <th className="px-6 py-4 text-center cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => actions.handleSort("pendingCount")}>
                         <div className="flex items-center justify-center gap-1">Pending <ArrowUpDown size={12} /></div>
                       </th>
-                      <th className="px-6 py-4 text-center cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSort("followUpCount")}>
+                      <th className="px-6 py-4 text-center cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => actions.handleSort("followUpCount")}>
                         <div className="flex items-center justify-center gap-1">Active Pipeline <ArrowUpDown size={12} /></div>
                       </th>
-                      <th className="px-6 py-4 text-center cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSort("achievedCount")}>
+                      <th className="px-6 py-4 text-center cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => actions.handleSort("achievedCount")}>
                         <div className="flex items-center justify-center gap-1 text-[#00a884]">Converted <ArrowUpDown size={12} /></div>
                       </th>
 
                       <th className="px-6 py-4 text-center">Monthly Target</th>
-                      <th className="px-6 py-4 text-center cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSort("progress")}>
+                      <th className="px-6 py-4 text-center cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => actions.handleSort("progress")}>
                         <div className="flex items-center justify-center gap-1">Progress <ArrowUpDown size={12} /></div>
                       </th>
                       <th className="px-6 py-4 text-right">Admin Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
-                    {loading ? (
+                    {state.loading ? (
                       [...Array(4)].map((_, i) => (
                         <tr key={i}>
                           <td colSpan="9" className="px-6 py-5">
@@ -416,14 +258,14 @@ export default function AdminDashboard() {
                           </td>
                         </tr>
                       ))
-                    ) : processedRoster.length === 0 ? (
+                    ) : derived.processedRoster.length === 0 ? (
                       <tr>
                         <td colSpan="9" className="p-8 text-center text-slate-500 font-bold">
                           No associates match criteria.
                         </td>
                       </tr>
                     ) : (
-                      processedRoster.map((associate) => {
+                      derived.processedRoster.map((associate) => {
                         const isTopPerformer = associate.progress >= 100 && associate.target > 0;
                         const isCritical = associate.pendingCount > 10;
 
@@ -465,11 +307,11 @@ export default function AdminDashboard() {
                             </td>
 
                             <td className="px-6 py-4 text-center">
-                              {editingId === associate.id ? (
+                              {state.editingId === associate.id ? (
                                 <input
                                   type="number"
-                                  value={tempTarget}
-                                  onChange={(e) => setTempTarget(e.target.value)}
+                                  value={state.tempTarget}
+                                  onChange={(e) => setters.setTempTarget(e.target.value)}
                                   className="w-20 border border-[#00a884] rounded-lg px-2 py-1.5 text-center focus:ring-2 focus:ring-[#00a884]/20 outline-none text-sm font-bold bg-white shadow-sm"
                                   autoFocus
                                 />
@@ -489,18 +331,18 @@ export default function AdminDashboard() {
                               </div>
                             </td>
                             <td className="px-6 py-4 text-right">
-                              {editingId === associate.id ? (
+                              {state.editingId === associate.id ? (
                                 <div className="flex justify-end gap-2">
-                                  <button onClick={() => saveEdit(associate.id)} className="p-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition shadow-sm">
+                                  <button onClick={() => actions.saveEdit(associate.id)} className="p-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition shadow-sm">
                                     <Save size={14} />
                                   </button>
-                                  <button onClick={() => setEditingId(null)} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition shadow-sm">
+                                  <button onClick={() => setters.setEditingId(null)} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition shadow-sm">
                                     <XCircle size={14} />
                                   </button>
                                 </div>
                               ) : (
                                 <button
-                                  onClick={() => startEdit(associate)}
+                                  onClick={() => actions.startEdit(associate)}
                                   className="p-2 text-slate-900  hover:text-[#00a884] hover:bg-emerald-50 rounded-lg transition-all opacity-50 group-hover:opacity-100 focus:opacity-100"
                                 >
                                   <Edit2 size={16} />

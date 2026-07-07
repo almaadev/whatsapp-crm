@@ -3,14 +3,15 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useCrmLayout } from "@/components/layout/CrmShell";
+import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import ChatArea from "@/components/features/chat/ChatArea";
-import { useChatStore } from "@/stores/chatStore";
+import { useChatStore } from "@/features/chat/stores/chatStore";
 import { 
   FileText, Save, Loader2, MessageSquarePlus, CheckCircle, ShieldAlert 
 } from "lucide-react"; // 👇 FIX: Added ShieldAlert
 import { toast } from "react-toastify";
-import api from "@/lib/axios";
+import { customerRepository } from "@/shared/api/repositories/customerRepository";
+import { chatRepository } from "@/shared/api/repositories/chatRepository";
 import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png"; 
 
 export default function NewCustomerPage() {
@@ -68,7 +69,7 @@ export default function NewCustomerPage() {
       setChecking(true);
       const formattedPhone = `whatsapp:+91${rawMobile.slice(-10)}`;
       try {
-          const { data: chats } = await api.get("/api/chats");
+          const { data: chats } = await chatRepository.getChats();
           const found = chats.find(c => c.phone === formattedPhone);
               if (found) {
                   setExistingCustomer(found);
@@ -105,7 +106,7 @@ export default function NewCustomerPage() {
     const formattedPhone = `whatsapp:+91${cleanMobile.slice(-10)}`;
 
     try {
-      const { data } = await api.post("/api/customers", {
+      const { data } = await customerRepository.createCustomer({
           ...formData,
           phone: formattedPhone 
       });

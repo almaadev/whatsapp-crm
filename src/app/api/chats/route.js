@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import connectDB from "@/lib/db/mongodb";
-import Customer from "@/models/Customer";
-import Message from "@/models/Message";
-import Lead from "@/models/Lead";
-import redis from "@/lib/db/redis";
+import { authOptions } from "@/shared/lib/auth";
+import connectDB from "@/shared/lib/db/mongodb";
+import Customer from "@/shared/models/Customer";
+import Message from "@/shared/models/Message";
+import Lead from "@/shared/models/Lead";
+import redis from "@/shared/lib/db/redis";
 import twilio from "twilio";
 
 const REDIS_CACHE_TTL = 30;
@@ -150,9 +150,9 @@ export async function POST(req) {
       }
 
       let MsgModel = Message;
-      if (targetModelName === "ProductMessage") MsgModel = (await import("@/models/ProductMessage")).default;
-      if (targetModelName === "MDCampMessage") MsgModel = (await import("@/models/MDCampMessage")).default;
-      if (targetModelName === "TherapyMessage") MsgModel = (await import("@/models/TherapyMessage")).default;
+      if (targetModelName === "ProductMessage") MsgModel = (await import("@/shared/models/ProductMessage")).default;
+      if (targetModelName === "MDCampMessage") MsgModel = (await import("@/shared/models/MDCampMessage")).default;
+      if (targetModelName === "TherapyMessage") MsgModel = (await import("@/shared/models/TherapyMessage")).default;
 
       await MsgModel.create({
         phone: phone,

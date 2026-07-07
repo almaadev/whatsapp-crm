@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions } from "@/shared/lib/auth";
 import twilio from "twilio";
-import connectDB from "@/lib/db/mongodb";
-import Customer from "@/models/Customer";
-import Message from "@/models/Message";
-import redis from "@/lib/db/redis"; 
+import connectDB from "@/shared/lib/db/mongodb";
+import Customer from "@/shared/models/Customer";
+import Message from "@/shared/models/Message";
+import redis from "@/shared/lib/db/redis"; 
 
 export async function POST(req) {
   try {

@@ -1,9 +1,9 @@
 "use client";
-import { useCrmLayout } from "@/components/layout/CrmShell";
+import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import { useState, useEffect, use } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { usePathStore } from "@/stores/pathStore";
+import { usePathStore } from "@/features/chat/stores/pathStore";
 import {
     ChevronLeft, Edit2, Save, User, MapPin, Globe,
     Briefcase, FileText, Menu, Phone, Copy, Check,
@@ -11,7 +11,7 @@ import {
     MessageCircle, Building, AlertCircle, XCircle
 } from "lucide-react";
 import { toast } from "react-toastify";
-import api from "@/lib/axios";
+import { customerRepository } from "@/shared/api/repositories/customerRepository";
 
 // Modern Enterprise Status Badges
 const StatusBadge = ({ status, labelOverride }) => {
@@ -91,7 +91,7 @@ export default function CustomerDetailPage({ params }) {
         setSaving(true);
         try {
             const rawPhone = phone.replace(/\D/g, '');
-            const { data } = await api.put(`/api/customers/${rawPhone}`, formData);
+            const { data } = await customerRepository.updateCustomer(rawPhone, formData);
 
             setCustomer(prev => ({ ...prev, ...formData }));
             setIsEditing(false);

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import connectDB from "@/lib/db/mongodb";
-import Lead from "@/models/Lead";
-import Customer from "@/models/Customer";
-import { requireSession } from "@/lib/session";
+import connectDB from "@/shared/lib/db/mongodb";
+import Lead from "@/shared/models/Lead";
+import Customer from "@/shared/models/Customer";
+import { requireSession } from "@/shared/lib/session";
 
 export const dynamic = "force-dynamic";
 

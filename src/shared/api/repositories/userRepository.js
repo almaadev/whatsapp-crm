@@ -1,0 +1,10 @@
+import api from "@/shared/lib/axios";
+
+export const userRepository = {
+  getUsers: (options = {}) => api.get("/api/users", options),
+  getUserById: (id, options = {}) => api.get(`/api/users/${id}`, options),
+  createUser: (payload, options = {}) => api.post("/api/users", payload, options),
+  updateUser: (id, payload, options = {}) => api.put(`/api/users/${id}`, payload, options),
+  updateUserWithoutId: (payload, options = {}) => api.put("/api/users", payload, options),
+  deleteUser: (id, options = {}) => api.delete(`/api/users?id=${id}`, options)
+};

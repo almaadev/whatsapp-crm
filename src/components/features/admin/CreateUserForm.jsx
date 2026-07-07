@@ -2,8 +2,8 @@
 import { useState } from "react";
 import { User, Mail, Lock, Shield, CheckCircle, AlertCircle, Plus, Phone, Briefcase, Tag, Building } from "lucide-react";
 import { useSession } from "next-auth/react";
-import api from "@/lib/axios";
-import { getDistricts } from "@/utils/district";
+import { userRepository } from "@/shared/api/repositories/userRepository";
+import { getDistricts } from "@/shared/utils/district";
 
 export default function CreateUserForm() {
     const { data: session } = useSession();
@@ -56,7 +56,7 @@ export default function CreateUserForm() {
     setStatus({ type: "", message: "" });
     
     try {
-      await api.post("/api/users", formData);
+      await userRepository.createUser(formData);
       setStatus({ type: "success", message: "User created successfully!" });
       setFormData({ 
         name: "", preferredName: "", email: "", number: "", password: "", branch: "",

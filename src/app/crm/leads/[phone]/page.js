@@ -2,9 +2,9 @@
 
 import { useState, useEffect, use, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useChatStore } from "@/stores/chatStore";
-import { usePathStore } from "@/stores/pathStore";
-import { useCrmLayout } from "@/components/layout/CrmShell";
+import { useChatStore } from "@/features/chat/stores/chatStore";
+import { usePathStore } from "@/features/chat/stores/pathStore";
+import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import {
   ArrowLeft, User, Phone, MapPin, Tag, FileText,
   MessageSquare, History, Briefcase, Clock,
@@ -16,7 +16,7 @@ import {
 import Link from "next/link";
 import { toast } from "react-toastify";
 import { useSession } from "next-auth/react";
-import api from "@/lib/axios";
+import { leadRepository } from "@/shared/api/repositories/leadRepository";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  MODERN ENTERPRISE STATUS BADGES
@@ -74,7 +74,7 @@ export default function LeadDetailsPage({ params }) {
     const fetchLead = async () => {
       try {
         setLoading(true);
-        const { data }  = await api.get(`/api/leads/${encodeURIComponent(phone)}`);
+        const { data }  = await leadRepository.getLeadByPhone(encodeURIComponent(phone));
         
         if (Object.keys(data).length > 0) setLead(data);
       } catch (err) {
@@ -94,7 +94,7 @@ export default function LeadDetailsPage({ params }) {
 
       const timeline = lead.history || [];
       
-      const interactionCount = timeline.filter(item => item.status === "Closed").length;
+      const interactionCount = timeline.filter(interaction => interaction.status === "Closed").length;
       
       const firstFollowUp = timeline.length > 0 ? timeline[0] : {};
       const latestFollowUp = timeline.length > 0 ? timeline[timeline.length - 1] : {};
@@ -128,10 +128,10 @@ export default function LeadDetailsPage({ params }) {
   
   const enrichedTimeline = useMemo(() => {
       if (!intelligence?.timeline) return [];
-      return intelligence.timeline.map((fu, idx, arr) => {
-          const prev = arr[idx - 1]; // chronological previous
-          const leadTransferred = prev && prev.associateName !== fu.associateName;
-          return { ...fu, leadTransferred, originalIndex: idx };
+      return intelligence.timeline.map((leadInteraction, index, interactionsList) => {
+          const prev = interactionsList[index - 1]; // chronological previous
+          const leadTransferred = prev && prev.associateName !== leadInteraction.associateName;
+          return { ...leadInteraction, leadTransferred, originalIndex: index };
       }).reverse(); // Reverse to show newest first
   }, [intelligence]);
 

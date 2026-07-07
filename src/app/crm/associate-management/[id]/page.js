@@ -3,14 +3,14 @@ import React, { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "react-toastify";
-import { useCrmLayout } from "@/components/layout/CrmShell";
-import { getDistricts } from "@/utils/district";
+import { useCrmLayout } from "@/shared/components/layout/CrmShell";
+import { getDistricts } from "@/shared/utils/district";
 import { 
     User, Mail, Lock, Shield, Phone, Briefcase, Tag, 
     ArrowLeft, Save, ShieldAlert, Building, LayoutGrid, 
     Menu, Loader2, ChevronDown
 } from "lucide-react";
-import api from "@/lib/axios";
+import { userRepository } from "@/shared/api/repositories/userRepository";
 
 
 export default function EditAssociatePage() {
@@ -48,7 +48,7 @@ export default function EditAssociatePage() {
 
   const fetchUser = async () => {
     try {
-      const { data } = await api.get(`/api/users/${id}`);
+      const { data } = await userRepository.getUserById(id);
       setFormData({
         ...data,
         password: "",
@@ -88,7 +88,7 @@ export default function EditAssociatePage() {
     setSaving(true);
 
     try {
-      await api.put(`/api/users/${id}`, formData);
+      await userRepository.updateUser(id, formData);
       toast.success("Profile updated successfully!");
       router.push("/crm/associate-management");
     } catch (err) {

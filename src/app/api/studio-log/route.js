@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import connectDB from "@/lib/db/mongodb";
-import Message from "@/models/Message";
-import Customer from "@/models/Customer";
-import redis from "@/lib/db/redis";
-import { verifyStudioLogSecret } from "@/lib/session";
+import connectDB from "@/shared/lib/db/mongodb";
+import Message from "@/shared/models/Message";
+import Customer from "@/shared/models/Customer";
+import redis from "@/shared/lib/db/redis";
+import { verifyStudioLogSecret } from "@/shared/lib/session";
 
 export const dynamic = "force-dynamic";
 

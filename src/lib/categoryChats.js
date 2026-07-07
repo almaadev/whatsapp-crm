@@ -1,7 +1,7 @@
-import ProductMessage from "@/models/ProductMessage";
-import MDCampMessage from "@/models/MDCampMessage";
-import TherapyMessage from "@/models/TherapyMessage";
-import { getCategoryConfig, isValidCategorySlug } from "@/constants/categories";
+import ProductMessage from "@/shared/models/ProductMessage";
+import MDCampMessage from "@/shared/models/MDCampMessage";
+import TherapyMessage from "@/shared/models/TherapyMessage";
+import { getCategoryConfig, isValidCategorySlug } from "@/shared/constants/categories";
 
 const MODEL_BY_SLUG = {
   product: ProductMessage,

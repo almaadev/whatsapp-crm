@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import connectDB from "@/lib/db/mongodb";
-import Customer from "@/models/Customer";
-import Lead from "@/models/Lead";
-import User from "@/models/User";
-import redis from "@/lib/db/redis";
-import { getUserNameById } from "@/utils/userUtils";
+import { authOptions } from "@/shared/lib/auth";
+import connectDB from "@/shared/lib/db/mongodb";
+import Customer from "@/shared/models/Customer";
+import Lead from "@/shared/models/Lead";
+import User from "@/shared/models/User";
+import redis from "@/shared/lib/db/redis";
+import { getUserNameById } from "@/shared/utils/userUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -86,8 +86,8 @@ export async function GET(req) {
     const params = Object.fromEntries(new URL(req.url).searchParams);
     
     // Lazy load the service to prevent import cycles if any
-    const { leadService } = await import("@/lib/services/leadService");
-    const result = await leadService.getLeads(params);
+    const { leadQueryService } = await import("@/features/leads/services/leadQueryService");
+    const result = await leadQueryService.getLeads(params);
     
     return NextResponse.json(result);
   } catch (error) {

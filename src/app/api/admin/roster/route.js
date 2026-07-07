@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import connectDB from "@/lib/db/mongodb";
-import User from "@/models/User";
-import Lead from "@/models/Lead";
+import { authOptions } from "@/shared/lib/auth";
+import connectDB from "@/shared/lib/db/mongodb";
+import User from "@/shared/models/User";
+import Lead from "@/shared/models/Lead";
 
 export const dynamic = "force-dynamic";
 

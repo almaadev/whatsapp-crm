@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
-import { useCrmLayout } from "@/components/layout/CrmShell";
+import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
     Loader2, Menu, Calendar, 
@@ -13,7 +13,7 @@ import {
     ChevronRight, BarChart3, SlidersHorizontal, FileText, FileJson,
     Smartphone, Globe, ShieldAlert, AlertTriangle, Wallet, Edit2, Save, X
 } from "lucide-react";
-import api from "@/lib/axios";
+import { templateRepository } from "@/shared/api/repositories/templateRepository";
 
 
 export default function TwilioEnterpriseDashboard() {
@@ -106,7 +106,7 @@ export default function TwilioEnterpriseDashboard() {
             if (clientMediaOnly) url += `&mediaOnly=true`;
             if (clientFailedOnly) url += `&failedOnly=true`;
 
-            const res = await api.get(url, { responseType: 'blob' });
+            const res = await templateRepository.syncTwilioTemplates({ responseType: 'blob' });
             
             const blob = res.data;
             downloadBlob(blob, `enterprise_twilio_export_${Date.now()}.csv`);
@@ -127,7 +127,7 @@ export default function TwilioEnterpriseDashboard() {
             if (optEnd) url += `&endDate=${encodeURIComponent(optEnd)}`;
             if (optStatus !== "all") url += `&status=${encodeURIComponent(optStatus)}`;
 
-            const { data } = await api.get(url);
+            const { data } = await templateRepository.syncTwilioTemplates();
 
             if (data.success) {
                 setTwilioData({
@@ -254,7 +254,7 @@ export default function TwilioEnterpriseDashboard() {
         if (!tempRate || isNaN(tempRate) || Number(tempRate) <= 0) return toast.error("Valid rate required");
         setSavingRate(true);
         try {
-            const { data } = await api.post("/api/admin/twilio", { rate: tempRate });
+            const { data } = await templateRepository.syncTwilioRate({ rate: tempRate });
             if (data.success) { setExchangeRate(data.rate); setIsEditingRate(false); toast.success("Rate updated"); }
         } catch (err) {} finally { setSavingRate(false); }
     };

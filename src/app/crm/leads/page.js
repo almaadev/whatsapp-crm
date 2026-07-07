@@ -2,15 +2,15 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { usePathStore } from "@/stores/pathStore";
-import api from "@/lib/axios";
-import DashboardPage from "@/components/layout/DashboardPage";
-import LoadingScreen from "@/components/ui/LoadingScreen";
-import SearchInput from "@/components/ui/SearchInput";
-import Pagination from "@/components/ui/Pagination";
-import Button from "@/components/ui/Button";
-import StatusBadge from "@/components/ui/StatusBadge";
-import EmptyState from "@/components/ui/EmptyState";
+import { usePathStore } from "@/features/chat/stores/pathStore";
+import { leadRepository } from "@/shared/api/repositories/leadRepository";
+import DashboardPage from "@/shared/components/layout/DashboardPage";
+import LoadingScreen from "@/shared/components/ui/LoadingScreen";
+import SearchInput from "@/shared/components/ui/SearchInput";
+import Pagination from "@/shared/components/ui/Pagination";
+import Button from "@/shared/components/ui/Button";
+import StatusBadge from "@/shared/components/ui/StatusBadge";
+import EmptyState from "@/shared/components/ui/EmptyState";
 import {
   Save,
   User,
@@ -78,7 +78,7 @@ export default function LeadsPage() {
       const query = new URLSearchParams({ page: currentPage, limit: pageSize });
       if (searchTerm) query.append("search", searchTerm);
 
-      const { data } = await api.get(`/api/leads?${query.toString()}`);
+      const { data } = await leadRepository.getLeads({ params: Object.fromEntries(query) });
       setPaginatedLeads(data.leads || []);
       setTotalPages(data.totalPages || 1);
       setTotalRecords(data.total || 0);
@@ -131,7 +131,7 @@ export default function LeadsPage() {
     }
 
     try {
-      const { data } = await api.post("/api/leads", {
+      const { data } = await leadRepository.createLead({
         ...formData,
         overAllRemarks: formData.remarks,
         date: new Date().toISOString(),
@@ -396,14 +396,14 @@ function LeadIntelligenceRecord({
               [...interactionTimeline]
                 .reverse()
                 .slice(0, 2)
-                .map((fu, idx, arr) => {
-                  const previousInteraction = arr[idx + 1];
+                .map((interaction, index, interactionList) => {
+                  const previousInteraction = interactionList[index + 1];
                   const leadTransferred =
                     previousInteraction &&
-                    previousInteraction.associateName !== fu.associateName;
+                    previousInteraction.associateName !== interaction.associateName;
 
                   return (
-                    <div key={fu._id || idx} className="relative">
+                    <div key={interaction._id || index} className="relative">
                       <div className="absolute -left-[31px] top-1 w-4 h-4 rounded-full bg-slate-100 border-2 border-[#00a884] shadow-sm"></div>
 
                       <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm relative hover:border-[#00a884]/30 transition-colors">
@@ -415,9 +415,9 @@ function LeadIntelligenceRecord({
 
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                           <div className="flex items-center gap-3">
-                            <LifecycleBadge state={fu.status} />
+                            <LifecycleBadge state={interaction.status} />
                             <span className="text-[11px] font-mono text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
-                              {new Date(fu.date).toLocaleString("en-IN", {
+                              {new Date(interaction.date).toLocaleString("en-IN", {
                                 day: "numeric",
                                 month: "short",
                                 year: "numeric",
@@ -443,57 +443,57 @@ function LeadIntelligenceRecord({
                                   : "text-slate-700"
                               }
                             >
-                              {fu.associateName || "Unknown"}
+                              {interaction.associateName || "Unknown"}
                             </span>
                           </div>
                         </div>
 
-                        {fu.enquiredFor && (
+                        {interaction.enquiredFor && (
                           <div className="mb-2 text-sm text-slate-800">
                             <span className="font-bold text-slate-500 mr-2 text-xs">
                               Enquiry:
                             </span>
                             <span className="font-semibold">
-                              {fu.enquiredFor}
+                              {interaction.enquiredFor}
                             </span>
                           </div>
                         )}
 
-                        {fu.overAllRemarks && (
+                        {interaction.overAllRemarks && (
                           <div className="bg-[#f8fafc] border border-slate-100 rounded-lg p-3 text-sm text-slate-600 font-medium italic mt-2">
                             <CornerDownRight
                               size={14}
                               className="inline mr-2 text-slate-400"
                             />
-                            "{fu.overAllRemarks}"
+                            "{interaction.overAllRemarks}"
                           </div>
                         )}
 
-                        {(fu.day1Remarks ||
-                          fu.day2Remarks ||
-                          fu.day3Remarks) && (
+                        {(interaction.day1Remarks ||
+                          interaction.day2Remarks ||
+                          interaction.day3Remarks) && (
                           <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 border-t border-slate-100 pt-3">
-                            {fu.day1Remarks && (
-                              <DayNote day={1} text={fu.day1Remarks} />
+                            {interaction.day1Remarks && (
+                              <DayNote day={1} text={interaction.day1Remarks} />
                             )}
-                            {fu.day2Remarks && (
-                              <DayNote day={2} text={fu.day2Remarks} />
+                            {interaction.day2Remarks && (
+                              <DayNote day={2} text={interaction.day2Remarks} />
                             )}
-                            {fu.day3Remarks && (
-                              <DayNote day={3} text={fu.day3Remarks} />
+                            {interaction.day3Remarks && (
+                              <DayNote day={3} text={interaction.day3Remarks} />
                             )}
                           </div>
                         )}
 
-                        {fu.status === "Closed" &&
-                          parseInt(fu.saleAmount) > 0 && (
+                        {interaction.status === "Closed" &&
+                          parseInt(interaction.saleAmount) > 0 && (
                             <div className="mt-3 flex items-center gap-2 bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs font-bold px-3 py-2 rounded-lg w-max">
                               <TrendingUp
                                 size={14}
                                 className="text-emerald-500"
                               />
                               Revenue Attribution: ₹
-                              {parseInt(fu.saleAmount).toLocaleString()}
+                              {parseInt(interaction.saleAmount).toLocaleString()}
                             </div>
                           )}
                       </div>

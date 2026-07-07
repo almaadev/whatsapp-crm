@@ -1,6 +1,6 @@
 import React, { memo } from "react";
 import { Layers, FileText, Bot } from "lucide-react";
-import { MessageStatusIcon, formatBubbleTime } from "@/utils/chatUtils";
+import { MessageStatusIcon, formatBubbleTime } from "@/shared/utils/chatUtils";
 
 const MessageBubble = memo(function MessageBubble({
   msg,

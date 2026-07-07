@@ -1,10 +1,11 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
-import { useChatStore } from "@/stores/chatStore";
+import { useChatStore } from "@/features/chat/stores/chatStore";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Search, PlusCircle, CheckCheck, Check, Clock, AlertCircle, ChevronDown, Trash2, X, AlertTriangle } from "lucide-react";
-import api from "@/lib/axios";
+import { chatRepository } from "@/shared/api/repositories/chatRepository";
+import { customerRepository } from "@/shared/api/repositories/customerRepository";
 
 export default function ChatList({ role, loading }) {
     const messages = useChatStore((s) => s.messages);
@@ -27,7 +28,7 @@ export default function ChatList({ role, loading }) {
 
     useEffect(() => {
         if (searchTerm.length > 0 && !allCustomers) {
-            api.get("/api/customers")
+            customerRepository.getCustomers()
                 .then(({ data }) => setAllCustomers(Array.isArray(data) ? data : []))
                 .catch(err => console.error("Failed to fetch customers", err));
         }
@@ -86,7 +87,7 @@ export default function ChatList({ role, loading }) {
         if (chat.direction === "INBOUND" && chat.read === "FALSE") {
             updateChatDetails(chat.phone, { read: "TRUE" });
             try {
-                await api.post("/api/chats/mark-read", { phone: chat.phone });
+                await chatRepository.markRead({ phone: chat.phone });
             } catch (err) {
                 console.error("Failed to mark chat as read", err);
             }

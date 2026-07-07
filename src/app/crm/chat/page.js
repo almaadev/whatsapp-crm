@@ -3,12 +3,12 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import { useChatStore } from "@/stores/chatStore";
-import { useChat } from "@/hooks/useChat";
-import { hasModuleAccess } from "@/utils/auth";
-import InboxPage from "@/components/layout/InboxPage";
-import LoadingScreen from "@/components/ui/LoadingScreen";
-import AccessDenied from "@/components/ui/AccessDenied";
+import { useChatStore } from "@/features/chat/stores/chatStore";
+import { useChat } from "@/features/chat/hooks/useChat";
+import { hasModuleAccess } from "@/shared/utils/auth";
+import InboxPage from "@/shared/components/layout/InboxPage";
+import LoadingScreen from "@/shared/components/ui/LoadingScreen";
+import AccessDenied from "@/shared/components/ui/AccessDenied";
 import ChatList from "@/components/features/chat/ChatList";
 import ChatArea from "@/components/features/chat/ChatArea";
 

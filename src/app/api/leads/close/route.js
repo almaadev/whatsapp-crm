@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { revalidatePath } from "next/cache";
-import { authOptions } from "@/lib/auth";
-import connectDB from "@/lib/db/mongodb";
-import Customer from "@/models/Customer";
-import Lead from "@/models/Lead";
-import User from "@/models/User";
-import redis from "@/lib/db/redis";
+import { authOptions } from "@/shared/lib/auth";
+import connectDB from "@/shared/lib/db/mongodb";
+import Customer from "@/shared/models/Customer";
+import Lead from "@/shared/models/Lead";
+import User from "@/shared/models/User";
+import redis from "@/shared/lib/db/redis";
 
 export async function POST(req) {
   try {

@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 
 import Link from "next/link";
 import { toast } from "react-toastify";
-import api from "@/lib/axios";
+import { reportRepository } from "@/shared/api/repositories/reportRepository";
 import {
   ChevronLeft, Download, TrendingUp, Users, 
   Activity, MapPin, Loader2, BarChart3, Lock, PieChart, LineChart
@@ -25,7 +25,7 @@ export default function AdminReportsPage() {
 
     async function loadData() {
       try {
-        const { data } = await api.get("/api/admin/reports");
+        const { data } = await reportRepository.getAdminReports();
 
         if (data.success) {
             // We only need the raw CSV data now, as visual reporting is under development

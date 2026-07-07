@@ -1,6 +1,6 @@
 import React, { useState, memo } from "react";
 import { FileText, ToggleLeft, ToggleRight, ChevronLeft, Bell, Share2, Info, User, History, MapPin } from "lucide-react";
-import { getStatusColor } from "@/utils/colorUtils";
+import { getStatusColor } from "@/shared/utils/colorUtils";
 
 const ChatHeader = memo(function ChatHeader({ activeChat, userName, isChatClosed, isToggling, onToggle, onStatusChange, onBack, onInfo, onReminder, onForward }) {
   const [menuOpen, setMenuOpen] = useState(false);

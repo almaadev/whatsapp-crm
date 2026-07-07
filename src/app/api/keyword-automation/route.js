@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import connectDB from "@/lib/db/mongodb";
-import KeywordAutomation from "@/models/KeywordAutomation";
+import connectDB from "@/shared/lib/db/mongodb";
+import KeywordAutomation from "@/shared/models/KeywordAutomation";
 
 export async function GET(req) {
   try {

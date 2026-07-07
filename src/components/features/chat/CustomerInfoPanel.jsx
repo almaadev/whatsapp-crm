@@ -1,13 +1,13 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { useChatStore } from "@/stores/chatStore";
+import { useChatStore } from "@/features/chat/stores/chatStore";
 import {
   X, User, MapPin, Globe, HelpCircle, DollarSign, FileText,
   Save, History, Tag, ChevronDown, ChevronUp, Clock, BadgeCheck,
   AlertCircle, RefreshCw, Filter
 } from "lucide-react";
 import { toast } from "react-toastify";
-import api from "@/lib/axios";
+import { customerRepository } from "@/shared/api/repositories/customerRepository";
 
 //  STATUS CONFIG  (colour + icon per status value)
 const STATUS_CONFIG = {

@@ -1,6 +1,6 @@
 import React, { memo } from "react";
 import { Info } from "lucide-react";
-import { parseMessageDate, getDayHeader } from "@/utils/chatUtils";
+import { parseMessageDate, getDayHeader } from "@/shared/utils/chatUtils";
 import MessageBubble from "@/components/features/chat/MessageBubble";
 
 const MessageList = memo(function MessageList({ messages, activeChat, userName, scrollRef, onScroll, onMediaClick, endRef }) {

@@ -2,12 +2,12 @@
 
 import { useState, useRef, useEffect, memo, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { useChatStore } from "@/stores/chatStore";
-import { chatService } from "@/services/chatService";
+import { useChatStore } from "@/features/chat/stores/chatStore";
+import { chatService } from "@/features/chat/services/chatService";
 import CustomerInfoPanel from "@/components/features/chat/CustomerInfoPanel";
-import ForwardLeadModal from "@/components/modals/ForwardLeadModal";
-import ReminderModal from "@/components/modals/ReminderModal";
-import PriorityModal from "@/components/modals/PriorityModal";
+import ForwardLeadModal from "@/shared/components/modals/ForwardLeadModal";
+import ReminderModal from "@/shared/components/modals/ReminderModal";
+import PriorityModal from "@/shared/components/modals/PriorityModal";
 
 import {
   parseMessageDate,
@@ -15,8 +15,8 @@ import {
   formatBubbleTime,
   mutateLastMessage,
   MessageStatusIcon,
-} from "@/utils/chatUtils";
-import { getStatusColor } from "@/utils/colorUtils";
+} from "@/shared/utils/chatUtils";
+import { getStatusColor } from "@/shared/utils/colorUtils";
 import { toast } from "react-toastify";
 
 import {
@@ -42,7 +42,7 @@ import {
 import ChatInput from "@/components/features/chat/ChatInput";
 import ChatHeader from "@/components/features/chat/ChatHeader";
 import MessageList from "@/components/features/chat/MessageList";
-import ClosingModal from "@/components/modals/ClosingModal";
+import ClosingModal from "@/shared/components/modals/ClosingModal";
 import MediaViewer from "@/components/features/chat/MediaViewer";
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -4,10 +4,10 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
-import { useChatStore } from "@/stores/chatStore";
-import { isAdminAuthorized } from "@/utils/auth";
-import api from "@/lib/axios";
-import { useCrmLayout } from "@/components/layout/CrmShell";
+import { useChatStore } from "@/features/chat/stores/chatStore";
+import { isAdminAuthorized } from "@/shared/utils/auth";
+import { chatRepository } from "@/shared/api/repositories/chatRepository";
+import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import { 
     Search, Share2, MessageSquare, Calendar, User, Phone, ArrowRight, Menu, ChevronLeft, ChevronRight, ArrowRightCircle 
 } from "lucide-react";
@@ -48,14 +48,14 @@ export default function ForwardedLeadsPage() {
 
         async function fetchForwardedLeads() {
             try {
-                const { data } = await api.get("/api/chats");
+                const { data } = await chatRepository.getChats();
                 
                 const rawList = data.filter(chat => chat.lastForwardedTo && chat.lastForwardedTo.length > 0);
                 
                 const uniqueLeadsMap = new Map();
-                rawList.forEach((item) => {
-                    if (!uniqueLeadsMap.has(item.phone)) {
-                        uniqueLeadsMap.set(item.phone, item);
+                rawList.forEach((leadData) => {
+                    if (!uniqueLeadsMap.has(leadData.phone)) {
+                        uniqueLeadsMap.set(leadData.phone, leadData);
                     }
                 });
                 let uniqueLeads = Array.from(uniqueLeadsMap.values());

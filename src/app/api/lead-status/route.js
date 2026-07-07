@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import connectDB from "@/lib/db/mongodb";
-import Customer from "@/models/Customer";
-import Lead from "@/models/Lead";
-import User from "@/models/User";
-import redis from "@/lib/db/redis";
-import { requireSession } from "@/lib/session";
+import connectDB from "@/shared/lib/db/mongodb";
+import Customer from "@/shared/models/Customer";
+import Lead from "@/shared/models/Lead";
+import User from "@/shared/models/User";
+import redis from "@/shared/lib/db/redis";
+import { requireSession } from "@/shared/lib/session";
 
 export async function POST(req) {
   try {
