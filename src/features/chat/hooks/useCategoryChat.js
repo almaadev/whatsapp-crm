@@ -1,3 +1,4 @@
+import api from "@/shared/lib/axios";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { getCategoryConfig } from "@/shared/constants/categories";
 import { getCategoryChatStore } from "@/features/chat/stores/categoryChatStore";

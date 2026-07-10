@@ -1,9 +1,12 @@
 "use client";
+import api from "@/shared/lib/axios";
 import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import { useState, useEffect, use } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { usePathStore } from "@/features/chat/stores/pathStore";
+import { useChatStore } from "@/features/chat/stores/chatStore";
 import {
     ChevronLeft, Edit2, Save, User, MapPin, Globe,
     Briefcase, FileText, Menu, Phone, Copy, Check,
@@ -36,11 +39,12 @@ const StatusBadge = ({ status, labelOverride }) => {
 
 export default function CustomerDetailPage({ params }) {
     const unwrappedParams = use(params);
+    const router = useRouter();
     const phone = decodeURIComponent(unwrappedParams.phone);
     const { setMobileOpen } = useCrmLayout();
     const lastPath = usePathStore((state) => state.lastpath);
     const { data: session } = useSession();
-
+    const { setSelectedChat }     = useChatStore();
     const [customer, setCustomer] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
@@ -103,6 +107,20 @@ export default function CustomerDetailPage({ params }) {
         }
     };
 
+      const handleOpenChat = () => {
+    
+    setSelectedChat({
+      phone:     customer.phone,
+      name:      customer.name || customer.phone.replace('whatsapp:', ''),
+      status:    customer.status,
+      priority:  customer.priority,
+      direction: "OUTBOUND",
+      read:      "TRUE",
+      timestamp: new Date().toISOString(),
+    });
+    router.push("/crm/chat");
+  };
+
     const handleCopyPhone = () => {
         navigator.clipboard.writeText(customer?.phone?.replace('whatsapp:', '') || phone);
         setCopied(true);
@@ -154,7 +172,7 @@ export default function CustomerDetailPage({ params }) {
             <main className="flex-1 flex flex-col overflow-hidden relative">
                 
                 {/* --- HEADER --- */}
-                <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0 z-30 sticky top-0 shadow-sm shadow-slate-100/50">
+                <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0 z-20 sticky top-0 shadow-sm shadow-slate-100/50">
                     <div className="flex items-center gap-4">
                         <button onClick={() => setMobileOpen(true)} className="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg"><Menu size={20} /></button>
                         <Link href={lastPath ? lastPath : "/crm/customers"} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition">
@@ -162,14 +180,14 @@ export default function CustomerDetailPage({ params }) {
                         </Link>
                         <div className="pl-2 border-l border-slate-200">
                             <h1 className="text-[18px] font-bold text-slate-900 leading-tight">Customer Profile</h1>
-                            <p className="text-[11px] font-semibold text-slate-500 tracking-wide uppercase mt-0.5">ID: {phone.slice(-6)}</p>
+                            
                         </div>
                     </div>
 
                     <div className="flex items-center gap-3">
                         {!isEditing ? (
                             <button onClick={() => setIsEditing(true)} className="bg-white text-slate-700 px-4 py-2.5 rounded-xl font-semibold hover:bg-slate-50 border border-slate-200 shadow-sm flex items-center gap-2 transition-all text-[13px]">
-                                <Edit2 size={16} /> <span className="hidden sm:inline">Enter Edit Mode</span>
+                                <Edit2 size={16} /> <span className="hidden sm:inline" title="Edit Customer Details">Edit</span>
                             </button>
                         ) : (
                             <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
@@ -178,7 +196,7 @@ export default function CustomerDetailPage({ params }) {
                                 </button>
                                 <button onClick={handleSave} disabled={saving} className="bg-[#00a884] text-white px-5 py-2.5 rounded-xl font-bold hover:bg-emerald-600 shadow-md shadow-emerald-500/20 flex items-center gap-2 transition-all text-[13px] disabled:opacity-70">
                                     {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} 
-                                    <span className="hidden sm:inline">Save Changes</span>
+                                    <span className="hidden sm:inline" title="Save Customer changes">Save Changes</span>
                                 </button>
                             </div>
                         )}
@@ -222,7 +240,7 @@ export default function CustomerDetailPage({ params }) {
                                     <button className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl font-semibold shadow-sm flex items-center gap-2 transition-all text-sm" title="Call feature will be available soon">
                                         <Phone size={16} className="text-slate-500" /> Call
                                     </button>
-                                    <button className="px-4 py-2.5 bg-[#25D366]/10 border border-[#25D366]/20 text-[#075E54] hover:bg-[#25D366]/20 rounded-xl font-semibold shadow-sm flex items-center gap-2 transition-all text-sm" title="WhatsApp feature will be available soon">
+                                    <button onClick={handleOpenChat} className="px-4 py-2.5 bg-[#25D366]/10 border border-[#25D366]/20 text-[#075E54] hover:bg-[#25D366]/20 rounded-xl font-semibold shadow-sm flex items-center gap-2 transition-all text-sm" >
                                         <MessageCircle size={16} className="text-[#25D366]"  /> WhatsApp
                                     </button>
                                 </div>

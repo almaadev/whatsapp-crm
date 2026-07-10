@@ -1,4 +1,5 @@
 "use client";
+import api from "@/shared/lib/axios";
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { X, Send, User, Phone, MessageSquare, Share2, CheckCircle2, RotateCcw } from "lucide-react";

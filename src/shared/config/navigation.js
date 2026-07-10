@@ -88,11 +88,11 @@ export const NAVIGATION_CONFIG = [
     moduleName: "Customers",
     matchStartsWith: true
   },
-  {
-    type: "link",
-    label: "Forwarded Leads",
-    icon: Share2,
-    href: "/crm/forwarded-leads",
-    moduleName: "Leads"
-  }
+  // {
+  //   type: "link",
+  //   label: "Forwarded Leads",
+  //   icon: Share2,
+  //   href: "/crm/forwarded-leads",
+  //   moduleName: "Leads"
+  // }
 ];

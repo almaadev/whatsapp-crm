@@ -1,4 +1,5 @@
 "use client";
+import api from "@/shared/lib/axios";
 import { useState, useMemo, useEffect } from "react";
 import { useChatStore } from "@/features/chat/stores/chatStore";
 import { useSession } from "next-auth/react";
