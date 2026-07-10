@@ -12,7 +12,7 @@ export const useTemplateStore = create((set, get) => ({
     try {
       const { data: json } = await templateRepository.getTemplates();
       if (json.success) {
-        set({ templates: json.data, fetched: true });
+        set({ templates: json.templates || [], fetched: true });
       }
     } catch (error) {
       console.error("Failed to fetch templates:", error);

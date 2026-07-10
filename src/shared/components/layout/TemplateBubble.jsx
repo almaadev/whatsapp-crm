@@ -32,8 +32,8 @@ export const TemplateBubble = memo(function TemplateBubble({
 
   const filtered = useMemo(
     () =>
-      templates.filter((t) =>
-        t.name.toLowerCase().includes(debouncedSearch.toLowerCase())
+      (templates || []).filter((t) =>
+        t?.name?.toLowerCase().includes(debouncedSearch.toLowerCase())
       ),
     [templates, debouncedSearch]
   );

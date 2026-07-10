@@ -12,8 +12,8 @@ export const dynamic = "force-dynamic";
 export async function GET(req) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session || (session.user.role !== 'superAdmin' && session.user.department !== 'admin')) {
-            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        if (!session) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
         const accountSid = process.env.TWILIO_ACCOUNT_SID;
