@@ -26,16 +26,19 @@ export default function Sidebar({
   // Manage dropdown states generically
   const [dropdowns, setDropdowns] = useState(() => {
     const initialState = {};
-    NAVIGATION_CONFIG.forEach(nav => {
+    NAVIGATION_CONFIG.forEach((nav) => {
       if (nav.type === "dropdown" && nav.stateKey) {
-        initialState[nav.stateKey] = nav.paths?.some(p => pathname === p || pathname.startsWith(p + "/")) || false;
+        initialState[nav.stateKey] =
+          nav.paths?.some(
+            (p) => pathname === p || pathname.startsWith(p + "/"),
+          ) || false;
       }
     });
     return initialState;
   });
 
   const toggleDropdown = (key) => {
-    setDropdowns(prev => ({ ...prev, [key]: !prev[key] }));
+    setDropdowns((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const displayRole = role || "";
@@ -135,13 +138,19 @@ export default function Sidebar({
             if (nav.adminOnly && !isAdmin) return null;
             if (nav.hideForAdmin && isAdmin) return null;
             if (nav.moduleName && !hasAccess(nav.moduleName)) return null;
-            if (nav.accessRequirements && !nav.accessRequirements.some(req => hasAccess(req))) return null;
+            if (
+              nav.accessRequirements &&
+              !nav.accessRequirements.some((req) => hasAccess(req))
+            )
+              return null;
 
             const Icon = nav.icon;
 
             if (nav.type === "dropdown") {
               const isOpen = dropdowns[nav.stateKey];
-              const isActiveRoute = nav.paths?.some(p => pathname === p || pathname.startsWith(p + "/"));
+              const isActiveRoute = nav.paths?.some(
+                (p) => pathname === p || pathname.startsWith(p + "/"),
+              );
 
               return (
                 <div key={index} className="flex flex-col gap-1">
@@ -150,7 +159,10 @@ export default function Sidebar({
                       if (!isExpanded) {
                         if (window.innerWidth < 768) setMobileOpen(true);
                         else setIsDesktopExpanded(true);
-                        setDropdowns(prev => ({ ...prev, [nav.stateKey]: true }));
+                        setDropdowns((prev) => ({
+                          ...prev,
+                          [nav.stateKey]: true,
+                        }));
                       } else {
                         toggleDropdown(nav.stateKey);
                       }
@@ -182,10 +194,11 @@ export default function Sidebar({
                   {isExpanded && isOpen && (
                     <div className="flex flex-col gap-1 ml-[22px] pl-4 border-l-2 border-white/20 mt-1 mb-2 crm-slide-in-top">
                       {nav.items.map((item, i) => {
-                        if (item.moduleName && !hasAccess(item.moduleName)) return null;
+                        if (item.moduleName && !hasAccess(item.moduleName))
+                          return null;
                         const ItemIcon = item.icon;
                         const isItemActive = pathname === item.href;
-                        
+
                         return (
                           <Link key={i} href={item.href}>
                             <div
@@ -195,7 +208,9 @@ export default function Sidebar({
                                   : "text-white/80 hover:text-white hover:bg-white/10 hover:translate-x-1"
                               }`}
                             >
-                              {ItemIcon && <ItemIcon size={item.iconSize || 14} />}
+                              {ItemIcon && (
+                                <ItemIcon size={item.iconSize || 14} />
+                              )}
                               <span>{item.label}</span>
                             </div>
                           </Link>
@@ -208,7 +223,9 @@ export default function Sidebar({
             }
 
             // Regular link
-            const isActive = nav.matchStartsWith ? pathname.startsWith(nav.href) : pathname === nav.href;
+            const isActive = nav.matchStartsWith
+              ? pathname.startsWith(nav.href)
+              : pathname === nav.href;
             return (
               <Link key={index} href={nav.href}>
                 <NavItem

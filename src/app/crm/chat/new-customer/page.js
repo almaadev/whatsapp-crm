@@ -7,7 +7,7 @@ import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import ChatArea from "@/components/features/chat/ChatArea";
 import { useChatStore } from "@/features/chat/stores/chatStore";
 import { 
-  FileText, Save, Loader2, MessageSquarePlus, CheckCircle, ShieldAlert 
+  FileText, Save, Loader2, MessageSquarePlus, ArrowLeft,CheckCircle, ShieldAlert ,Phone , User, MapPin, Briefcase,
 } from "lucide-react"; // 👇 FIX: Added ShieldAlert
 import { toast } from "react-toastify";
 import { customerRepository } from "@/shared/api/repositories/customerRepository";
