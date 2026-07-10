@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { userRepository } from "@/shared/api/repositories/userRepository";
 import { getDistricts } from "@/shared/utils/district";
 
-export default function CreateUserForm() {
+export default function CreateUserForm({ onSuccess }) {
     const { data: session } = useSession();
 
   const [formData, setFormData] = useState({
@@ -62,6 +62,7 @@ export default function CreateUserForm() {
         name: "", preferredName: "", email: "", number: "", password: "", branch: "",
         role: "sales", department: "telecalling", isAdmin: false, active: true, accessModules: [] 
       });
+      if (onSuccess) onSuccess();
     } catch (err) {
       const errorMessage = err.response?.data?.error || "An unexpected error occurred.";
       setStatus({ type: "error", message: errorMessage });
