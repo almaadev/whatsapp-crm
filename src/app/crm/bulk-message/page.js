@@ -1,5 +1,5 @@
 "use client";
-import { useCrmLayout } from "@/components/layout/CrmShell";
+import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 
 import { useState, useEffect, useRef } from "react";
 import { toast } from "react-toastify";
@@ -23,8 +23,9 @@ import {
   Trash2,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
-import TemplateManagerPanel from "@/components/templates/TemplateManagerPanel";
-import { useTemplateStore } from "@/stores/templateStore";
+import { bulkMessageRepository } from "@/shared/api/repositories/bulkMessageRepository";
+import TemplateManagerPanel from "@/features/templates/components/TemplateManagerPanel";
+import { useTemplateStore } from "@/features/templates/stores/templateStore";
 
 export default function BulkTemplatePage() {
   const { setMobileOpen } = useCrmLayout();
@@ -57,8 +58,7 @@ export default function BulkTemplatePage() {
 
   const fetchCampaigns = async () => {
     try {
-      const res = await fetch("/api/bulk-message");
-      const data = await res.json();
+      const { data } = await bulkMessageRepository.getBulkMessages();
       if (data.success) setCampaigns(data.campaigns);
     } catch (err) {
       console.error("Failed to fetch campaigns");
@@ -123,21 +123,16 @@ export default function BulkTemplatePage() {
     for (let i = 0; i < uniqueNumbers.length; i += batchSize) {
       const batch = uniqueNumbers.slice(i, i + batchSize);
       try {
-        const res = await fetch("/api/bulk-message", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            campaignName,
-            campaignId: currentCampaignId,
-            numbers: batch,
-            templateId,
-            contentVariables:
-              Object.keys(templateVariables).length > 0
-                ? templateVariables
-                : null,
-          }),
+        const { data } = await bulkMessageRepository.createBulkMessage({
+          campaignName,
+          campaignId: currentCampaignId,
+          numbers: batch,
+          templateId,
+          contentVariables:
+            Object.keys(templateVariables).length > 0
+              ? templateVariables
+              : null,
         });
-        const data = await res.json();
 
         if (data.success && data.campaignId) {
           currentCampaignId = data.campaignId;
@@ -204,10 +199,7 @@ export default function BulkTemplatePage() {
 
     setIsDeleting(id);
     try {
-      const res = await fetch(`/api/bulk-message?id=${id}`, {
-        method: "DELETE",
-      });
-      const data = await res.json();
+      const { data } = await bulkMessageRepository.deleteBulkMessage(id);
 
       if (data.success) {
         toast.success("Campaign history deleted");

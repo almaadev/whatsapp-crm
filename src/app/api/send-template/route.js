@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import twilio from "twilio";
-import connectDB from "@/lib/mongodb";
-import Message from "@/models/Message";
-import Customer from "@/models/Customer";
-import User from "@/models/User";
+import connectDB from "@/shared/lib/db/mongodb";
+import Message from "@/shared/models/Message";
+import Customer from "@/shared/models/Customer";
+import User from "@/shared/models/User";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions } from "@/shared/lib/auth";
 
 const client = twilio(
   process.env.TWILIO_ACCOUNT_SID,
@@ -63,11 +63,11 @@ export async function POST(req) {
     let MsgModel = Message;
     
     if (chatType === "Product Lead")
-      MsgModel = (await import("@/models/ProductMessage")).default;
+      MsgModel = (await import("@/shared/models/ProductMessage")).default;
     else if (chatType === "MD Camp")
-      MsgModel = (await import("@/models/MDCampMessage")).default;
+      MsgModel = (await import("@/shared/models/MDCampMessage")).default;
     else if (chatType === "Therapy")
-      MsgModel = (await import("@/models/TherapyMessage")).default;
+      MsgModel = (await import("@/shared/models/TherapyMessage")).default;
 
     // Store in DB for UI history
     await MsgModel.create({

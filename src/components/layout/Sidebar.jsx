@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png";
 import SignOutModal from "@/components/modals/SignOutModal";
+import api from "@/lib/axios";
 
 import {
   LayoutDashboard,
@@ -20,6 +21,18 @@ import {
 } from "lucide-react";
 import { isAdminAuthorized, hasModuleAccess } from "@/utils/auth";
 
+/**
+ * Renders the sidebar navigation for the CRM layout.
+ * Controls access to various modules (Admin, Chat, Leads, etc.) based on user roles and session data.
+ *
+ * @param {Object} props
+ * @param {string} props.role - The role of the user (e.g., 'admin', 'associate').
+ * @param {boolean} props.mobileOpen - State controlling if the mobile sidebar is open.
+ * @param {Function} props.setMobileOpen - Setter to toggle mobile sidebar state.
+ * @param {Function} props.setIsDesktopExpanded - Setter to toggle desktop sidebar expansion.
+ * @param {boolean} props.isDesktopExpanded - State indicating if desktop sidebar is expanded.
+ * @returns {JSX.Element} The Sidebar component
+ */
 export default function Sidebar({
   role,
   mobileOpen = false,
@@ -66,7 +79,7 @@ export default function Sidebar({
 
   const handleConfirmSignOut = async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await api.post("/api/auth/logout");
     } catch (error) {
       console.error("Secure logout API failed:", error);
     } finally {

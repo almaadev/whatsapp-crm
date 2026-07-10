@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
+import connectDB from "@/shared/lib/db/mongodb";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import Message from "@/models/Message";
-import ProductMessage from "@/models/ProductMessage";
-import MDCampMessage from "@/models/MDCampMessage";
-import TherapyMessage from "@/models/TherapyMessage";
-import Customer from "@/models/Customer";
+import { authOptions } from "@/shared/lib/auth";
+import Message from "@/shared/models/Message";
+import ProductMessage from "@/shared/models/ProductMessage";
+import MDCampMessage from "@/shared/models/MDCampMessage";
+import TherapyMessage from "@/shared/models/TherapyMessage";
+import Customer from "@/shared/models/Customer";
 
 export async function POST(req) {
     try {

@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import Customer from "@/models/Customer";
-import Lead from "@/models/Lead";
-import User from "@/models/User";
-import redis from "@/lib/redis";
-import { getUserNameById } from "@/utils/userUtils";
+import { authOptions } from "@/shared/lib/auth";
+import connectDB from "@/shared/lib/db/mongodb";
+import Customer from "@/shared/models/Customer";
+import Lead from "@/shared/models/Lead";
+import User from "@/shared/models/User";
+import redis from "@/shared/lib/db/redis";
+import { getUserNameById } from "@/shared/utils/userUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -79,131 +79,17 @@ function mergeFollowUp(existing, body) {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function GET(req) {
   try {
-    await connectDB();
-
-    const { searchParams } = new URL(req.url);
-    const from = searchParams.get("from");
-    const to = searchParams.get("to");
-    const month = searchParams.get("month");
-    const year = searchParams.get("year");
-    const today = searchParams.get("today");
-    const associate = searchParams.get("associate");
-    const isClosed = searchParams.get("isClosed");
-    const view = searchParams.get("view"); 
-
-    const match = {};
-
-    let startDate, endDate;
-    if (today === "true") {
-      startDate = new Date();
-      startDate.setHours(0, 0, 0, 0);
-      endDate = new Date();
-      endDate.setHours(23, 59, 59, 999);
-    } else if (month && year) {
-      startDate = new Date(year, parseInt(month) - 1, 1);
-      endDate = new Date(year, parseInt(month), 0, 23, 59, 59, 999);
-    } else if (from || to) {
-      if (from) startDate = new Date(from);
-      if (to) {
-        endDate = new Date(to);
-        endDate.setHours(23, 59, 59, 999);
-      }
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    if (startDate || endDate) {
-      const dateMatch = {};
-      if (startDate) dateMatch.$gte = startDate;
-      if (endDate) dateMatch.$lte = endDate;
-
-      if (view === "activities") {
-        match["leads.date"] = dateMatch;
-      } else {
-        match.$or = [
-          { createdAt: dateMatch },
-          { "leads.date": dateMatch }
-        ];
-      }
-    }
-
-    if (associate) {
-      if (isClosed === "true") {
-        match.closedBy = associate;
-      } else {
-        match.$or = [
-          { assignedTo: associate },
-          { "handledByHistory.associateName": associate },
-          { "leads.associateName": associate }
-        ];
-      }
-    }
-
-    if (isClosed === "true") match.isClosed = true;
-    if (isClosed === "false") match.isClosed = false;
-
-    let pipeline = [];
-
-    if (view === "activities") {
-      pipeline = [
-        { $unwind: "$leads" },
-        { $match: match },
-        { $sort: { "leads.date": -1 } },
-        {
-          $project: {
-            phone: 1,
-            name: { $ifNull: ["$name", "Unknown"] },
-            enquiredFor: { $ifNull: ["$leads.enquiredFor", ""] },
-            status: { $ifNull: ["$leads.status", "New"] },
-            priority: { $ifNull: ["$leads.priority", "Medium"] },
-            remarks: { $ifNull: ["$leads.overAllRemarks", ""] },
-            saleAmount: { $ifNull: ["$leads.saleAmount", "0"] },
-            leadType: { $ifNull: ["$leads.leadType", "Direct Lead"] },
-            associate: { $ifNull: ["$leads.associateName", "Unassigned"] },
-            date: "$leads.date",
-            isActivity: { $literal: true }
-          }
-        }
-      ];
-    } else {
-      pipeline = [
-        { $match: match },
-        { $sort: { updatedAt: -1 } },
-        {
-          $addFields: {
-            latest: { $arrayElemAt: ["$leads", -1] },
-            followUpCount: { $size: { $ifNull: ["$leads", []] } }
-          }
-        },
-        {
-          $project: {
-            phone: 1,
-            name: { $ifNull: ["$name", "Unknown"] },
-            city: { $ifNull: ["$city", ""] },
-            address: { $ifNull: ["$address", ""] },
-            source: { $ifNull: ["$source", "Whatsapp"] },
-            enquiredFor: { $ifNull: ["$latest.enquiredFor", ""] },
-            status: { $ifNull: ["$latest.status", "New"] },
-            priority: { $ifNull: ["$latest.priority", "Medium"] },
-            remarks: { $ifNull: ["$latest.overAllRemarks", ""] },
-            day1Remarks: { $ifNull: ["$latest.day1Remarks", ""] },
-            day2Remarks: { $ifNull: ["$latest.day2Remarks", ""] },
-            day3Remarks: { $ifNull: ["$latest.day3Remarks", ""] },
-            saleAmount: { $ifNull: ["$latest.saleAmount", "0"] },
-            leadType: { $ifNull: ["$latest.leadType", "Direct Lead"] },
-            associate: { $ifNull: ["$assignedTo", "Unassigned"] },
-            isClosed: { $ifNull: ["$isClosed", false] },
-            closedBy: 1,
-            closedAt: 1,
-            handledByHistory: 1,
-            date: { $ifNull: ["$createdAt", new Date()] },
-            followUpCount: 1,
-            leads: 1
-          }
-        }
-      ];
-    }
-
-    const formattedData = await Lead.aggregate(pipeline);
-    return NextResponse.json(formattedData);
+    const params = Object.fromEntries(new URL(req.url).searchParams);
+    
+    // Lazy load the service to prevent import cycles if any
+    const { leadQueryService } = await import("@/features/leads/services/leadQueryService");
+    const result = await leadQueryService.getLeads(params);
+    
+    return NextResponse.json(result);
   } catch (error) {
     console.error("[GET /api/leads]", error);
     return NextResponse.json({ error: "Failed to fetch leads" }, { status: 500 });

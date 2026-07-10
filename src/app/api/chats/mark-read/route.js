@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
-import Customer from "@/models/Customer";
-import redis from "@/lib/redis";
-import { requireSession } from "@/lib/session";
+import connectDB from "@/shared/lib/db/mongodb";
+import Customer from "@/shared/models/Customer";
+import redis from "@/shared/lib/db/redis";
+import { requireSession } from "@/shared/lib/session";
 
 const CHAT_CACHE_KEY = "chats:all_data";
 

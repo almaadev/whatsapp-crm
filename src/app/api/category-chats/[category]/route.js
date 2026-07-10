@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
+import connectDB from "@/shared/lib/db/mongodb";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import Customer from "@/models/Customer";
-import Message from "@/models/Message";
+import { authOptions } from "@/shared/lib/auth";
+import Customer from "@/shared/models/Customer";
+import Message from "@/shared/models/Message";
 import { resolveCategoryChat } from "@/lib/categoryChats";
 import twilio from "twilio";
 

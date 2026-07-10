@@ -1,19 +1,20 @@
 import { NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
-import Customer from "@/models/Customer";
-import Message from "@/models/Message";
-import redis from "@/lib/redis";
+import connectDB from "@/shared/lib/db/mongodb";
+import Customer from "@/shared/models/Customer";
+import Message from "@/shared/models/Message";
+import redis from "@/shared/lib/db/redis";
 import twilio from "twilio";
-import { processKeywordAutoReply } from "@/lib/keywordMatcher";
+import { processKeywordAutoReply } from "@/features/chat/services/keywordMatcher";
 
 import {
   determineConversationRoute,
   getModelByCategory,
-} from "@/services/chatRoutingService";
+} from "@/features/chat/services/chatRoutingService";
 
 export const dynamic = "force-dynamic";
 
-const TWILIO_XML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
+const TWILIO_XML =
+  '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 
 function twilioResponse(status = 200) {
   return new NextResponse(TWILIO_XML, {
@@ -92,9 +93,9 @@ export async function POST(req) {
     await connectDB();
 
     const body = await parseTwilioBody(req);
-    
+
     const twilioSid = body.MessageSid || body.sid || "";
-    
+
     // 🚀 NEW: Robust Phone Formatting (Strictly forces "whatsapp:+")
     let rawPhone = body.From || body.from || "";
     let phone = "";
@@ -104,17 +105,17 @@ export async function POST(req) {
       // Ensure it starts with a '+'
       if (!cleaned.startsWith("+")) cleaned = `+${cleaned}`;
       // Rebuild the perfect format
-      phone = `whatsapp:${cleaned}`; 
+      phone = `whatsapp:${cleaned}`;
     }
-    
+
     // Safely extract the body text and replace linebreaks
-    const rawMessage = body.Body || body.body || ""; 
+    const rawMessage = body.Body || body.body || "";
     let messageText = rawMessage.replace(/\\n/g, "\n");
-    
+
     let numMedia = parseInt(body.NumMedia || body.numMedia || "0", 10);
     if (isNaN(numMedia)) numMedia = 0;
 
-    const profileName = body.ProfileName || phone || "Unknown";
+    const profileName =  phone || "Unknown";
 
     if (!phone || (!messageText && numMedia === 0)) {
       console.log("ℹ️ [WEBHOOK] Ignored — no phone or content.");
@@ -127,7 +128,8 @@ export async function POST(req) {
 
     // 🚀 EXACT MATCH LOGIC (Ignores sentences)
     const incomingTextUpper = messageText.trim().toUpperCase();
-    const isStopCommand = incomingTextUpper === "STOP" || incomingTextUpper === "UNSUBSCRIBE";
+    const isStopCommand =
+      incomingTextUpper === "STOP" || incomingTextUpper === "UNSUBSCRIBE";
     const isStartCommand = incomingTextUpper === "START";
 
     const STOP_MESSAGE =

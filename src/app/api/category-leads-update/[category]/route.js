@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import Lead from "@/models/Lead"; // 👈 ONLY unified Lead Model
-import User from "@/models/User";
-import Customer from "@/models/Customer"; // Main Customer DB
+import { authOptions } from "@/shared/lib/auth";
+import connectDB from "@/shared/lib/db/mongodb";
+import Lead from "@/shared/models/Lead"; // 👈 ONLY unified Lead Model
+import User from "@/shared/models/User";
+import Customer from "@/shared/models/Customer"; // Main Customer DB
 
 // Match category from URL to the unified leadType
 const getCategoryConfig = (category) => {

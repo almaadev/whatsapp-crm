@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
-import redis from "@/lib/redis";
-import { processRosterMetrics } from "@/lib/rosterProcessor";
+import { authOptions } from "@/shared/lib/auth";
+import connectDB from "@/shared/lib/db/mongodb";
+import User from "@/shared/models/User";
+import redis from "@/shared/lib/db/redis";
+import { processRosterMetrics } from "@/shared/lib/rosterProcessor";
 
 export const dynamic = "force-dynamic";
 

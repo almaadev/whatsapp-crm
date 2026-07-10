@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, memo } from "react";
 import { Send, Layers, X, Variable } from "lucide-react";
-import { TemplateBubble } from "@/components/layout/TemplateBubble";
+import { TemplateBubble } from "@/shared/components/layout/TemplateBubble";
 import { toast } from "react-toastify";
 
 const ChatInput = memo(function ChatInput({ onSendMessage, onSendTemplate, sending }) {

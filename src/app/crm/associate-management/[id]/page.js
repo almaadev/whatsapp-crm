@@ -3,13 +3,14 @@ import React, { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "react-toastify";
-import { useCrmLayout } from "@/components/layout/CrmShell";
-import { getDistricts } from "@/utils/district";
+import { useCrmLayout } from "@/shared/components/layout/CrmShell";
+import { getDistricts } from "@/shared/utils/district";
 import { 
     User, Mail, Lock, Shield, Phone, Briefcase, Tag, 
     ArrowLeft, Save, ShieldAlert, Building, LayoutGrid, 
     Menu, Loader2, ChevronDown
 } from "lucide-react";
+import { userRepository } from "@/shared/api/repositories/userRepository";
 
 
 export default function EditAssociatePage() {
@@ -47,23 +48,18 @@ export default function EditAssociatePage() {
 
   const fetchUser = async () => {
     try {
-      const res = await fetch(`/api/users/${id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setFormData({
-          ...data,
-          password: "",
-          preferredName: data.preferredName || "",
-          number: data.number || "",
-          branch: data.branch || "",
-          accessModules: data.accessModules || []
-        });
-      } else {
-        toast.error("Failed to load user data");
-        router.push("/crm/associate-management");
-      }
+      const { data } = await userRepository.getUserById(id);
+      setFormData({
+        ...data,
+        password: "",
+        preferredName: data.preferredName || "",
+        number: data.number || "",
+        branch: data.branch || "",
+        accessModules: data.accessModules || []
+      });
     } catch (error) {
       toast.error("Error connecting to server");
+      router.push("/crm/associate-management");
     } finally {
       setLoading(false);
     }
@@ -92,27 +88,12 @@ export default function EditAssociatePage() {
     setSaving(true);
 
     try {
-      const res = await fetch(`/api/users/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-
-      const contentType = res.headers.get("content-type");
-
-      if (res.ok) {
-        toast.success("Profile updated successfully!");
-        router.push("/crm/associate-management");
-      } else {
-        if (contentType && contentType.includes("application/json")) {
-          const errorData = await res.json();
-          toast.error(errorData.error || "Failed to update user.");
-        } else {
-          toast.error("Server HTML error. Check console.");
-        }
-      }
+      await userRepository.updateUser(id, formData);
+      toast.success("Profile updated successfully!");
+      router.push("/crm/associate-management");
     } catch (err) {
-      toast.error("An unexpected error occurred.");
+      const errorMessage = err.response?.data?.error || "An unexpected error occurred.";
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }

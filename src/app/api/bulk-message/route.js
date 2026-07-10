@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import twilio from "twilio";
 
-import connectDB from "@/lib/mongodb";
-import Customer from "@/models/Customer";
-import BulkMessage from "@/models/BulkMessage";
+import connectDB from "@/shared/lib/db/mongodb";
+import Customer from "@/shared/models/Customer";
+import BulkMessage from "@/shared/models/BulkMessage";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions } from "@/shared/lib/auth";
 
 const client = twilio(
   process.env.TWILIO_ACCOUNT_SID,

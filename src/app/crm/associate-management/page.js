@@ -4,12 +4,13 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { toast } from "react-toastify";
-import { useCrmLayout } from "@/components/layout/CrmShell";
+import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import { 
      Trash2, UserPlus, ShieldAlert, UserCog, 
     Search, MapPin, Mail, Phone, Briefcase, CheckCircle2, 
     XCircle, AlertTriangle, X, Loader2, Menu, Activity
 } from "lucide-react"; 
+import { userRepository } from "@/shared/api/repositories/userRepository";
 
 
 import CreateUserForm from "@/components/features/admin/CreateUserForm";
@@ -36,13 +37,8 @@ export default function AssociateManagement() {
     const fetchAssociates = async () => {
         setLoading(true);
         try {
-            const res = await fetch("/api/users");
-            if (res.ok) {
-                const data = await res.json();
-                setAssociates(data);
-            } else {
-                toast.error("Failed to fetch associate roster");
-            }
+            const { data } = await userRepository.getUsers();
+            setAssociates(data);
         } catch (error) {
             toast.error("Error connecting to server");
         } finally {
@@ -68,13 +64,9 @@ export default function AssociateManagement() {
 
     const handleDelete = async (id) => {
         try {
-            const res = await fetch(`/api/users?id=${id}`, { method: "DELETE" });
-            if (res.ok) {
-                toast.success("Associate removed from system");
-                setAssociates(prev => prev.filter(a => a.id !== id));
-            } else {
-                toast.error("Failed to delete associate");
-            }
+            await userRepository.deleteUser(id);
+            toast.success("Associate removed from system");
+            setAssociates(prev => prev.filter(a => a.id !== id));
         } catch (error) {
             toast.error("Error deleting associate");
         } finally {

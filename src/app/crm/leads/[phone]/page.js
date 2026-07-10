@@ -2,41 +2,41 @@
 
 import { useState, useEffect, use, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useChatStore } from "@/stores/chatStore";
-import { usePathStore } from "@/stores/pathStore";
-import { useCrmLayout } from "@/components/layout/CrmShell";
+import { useChatStore } from "@/features/chat/stores/chatStore";
+import { usePathStore } from "@/features/chat/stores/pathStore";
+import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import {
   ArrowLeft, User, Phone, MapPin, Tag, FileText,
   MessageSquare, History, Briefcase, Clock,
   AlertCircle, Copy, Check, Loader2, Menu, Globe,
   BadgeCheck, RefreshCcw, TrendingUp, UserCircle, CornerDownRight,
-  ChevronDown, ChevronUp, Filter, ChevronLeft, ChevronRight, X, CheckCircle2
+  ChevronDown, ChevronUp, Filter, ChevronLeft, ChevronRight, X, CheckCircle2,
+  IndianRupee, ShieldAlert
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-toastify";
 import { useSession } from "next-auth/react";
+import { leadRepository } from "@/shared/api/repositories/leadRepository";
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  LIFECYCLE & UI CONSTANTS
+//  MODERN ENTERPRISE STATUS BADGES
 // ─────────────────────────────────────────────────────────────────────────────
-const LIFECYCLE_CONFIG = {
-    "New":            { color: "blue",    icon: <AlertCircle size={12} /> },
-    "Follow Up":      { color: "amber",   icon: <Clock size={12} /> },
-    "Closed":         { color: "emerald", icon: <BadgeCheck size={12} /> },
-    "Not Interested": { color: "slate",   icon: <X size={12} /> },
-};
+const StatusBadge = ({ status, labelOverride }) => {
+    const configs = {
+        'New': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: <AlertCircle size={12} /> },
+        'Follow Up': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: <Clock size={12} /> },
+        'Closed': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: <BadgeCheck size={12} /> },
+        'Not Interested': { bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200', icon: <X size={12} /> },
+        'High': { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', icon: <AlertCircle size={12} /> },
+        'Medium': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', icon: <ShieldAlert size={12} /> },
+        'Low': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: <Check size={12} /> },
+    };
+    
+    const config = configs[status] || { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200', icon: <Tag size={12} /> };
 
-const LifecycleBadge = ({ state }) => {
-    const cfg = LIFECYCLE_CONFIG[state] ?? LIFECYCLE_CONFIG["New"];
-    const cls = {
-        blue:   "bg-blue-50 text-blue-700 border-blue-200",
-        amber:  "bg-amber-50 text-amber-700 border-amber-200",
-        emerald:"bg-emerald-50 text-emerald-700 border-emerald-200",
-        slate:  "bg-slate-100 text-slate-600 border-slate-200",
-    }[cfg.color];
     return (
-        <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border ${cls} whitespace-nowrap`}>
-            {cfg.icon} {state}
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider border shadow-sm whitespace-nowrap ${config.bg} ${config.text} ${config.border}`}>
+            {config.icon} {labelOverride || status}
         </span>
     );
 };
@@ -54,7 +54,7 @@ export default function LeadDetailsPage({ params }) {
   const { setSelectedChat }     = useChatStore();
   const lastPath = usePathStore((state) => state.lastpath);
   
-    const [lead, setLead]             = useState(null); 
+  const [lead, setLead]             = useState(null); 
   const [loading, setLoading]       = useState(true);
   const [copied, setCopied]         = useState(false);
 
@@ -74,8 +74,7 @@ export default function LeadDetailsPage({ params }) {
     const fetchLead = async () => {
       try {
         setLoading(true);
-        const res  = await fetch(`/api/leads/${encodeURIComponent(phone)}`, { cache: "no-store" });
-        const data = await res.json();
+        const { data }  = await leadRepository.getLeadByPhone(encodeURIComponent(phone));
         
         if (Object.keys(data).length > 0) setLead(data);
       } catch (err) {
@@ -90,13 +89,12 @@ export default function LeadDetailsPage({ params }) {
   }, [phone]);
 
   // ── DERIVED INTELLIGENCE LAYER ────────────────────────────────────────────
-const intelligence = useMemo(() => {
+  const intelligence = useMemo(() => {
       if (!lead) return null;
 
       const timeline = lead.history || [];
       
-      // 🚀 THE FIX: Pure Logic -> Count ONLY if status === "Closed"
-      const interactionCount = timeline.filter(item => item.status === "Closed").length;
+      const interactionCount = timeline.filter(interaction => interaction.status === "Closed").length;
       
       const firstFollowUp = timeline.length > 0 ? timeline[0] : {};
       const latestFollowUp = timeline.length > 0 ? timeline[timeline.length - 1] : {};
@@ -120,42 +118,28 @@ const intelligence = useMemo(() => {
       }
 
       return {
-          timeline,
-          interactionCount,
-          originHandler,
-          currentHandler,
-          currentStatus,
-          currentPriority,
-          currentEnquiry,
-          currentRemarks,
-          leadType,
-          saleAmount,
-          isClosed,
-          closedBy,
-          ownershipTransitionText
+          timeline, interactionCount, originHandler, currentHandler,
+          currentStatus, currentPriority, currentEnquiry, currentRemarks,
+          leadType, saleAmount, isClosed, closedBy, ownershipTransitionText
       };
   }, [lead]);
 
   // ── TIMELINE PROCESSING (Enrich -> Filter -> Paginate) ────────────────────
   
-  // 1. Enrich data chronologically (compute ownership changes before sorting)
   const enrichedTimeline = useMemo(() => {
       if (!intelligence?.timeline) return [];
-      return intelligence.timeline.map((fu, idx, arr) => {
-          const prev = arr[idx - 1]; // chronological previous
-          const ownershipChanged = prev && prev.associateName !== fu.associateName;
-          return { ...fu, ownershipChanged, originalIndex: idx };
+      return intelligence.timeline.map((leadInteraction, index, interactionsList) => {
+          const prev = interactionsList[index - 1]; // chronological previous
+          const leadTransferred = prev && prev.associateName !== leadInteraction.associateName;
+          return { ...leadInteraction, leadTransferred, originalIndex: index };
       }).reverse(); // Reverse to show newest first
   }, [intelligence]);
 
-  // 2. Filter options dynamically extracted
   const uniqueAssociates = useMemo(() => ["All", ...new Set(enrichedTimeline.map(f => f.associateName).filter(Boolean))], [enrichedTimeline]);
   const uniqueTypes = useMemo(() => ["All", ...new Set(enrichedTimeline.map(f => f.leadType).filter(Boolean))], [enrichedTimeline]);
 
-  // Reset page when filters change
   useEffect(() => { setTimelinePage(1); setExpandedNodes({}); }, [filterStatus, filterType, filterAssociate]);
 
-  // 3. Filter Data
   const filteredTimeline = useMemo(() => {
       return enrichedTimeline.filter(fu => {
           const matchStatus = filterStatus === "All" || fu.status === filterStatus;
@@ -165,7 +149,6 @@ const intelligence = useMemo(() => {
       });
   }, [enrichedTimeline, filterStatus, filterType, filterAssociate]);
 
-  // 4. Paginate Data
   const totalPages = Math.ceil(filteredTimeline.length / ITEMS_PER_PAGE);
   const paginatedTimeline = filteredTimeline.slice((timelinePage - 1) * ITEMS_PER_PAGE, timelinePage * ITEMS_PER_PAGE);
 
@@ -200,11 +183,9 @@ const intelligence = useMemo(() => {
   if (loading) {
     return (
       <Shell>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-3 text-slate-400">
-            <Loader2 size={32} className="animate-spin text-[#00a884]" />
-            <p className="text-sm font-bold tracking-wide uppercase">Syncing Audit Trail…</p>
-          </div>
+        <div className="flex-1 flex flex-col items-center justify-center bg-[#f4f7f9]">
+          <Loader2 size={36} className="animate-spin text-[#00a884] mb-4" />
+          <p className="text-sm font-semibold tracking-wide text-slate-500">Syncing Interaction Audit...</p>
         </div>
       </Shell>
     );
@@ -213,15 +194,13 @@ const intelligence = useMemo(() => {
   if (!lead || !intelligence) {
     return (
       <Shell>
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-white m-6 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6 border border-slate-100">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-[#f4f7f9]">
+          <div className="w-20 h-20 bg-white rounded-full shadow-sm border border-slate-200 flex items-center justify-center mb-6">
             <User size={32} className="text-slate-300" />
           </div>
-          <h2 className="text-2xl font-extrabold text-slate-800 mb-2">Lead Record Missing</h2>
-          <p className="text-slate-500 mb-8 max-w-sm text-sm font-medium">
-            This lead identity could not be resolved in the database.
-          </p>
-          <Link href={lastPath ? lastPath : "/crm/leads"} className="px-6 py-3 bg-[#00a884] text-white rounded-xl font-bold hover:bg-emerald-600 transition shadow-md shadow-emerald-200/50 flex items-center gap-2">
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">Lead Record Missing</h2>
+          <p className="text-slate-500 mb-8 max-w-sm text-sm">This lead identity could not be resolved in the database.</p>
+          <Link href={lastPath ? lastPath : "/crm/leads"} className="px-6 py-2.5 bg-[#00a884] text-white rounded-xl font-semibold shadow-sm hover:bg-emerald-600 transition flex items-center gap-2">
             <ArrowLeft size={16}/> Return to Pipeline
           </Link>
         </div>
@@ -231,200 +210,190 @@ const intelligence = useMemo(() => {
 
   return (
     <Shell>
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#f8fafc]">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#f4f7f9] font-sans">
 
         {/* ── HEADER ── */}
-        <header className="h-auto md:h-20 px-6 py-4 md:py-0 bg-white border-b border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between shrink-0 z-20 sticky top-0 shadow-sm gap-4">
+        <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0 z-30 sticky top-0 shadow-sm shadow-slate-100/50">
           <div className="flex items-center gap-4">
-            <button onClick={() => setMobileOpen(true)} className="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-700 transition hover:bg-slate-100 rounded-lg"><Menu size={24} /></button>
-            <Link href={lastPath ? lastPath : "/crm/leads"} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition border border-transparent hover:border-slate-200"><ArrowLeft size={20} /></Link>
-            <div>
-                <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 leading-tight tracking-tight">Lead & Customer History</h1>
-                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">Audit & Interaction Record</p>
+            <button onClick={() => setMobileOpen(true)} className="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"><Menu size={20} /></button>
+            <Link href={lastPath ? lastPath : "/crm/leads"} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition-colors"><ArrowLeft size={20} /></Link>
+            <div className="pl-2 border-l border-slate-200">
+                <h1 className="text-[18px] font-bold text-slate-900 leading-tight">Lead Profile</h1>
+                <p className="text-[11px] font-semibold text-slate-500 tracking-wide uppercase mt-0.5">Interaction History</p>
             </div>
           </div>
-          <button onClick={handleOpenChat} className="flex items-center justify-center gap-2 bg-[#00a884] hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-emerald-200/50 transition-all active:scale-95 w-full md:w-auto">
-            <MessageSquare size={18} /> <span className="hidden sm:inline">Open CRM Chat</span>
+          <button onClick={handleOpenChat} className="flex items-center justify-center gap-2 bg-[#00a884] text-white px-5 py-2.5 rounded-xl text-[13px] font-bold shadow-md shadow-emerald-500/20 hover:bg-emerald-600 transition-all">
+            <MessageSquare size={16} /> <span className="hidden sm:inline">Open CRM Chat</span>
           </button>
         </header>
 
         {/* ── MAIN CONTENT ── */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 custom-scrollbar">
-          <div className="max-w-[1200px] mx-auto space-y-6 lg:space-y-8">
+          <div className="max-w-[1400px] mx-auto space-y-6 lg:space-y-8">
 
-            {/* ── HERO SUMMARY LAYER ── */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition-all hover:shadow-md">
-              <div className="p-6 md:p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative">
-                
-                {/* Identity Anchor */}
-                <div className="flex items-center gap-5 flex-1 min-w-0">
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-100 to-teal-50 text-emerald-700 flex items-center justify-center font-extrabold text-2xl shrink-0 border-2 border-white shadow-sm ring-1 ring-slate-100">
+            {/* ── 1. PREMIUM HERO SECTION ── */}
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 p-6 md:p-8 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-50 to-transparent rounded-bl-full -z-0"></div>
+              
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 relative z-10">
+                <div className="flex items-start md:items-center gap-6">
+                    <div className="w-20 h-20 md:w-24 md:h-24 bg-slate-50 rounded-2xl flex items-center justify-center text-4xl font-extrabold text-[#00a884] border border-slate-200 shadow-sm shrink-0">
                         {lead.name?.charAt(0).toUpperCase() || "#"}
                     </div>
-                    <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-3">
-                            <h2 className="font-extrabold text-slate-800 text-2xl md:text-3xl truncate tracking-tight">{lead.name || "Unknown Identity"}</h2>
+                    <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <h2 className="text-[32px] font-bold text-slate-900 tracking-tight leading-none">{lead.name || "Unknown Identity"}</h2>
+                            <StatusBadge status={intelligence.currentStatus} />
+                            {intelligence.currentPriority && <StatusBadge status={intelligence.currentPriority} />}
                         </div>
-                        <div className="flex flex-wrap items-center gap-3 mt-2 text-sm font-medium text-slate-500">
-                            <div className="flex items-center gap-1.5 cursor-pointer hover:text-[#00a884] transition-colors group bg-slate-50 px-2 py-1 rounded-md border border-slate-100" onClick={handleCopyPhone} title="Click to copy">
-                                <Phone size={14} className="text-slate-400 group-hover:text-[#00a884]" />
-                                <span className="font-mono tracking-wide">{lead.phone.replace('whatsapp:', '')}</span>
-                                {copied ? <Check size={12} className="text-[#00a884]" /> : <Copy size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />}
+                        <div className="flex flex-wrap items-center gap-4 pt-1">
+                            <div className="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg cursor-pointer transition-colors" onClick={handleCopyPhone} title="Click to copy">
+                                <Phone size={14} className="text-slate-500" />
+                                <span className="text-[15px] font-semibold text-slate-800">{lead.phone.replace('whatsapp:', '')}</span>
+                                {copied ? <Check size={14} className="text-[#00a884]" /> : <Copy size={12} className="text-slate-400" />}
                             </div>
                             {lead.city && (
-                                <span className="flex items-center gap-1.5 truncate bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
-                                    <MapPin size={14} className="shrink-0 text-slate-400"/> {lead.city}
+                                <span className="flex items-center gap-1.5 text-[15px] font-medium text-slate-600 px-2">
+                                    <MapPin size={16} className="text-slate-400"/> {lead.city}
                                 </span>
                             )}
                         </div>
                     </div>
                 </div>
 
-                {/* Lifecycle & Ownership Anchor */}
-                <div className="flex flex-col lg:items-start gap-2.5 flex-1 min-w-0 border-l-2 border-transparent lg:border-slate-100 lg:pl-8">
-                    <div className="flex flex-wrap items-center gap-2">
-                        <LifecycleBadge state={intelligence.currentStatus} />
-
-                        <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border whitespace-nowrap ${intelligence.currentPriority === "High" ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-slate-50 text-slate-600 border-slate-200"}`}>
-                            {intelligence.currentPriority === "High" && <AlertCircle size={12} />}
-                            {intelligence.currentPriority} Priority
-                        </span>
+                <div className="flex items-center gap-3 shrink-0 border-t lg:border-none border-slate-100 pt-6 lg:pt-0">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-600 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200">
+                        <UserCircle size={18} className="text-slate-400" />
+                        Current Handler: <span className="text-slate-900 font-bold">{intelligence.currentHandler}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 mt-1">
-                        <UserCircle size={14} className="text-slate-400" />
-                        Current Handler: <span className="text-[#00a884] font-bold">{intelligence.currentHandler}</span>
-                    </div>
-                </div>
-
-                {/* Activity & Revenue Anchor */}
-                <div className="flex flex-col lg:items-end gap-2 shrink-0 border-l-2 border-transparent lg:border-slate-100 lg:pl-8">
-                    <div className="flex items-center gap-2 text-sm font-extrabold text-slate-700 bg-blue-50/50 px-3 py-1.5 rounded-lg border border-blue-100/50">
-                        <History size={16} className="text-blue-500" />
-                        {intelligence.interactionCount} Interaction Cycle{intelligence.interactionCount !== 1 ? 's' : ''}
-                    </div>
-                    {intelligence.isClosed && intelligence.saleAmount > 0 && (
-                        <div className="bg-gradient-to-r from-emerald-500 to-[#00a884] text-white px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-sm shadow-emerald-200/50 mt-1 w-max lg:w-auto">
-                            <TrendingUp size={16} />
-                            <span className="text-sm font-bold tracking-wide">Revenue: ₹{intelligence.saleAmount.toLocaleString()}</span>
-                        </div>
-                    )}
                 </div>
               </div>
+            </div>
+
+            {/* ── 2. KPI DASHBOARD CARDS ── */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+                <KPICard title="Total Interactions" value={intelligence.timeline.length} icon={<History size={20}/>} accent="text-blue-600 bg-blue-50 border-blue-100" />
+                <KPICard title="Closed Cycles" value={intelligence.interactionCount} icon={<CheckCircle2 size={20}/>} />
+                <KPICard title="Revenue Generated" value={`₹${intelligence.saleAmount.toLocaleString()}`} icon={<IndianRupee size={20}/>} accent={intelligence.saleAmount > 0 ? "text-[#00a884] bg-emerald-50 border-emerald-100" : undefined} />
+                <KPICard title="Priority Status" value={intelligence.currentPriority} icon={<ShieldAlert size={20}/>} />
             </div>
 
             {/* ── TWO-COLUMN CONTENT AREA ── */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
 
               {/* LEFT — Context & Remarks */}
-              <div className="lg:col-span-4 space-y-6">
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                  <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider mb-5 flex items-center gap-2 border-b border-slate-100 pb-3">
-                    <Briefcase size={16} className="text-[#00a884]" /> Contextual Meta
+              <div className="lg:col-span-4 space-y-6 lg:space-y-8">
+                
+                {/* Contextual Meta */}
+                <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 p-6 md:p-8">
+                  <h3 className="text-[18px] font-bold text-slate-900 mb-6 pb-4 border-b border-slate-100 flex items-center gap-2">
+                    <Briefcase size={18} className="text-slate-400" /> Lead Context
                   </h3>
-                  <div className="space-y-4">
-                    <DetailRow icon={<Globe size={14} />} label="Origin Source">{lead.source || "N/A"}</DetailRow>
-                    <DetailRow icon={<Tag size={14} />} label="Active Enquiry"><span className="font-bold text-slate-800">{intelligence.currentEnquiry}</span></DetailRow>
-                    <DetailRow icon={<Tag size={14} />} label="Lead Category"><span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600 font-semibold text-xs border border-slate-200">{intelligence.leadType}</span></DetailRow>
+                  <div className="space-y-6">
+                    <DetailRow icon={<Globe size={16} />} label="Origin Source" value={lead.source} />
+                    <DetailRow icon={<Tag size={16} />} label="Active Enquiry" value={intelligence.currentEnquiry} />
+                    <DetailRow icon={<Tag size={16} />} label="Lead Category" value={intelligence.leadType} />
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-emerald-50 to-teal-50/30 rounded-2xl border border-emerald-100/50 p-6 shadow-sm">
-                  <h3 className="text-xs font-extrabold text-emerald-900 uppercase tracking-wider mb-4 flex items-center gap-2">
-                    <FileText size={16} className="text-emerald-600"/> Latest Remarks
+                {/* Latest Remarks */}
+                <div className="bg-gradient-to-br from-[#f8f6ff] to-white rounded-3xl shadow-sm border border-[#eaddff] p-6 md:p-8">
+                  <h3 className="text-[18px] font-bold text-purple-900 mb-4 flex items-center gap-2">
+                    <FileText size={18} className="text-purple-500"/> Latest Remarks
                   </h3>
-                  <p className="text-sm text-slate-700 font-medium leading-relaxed italic bg-white/60 p-4 rounded-xl border border-emerald-100/50 shadow-sm">
-                    "{intelligence.currentRemarks}"
-                  </p>
+                  <div className="p-5 bg-white/80 backdrop-blur-sm rounded-2xl text-[15px] text-slate-800 min-h-[100px] whitespace-pre-wrap border border-purple-100 leading-relaxed font-medium shadow-sm italic">
+                    {intelligence.currentRemarks ? `"${intelligence.currentRemarks}"` : <span className="text-slate-400 not-italic">No remarks available.</span>}
+                  </div>
                 </div>
               </div>
 
               {/* RIGHT — Progressive Interaction Timeline */}
               <div className="lg:col-span-8">
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 lg:p-8 h-full flex flex-col">
+                <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 p-6 md:p-8 h-full flex flex-col">
                   
                   {/* Timeline Header & Filters */}
-                  <div className="flex flex-col mb-8 gap-4 border-b border-slate-100 pb-5">
+                  <div className="flex flex-col mb-8 gap-5 border-b border-slate-100 pb-6">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
-                          <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                            <History size={18} className="text-[#00a884]" /> Interaction Audit
+                          <h3 className="text-[18px] font-bold text-slate-900 flex items-center gap-2">
+                            <History size={18} className="text-slate-400" /> Interaction Audit Trail
                           </h3>
-                          <p className="text-xs font-medium text-slate-400 mt-1">Review lifecycle history, handoffs, and progressions.</p>
+                          <p className="text-[13px] font-medium text-slate-500 mt-1">Review lifecycle history, handoffs, and progressions.</p>
                         </div>
-                        <span className="bg-slate-50 text-slate-600 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 shrink-0">
+                        <span className="bg-slate-50 text-slate-600 text-[13px] font-bold px-4 py-2 rounded-xl border border-slate-200 shrink-0 shadow-sm">
                           {filteredTimeline.length} Record{filteredTimeline.length !== 1 ? "s" : ""}
                         </span>
                     </div>
 
                     {/* Filter Bar */}
-                    <div className="flex flex-wrap items-center gap-3 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <div className="flex items-center gap-2 px-2 border-r border-slate-200">
-                            <Filter size={14} className="text-slate-400" />
-                            <span className="text-xs font-bold text-slate-500 uppercase">Filters</span>
+                    <div className="flex flex-wrap items-center gap-3 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                        <div className="flex items-center gap-2 px-3 border-r border-slate-200 shrink-0">
+                            <Filter size={16} className="text-slate-400" />
+                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest hidden sm:inline">Filters</span>
                         </div>
-                        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="bg-white border border-slate-200 text-xs font-bold text-slate-600 rounded-lg px-3 py-1.5 outline-none cursor-pointer hover:border-slate-300">
+                        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="flex-1 min-w-[120px] bg-white border border-slate-200 text-[13px] font-semibold text-slate-700 rounded-xl px-3 py-2 outline-none cursor-pointer hover:border-slate-300 shadow-sm transition-colors">
                             <option value="All">All Statuses</option>
                             <option value="New">New</option>
                             <option value="Follow Up">Follow Up</option>
                             <option value="Closed">Closed</option>
                             <option value="Not Interested">Not Interested</option>
                         </select>
-                        <select value={filterType} onChange={e => setFilterType(e.target.value)} className="bg-white border border-slate-200 text-xs font-bold text-slate-600 rounded-lg px-3 py-1.5 outline-none cursor-pointer hover:border-slate-300">
+                        <select value={filterType} onChange={e => setFilterType(e.target.value)} className="flex-1 min-w-[120px] bg-white border border-slate-200 text-[13px] font-semibold text-slate-700 rounded-xl px-3 py-2 outline-none cursor-pointer hover:border-slate-300 shadow-sm transition-colors">
                             {uniqueTypes.map(t => <option key={t} value={t}>{t === "All" ? "All Types" : t}</option>)}
                         </select>
-                        <select value={filterAssociate} onChange={e => setFilterAssociate(e.target.value)} className="bg-white border border-slate-200 text-xs font-bold text-slate-600 rounded-lg px-3 py-1.5 outline-none cursor-pointer hover:border-slate-300">
+                        <select value={filterAssociate} onChange={e => setFilterAssociate(e.target.value)} className="flex-1 min-w-[120px] bg-white border border-slate-200 text-[13px] font-semibold text-slate-700 rounded-xl px-3 py-2 outline-none cursor-pointer hover:border-slate-300 shadow-sm transition-colors">
                             {uniqueAssociates.map(a => <option key={a} value={a}>{a === "All" ? "All Handlers" : a}</option>)}
                         </select>
                     </div>
                   </div>
 
                   {/* Accordion Timeline Engine */}
-                  <div className="relative pl-4 sm:pl-8 space-y-6 before:absolute before:left-[21px] sm:before:left-[37px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-100 flex-1">
+                  <div className="relative pl-4 sm:pl-8 space-y-6 before:absolute before:left-[23px] sm:before:left-[39px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 flex-1">
                     {paginatedTimeline.length > 0 ? (
                       paginatedTimeline.map((fu, idx) => {
                           const isLatest = timelinePage === 1 && idx === 0 && filterStatus === "All" && filterType === "All" && filterAssociate === "All";
                           const isExpanded = !!expandedNodes[fu._id || fu.originalIndex];
-                          const truncatedRemarks = fu.overAllRemarks?.length > 60 ? fu.overAllRemarks.substring(0, 60) + '...' : fu.overAllRemarks;
+                          const truncatedRemarks = fu.overAllRemarks?.length > 70 ? fu.overAllRemarks.substring(0, 70) + '...' : fu.overAllRemarks;
 
                           return (
                               <div key={fu._id || fu.originalIndex} className="relative group">
                                   {/* Timeline Node Connector */}
-                                  <div className={`absolute -left-[23px] sm:-left-[39px] top-4 w-3.5 h-3.5 rounded-full border-2 shadow-sm transition-colors ${isLatest ? 'bg-[#00a884] border-white ring-2 ring-[#00a884]/30' : 'bg-white border-slate-300 group-hover:border-slate-400'}`}></div>
+                                  <div className={`absolute -left-[25px] sm:-left-[41px] top-6 w-4 h-4 rounded-full border-2 shadow-sm transition-colors z-10 ${isLatest ? 'bg-[#00a884] border-white ring-4 ring-[#00a884]/20' : 'bg-white border-slate-300 group-hover:border-slate-400'}`}></div>
 
-                                  <div className={`bg-white border rounded-2xl transition-all relative overflow-hidden ${isExpanded ? 'border-slate-300 shadow-md' : 'border-slate-200 shadow-sm hover:border-slate-300 hover:shadow-md'}`}>
+                                  <div className={`bg-white border rounded-2xl transition-all relative overflow-hidden ${isExpanded ? 'border-[#00a884]/30 shadow-md ring-4 ring-[#00a884]/5' : 'border-slate-200 shadow-sm hover:border-slate-300 hover:shadow-md'}`}>
                                       
                                       {/* Collapsed Header (Clickable) */}
                                       <div 
                                           onClick={() => toggleNode(fu._id || fu.originalIndex)} 
-                                          className="p-4 sm:p-5 cursor-pointer flex flex-col gap-3 bg-white hover:bg-slate-50/50 transition-colors select-none"
+                                          className="p-5 cursor-pointer flex flex-col gap-3 bg-white hover:bg-slate-50/50 transition-colors select-none"
                                       >
                                           <div className="flex flex-wrap sm:flex-nowrap justify-between items-start sm:items-center gap-2">
                                               <div className="flex flex-wrap items-center gap-3">
-                                                  <LifecycleBadge state={fu.status} />
-                                                  <span className="text-[11px] font-mono text-slate-500 flex items-center gap-1.5">
+                                                  <StatusBadge status={fu.status} />
+                                                  <span className="text-[12px] font-semibold text-slate-500 flex items-center gap-1.5">
                                                       <Clock size={12} className="text-slate-400"/> {new Date(fu.date).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute:"2-digit" })}
                                                   </span>
                                               </div>
-                                              <div className="text-slate-400 bg-slate-50 p-1 rounded-full">
+                                              <div className="text-slate-400 bg-slate-50 border border-slate-200 p-1 rounded-lg">
                                                   <ChevronDown size={16} className={`transition-transform duration-300 ${isExpanded ? 'rotate-180 text-[#00a884]' : ''}`} />
                                               </div>
                                           </div>
 
                                           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                                              <div className={`text-[11px] font-bold flex items-center gap-1.5 px-2.5 py-1 rounded-md border w-max ${fu.ownershipChanged ? "bg-blue-50 border-blue-100 text-blue-700" : "bg-slate-50 border-slate-100 text-slate-600"}`}>
-                                                  <UserCircle size={14} className={fu.ownershipChanged ? "text-blue-500" : "text-slate-400"} />
+                                              <div className={`text-[12px] font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-lg border w-max shadow-sm ${fu.leadTransferred ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-slate-50 border-slate-200 text-slate-700"}`}>
+                                                  <UserCircle size={14} className={fu.leadTransferred ? "text-blue-500" : "text-slate-400"} />
                                                   {fu.associateName || "Unknown"}
                                               </div>
-                                              {fu.ownershipChanged && (
-                                                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-600 flex items-center gap-1">
-                                                      <RefreshCcw size={10}/> Transferred
+                                              {fu.leadTransferred && (
+                                                  <span className="text-[11px] font-bold uppercase tracking-widest text-blue-600 flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-md">
+                                                      <RefreshCcw size={12}/>Transferred
                                                   </span>
                                               )}
                                           </div>
 
-                                          {/* Truncated Preview (Hides when expanded) */}
+                                          {/* Truncated Preview */}
                                           {!isExpanded && (
-                                              <div className="text-sm text-slate-500 truncate pr-8 font-medium">
+                                              <div className="text-[14px] text-slate-600 truncate pr-8 font-medium mt-1">
                                                   {fu.overAllRemarks ? `"${truncatedRemarks}"` : <span className="italic text-slate-400">No remarks documented.</span>}
                                               </div>
                                           )}
@@ -432,25 +401,25 @@ const intelligence = useMemo(() => {
 
                                       {/* Expanded Body Layer */}
                                       {isExpanded && (
-                                          <div className="px-4 sm:px-5 pb-5 pt-2 border-t border-slate-100 bg-slate-50/30 animate-in fade-in slide-in-from-top-2 duration-200">
+                                          <div className="px-5 pb-6 pt-2 border-t border-slate-100 bg-slate-50/50 animate-in fade-in slide-in-from-top-2 duration-200">
                                               
                                               {fu.enquiredFor && (
-                                                  <div className="mb-3 text-sm text-slate-800 flex items-center gap-2">
-                                                      <span className="font-bold text-slate-400 text-xs uppercase tracking-wider">Context:</span> 
-                                                      <span className="font-semibold bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">{fu.enquiredFor}</span>
+                                                  <div className="mb-4 text-[14px] text-slate-800 flex items-center gap-2">
+                                                      <span className="font-bold text-slate-500 text-[11px] uppercase tracking-widest">Context:</span> 
+                                                      <span className="font-semibold bg-white border border-slate-200 px-3 py-1 rounded-lg shadow-sm">{fu.enquiredFor}</span>
                                                   </div>
                                               )}
 
                                               {fu.overAllRemarks && (
-                                                  <div className="bg-white border border-slate-200 rounded-xl p-4 text-sm text-slate-700 font-medium italic shadow-sm relative">
-                                                      <CornerDownRight size={16} className="absolute top-4 left-4 text-slate-300" />
-                                                      <span className="pl-6 block">"{fu.overAllRemarks}"</span>
+                                                  <div className="bg-white border border-slate-200 rounded-2xl p-5 text-[14px] text-slate-700 font-medium italic shadow-sm relative mb-4">
+                                                      <CornerDownRight size={18} className="absolute top-5 left-5 text-slate-300" />
+                                                      <span className="pl-8 block leading-relaxed">"{fu.overAllRemarks}"</span>
                                                   </div>
                                               )}
 
                                               {/* Day-wise Progression Sub-nodes */}
                                               {(fu.day1Remarks || fu.day2Remarks || fu.day3Remarks) && (
-                                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-t border-slate-100 pt-4 mt-4">
+                                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-slate-200/60 pt-5">
                                                       {fu.day1Remarks && <DayNote day={1} text={fu.day1Remarks} />}
                                                       {fu.day2Remarks && <DayNote day={2} text={fu.day2Remarks} />}
                                                       {fu.day3Remarks && <DayNote day={3} text={fu.day3Remarks} />}
@@ -459,8 +428,8 @@ const intelligence = useMemo(() => {
 
                                               {/* Revenue Attribution */}
                                               {fu.status === "Closed" && parseInt(fu.saleAmount) > 0 && (
-                                                  <div className="mt-4 flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold px-3.5 py-2 rounded-lg w-max shadow-sm">
-                                                      <TrendingUp size={16} className="text-emerald-600" />
+                                                  <div className="mt-5 flex items-center gap-2 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 text-emerald-800 text-[13px] font-bold px-4 py-2.5 rounded-xl w-max shadow-sm">
+                                                      <TrendingUp size={18} className="text-emerald-600" />
                                                       Deal Closed Value: ₹{parseInt(fu.saleAmount).toLocaleString()}
                                                   </div>
                                               )}
@@ -471,9 +440,10 @@ const intelligence = useMemo(() => {
                           );
                       })
                     ) : (
-                      <div className="flex flex-col items-center justify-center py-12 text-slate-400 bg-slate-50 rounded-2xl border border-slate-200 border-dashed ml-[-24px] sm:ml-[-32px]">
-                        <Clock size={32} className="mb-3 opacity-20" />
-                        <p className="text-sm font-bold uppercase tracking-wider">No Records Found</p>
+                      <div className="flex flex-col items-center justify-center py-16 text-slate-400 bg-slate-50/50 rounded-3xl border border-slate-200 border-dashed ml-[-24px] sm:ml-[-32px]">
+                        <History size={40} className="mb-4 opacity-20" />
+                        <p className="text-[14px] font-bold uppercase tracking-widest text-slate-500">No Records Found</p>
+                        <p className="text-[13px] font-medium text-slate-400 mt-1">Try adjusting your filters.</p>
                       </div>
                     )}
                   </div>
@@ -507,25 +477,49 @@ function Shell({ children }) {
   );
 }
 
-function DetailRow({ icon, label, children }) {
+// KPI Dashboard Card
+function KPICard({ title, value, icon, accent = "bg-white border-slate-200/80 text-slate-800 hover:border-slate-300 hover:shadow-md transition-all duration-300" }) {
+    return (
+        <div className={`rounded-3xl p-5 border shadow-sm flex flex-col justify-between group ${accent}`}>
+            <div className="flex items-center justify-between mb-4">
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">{title}</p>
+                <div className="p-2 rounded-xl bg-slate-50 border border-slate-100 text-slate-400 group-hover:scale-110 group-hover:text-slate-600 transition-all duration-300">
+                    {icon}
+                </div>
+            </div>
+            <p className="text-2xl md:text-3xl font-extrabold tracking-tight leading-none break-words">{value}</p>
+        </div>
+    );
+}
+
+// Detail Row for Information Cards
+function DetailRow({ icon, label, value }) {
   return (
-    <div>
-      <p className="text-[11px] text-slate-400 font-extrabold uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-        {icon} {label}
-      </p>
-      <div className="bg-slate-50 rounded-xl px-4 py-3 border border-slate-100 font-semibold text-slate-700 text-sm">
-        {children}
+      <div className="flex flex-col gap-2 group w-full">
+          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+              <span className="text-slate-400">{icon}</span> {label}
+          </label>
+          <div className="min-h-[44px] flex items-center pt-1 border-b border-transparent group-hover:border-slate-100 transition-colors">
+              {value ? (
+                  <span className="text-[15px] font-semibold text-slate-800 break-words w-full">
+                      {value}
+                  </span>
+              ) : (
+                  <div className="flex items-center gap-2 text-slate-400 bg-slate-50/50 px-3 py-1.5 rounded-lg text-sm border border-slate-100 w-max">
+                      <span className="italic">Not specified</span>
+                  </div>
+              )}
+          </div>
       </div>
-    </div>
   );
-} 
+}
 
 const DayNote = ({ day, text }) => (
-    <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm hover:border-[#00a884]/30 transition-colors">
-        <div className="text-[10px] font-extrabold text-[#00a884] uppercase tracking-wider mb-1.5 flex items-center gap-1">
-            <Clock size={10}/> Day {day} Log
+    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-[#00a884]/30 transition-colors">
+        <div className="text-[11px] font-bold text-[#00a884] uppercase tracking-widest mb-2 flex items-center gap-1.5">
+            <Clock size={12}/> Day {day} Log
         </div>
-        <p className="text-[11px] text-slate-600 font-medium leading-relaxed">{text}</p>
+        <p className="text-[13px] text-slate-600 font-medium leading-relaxed">{text}</p>
     </div>
 );
 
@@ -537,18 +531,17 @@ const TimelinePagination = ({ current, total, onChange }) => {
             <button 
                 onClick={() => onChange(current - 1)} 
                 disabled={current === 1}
-                className="flex items-center gap-1 px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-full hover:bg-slate-50 hover:border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+                className="flex items-center gap-1 px-4 py-2 text-[13px] font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
             >
-                <ChevronLeft size={14} /> Prev
+                <ChevronLeft size={16} /> Prev
             </button>
             
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
                 {[...Array(total)].map((_, i) => {
                     const page = i + 1;
                     const isActive = page === current;
-                    // Keep pagination visual tight
                     if (total > 5 && Math.abs(page - current) > 1 && page !== 1 && page !== total) {
-                        if (page === 2 || page === total - 1) return <span key={page} className="text-slate-400 text-xs px-1">...</span>;
+                        if (page === 2 || page === total - 1) return <span key={page} className="text-slate-400 text-xs px-1 font-bold">...</span>;
                         return null;
                     }
 
@@ -556,7 +549,7 @@ const TimelinePagination = ({ current, total, onChange }) => {
                         <button 
                             key={page}
                             onClick={() => onChange(page)}
-                            className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-extrabold transition-all shadow-sm ${isActive ? 'bg-gradient-to-tr from-emerald-500 to-[#00a884] text-white border-transparent' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}
+                            className={`w-9 h-9 flex items-center justify-center rounded-xl text-[13px] font-extrabold transition-all shadow-sm ${isActive ? 'bg-gradient-to-tr from-[#00a884] to-emerald-500 text-white border-transparent' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}
                         >
                             {page}
                         </button>
@@ -567,9 +560,9 @@ const TimelinePagination = ({ current, total, onChange }) => {
             <button 
                 onClick={() => onChange(current + 1)} 
                 disabled={current === total}
-                className="flex items-center gap-1 px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-full hover:bg-slate-50 hover:border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+                className="flex items-center gap-1 px-4 py-2 text-[13px] font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
             >
-                Next <ChevronRight size={14} />
+                Next <ChevronRight size={16} />
             </button>
         </div>
     );

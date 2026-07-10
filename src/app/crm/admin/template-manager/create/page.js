@@ -2,9 +2,9 @@
 
 import React, { useState, useRef } from "react";
 import { useSession } from "next-auth/react";
-import { useCrmLayout } from "@/components/layout/CrmShell";
+import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import { toast } from "react-toastify";
-import { twilioTemplateService } from "@/services/twilioTemplateService";
+import { twilioTemplateService } from "@/features/templates/services/twilioTemplateService";
 import { useRouter } from "next/navigation";
 import {
   LayoutTemplate, ShieldAlert, Loader2, Menu,

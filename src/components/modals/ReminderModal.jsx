@@ -5,6 +5,7 @@ import {
   Loader2, Sparkles, Check, Trash2, AlertCircle, User 
 } from "lucide-react";
 import { toast } from "react-toastify";
+import api from "@/lib/axios";
 
 export default function ReminderModal({ isOpen, onClose, onSet, initialPhone }) {
   const [date, setDate] = useState("");
@@ -31,12 +32,7 @@ export default function ReminderModal({ isOpen, onClose, onSet, initialPhone }) 
   const checkActiveReminder = async () => {
       setFetching(true);
       try {
-          const res = await fetch("/api/reminders", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "GET", phone: initialPhone })
-          });
-          const data = await res.json();
+          const { data } = await api.post("/api/reminders", { action: "GET", phone: initialPhone });
           if (data.success && data.reminder) {
               setExistingReminder(data.reminder);
           } else {
@@ -68,17 +64,9 @@ export default function ReminderModal({ isOpen, onClose, onSet, initialPhone }) 
   const handleCancelReminder = async () => {
       setLoading(true);
       try {
-          const res = await fetch("/api/reminders", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "CANCEL", phone: initialPhone })
-          });
-          if (res.ok) {
-              toast.info("Reminder Cancelled");
-              setExistingReminder(null); // Switch back to 'Set' mode
-          } else {
-              toast.error("Failed to cancel");
-          }
+          await api.post("/api/reminders", { action: "CANCEL", phone: initialPhone });
+          toast.info("Reminder Cancelled");
+          setExistingReminder(null); // Switch back to 'Set' mode
       } catch (e) {
           toast.error("Error canceling reminder");
       } finally {

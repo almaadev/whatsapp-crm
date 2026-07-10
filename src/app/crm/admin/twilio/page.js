@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
-import { useCrmLayout } from "@/components/layout/CrmShell";
+import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
     Loader2, Menu, Calendar, 
@@ -13,6 +13,7 @@ import {
     ChevronRight, BarChart3, SlidersHorizontal, FileText, FileJson,
     Smartphone, Globe, ShieldAlert, AlertTriangle, Wallet, Edit2, Save, X
 } from "lucide-react";
+import { templateRepository } from "@/shared/api/repositories/templateRepository";
 
 
 export default function TwilioEnterpriseDashboard() {
@@ -105,10 +106,9 @@ export default function TwilioEnterpriseDashboard() {
             if (clientMediaOnly) url += `&mediaOnly=true`;
             if (clientFailedOnly) url += `&failedOnly=true`;
 
-            const res = await fetch(url);
-            if (!res.ok) throw new Error("Export failed");
+            const res = await templateRepository.syncTwilioTemplates({ responseType: 'blob' });
             
-            const blob = await res.blob();
+            const blob = res.data;
             downloadBlob(blob, `enterprise_twilio_export_${Date.now()}.csv`);
             toast.success("Enterprise export downloaded safely.");
         } catch (err) {
@@ -127,10 +127,9 @@ export default function TwilioEnterpriseDashboard() {
             if (optEnd) url += `&endDate=${encodeURIComponent(optEnd)}`;
             if (optStatus !== "all") url += `&status=${encodeURIComponent(optStatus)}`;
 
-            const res = await fetch(url);
-            const data = await res.json();
+            const { data } = await templateRepository.syncTwilioTemplates();
 
-            if (res.ok && data.success) {
+            if (data.success) {
                 setTwilioData({
                     balance: data.balance,
                     currency: data.currency,
@@ -255,9 +254,8 @@ export default function TwilioEnterpriseDashboard() {
         if (!tempRate || isNaN(tempRate) || Number(tempRate) <= 0) return toast.error("Valid rate required");
         setSavingRate(true);
         try {
-            const res = await fetch("/api/admin/twilio", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rate: tempRate }) });
-            const data = await res.json();
-            if (res.ok && data.success) { setExchangeRate(data.rate); setIsEditingRate(false); toast.success("Rate updated"); }
+            const { data } = await templateRepository.syncTwilioRate({ rate: tempRate });
+            if (data.success) { setExchangeRate(data.rate); setIsEditingRate(false); toast.success("Rate updated"); }
         } catch (err) {} finally { setSavingRate(false); }
     };
 

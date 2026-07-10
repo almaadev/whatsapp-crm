@@ -5,6 +5,8 @@ import {
   Loader2, MessageSquareCode, Check, X, 
   AlertCircle, Activity
 } from "lucide-react";
+import { automationRepository } from "@/shared/api/repositories/automationRepository";
+import { toast } from "react-toastify";
 
 export default function KeywordAutomationPage() {
   const [keywords, setKeywords] = useState([]);
@@ -19,11 +21,11 @@ export default function KeywordAutomationPage() {
   const fetchKeywords = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/keyword-automation");
-      const json = await res.json();
+      const { data: json } = await automationRepository.getKeywords();
       if (json.success) setKeywords(json.data);
     } catch (err) {
       console.error("Failed to fetch keywords", err);
+      toast.error("Failed to fetch keywords");
     }
     setLoading(false);
   };
@@ -32,11 +34,11 @@ export default function KeywordAutomationPage() {
     fetchKeywords();
   }, []);
 
-  const handleOpenModal = (item = null) => {
+  const handleOpenModal = (automationRule = null) => {
     setError("");
-    if (item) {
-      setCurrentEdit(item._id);
-      setFormData({ key: item.key, templateSid: item.templateSid, isActive: item.isActive });
+    if (automationRule) {
+      setCurrentEdit(automationRule._id);
+      setFormData({ key: automationRule.key, templateSid: automationRule.templateSid, isActive: automationRule.isActive });
     } else {
       setCurrentEdit(null);
       setFormData({ key: "", templateSid: "", isActive: true });
@@ -55,17 +57,14 @@ export default function KeywordAutomationPage() {
     }
 
     try {
-      const url = currentEdit ? `/api/keyword-automation/${currentEdit}` : "/api/keyword-automation";
-      const method = currentEdit ? "PUT" : "POST";
-      
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      const result = await res.json();
-
-      if (!result.success) throw new Error(result.error);
+      let result;
+      if (currentEdit) {
+        const { data } = await automationRepository.updateKeyword(currentEdit, formData);
+        result = data;
+      } else {
+        const { data } = await automationRepository.createKeyword(formData);
+        result = data;
+      }
       
       setModalOpen(false);
       fetchKeywords();
@@ -78,7 +77,7 @@ export default function KeywordAutomationPage() {
 
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this automated keyword?")) return;
-    await fetch(`/api/keyword-automation/${id}`, { method: "DELETE" });
+    await automationRepository.deleteKeyword(id);
     fetchKeywords();
   };
 
@@ -86,11 +85,7 @@ export default function KeywordAutomationPage() {
     const updatedStatus = !currentStatus;
     // Optimistic UI update
     setKeywords(keywords.map(k => k._id === id ? { ...k, isActive: updatedStatus } : k));
-    await fetch(`/api/keyword-automation/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isActive: updatedStatus }),
-    });
+    await automationRepository.patchKeyword(id, { isActive: updatedStatus });
   };
 
   const filteredKeywords = keywords.filter((k) =>
@@ -173,34 +168,34 @@ export default function KeywordAutomationPage() {
                       </td>
                     </tr>
                   ) : (
-                    filteredKeywords.map((item) => (
-                      <tr key={item._id} className="hover:bg-slate-50/50 transition-colors group">
+                    filteredKeywords.map((automationRule) => (
+                      <tr key={automationRule._id} className="hover:bg-slate-50/50 transition-colors group">
                         <td className="px-6 py-4 pl-8">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs border border-emerald-100">
                               <Zap size={14} />
                             </div>
-                            <span className="font-bold text-slate-800">{item.key}</span>
+                            <span className="font-bold text-slate-800">{automationRule.key}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4">
                           <span className="font-mono text-[11px] text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 selection:bg-emerald-200">
-                            {item.templateSid}
+                            {automationRule.templateSid}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-center">
                           <div className="flex items-center justify-center gap-2">
-                            <span className={`text-[10px] font-bold uppercase tracking-wider ${item.isActive ? 'text-emerald-600' : 'text-slate-400'}`}>
-                              {item.isActive ? 'Active' : 'Inactive'}
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${automationRule.isActive ? 'text-emerald-600' : 'text-slate-400'}`}>
+                              {automationRule.isActive ? 'Active' : 'Inactive'}
                             </span>
                             <button
-                              onClick={() => handleToggle(item._id, item.isActive)}
+                              onClick={() => handleToggle(automationRule._id, automationRule.isActive)}
                               className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#00a884]/20 focus:ring-offset-2 ${
-                                item.isActive ? "bg-[#00a884]" : "bg-slate-300"
+                                automationRule.isActive ? "bg-[#00a884]" : "bg-slate-300"
                               }`}
                             >
                               <span className={`inline-block w-4 h-4 transform bg-white rounded-full shadow-sm transition-transform ${
-                                item.isActive ? "translate-x-6" : "translate-x-1"
+                                automationRule.isActive ? "translate-x-6" : "translate-x-1"
                               }`} />
                             </button>
                           </div>
@@ -208,14 +203,14 @@ export default function KeywordAutomationPage() {
                         <td className="px-6 py-4 text-right pr-8">
                           <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button 
-                              onClick={() => handleOpenModal(item)} 
+                              onClick={() => handleOpenModal(automationRule)} 
                               className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
                               title="Edit Automation"
                             >
                               <Edit2 size={16} />
                             </button>
                             <button 
-                              onClick={() => handleDelete(item._id)} 
+                              onClick={() => handleDelete(automationRule._id)} 
                               className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-100"
                               title="Delete Keyword"
                             >

@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import Lead from "@/models/Lead";
-import User from "@/models/User";
-import Customer from "@/models/Customer";
-import { getUserNameById } from "@/utils/userUtils";
+import { authOptions } from "@/shared/lib/auth";
+import connectDB from "@/shared/lib/db/mongodb";
+import Lead from "@/shared/models/Lead";
+import User from "@/shared/models/User";
+import Customer from "@/shared/models/Customer";
+import { getUserNameById } from "@/shared/utils/userUtils";
 export const dynamic = "force-dynamic";
 
 export async function GET(req) {

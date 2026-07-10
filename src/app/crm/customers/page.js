@@ -3,14 +3,15 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { usePathStore } from "@/stores/pathStore";
+import { usePathStore } from "@/features/chat/stores/pathStore";
+import { customerRepository } from "@/shared/api/repositories/customerRepository";
 
-import DashboardPage from "@/components/layout/DashboardPage";
-import LoadingScreen from "@/components/ui/LoadingScreen";
-import SearchInput from "@/components/ui/SearchInput";
-import Pagination from "@/components/ui/Pagination";
-import Button from "@/components/ui/Button";
-import EmptyState from "@/components/ui/EmptyState";
+import DashboardPage from "@/shared/components/layout/DashboardPage";
+import LoadingScreen from "@/shared/components/ui/LoadingScreen";
+import SearchInput from "@/shared/components/ui/SearchInput";
+import Pagination from "@/shared/components/ui/Pagination";
+import Button from "@/shared/components/ui/Button";
+import EmptyState from "@/shared/components/ui/EmptyState";
 import {
   User,
   MapPin,
@@ -22,7 +23,7 @@ import {
   Phone,
   Globe,
 } from "lucide-react";
-import { getStatusColor } from "@/utils/colorUtils";
+import { getStatusColor } from "@/shared/utils/colorUtils";
 import { toast } from "react-toastify";
 
 // --- Custom Debounce Hook ---
@@ -60,10 +61,9 @@ export default function CustomersPage() {
   useEffect(() => {
     const fetchCustomers = async () => {
       try {
-        const res = await fetch("/api/customers", { cache: "no-store" });
-        const data = await res.json();
+        const { data } = await customerRepository.getCustomers();
 
-        if (res.ok && Array.isArray(data)) {
+        if (Array.isArray(data)) {
           setRawCustomers(data);
         }
       } catch (error) {
@@ -78,21 +78,21 @@ export default function CustomersPage() {
 
   // --- Data Processing Layer ---
   const { filteredCustomers, paginatedCustomers, totalPages } = useMemo(() => {
-    const grouped = {};
-    rawCustomers.forEach((item) => {
-      const cleanPhone = item.phone?.replace(/\D/g, "") || "unknown";
-      if (!grouped[cleanPhone]) {
-        grouped[cleanPhone] = item;
+    const uniqueCustomersMap = {};
+    rawCustomers.forEach((customerData) => {
+      const cleanPhone = customerData.phone?.replace(/\D/g, "") || "unknown";
+      if (!uniqueCustomersMap[cleanPhone]) {
+        uniqueCustomersMap[cleanPhone] = customerData;
       }
     });
 
-    let arr = Object.values(grouped).sort(
+    let sortedCustomers = Object.values(uniqueCustomersMap).sort(
       (a, b) => new Date(b.date) - new Date(a.date),
     );
 
     if (debouncedSearchTerm) {
       const lower = debouncedSearchTerm.toLowerCase();
-      arr = arr.filter(
+      sortedCustomers = sortedCustomers.filter(
         (c) =>
           (c.name && c.name.toLowerCase().includes(lower)) ||
           (c.phone && c.phone.includes(lower)) ||
@@ -100,14 +100,14 @@ export default function CustomersPage() {
       );
     }
 
-    const total = Math.ceil(arr.length / pageSize);
-    const paginated = arr.slice(
+    const total = Math.ceil(sortedCustomers.length / pageSize);
+    const paginated = sortedCustomers.slice(
       (currentPage - 1) * pageSize,
       currentPage * pageSize,
     );
 
     return {
-      filteredCustomers: arr,
+      filteredCustomers: sortedCustomers,
       paginatedCustomers: paginated,
       totalPages: total,
     };
@@ -325,14 +325,7 @@ const AddCustomerModal = ({ onClose, onSuccess }) => {
 
     setSaving(true);
     try {
-      const res = await fetch("/api/customers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      const result = await res.json();
-
-      if (!res.ok) throw new Error(result.error || "Failed to add customer");
+      const { data: result } = await customerRepository.createCustomer(formData);
 
       toast.success("Customer added successfully!");
       onSuccess(result.data);
