@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useChatStore } from "@/features/chat/stores/chatStore";
 import { useChat } from "@/features/chat/hooks/useChat";
+import { useChatPresence } from "@/features/chat/hooks/useChatPresence";
 import { hasModuleAccess } from "@/shared/utils/auth";
 import InboxPage from "@/shared/components/layout/InboxPage";
 import LoadingScreen from "@/shared/components/ui/LoadingScreen";
@@ -22,6 +23,8 @@ function ChatPageContent() {
   const userRole = session?.user?.role;
   const isAuthorized = hasModuleAccess(session, "Chat Inbox");
   const { loading } = useChat(userRole);
+
+  useChatPresence(selectedChat?.phone);
 
   useEffect(() => {
     const phoneParam = searchParams.get("phone");

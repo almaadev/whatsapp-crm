@@ -18,6 +18,7 @@ import ChatHeader from "@/components/features/chat/ChatHeader";
 import MessageList from "@/components/features/chat/MessageList";
 import ChatInput from "@/components/features/chat/ChatInput";
 import { useCategoryChat } from "@/features/chat/hooks/useCategoryChat";
+import { useChatPresence } from "@/features/chat/hooks/useChatPresence";
 import { formatSafeTime, getDisplayMessage } from "@/shared/utils/chatDisplay";
 import ChatListPanel from "@/features/chat/components/ChatListPanel";
 import ChatViewPanel from "@/features/chat/components/ChatViewPanel";
@@ -41,6 +42,8 @@ function CategoryInboxContent({ slug }) {
 
   const { Icon, chatType, moduleName, leadCategory } = config;
   const isAuthorized = hasModuleAccess(session, moduleName);
+
+  useChatPresence(selectedChat?.phone);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 

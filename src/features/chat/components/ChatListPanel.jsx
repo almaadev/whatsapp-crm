@@ -1,12 +1,19 @@
 import React, { memo, useCallback } from "react";
 import { Search, User } from "lucide-react";
 import { formatSafeTime, getDisplayMessage } from "@/shared/utils/chatDisplay";
+import { usePresenceStore } from "@/features/chat/stores/presenceStore";
+import { useSession } from "next-auth/react";
 
 const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emptyFallback }) {
   if (!chat) return null;
   const displayMsg = getDisplayMessage(chat, emptyFallback);
   const lastHistoryMsg = chat.history?.length > 0 ? chat.history[chat.history.length - 1] : null;
   const displayTime = chat.lastSeenAt || lastHistoryMsg?.createdAt || lastHistoryMsg?.timestamp || chat.createdAt;
+
+  const activeHandlers = usePresenceStore((s) => s.activeHandlers);
+  const { data: session } = useSession();
+  const handler = activeHandlers[chat.phone];
+  const isBeingHandledByOther = handler && handler.userId !== (session?.user?.id || session?.user?.email);
 
   return (
     <div
@@ -27,11 +34,19 @@ const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emp
         </div>
         <div className="flex justify-between items-center">
           <p className="text-[13px] text-[#667781] line-clamp-1 pr-2">{displayMsg}</p>
-          {chat.status && (
-            <span className="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded-md font-bold shrink-0">
-              {chat.status}
-            </span>
-          )}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {isBeingHandledByOther && (
+              <span className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-blue-50 text-blue-600 border border-blue-100">
+                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span>
+                Handling by {handler.name.split(' ')[0]}
+              </span>
+            )}
+            {chat.status && (
+              <span className="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded-md font-bold shrink-0">
+                {chat.status}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </div>

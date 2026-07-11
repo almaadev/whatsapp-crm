@@ -132,11 +132,9 @@ export default function NewCustomerPage() {
     }
   };
 
-  // 👇 FIX: Loading check
   if (status === "loading") return <div className="flex h-[100dvh] items-center justify-center text-slate-500 font-medium">Loading CRM...</div>;
   if (!session) return null;
 
-  // 👇 FIX: Access Denied Screen
   if (!isAuthorized) {
     return (
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">

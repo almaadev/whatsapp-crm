@@ -2,6 +2,7 @@
 import api from "@/shared/lib/axios";
 import { useState, useMemo, useEffect } from "react";
 import { useChatStore } from "@/features/chat/stores/chatStore";
+import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Search, PlusCircle, CheckCheck, Check, Clock, AlertCircle, ChevronDown, Trash2, X, AlertTriangle } from "lucide-react";
@@ -12,6 +13,7 @@ export default function ChatList({ role, loading }) {
     const messages = useChatStore((s) => s.messages);
     
     const { selectedChat, setSelectedChat, updateChatDetails } = useChatStore();
+    const activeHandlers = usePresenceStore((s) => s.activeHandlers);
     const { data: session } = useSession();
 
     const [searchTerm, setSearchTerm] = useState("");
@@ -220,6 +222,8 @@ const InboxSourceBadge = ({ sourceType }) => {
                 {chats.map((chat, index) => {
                     const isSelected = selectedChat?.phone === chat.phone;
                     const isUnread = !isSelected && chat.direction === "INBOUND" && chat.read === "FALSE";
+                    const handler = activeHandlers[chat.phone];
+                    const isBeingHandledByOther = handler && handler.userId !== (session?.user?.id || session?.user?.email);
                     
                     const cleanPhone = chat.phone ? chat.phone.replace("whatsapp:", "") : "";
                     const displayName = chat.name || cleanPhone;
@@ -285,6 +289,12 @@ const InboxSourceBadge = ({ sourceType }) => {
                                         {chat.priority && chat.priority.toLowerCase() === 'medium' && (
                                             <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 border border-amber-200">
                                                 Medium
+                                            </span>
+                                        )}
+                                        {isBeingHandledByOther && (
+                                            <span className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-blue-50 text-blue-600 border border-blue-100">
+                                                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span>
+                                                Handling by {handler.name.split(' ')[0]}
                                             </span>
                                         )}
                                     </div>
