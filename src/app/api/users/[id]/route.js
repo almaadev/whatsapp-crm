@@ -61,10 +61,15 @@ export async function PUT(req, { params }) {
           branch: body.branch,
           isAdmin: body.isAdmin,
           active: body.active,
-          accessModules: body.accessModules || [],
-          preferredName: body.preferredName || ""
+          accessModules: body.accessModules || []
       }
     };
+
+    if (body.preferredName && body.preferredName.trim() !== "") {
+        updateData.$set.preferredName = body.preferredName.trim();
+    } else {
+        updateData.$unset = { preferredName: 1 };
+    }
 
     if (body.password && body.password.trim() !== "") {
       const salt = await bcrypt.genSalt(Number(process.env.SALT || 10));

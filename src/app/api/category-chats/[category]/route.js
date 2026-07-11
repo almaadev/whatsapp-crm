@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/shared/lib/auth";
 import Customer from "@/shared/models/Customer";
 import Message from "@/shared/models/Message";
-import { resolveCategoryChat } from "@/lib/categoryChats";
+import { resolveCategoryChat } from "@/shared/api/utils/categoryChats";
 import twilio from "twilio";
 
 export async function GET(req, { params }) {
@@ -175,6 +175,14 @@ export async function POST(req, { params }) {
         ...emitPayload,
         timestamp: messageRecord.timestamp ?? messageRecord.createdAt ?? new Date(),
       });
+      
+      if (global.activeChatHandlers && global.activeChatHandlers.has(formattedTo)) {
+        const handler = global.activeChatHandlers.get(formattedTo);
+        if (handler.userId === (session?.user?.id || session?.user?.email) || !handler.userId) {
+           handler.lockedUntil = null;
+           global.io.emit("chat_lock_updated", { phone: formattedTo, handler });
+        }
+      }
     }
 
     return NextResponse.json({ success: true, message: saved });

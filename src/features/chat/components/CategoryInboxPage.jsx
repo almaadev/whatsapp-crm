@@ -9,17 +9,15 @@ import AccessDenied from "@/shared/components/ui/AccessDenied";
 import { hasModuleAccess } from "@/shared/utils/auth";
 import { toast } from "react-toastify";
 import { chatRepository } from "@/shared/api/repositories/chatRepository";
-import { User, Search, Lock } from "lucide-react";
+
 import dynamic from "next/dynamic";
 import { useDebounce } from "@/shared/hooks/useDebounce";
 
 const CustomerInfoPanel = dynamic(() => import("@/components/features/chat/CustomerInfoPanel"), { ssr: false });
-import ChatHeader from "@/components/features/chat/ChatHeader";
-import MessageList from "@/components/features/chat/MessageList";
-import ChatInput from "@/components/features/chat/ChatInput";
+
 import { useCategoryChat } from "@/features/chat/hooks/useCategoryChat";
 import { useChatPresence } from "@/features/chat/hooks/useChatPresence";
-import { formatSafeTime, getDisplayMessage } from "@/shared/utils/chatDisplay";
+
 import ChatListPanel from "@/features/chat/components/ChatListPanel";
 import ChatViewPanel from "@/features/chat/components/ChatViewPanel";
 

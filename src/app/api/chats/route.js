@@ -173,8 +173,14 @@ export async function POST(req) {
           role: role || "sales",
           name: name || phone,
         });
-        
-        
+      }
+
+      if (global.activeChatHandlers && global.activeChatHandlers.has(phone)) {
+        const handler = global.activeChatHandlers.get(phone);
+        if (handler.userId === (session?.user?.id || session?.user?.email) || !handler.userId) {
+           handler.lockedUntil = null;
+           if (global.io) global.io.emit("chat_lock_updated", { phone, handler });
+        }
       }
 
       if (redis && redis.status === "ready") await redis.del("chats:main_inbox_data");

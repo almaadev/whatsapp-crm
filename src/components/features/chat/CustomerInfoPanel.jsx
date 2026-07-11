@@ -5,8 +5,10 @@ import { useChatStore } from "@/features/chat/stores/chatStore";
 import {
   X, User, MapPin, Globe, HelpCircle, DollarSign, FileText,
   Save, History, Tag, ChevronDown, ChevronUp, Clock, BadgeCheck,
-  AlertCircle, RefreshCw, Filter
+  AlertCircle, RefreshCw, Filter, Lock
 } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { toast } from "react-toastify";
 import { customerRepository } from "@/shared/api/repositories/customerRepository";
 
@@ -51,6 +53,11 @@ export default function CustomerInfoPanel({
   const updateChatDetails  = useChatStore((s) => s.updateChatDetails);
 
   const selectedChat = activeChat || globalSelectedChat;
+
+  const { data: session } = useSession();
+  const activeHandlers = usePresenceStore((s) => s.activeHandlers);
+  const handler = selectedChat ? activeHandlers[selectedChat.phone] : null;
+  const isLockedByOther = handler && handler.userId !== (session?.user?.id || session?.user?.email) && (!handler.lockedUntil || handler.lockedUntil > Date.now());
 
   const [loading,        setLoading]       = useState(false);
   const [leadData,       setLeadData]      = useState(null); 
@@ -409,13 +416,17 @@ export default function CustomerInfoPanel({
       <div className="p-5 border-t border-slate-100 bg-white shrink-0">
         <button
           onClick={handleSave}
-          disabled={loading}
-          className="w-full bg-[#00a884] hover:bg-emerald-600 text-white py-3 rounded-xl font-bold transition-all shadow-lg shadow-emerald-200/50 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+          disabled={loading || isLockedByOther}
+          className={`w-full text-white py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 ${
+            loading || isLockedByOther ? "bg-slate-400 opacity-70 cursor-not-allowed shadow-none" : "bg-[#00a884] hover:bg-emerald-600 shadow-emerald-200/50"
+          }`}
         >
           {loading ? (
             <span className="flex items-center gap-2">
               <RefreshCw size={16} className="animate-spin" /> Syncing Database...
             </span>
+          ) : isLockedByOther ? (
+            <><Lock size={18} /> Locked by {handler.name.split(' ')[0]}</>
           ) : (
             <><Save size={18} /> Sync Lead Data</>
           )}

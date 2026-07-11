@@ -1,4 +1,5 @@
 import { Lock } from "lucide-react";
+import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import ChatHeader from "@/components/features/chat/ChatHeader";
 import MessageList from "@/components/features/chat/MessageList";
 import ChatInput from "@/components/features/chat/ChatInput";
@@ -37,6 +38,10 @@ export default function ChatViewPanel({
   const { Icon, borderAccent, accentText, emptyTitle } = config;
   const selectedChat = useStore((s) => s.selectedChat);
   const setSelectedChat = useStore((s) => s.setSelectedChat);
+
+  const activeHandlers = usePresenceStore((s) => s.activeHandlers);
+  const handler = selectedChat ? activeHandlers[selectedChat.phone] : null;
+  const isLockedByOther = handler && handler.userId !== (session?.user?.id || session?.user?.email) && (!handler.lockedUntil || handler.lockedUntil > Date.now());
 
   return (
     <div
@@ -82,10 +87,19 @@ export default function ChatViewPanel({
               onMediaClick={() => {}}
               endRef={messagesEndRef}
             />
+            {isLockedByOther && (
+              <div className="absolute inset-0 top-[65px] z-40 bg-white/30 backdrop-blur-[3px] flex flex-col items-center justify-center">
+                   <div className="bg-red-50 text-red-700 px-6 py-4 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-red-100 flex items-center gap-3">
+                      <Lock size={20} className="text-red-500" />
+                      <span className="font-semibold text-sm">This conversation is locked by {handler}</span>
+                   </div>
+              </div>
+            )}
             <ChatInput
               onSendMessage={handleSend}
               onSendTemplate={handleSendTemplate}
               sending={sending}
+              disabled={isLockedByOther}
             />
           </>
         ) : (

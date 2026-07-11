@@ -325,6 +325,14 @@ export async function POST(req) {
         categoryLabel: catLabel,
       });
 
+      // Update lock if chat is being handled
+      if (global.activeChatHandlers && global.activeChatHandlers.has(phone)) {
+        const handler = global.activeChatHandlers.get(phone);
+        handler.lockedUntil = Date.now() + 5 * 60 * 1000; // 5 minutes timeout
+        global.io.emit("chat_lock_updated", { phone, handler });
+        console.log(`🔒 [WEBHOOK] Lock timeout started for ${phone}`);
+      }
+
       console.log("⚡ [WEBHOOK] Socket events emitted.");
     }
 

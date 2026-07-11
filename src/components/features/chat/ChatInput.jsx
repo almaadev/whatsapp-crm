@@ -3,7 +3,7 @@ import { Send, Layers, X, Variable } from "lucide-react";
 import { TemplateBubble } from "@/shared/components/layout/TemplateBubble";
 import { toast } from "react-toastify";
 
-const ChatInput = memo(function ChatInput({ onSendMessage, onSendTemplate, sending }) {
+const ChatInput = memo(function ChatInput({ onSendMessage, onSendTemplate, sending, disabled }) {
   const [text, setText] = useState("");
   const [showBubble, setShowBubble] = useState(false);
 
@@ -52,6 +52,7 @@ const ChatInput = memo(function ChatInput({ onSendMessage, onSendTemplate, sendi
   };
 
   const handleKeyDown = (e) => {
+    if (disabled) return;
     if (e.key === "/" && text === "") {
       e.preventDefault();
       setShowBubble(true);
@@ -127,13 +128,14 @@ const ChatInput = memo(function ChatInput({ onSendMessage, onSendTemplate, sendi
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
+          disabled={disabled}
         />
       </div>
 
-      <button onClick={handleSendClick} disabled={sending || !text.trim()} className={`p-3 rounded-full shadow transition-all flex-shrink-0 mb-0.5 ${text.trim() ? "bg-[#00a884] text-white hover:bg-emerald-700" : "bg-slate-200 text-slate-400"}`}>
+      <button onClick={handleSendClick} disabled={sending || !text.trim() || disabled} className={`p-3 rounded-full shadow transition-all flex-shrink-0 mb-0.5 ${text.trim() && !disabled ? "bg-[#00a884] text-white hover:bg-emerald-700" : "bg-slate-200 text-slate-400"}`}>
         {sending ? <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" /> : <Send size={20} className={text.trim() ? "ml-0.5" : ""} />}
       </button>
-      <button onClick={() => setShowBubble(!showBubble)} className={`p-3 flex-shrink-0 rounded-full transition-all shadow-sm ${showBubble ? "bg-emerald-100 text-emerald-600" : "bg-white text-slate-500 hover:bg-slate-100"}`} title="Templates (Shortcut: /)">
+      <button disabled={disabled} onClick={() => setShowBubble(!showBubble)} className={`p-3 flex-shrink-0 rounded-full transition-all shadow-sm ${showBubble ? "bg-emerald-100 text-emerald-600" : disabled ? "bg-slate-100 text-slate-300" : "bg-white text-slate-500 hover:bg-slate-100"}`} title="Templates (Shortcut: /)">
         <Layers size={20} />
       </button>
     </div>

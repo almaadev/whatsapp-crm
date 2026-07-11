@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, memo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useChatStore } from "@/features/chat/stores/chatStore";
+import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { chatService } from "@/features/chat/services/chatService";
 import dynamic from "next/dynamic";
 
@@ -11,34 +12,14 @@ const ForwardLeadModal = dynamic(() => import("@/shared/components/modals/Forwar
 const ReminderModal = dynamic(() => import("@/shared/components/modals/ReminderModal"), { ssr: false });
 const PriorityModal = dynamic(() => import("@/shared/components/modals/PriorityModal"), { ssr: false });
 
-import {
-  parseMessageDate,
-  getDayHeader,
-  formatBubbleTime,
-  mutateLastMessage,
-  MessageStatusIcon,
-} from "@/shared/utils/chatUtils";
-import { getStatusColor } from "@/shared/utils/colorUtils";
+import {mutateLastMessage} from "@/shared/utils/chatUtils";
+
 import { toast } from "react-toastify";
 
 import {
-  Send,
-  Info,
-  X,
-  User,
-  History,
-  Bell,
-  FileText,
-  ToggleLeft,
-  ToggleRight,
-  ChevronLeft,
   MessageSquare,
   ArrowDown,
-  Share2,
-  Layers,
-  Check,
-  MapPin,
-  Variable,
+  Lock,
 } from "lucide-react";
 
 import ChatInput from "@/components/features/chat/ChatInput";
@@ -90,6 +71,10 @@ export default function ChatArea({
   const lastMessage =
     messages.length > 0 ? messages[messages.length - 1] : null;
   const isChatClosed = lastMessage?.isChatClosed || false;
+
+  const activeHandlers = usePresenceStore((s) => s.activeHandlers);
+  const handler = activeChat ? activeHandlers[activeChat.phone] : null;
+  const isLockedByOther = handler && handler.userId !== (session?.user?.id || session?.user?.email) && (!handler.lockedUntil || handler.lockedUntil > Date.now());
 
   // --- Scroll Handling ---
   useEffect(() => {
@@ -367,10 +352,20 @@ export default function ChatArea({
         </button>
       )}
 
+      {isLockedByOther && (
+        <div className="absolute inset-0 top-[65px] z-40 bg-white/30 backdrop-blur-[3px] flex flex-col items-center justify-center">
+             <div className="bg-red-50 text-red-700 px-6 py-4 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-red-100 flex items-center gap-3">
+                <Lock size={20} className="text-red-500" />
+                <span className="font-semibold text-sm">This conversation is locked by {handler.name}</span>
+             </div>
+        </div>
+      )}
+
       <ChatInput
         onSendMessage={handleSend}
         onSendTemplate={handleSendTemplate}
         sending={sending}
+        disabled={isLockedByOther}
       />
     </div>
   );

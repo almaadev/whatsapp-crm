@@ -13,16 +13,21 @@ const handle = app.getRequestHandler();
 app.prepare().then(() => {
   
   const activeChatHandlers = new Map();
+  global.activeChatHandlers = activeChatHandlers;
 
   // Cleanup inactive handlers every 30 seconds
   setInterval(() => {
     const now = Date.now();
     for (const [phone, handler] of activeChatHandlers.entries()) {
-      if (now - handler.timestamp > 60 * 1000) { // 60 seconds timeout
+      // 1. If lockedUntil exists and has expired
+      if (handler.lockedUntil && handler.lockedUntil < now) {
         activeChatHandlers.delete(phone);
-        if (global.io) {
-          global.io.emit("chat_unhandled", { phone });
-        }
+        if (global.io) global.io.emit("chat_unhandled", { phone });
+      } 
+      // 2. Otherwise check for basic ping inactivity (60s timeout)
+      else if (now - handler.timestamp > 60 * 1000) {
+        activeChatHandlers.delete(phone);
+        if (global.io) global.io.emit("chat_unhandled", { phone });
       }
     }
   }, 30000);
@@ -65,6 +70,17 @@ app.prepare().then(() => {
 
     socket.on("join_chat", (data) => {
       // data: { phone, user: { name, email, id } }
+      const incomingUserId = data.user.id || data.user.email;
+      const existingHandler = activeChatHandlers.get(data.phone);
+      
+      // Check if chat is locked by someone else
+      if (existingHandler && existingHandler.userId !== incomingUserId) {
+        if (!existingHandler.lockedUntil || existingHandler.lockedUntil > Date.now()) {
+          socket.emit("join_chat_rejected", { phone: data.phone, handler: existingHandler });
+          return;
+        }
+      }
+
       // Cleanup if this socket was handling another chat
       for (const [phone, handler] of activeChatHandlers.entries()) {
         if (handler.socketId === socket.id && phone !== data.phone) {
@@ -74,10 +90,11 @@ app.prepare().then(() => {
       }
 
       activeChatHandlers.set(data.phone, {
-        userId: data.user.id || data.user.email,
+        userId: incomingUserId,
         name: data.user.name,
         socketId: socket.id,
         timestamp: Date.now(),
+        lockedUntil: null, // Infinite lock until inbound message
       });
 
       io.emit("chat_handled", { phone: data.phone, handler: activeChatHandlers.get(data.phone) });

@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { connectSocket } from "@/features/chat/services/socketService";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { useSession } from "next-auth/react";
+import { toast } from "react-toastify";
 
 export function useChatPresence(selectedChatPhone) {
   const { data: session } = useSession();
@@ -30,9 +31,16 @@ export function useChatPresence(selectedChatPhone) {
       removeHandler(phone);
     };
 
+    const onLockUpdated = ({ phone, handler }) => {
+      setHandler(phone, handler);
+    };
+
+
     socket.on("sync_active_handlers", onSync);
     socket.on("chat_handled", onHandled);
     socket.on("chat_unhandled", onUnhandled);
+    socket.on("chat_lock_updated", onLockUpdated);
+    
 
     // Request sync on mount
     socket.emit("request_active_handlers");
@@ -41,6 +49,8 @@ export function useChatPresence(selectedChatPhone) {
       socket.off("sync_active_handlers", onSync);
       socket.off("chat_handled", onHandled);
       socket.off("chat_unhandled", onUnhandled);
+      socket.off("chat_lock_updated", onLockUpdated);
+      
     };
   }, [syncHandlers, setHandler, removeHandler]);
 

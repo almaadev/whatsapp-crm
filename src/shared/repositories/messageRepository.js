@@ -29,10 +29,6 @@ export async function deleteMessagesByPhones(phones) {
 }
 
 export async function markMessagesAsRead(phone) {
-  // Mark across all possible models just to be safe, or specify the model?
-  // Usually this is done via updating the last message or emitting to UI, but in DB:
-  // Actually, chatStore sets read=TRUE on UI, backend maybe doesn't do it?
-  // Let's implement it generic
   await Promise.all([
     Message.updateMany({ phone }, { $set: { read: "TRUE" } }),
     ProductMessage.updateMany({ phone }, { $set: { read: "TRUE" } }),

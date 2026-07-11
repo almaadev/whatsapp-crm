@@ -4,6 +4,7 @@ import { formatSafeTime, getDisplayMessage } from "@/shared/utils/chatDisplay";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { useSession } from "next-auth/react";
 
+
 const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emptyFallback }) {
   if (!chat) return null;
   const displayMsg = getDisplayMessage(chat, emptyFallback);
@@ -13,11 +14,15 @@ const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emp
   const activeHandlers = usePresenceStore((s) => s.activeHandlers);
   const { data: session } = useSession();
   const handler = activeHandlers[chat.phone];
-  const isBeingHandledByOther = handler && handler.userId !== (session?.user?.id || session?.user?.email);
+  const isBeingHandledByOther = handler && handler.userId !== (session?.user?.id || session?.user?.email) && (!handler.lockedUntil || handler.lockedUntil > Date.now());
+
+  const handleClick = (e) => {
+    onClick(chat);
+  };
 
   return (
     <div
-      onClick={() => onClick(chat)}
+      onClick={handleClick}
       className={`flex items-center px-3 py-2.5 cursor-pointer hover:bg-[#f5f6f6] transition-colors ${
         isSelected ? "bg-[#f0f2f5]" : ""
       }`}
@@ -36,9 +41,9 @@ const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emp
           <p className="text-[13px] text-[#667781] line-clamp-1 pr-2">{displayMsg}</p>
           <div className="flex items-center gap-1.5 shrink-0">
             {isBeingHandledByOther && (
-              <span className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-blue-50 text-blue-600 border border-blue-100">
-                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span>
-                Handling by {handler.name.split(' ')[0]}
+              <span className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-red-50 text-red-600 border border-red-100">
+                <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
+                Locked by {handler.name}
               </span>
             )}
             {chat.status && (
