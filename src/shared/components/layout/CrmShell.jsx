@@ -1,9 +1,11 @@
 "use client";
 
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import Sidebar from "@/shared/components/layout/Sidebar";
 import Topbar from "@/shared/components/layout/Topbar";
+import { useUserStore } from "@/features/user/store/userStore";
+import { authRepository } from "@/shared/api/repositories/authRepository";
 
 const CrmLayoutContext = createContext(null);
 
@@ -19,6 +21,15 @@ export default function CrmShell({ children }) {
   const { data: session, status } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isDesktopExpanded, setIsDesktopExpanded] = useState(false);
+  
+  const fetchCurrentUser = useUserStore((state) => state.fetchCurrentUser);
+
+  useEffect(() => {
+    if (session && status === "authenticated") {
+      fetchCurrentUser(authRepository);
+    }
+  }, [session, status, fetchCurrentUser]);
+
   return (
     <CrmLayoutContext.Provider
       value={{

@@ -1,6 +1,7 @@
 import api from "@/shared/lib/axios";
 
 export const userRepository = {
+  getCurrentUser: (options = {}) => api.get("/api/auth/me", options),
   getUsers: (options = {}) => api.get("/api/users", options),
   getUserById: (id, options = {}) => api.get(`/api/users/${id}`, options),
   createUser: (payload, options = {}) => api.post("/api/users", payload, options),

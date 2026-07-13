@@ -1,36 +1,35 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { signOut } from "next-auth/react";
 import { LayoutGrid, Bell, Menu, LogOut, ChevronDown } from "lucide-react";
 import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import SignOutModal from "@/shared/components/modals/SignOutModal";
 import NotificationPanel from "@/shared/components/layout/NotificationPanel";
 import { useChatStore } from "@/features/chat/stores/chatStore";
 import { authRepository } from "@/shared/api/repositories/authRepository";
+import { useUserStore } from "@/features/user/store/userStore";
 
-/**
- * Renders the top navigation bar of the CRM layout.
- * Includes toggles for the sidebar (mobile/desktop), notifications panel,
- * and user profile dropdown for signing out.
- *
- * @returns {JSX.Element} The Topbar component
- */
+
 export default function Topbar() {
   const { setMobileOpen, isDesktopExpanded, setIsDesktopExpanded } =
     useCrmLayout();
-  const { data: session } = useSession();
+  
 
   const notifications = useChatStore((s) => s.notifications);
-
+  
+  // Get user from store and clearUser function
+  const user = useUserStore((state) => state.user);
+  const clearUser = useUserStore((state) => state.clearUser);
+  
   // States
   const [showSignOut, setShowSignOut] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const dropdownRef = useRef(null);
-
-  const userName = session?.user?.name || "User";
-  const displayRole = session?.user?.role || "";
+  
+  const userName = user?.name || "User";
+  const displayRole = user?.role || "";
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -49,6 +48,7 @@ export default function Topbar() {
     } catch (error) {
       console.error("Secure logout API failed:", error);
     } finally {
+      clearUser();
       await signOut({ redirect: false });
       window.location.href = "/";
     }
