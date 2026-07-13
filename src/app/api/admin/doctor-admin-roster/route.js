@@ -32,6 +32,11 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const month = parseInt(searchParams.get("month")) || new Date().getUTCMonth() + 1;
     const year = parseInt(searchParams.get("year")) || new Date().getUTCFullYear();
+    const adminBranch = await ( async () => {
+      const user = await User.findById(session.user.id).lean();
+      return user ? user.branch : null;
+    })();
+    
 
     const cacheKey = `roster:doctorAdmin:${month}:${year}`;
     if (redis && redis.status === "ready") {
@@ -45,6 +50,7 @@ export async function GET(req) {
     const users = await User.find({
       role: "doctor",
       department: { $regex: "^(telecalling|support)$", $options: "i" },
+      branch: adminBranch,
     }).lean();
 
     if (!users || users.length === 0) {
