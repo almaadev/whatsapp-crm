@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { customerRepository } from "@/shared/api/repositories/customerRepository";
+import { useAuth } from "@/shared/hooks/useAuth";
+import AccessDenied from "@/shared/components/ui/AccessDenied";
 
 // Modern Enterprise Status Badges
 const StatusBadge = ({ status, labelOverride }) => {
@@ -44,6 +46,7 @@ export default function CustomerDetailPage({ params }) {
     const { setMobileOpen } = useCrmLayout();
     const lastPath = usePathStore((state) => state.lastpath);
     const { data: session } = useSession();
+    const { user, isLoading, hasModuleAccess } = useAuth();
     const { setSelectedChat }     = useChatStore();
     const [customer, setCustomer] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -137,7 +140,26 @@ export default function CustomerDetailPage({ params }) {
         return `${Math.floor(diffDays / 365)} Years`;
     };
 
-    if (!session) return null;
+    const isAuthorized = hasModuleAccess("Customers");
+
+    if (isLoading) {
+        return (
+            <div className="flex h-screen w-screen bg-[#f8fafc]">
+                <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+                    <Loader2 size={32} className="animate-spin text-[#00a884] mb-4" />
+                    <p className="text-sm font-semibold tracking-wide">Loading Intelligence Profile...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!user && !session) return null;
+
+    if (!isAuthorized) {
+        return (
+            <AccessDenied message="You do not have permission to access Customer Details." />
+        );
+    }
 
     if (loading) {
         return (

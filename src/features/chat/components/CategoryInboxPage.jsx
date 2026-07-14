@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import InboxPage from "@/shared/components/layout/InboxPage";
 import LoadingScreen from "@/shared/components/ui/LoadingScreen";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
-import { hasModuleAccess } from "@/shared/utils/auth";
+import { useAuth } from "@/shared/hooks/useAuth";
 import { toast } from "react-toastify";
 import { chatRepository } from "@/shared/api/repositories/chatRepository";
 
@@ -23,6 +23,7 @@ import ChatViewPanel from "@/features/chat/components/ChatViewPanel";
 
 function CategoryInboxContent({ slug }) {
   const { data: session, status } = useSession();
+  const { user, isLoading, hasModuleAccess } = useAuth();
   const searchParams = useSearchParams();
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
@@ -39,7 +40,7 @@ function CategoryInboxContent({ slug }) {
   const updateChatDetails = useStore((s) => s.updateChatDetails);
 
   const { Icon, chatType, moduleName, leadCategory } = config;
-  const isAuthorized = hasModuleAccess(session, moduleName);
+  const isAuthorized = hasModuleAccess(moduleName);
 
   useChatPresence(selectedChat?.phone);
 
@@ -71,7 +72,7 @@ function CategoryInboxContent({ slug }) {
           phone: selectedChat.phone,
           templateSid: template.sid,
           chatType,
-          associateName: session?.user?.name,
+          associateName: user?.name,
           contentVariables: variables,
         });
         fetchChats(debouncedSearch);
@@ -80,7 +81,7 @@ function CategoryInboxContent({ slug }) {
         toast.error("Failed to send template.");
       }
     },
-    [selectedChat, session, fetchChats, debouncedSearch, chatType]
+    [selectedChat, user, fetchChats, debouncedSearch, chatType]
   );
 
   const lastMessage =
@@ -129,11 +130,11 @@ function CategoryInboxContent({ slug }) {
     await updateStatus(selectedChat.phone, newStatus);
   };
 
-  if (status === "loading") {
+  if (status === "loading" || isLoading) {
     return <LoadingScreen message={config.loadingLabel} />;
   }
 
-  if (!session) return null;
+  if (!user && !session) return null;
 
   if (!isAuthorized) {
     return (
@@ -156,7 +157,7 @@ function CategoryInboxContent({ slug }) {
         <>
           <ChatViewPanel
             useStore={useStore}
-            session={session}
+            session={user ? { user } : session}
             isChatClosed={isChatClosed}
             isToggling={isToggling}
             handleToggleChatStatus={handleToggleChatStatus}

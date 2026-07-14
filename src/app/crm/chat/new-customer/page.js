@@ -13,9 +13,11 @@ import { toast } from "react-toastify";
 import { customerRepository } from "@/shared/api/repositories/customerRepository";
 import { chatRepository } from "@/shared/api/repositories/chatRepository";
 import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png"; 
+import { useAuth } from "@/shared/hooks/useAuth"; 
 
 export default function NewCustomerPage() {
   const { data: session, status } = useSession();
+  const { user, isLoading, hasModuleAccess } = useAuth();
   const router = useRouter();
   const {setMobileOpen} = useCrmLayout()
   const setSelectedChat = useChatStore((s) => s.setSelectedChat);
@@ -36,23 +38,7 @@ export default function NewCustomerPage() {
     source: "Direct"
   });
 
-  // 👇 FIX: Authorization Logic Added
-  const userRole = session?.user?.role;
-  const displayRole = userRole || "";
-  const department = session?.user?.department || "";
-  const accessModules = session?.user?.accessModules || [];
-
-  const isAdminAuthorized =
-    displayRole === 'superAdmin' ||
-    (displayRole === 'sales' && department === 'admin') ||
-    (displayRole === 'doctor' && department === 'admin');
-
-  const hasAccess = (moduleName) => {
-    if (isAdminAuthorized) return true; 
-    return accessModules.includes(moduleName); 
-  };
-
-  const isAuthorized = hasAccess("Chat Inbox");
+  const isAuthorized = hasModuleAccess("Chat Inbox");
 
 
   useEffect(() => {
@@ -132,8 +118,8 @@ export default function NewCustomerPage() {
     }
   };
 
-  if (status === "loading") return <div className="flex h-[100dvh] items-center justify-center text-slate-500 font-medium">Loading CRM...</div>;
-  if (!session) return null;
+  if (status === "loading" || isLoading) return <div className="flex h-[100dvh] items-center justify-center text-slate-500 font-medium">Loading CRM...</div>;
+  if (!user && !session) return null;
 
   if (!isAuthorized) {
     return (

@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useChatStore } from "@/features/chat/stores/chatStore";
 import { useChat } from "@/features/chat/hooks/useChat";
 import { useChatPresence } from "@/features/chat/hooks/useChatPresence";
-import { hasModuleAccess } from "@/shared/utils/auth";
+import { useAuth } from "@/shared/hooks/useAuth";
 import InboxPage from "@/shared/components/layout/InboxPage";
 import LoadingScreen from "@/shared/components/ui/LoadingScreen";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
@@ -15,13 +15,14 @@ import ChatArea from "@/components/features/chat/ChatArea";
 
 function ChatPageContent() {
   const { data: session, status } = useSession();
+  const { user, isLoading, hasModuleAccess } = useAuth();
   const selectedChat = useChatStore((s) => s.selectedChat);
   const setSelectedChat = useChatStore((s) => s.setSelectedChat);
   const messages = useChatStore((s) => s.messages);
   const searchParams = useSearchParams();
 
-  const userRole = session?.user?.role;
-  const isAuthorized = hasModuleAccess(session, "Chat Inbox");
+  const userRole = user?.role || session?.user?.role;
+  const isAuthorized = hasModuleAccess("Chat Inbox");
   const { loading } = useChat(userRole);
 
   useChatPresence(selectedChat?.phone);
@@ -36,11 +37,11 @@ function ChatPageContent() {
     }
   }, [searchParams, messages, selectedChat, setSelectedChat]);
 
-  if (status === "loading") {
+  if (status === "loading" || isLoading) {
     return <LoadingScreen message="Loading Chat..." />;
   }
 
-  if (!session) return null;
+  if (!user && !session) return null;
 
   if (!isAuthorized) {
     return (

@@ -5,6 +5,8 @@ import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { usePathStore } from "@/features/chat/stores/pathStore";
 import { customerRepository } from "@/shared/api/repositories/customerRepository";
+import { useAuth } from "@/shared/hooks/useAuth";
+import AccessDenied from "@/shared/components/ui/AccessDenied";
 
 import DashboardPage from "@/shared/components/layout/DashboardPage";
 import LoadingScreen from "@/shared/components/ui/LoadingScreen";
@@ -38,6 +40,7 @@ function useDebounce(value, delay) {
 
 export default function CustomersPage() {
   const { data: session, status } = useSession();
+  const { user, isLoading, hasModuleAccess } = useAuth();
   const router = useRouter();
   const { setPath } = usePathStore();
   const pathname = usePathname();
@@ -129,7 +132,17 @@ export default function CustomersPage() {
     setShowAddModal(false);
   };
 
-  if (status === "loading" || !session) return <LoadingScreen />;
+  const isAuthorized = hasModuleAccess("Customers");
+
+  if (status === "loading" || isLoading) return <LoadingScreen />;
+
+  if (!user && !session) return null;
+
+  if (!isAuthorized) {
+    return (
+      <AccessDenied message="You do not have permission to access the Customer Directory." />
+    );
+  }
 
   return (
     <DashboardPage

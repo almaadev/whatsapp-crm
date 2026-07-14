@@ -23,6 +23,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
+import { useAuth } from "@/shared/hooks/useAuth";
+import AccessDenied from "@/shared/components/ui/AccessDenied";
 import { bulkMessageRepository } from "@/shared/api/repositories/bulkMessageRepository";
 import TemplateManagerPanel from "@/features/templates/components/TemplateManagerPanel";
 import { useTemplateStore } from "@/features/templates/stores/templateStore";
@@ -30,6 +32,7 @@ import { useTemplateStore } from "@/features/templates/stores/templateStore";
 export default function BulkTemplatePage() {
   const { setMobileOpen } = useCrmLayout();
   const { data: session, status } = useSession();
+  const { user, isLoading, hasModuleAccess, isSuperAdmin } = useAuth();
 
   const [campaignName, setCampaignName] = useState("");
   const [campaigns, setCampaigns] = useState([]);
@@ -224,7 +227,7 @@ export default function BulkTemplatePage() {
   const canSend =
     !isSending && recipientCount > 0 && !!templateId && !!campaignName.trim();
 
-  if (status === "loading") {
+  if (status === "loading" || isLoading) {
     return (
       <div className="flex h-screen items-center justify-center text-slate-500 font-bold tracking-widest uppercase text-sm">
         <Loader2 className="animate-spin mr-2" size={20} /> Verifying Access...
@@ -232,20 +235,11 @@ export default function BulkTemplatePage() {
     );
   }
 
-  const isSuperAdmin = session?.user?.role === "superAdmin";
-  const hasBulkAccess =
-    isSuperAdmin || session?.user?.accessModules?.includes("Bulk Messages");
+  const hasBulkAccess = hasModuleAccess("Bulk Messages");
 
   if (!hasBulkAccess) {
     return (
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
-        <div className="flex flex-1 w-full h-full flex-col items-center justify-center p-6 text-center">
-          <ShieldAlert size={80} className="text-rose-400 mb-6" />
-          <h2 className="text-3xl font-extrabold text-slate-800">
-            Access Denied
-          </h2>
-        </div>
-      </div>
+      <AccessDenied message="You do not have permission to access Bulk Messages." />
     );
   }
 

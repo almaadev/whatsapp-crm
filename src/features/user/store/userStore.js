@@ -1,4 +1,7 @@
 import { create } from "zustand";
+import { decrypt } from "@/shared/utils/crypto";
+
+const ENCRYPTION_PASSWORD = process.env.NEXT_PUBLIC_API_ENCRYPTION_KEY || "AlmaaHerbalCRMSecurityKey2026";
 
 export const useUserStore = create((set, get) => ({
   user: null,
@@ -12,11 +15,19 @@ export const useUserStore = create((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const { data } = await authRepository.getCurrentUser();
-      set({ user: data.user, isLoading: false });
-      return data.user;
+      
+      let currentUser = data.user;
+      if (data.data) {
+        const decryptedText = await decrypt(data.data, ENCRYPTION_PASSWORD);
+        currentUser = JSON.parse(decryptedText);
+      }
+      
+      set({ user: currentUser, isLoading: false });
+      return currentUser;
     } catch (error) {
-      set({ error: error.message, isLoading: false });
-      console.error("Error fetching current user:", error);
+      const errMsg = error.response?.data?.error || error.message || "Unauthorized";
+      set({ error: errMsg, isLoading: false });
+      console.error("Error fetching current user:", errMsg);
       throw error;
     }
   }

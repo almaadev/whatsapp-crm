@@ -6,7 +6,7 @@ import LoadingScreen from "@/shared/components/ui/LoadingScreen";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
 import KPICard from "@/shared/components/ui/KpiCard";
 import { AnimatedCount } from "@/shared/hooks/useCountUp";
-import { isAdminAuthorized, isSuperAdmin } from "@/shared/utils/auth";
+import { useAuth } from "@/shared/hooks/useAuth";
 import { useDashboardState } from "@/features/admin/hooks/useDashboardState";
 
 import {
@@ -28,15 +28,12 @@ import {
 
 export default function AdminDashboard() {
   const { data: session, status } = useSession();
+  const { user, isLoading, isAdmin, isSuperAdmin: isSuperAdminUser } = useAuth();
 
-  const isSuperAdminUser = isSuperAdmin(session?.user?.role);
-  const isAuthorized = isAdminAuthorized(
-    session?.user?.role,
-    session?.user?.department,
-  );
+  const isAuthorized = isAdmin;
 
   const { state, setters, derived, actions } = useDashboardState(
-    session,
+    user ? { user } : session,
     isAuthorized,
     isSuperAdminUser,
   );
@@ -44,6 +41,7 @@ export default function AdminDashboard() {
   // --- Render Gates ---
   if (
     status === "loading" ||
+    isLoading ||
     !state.isInitialized ||
     (!isAuthorized && status !== "unauthenticated")
   ) {

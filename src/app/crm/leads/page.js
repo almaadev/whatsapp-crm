@@ -4,6 +4,8 @@ import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { usePathStore } from "@/features/chat/stores/pathStore";
 import { leadRepository } from "@/shared/api/repositories/leadRepository";
+import { useAuth } from "@/shared/hooks/useAuth";
+import AccessDenied from "@/shared/components/ui/AccessDenied";
 import DashboardPage from "@/shared/components/layout/DashboardPage";
 import LoadingScreen from "@/shared/components/ui/LoadingScreen";
 import SearchInput from "@/shared/components/ui/SearchInput";
@@ -41,7 +43,8 @@ import { toast } from "react-toastify";
 export default function LeadsPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const role = session?.user?.role;
+  const { user, isLoading, hasModuleAccess } = useAuth();
+  const role = user?.role || session?.user?.role;
   const { setPath } = usePathStore();
   const pathname = usePathname();
 
@@ -158,8 +161,18 @@ export default function LeadsPage() {
     }
   };
 
-  if (status === "loading") {
+  const isAuthorized = hasModuleAccess("Leads");
+
+  if (status === "loading" || isLoading) {
     return <LoadingScreen />;
+  }
+
+  if (!user && !session) return null;
+
+  if (!isAuthorized) {
+    return (
+      <AccessDenied message="You do not have permission to access Customer Leads." />
+    );
   }
 
   return (

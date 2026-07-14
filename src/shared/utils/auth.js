@@ -8,11 +8,110 @@ export function isAdminAuthorized(role, department = "") {
 
 export function hasModuleAccess(session, moduleName) {
   if (!session?.user) return false;
-  const { role, department, accessModules = [] } = session.user;
-  if (isAdminAuthorized(role, department)) return true;
+  const { accessModules = [] } = session.user;
   return accessModules.includes(moduleName);
 }
 
 export function isSuperAdmin(role) {
   return role === "superAdmin";
 }
+
+export function checkPermissions(userOrSession, config) {
+  if (!userOrSession) return false;
+  const user = userOrSession.user ? userOrSession.user : userOrSession;
+  if (!user) return false;
+  const { role, department, accessModules = [] } = user;
+  const isAdmin = isAdminAuthorized(role, department);
+
+  // 1. Role verification
+  if (config.adminOnly && !isAdmin) return false;
+  if (config.hideForAdmin && isAdmin) return false;
+
+  // 2. Module verification
+  if (config.moduleName && !accessModules.includes(config.moduleName)) {
+    return false;
+  }
+
+  // 3. Access Requirements (any of the listed modules)
+  if (config.accessRequirements) {
+    const hasAny = config.accessRequirements.some((req) =>
+      accessModules.includes(req)
+    );
+    if (!hasAny) return false;
+  }
+
+  return true;
+}
+
+const ROUTE_RULES = [
+  { path: "/crm/admin", adminOnly: true },
+  { path: "/crm/associate-management", adminOnly: true },
+  { path: "/crm/associate", hideForAdmin: true },
+  { path: "/crm/chat/new-customer", moduleName: "Chat Inbox" },
+  { path: "/crm/chat", moduleName: "Chat Inbox" },
+  { path: "/crm/product-lead", moduleName: "Product Lead" },
+  { path: "/crm/md-camp", moduleName: "MD Camp" },
+  { path: "/crm/therapy", moduleName: "Therapy" },
+  { path: "/crm/bulk-message", moduleName: "Bulk Messages" },
+  { path: "/crm/message-logs", moduleName: "logs" },
+  { path: "/crm/leads", moduleName: "Leads" },
+  { path: "/crm/customers", moduleName: "Customers" },
+  { path: "/crm/forwarded-leads", moduleName: "Leads" },
+];
+
+export function getRouteRule(pathname) {
+  const sortedRules = [...ROUTE_RULES].sort((a, b) => b.path.length - a.path.length);
+  return sortedRules.find(
+    (rule) => pathname === rule.path || pathname.startsWith(rule.path + "/")
+  );
+}
+
+export function isRouteAuthorized(session, pathname) {
+  const rule = getRouteRule(pathname);
+  if (!rule) return true; // Default allow if no rule matches
+  return checkPermissions(session, rule);
+}
+
+const API_RULES = [
+  { prefix: "/api/admin", adminOnly: true },
+  { prefix: "/api/users", adminOnly: true },
+  { prefix: "/api/associate", hideForAdmin: true },
+  { prefix: "/api/bulk-message", moduleName: "Bulk Messages" },
+  { prefix: "/api/message-logs", moduleName: "logs" },
+  { prefix: "/api/leads", moduleName: "Leads" },
+  { prefix: "/api/forward-lead", moduleName: "Leads" },
+  { prefix: "/api/customers", moduleName: "Customers" },
+  { prefix: "/api/chats", moduleName: "Chat Inbox" },
+  { prefix: "/api/category-chats", moduleName: "Chat Inbox" },
+  { prefix: "/api/send-template", moduleName: "Chat Inbox" },
+  { prefix: "/api/category-leads-update", moduleName: "Chat Inbox" },
+  { prefix: "/api/keyword-automation", adminOnly: true },
+  { prefix: "/api/templates", moduleName: "Chat Inbox" },
+];
+
+export function getAPIRule(pathname) {
+  if (pathname.startsWith("/api/category-chats/")) {
+    const slug = pathname.split("/")[3];
+    if (slug === "product") return { moduleName: "Product Lead" };
+    if (slug === "mdcamp") return { moduleName: "MD Camp" };
+    if (slug === "therapy") return { moduleName: "Therapy" };
+  }
+  if (pathname.startsWith("/api/category-leads-update/")) {
+    const slug = pathname.split("/")[3];
+    if (slug === "product") return { moduleName: "Product Lead" };
+    if (slug === "mdcamp") return { moduleName: "MD Camp" };
+    if (slug === "therapy") return { moduleName: "Therapy" };
+  }
+
+  const sortedRules = [...API_RULES].sort((a, b) => b.prefix.length - a.prefix.length);
+  return sortedRules.find(
+    (rule) => pathname === rule.prefix || pathname.startsWith(rule.prefix + "/")
+  );
+}
+
+export function isAPIAuthorized(session, pathname) {
+  const rule = getAPIRule(pathname);
+  if (!rule) return true; // Default allow if no rule exists
+  return checkPermissions(session, rule);
+}
+

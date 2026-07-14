@@ -2,6 +2,8 @@
 
 import React, { useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { useAuth } from "@/shared/hooks/useAuth";
+import AccessDenied from "@/shared/components/ui/AccessDenied";
 import { toast } from "react-toastify";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCrmLayout } from "@/shared/components/layout/CrmShell";
@@ -36,12 +38,10 @@ import {
 
 export default function MessageLogsPage() {
   const { data: session, status } = useSession();
+  const { user, isLoading, hasModuleAccess } = useAuth();
   const { setMobileOpen } = useCrmLayout();
 
-  const isAuthorized =
-    session?.user?.role === "superAdmin" ||
-    session?.user?.department === "admin" ||
-    session;
+  const isAuthorized = hasModuleAccess("Messages log");
 
   const { state, setters, derived, actions } = useMessageLogsState(isAuthorized);
 
@@ -209,47 +209,23 @@ export default function MessageLogsPage() {
     );
   };
 
-  const isSuperAdminUser = session?.user?.role === "superAdmin";
-  const haslogaccess =
-    isSuperAdminUser || session?.user?.accessModules?.includes("Messages log");
+  const hasLogAccess = isAuthorized;
 
-  if (!haslogaccess) {
+  if (!hasLogAccess) {
     return (
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
-        <div className="flex flex-1 w-full h-full flex-col items-center justify-center p-6 text-center">
-          <ShieldAlert size={80} className="text-rose-400 mb-6" />
-          <h2 className="text-3xl font-extrabold text-slate-800">
-            Access Denied
-          </h2>
-          <p className="text-slate-500 mt-2">
-            You do not have permission to view this page. Please contact your
-            administrator.
-          </p>
-        </div>
-      </div>
+      <AccessDenied message="You do not have permission to access Message Logs." />
     );
   }
 
   const isDangerousQuery = !state.startDate && !state.endDate && !state.searchQuery;
 
-  if (status === "loading")
+  if (status === "loading" || isLoading)
     return (
       <div className="flex h-screen items-center justify-center text-emerald-600 font-bold uppercase tracking-widest text-sm bg-slate-50">
         <Loader2 className="animate-spin mr-3" /> Authenticating...
       </div>
     );
-  if (!session || !isAuthorized) {
-    return (
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
-        <div className="flex flex-1 w-full h-full flex-col items-center justify-center p-6 text-center">
-          <ShieldAlert size={80} className="text-rose-400 mb-6" />
-          <h2 className="text-3xl font-extrabold text-slate-800">
-            Clearance Required
-          </h2>
-        </div>
-      </div>
-    );
-  }
+  if (!user && !session) return null;
 
   return (
     <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">

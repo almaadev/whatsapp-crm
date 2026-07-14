@@ -5,7 +5,8 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 import { useChatStore } from "@/features/chat/stores/chatStore";
-import { isAdminAuthorized } from "@/shared/utils/auth";
+import { useAuth } from "@/shared/hooks/useAuth";
+import AccessDenied from "@/shared/components/ui/AccessDenied";
 import { chatRepository } from "@/shared/api/repositories/chatRepository";
 import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import {
@@ -25,6 +26,7 @@ import {
 export default function ForwardedLeadsPage() {
   const { setMobileOpen } = useCrmLayout();
   const { data: session } = useSession();
+  const { user, isLoading, hasModuleAccess, isAdmin } = useAuth();
   const router = useRouter();
   const setSelectedChat = useChatStore((s) => s.setSelectedChat);
 
@@ -33,11 +35,6 @@ export default function ForwardedLeadsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-
-  const isAdmin = isAdminAuthorized(
-    session?.user?.role,
-    session?.user?.department,
-  );
 
   const parseDate = (dateString) => {
     if (!dateString) return new Date(0);
@@ -133,8 +130,17 @@ export default function ForwardedLeadsPage() {
   const currentItems = filteredLeads.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
+  const isAuthorized = hasModuleAccess("Leads");
 
-  if (!session) return null;
+  if (isLoading) return <div className="flex h-[100dvh] items-center justify-center text-slate-500 font-medium">Loading CRM...</div>;
+
+  if (!user && !session) return null;
+
+  if (!isAuthorized) {
+    return (
+      <AccessDenied message="You do not have permission to access Forwarded Leads." />
+    );
+  }
 
   return (
     <div className="flex h-[100dvh]  bg-slate-50">

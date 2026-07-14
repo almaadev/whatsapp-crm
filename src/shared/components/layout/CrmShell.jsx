@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import Sidebar from "@/shared/components/layout/Sidebar";
 import Topbar from "@/shared/components/layout/Topbar";
 import { useUserStore } from "@/features/user/store/userStore";
@@ -26,7 +26,10 @@ export default function CrmShell({ children }) {
 
   useEffect(() => {
     if (session && status === "authenticated") {
-      fetchCurrentUser(authRepository);
+      fetchCurrentUser(authRepository).catch((err) => {
+        console.error("Session invalid or user inactive, signing out:", err);
+        signOut({ callbackUrl: "/" });
+      });
     }
   }, [session, status, fetchCurrentUser]);
 

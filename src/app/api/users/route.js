@@ -5,13 +5,12 @@ import connectDB from "@/shared/lib/db/mongodb";
 import User from "@/shared/models/User";
 import redis from "@/shared/lib/db/redis"; 
 import bcrypt from "bcryptjs"; 
+import { isAdminAuthorized } from "@/shared/utils/auth";
 
 const USER_CACHE_KEY = "users:all";
 
 const isAuthorized = (session) => {
-    return session?.user?.role === 'superAdmin' || 
-           (session?.user?.role === 'sales' && session?.user?.department === 'admin') ||  
-           (session?.user?.role === 'doctor' && session?.user?.department === 'admin');
+    return isAdminAuthorized(session?.user?.role, session?.user?.department);
 };
 
 export async function GET() {

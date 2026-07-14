@@ -8,8 +8,9 @@ import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png";
 import SignOutModal from "@/shared/components/modals/SignOutModal";
 import { authRepository } from "@/shared/api/repositories/authRepository";
 import { ChevronDown } from "lucide-react";
-import { isAdminAuthorized, hasModuleAccess } from "@/shared/utils/auth";
+import { checkPermissions } from "@/shared/utils/auth";
 import { NAVIGATION_CONFIG } from "@/shared/config/navigation";
+import { useUserStore } from "@/features/user/store/userStore";
 
 export default function Sidebar({
   role,
@@ -19,6 +20,7 @@ export default function Sidebar({
   isDesktopExpanded,
 }) {
   const { data: session } = useSession();
+  const user = useUserStore((state) => state.user);
   const pathname = usePathname();
 
   const [showSignOut, setShowSignOut] = useState(false);
@@ -40,12 +42,6 @@ export default function Sidebar({
   const toggleDropdown = (key) => {
     setDropdowns((prev) => ({ ...prev, [key]: !prev[key] }));
   };
-
-  const displayRole = role || "";
-  const department = session?.user?.department || "";
-
-  const isAdmin = isAdminAuthorized(displayRole, department);
-  const hasAccess = (moduleName) => hasModuleAccess(session, moduleName);
 
   useEffect(() => {
     const handleResize = () => {
@@ -135,14 +131,7 @@ export default function Sidebar({
         <nav className="flex-1 flex flex-col gap-2 p-4 mt-0 overflow-y-auto custom-scrollbar">
           {NAVIGATION_CONFIG.map((nav, index) => {
             // Permission checks
-            if (nav.adminOnly && !isAdmin) return null;
-            if (nav.hideForAdmin && isAdmin) return null;
-            if (nav.moduleName && !hasAccess(nav.moduleName)) return null;
-            if (
-              nav.accessRequirements &&
-              !nav.accessRequirements.some((req) => hasAccess(req))
-            )
-              return null;
+            if (!checkPermissions(user || session, nav)) return null;
 
             const Icon = nav.icon;
 
@@ -194,8 +183,7 @@ export default function Sidebar({
                   {isExpanded && isOpen && (
                     <div className="flex flex-col gap-1 ml-[22px] pl-4 border-l-2 border-white/20 mt-1 mb-2 crm-slide-in-top">
                       {nav.items.map((item, i) => {
-                        if (item.moduleName && !hasAccess(item.moduleName))
-                          return null;
+                        if (!checkPermissions(user || session, item)) return null;
                         const ItemIcon = item.icon;
                         const isItemActive = pathname === item.href;
 

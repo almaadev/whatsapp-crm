@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
+import { useAuth } from "@/shared/hooks/useAuth";
+import AccessDenied from "@/shared/components/ui/AccessDenied";
+import LoadingScreen from "@/shared/components/ui/LoadingScreen";
 
 import Link from "next/link";
 import { toast } from "react-toastify";
@@ -13,6 +16,7 @@ import {
 
 export default function AdminReportsPage() {
   const { data: session } = useSession();
+  const { user, isLoading, isAdmin } = useAuth();
   
   
   
@@ -88,7 +92,15 @@ export default function AdminReportsPage() {
     }
   };
 
-  if (!session) return null;
+  if (isLoading) return <LoadingScreen message="Fetching Reports..." />;
+
+  if (!user && !session) return null;
+
+  if (!isAdmin) {
+    return (
+      <AccessDenied message="This command center is restricted to administrative personnel." />
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">

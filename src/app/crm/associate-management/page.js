@@ -23,11 +23,14 @@ import {
   Activity,
 } from "lucide-react";
 import { userRepository } from "@/shared/api/repositories/userRepository";
+import { useAuth } from "@/shared/hooks/useAuth";
+import AccessDenied from "@/shared/components/ui/AccessDenied";
 
 import CreateUserForm from "@/components/features/admin/CreateUserForm";
 
 export default function AssociateManagement() {
   const { data: session, status } = useSession();
+  const { user, isLoading, isAdmin } = useAuth();
 
   const { setMobileOpen } = useCrmLayout();
   const [associates, setAssociates] = useState([]);
@@ -65,10 +68,7 @@ export default function AssociateManagement() {
     setBranchError("");
   };
 
-  const isAuthorized =
-    session?.user?.role === "superAdmin" ||
-    session?.user?.role === "sales" ||
-    session?.user?.department === "admin";
+  const isAuthorized = isAdmin;
 
   const fetchAssociates = async () => {
     setLoading(true);
@@ -112,7 +112,7 @@ export default function AssociateManagement() {
   };
 
   // --- Access Control Gates ---
-  if (status === "loading") {
+  if (status === "loading" || isLoading) {
     return (
       <div className="flex h-screen items-center justify-center text-slate-500 font-bold tracking-widest uppercase text-sm">
         <Loader2 className="animate-spin mr-2" size={20} /> Verifying Access...
@@ -120,19 +120,11 @@ export default function AssociateManagement() {
     );
   }
 
+  if (!user && !session) return null;
+
   if (!isAuthorized) {
     return (
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
-        <div className="flex flex-1 w-full h-full flex-col items-center justify-center p-6 text-center">
-          <ShieldAlert size={80} className="text-rose-400 mb-6" />
-          <h2 className="text-3xl font-extrabold text-slate-800">
-            Clearance Required
-          </h2>
-          <p className="text-slate-500 mt-2 font-medium">
-            This command center is restricted to administrative personnel.
-          </p>
-        </div>
-      </div>
+      <AccessDenied message="This command center is restricted to administrative personnel." />
     );
   }
 

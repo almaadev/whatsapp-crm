@@ -17,6 +17,8 @@ import Link from "next/link";
 import { toast } from "react-toastify";
 import { useSession } from "next-auth/react";
 import { leadRepository } from "@/shared/api/repositories/leadRepository";
+import { useAuth } from "@/shared/hooks/useAuth";
+import AccessDenied from "@/shared/components/ui/AccessDenied";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  MODERN ENTERPRISE STATUS BADGES
@@ -50,6 +52,7 @@ export default function LeadDetailsPage({ params }) {
 
   const {setMobileOpen} = useCrmLayout()
   const { data: session }       = useSession();
+  const { user, isLoading, hasModuleAccess } = useAuth();
   const router                  = useRouter();
   const { setSelectedChat }     = useChatStore();
   const lastPath = usePathStore((state) => state.lastpath);
@@ -180,6 +183,29 @@ export default function LeadDetailsPage({ params }) {
   };
 
   // ── Render States ─────────────────────────────────────────────────────────
+  const isAuthorized = hasModuleAccess("Leads");
+
+  if (isLoading) {
+    return (
+      <Shell>
+        <div className="flex-1 flex flex-col items-center justify-center bg-[#f4f7f9]">
+          <Loader2 size={36} className="animate-spin text-[#00a884] mb-4" />
+          <p className="text-sm font-semibold tracking-wide text-slate-500">Syncing Interaction Audit...</p>
+        </div>
+      </Shell>
+    );
+  }
+
+  if (!user && !session) return null;
+
+  if (!isAuthorized) {
+    return (
+      <Shell>
+        <AccessDenied message="You do not have permission to access Lead Details." />
+      </Shell>
+    );
+  }
+
   if (loading) {
     return (
       <Shell>

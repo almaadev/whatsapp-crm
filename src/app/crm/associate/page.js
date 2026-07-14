@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { useAuth } from "@/shared/hooks/useAuth";
 import { useRouter, usePathname } from "next/navigation";
 import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import { usePathStore } from "@/features/chat/stores/pathStore";
@@ -149,6 +150,7 @@ export default function AssociateDashboard() {
     const pathname = usePathname();
     const { setPath } = usePathStore();
     const { data: session, status } = useSession();
+    const { user, isLoading } = useAuth();
     
     const {setMobileOpen} = useCrmLayout()
     // --- Routing & Authorization State ---
@@ -171,28 +173,32 @@ export default function AssociateDashboard() {
     const [statusFilter, setStatusFilter] = useState("All");
     const [ownershipFilter, setOwnershipFilter] = useState("All");
 
-    const userRole = session?.user?.role || "associate";
-    const userName = session?.user?.name || "Associate";
+    const activeUser = user || session?.user;
+    const userRole = activeUser?.role || "associate";
+    const userName = activeUser?.name || "Associate";
 
     // ── 1. Centralized Routing & Auth Guard ──────────────────────────────────
     useEffect(() => {
-        if (status === "loading") return;
+        if (status === "loading" || isLoading) return;
 
-        if (status === "unauthenticated" || !session) {
+        if ((status === "unauthenticated" && !user) || (!user && !session)) {
             router.replace("/");
             return;
         }
 
+        const currentUser = user || session?.user;
+        if (!currentUser) return;
+
         // Strict Role Validation
         const allowedDepartments = ["telecalling", "support", "admin", "sales", "doctor"];
-        const userDept = session.user?.department?.toLowerCase();
+        const userDept = currentUser.department?.toLowerCase();
 
         if (!allowedDepartments.includes(userDept)) {
             router.replace("/crm/admin");
         } else {
             setIsAuthorized(true);
         }
-    }, [status, session, router]);
+    }, [status, isLoading, user, session, router]);
 
     // ── 2. Data Fetching with Race Condition Protection ──────────────────────
     useEffect(() => {
