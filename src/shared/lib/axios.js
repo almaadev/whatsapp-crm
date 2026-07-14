@@ -75,6 +75,14 @@ api.interceptors.response.use(
       console.warn("[API] Unauthorized — session may have expired.");
     } else if (status === 403) {
       console.warn("[API] Forbidden — insufficient permissions.");
+      if (errorData?.error === "Suspended" || errorData?.message === "Suspended") {
+        try {
+          const { useUserStore } = require("@/features/user/store/userStore");
+          useUserStore.setState({ isSuspended: true });
+        } catch (e) {
+          console.error("[API] Failed to update store suspension state:", e);
+        }
+      }
     }
 
     const normalizedError = {

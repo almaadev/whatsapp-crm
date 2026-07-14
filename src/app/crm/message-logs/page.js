@@ -41,7 +41,7 @@ export default function MessageLogsPage() {
   const { user, isLoading, hasModuleAccess } = useAuth();
   const { setMobileOpen } = useCrmLayout();
 
-  const isAuthorized = hasModuleAccess("Messages log");
+  const isAuthorized = hasModuleAccess("Messages-log");
 
   const { state, setters, derived, actions } = useMessageLogsState(isAuthorized);
 

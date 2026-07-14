@@ -7,9 +7,10 @@ export const useUserStore = create((set, get) => ({
   user: null,
   isLoading: false,
   error: null,
+  isSuspended: false,
   
   setUser: (user) => set({ user }),
-  clearUser: () => set({ user: null, error: null }),
+  clearUser: () => set({ user: null, error: null, isSuspended: false }),
   
   fetchCurrentUser: async (authRepository) => {
     set({ isLoading: true, error: null });
@@ -26,8 +27,13 @@ export const useUserStore = create((set, get) => ({
       return currentUser;
     } catch (error) {
       const errMsg = error.response?.data?.error || error.message || "Unauthorized";
-      set({ error: errMsg, isLoading: false });
-      console.error("Error fetching current user:", errMsg);
+      const status = error.status || error.response?.status;
+      if (status === 403 && errMsg === "Suspended") {
+        set({ isSuspended: true, isLoading: false });
+      } else {
+        set({ error: errMsg, isLoading: false });
+        console.error("Error fetching current user:", errMsg);
+      }
       throw error;
     }
   }

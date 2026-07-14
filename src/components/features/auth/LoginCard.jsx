@@ -22,23 +22,65 @@ export default function LoginCard() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [hasError, setHasError] = useState(false);
 
   const handleLogin = async () => {
+    setErrorMsg("");
+    setHasError(false);
+
     if (!email || !password)
       return toast.warning("Please enter both email and password.");
 
     setLoading(true);
-    const result = await signIn("credentials", {
-      redirect: false,
-      email,
-      password,
-    });
+    try {
+      const response = await fetch("/api/auth/verify-credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-    if (result?.ok) {
-      toast.success("Authentication successful. Securing session...");
-      router.push("/crm");
-    } else {
-      toast.error("Invalid Credentials. Access denied.");
+      const data = await response.json();
+
+      if (response.status === 401) {
+        setErrorMsg("Invalid email or password.");
+        setHasError(true);
+        setLoading(false);
+        return;
+      }
+
+      if (response.status === 403 && data.error === "Suspended") {
+        setErrorMsg("Your account is currently inactive. Please contact your administrator to activate your account.");
+        setHasError(true);
+        setLoading(false);
+        return;
+      }
+
+      if (!response.ok) {
+        setErrorMsg(data.error || "An error occurred. Please try again.");
+        setHasError(true);
+        setLoading(false);
+        return;
+      }
+
+      const result = await signIn("credentials", {
+        redirect: false,
+        email,
+        password,
+      });
+
+      if (result?.ok) {
+        toast.success("Authentication successful. Securing session...");
+        router.push("/crm");
+      } else {
+        setErrorMsg("Authentication failed. Please check credentials.");
+        setHasError(true);
+        setLoading(false);
+      }
+    } catch (e) {
+      console.error(e);
+      setErrorMsg("An error occurred. Please try again.");
+      setHasError(true);
       setLoading(false);
     }
   };
@@ -108,11 +150,11 @@ export default function LoginCard() {
             className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#00a884] transition-colors z-10"
             size={20}
           />
-          <label
+           <label
             htmlFor="password"
-            className="absolute left-12 top-2 text-[10px] font-bold uppercase text-slate-400 transition-all pointer-events-none 
+            className={`absolute left-12 top-2 text-[10px] font-bold uppercase transition-all pointer-events-none 
                         peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:text-sm peer-placeholder-shown:font-medium peer-placeholder-shown:normal-case 
-                        peer-focus:top-2 peer-focus:-translate-y-0 peer-focus:text-[10px] peer-focus:font-bold peer-focus:uppercase peer-focus:text-[#00a884]"
+                        peer-focus:top-2 peer-focus:-translate-y-0 peer-focus:text-[10px] peer-focus:font-bold peer-focus:uppercase ${hasError ? 'text-rose-500 peer-focus:text-rose-500' : 'text-slate-400 peer-focus:text-[#00a884]'}`}
           >
             Security Key
           </label>
@@ -122,7 +164,7 @@ export default function LoginCard() {
             placeholder=" "
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="peer w-full h-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-12 pt-6 pb-2 focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] focus:bg-white outline-none text-sm font-bold text-slate-800 transition-all shadow-sm"
+            className={`peer w-full h-full bg-slate-50 border rounded-xl pl-12 pr-12 pt-6 pb-2 focus:bg-white outline-none text-sm font-bold text-slate-800 transition-all shadow-sm ${hasError ? 'border-rose-400 focus:ring-rose-500/20 focus:border-rose-500' : 'border-slate-200 focus:ring-[#00a884]/20 focus:border-[#00a884]'}`}
             required
           />
 
@@ -135,6 +177,12 @@ export default function LoginCard() {
             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>
         </div>
+
+        {errorMsg && (
+          <p className="text-rose-500 text-xs font-bold mt-1 ml-1 animate-fade-in">
+            {errorMsg}
+          </p>
+        )}
 
         {/* --- Action Button --- */}
         <button
