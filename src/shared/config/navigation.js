@@ -27,7 +27,7 @@ export const NAVIGATION_CONFIG = [
       { label: "Dashboard", href: "/crm/admin" },
       { label: "Manage Associates", href: "/crm/associate-management" },
       { label: "Template Manager", href: "/crm/admin/template-manager" },
-      { label: "Automatic-reply", href: "/crm/admin/keyword-automation" },
+      { label: "Automatic Reply", href: "/crm/admin/keyword-automation" },
       { label: "Twilio Center", href: "/crm/admin/twilio" },
       {
         label: "Reports",
@@ -74,7 +74,7 @@ export const NAVIGATION_CONFIG = [
     label: "Message Logs",
     icon: History,
     href: "/crm/message-logs",
-    moduleName: "logs",
+    moduleName: "Messages log",
   },
   {
     type: "link",
