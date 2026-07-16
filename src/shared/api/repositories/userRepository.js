@@ -7,5 +7,6 @@ export const userRepository = {
   createUser: (payload, options = {}) => api.post("/api/users", payload, options),
   updateUser: (id, payload, options = {}) => api.put(`/api/users/${id}`, payload, options),
   updateUserWithoutId: (payload, options = {}) => api.put("/api/users", payload, options),
-  deleteUser: (id, options = {}) => api.delete(`/api/users?id=${id}`, options)
+  deleteUser: (id, options = {}) => api.delete(`/api/users?id=${id}`, options),
+  getBranches: (options = {}) => api.get("/api/branches", options),
 };

@@ -8,7 +8,6 @@ import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import {
   Trash2,
   UserPlus,
-  ShieldAlert,
   UserCog,
   Search,
   MapPin,
@@ -41,32 +40,11 @@ export default function AssociateManagement() {
   // Modal States
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  // Branch management
-  const [branches, setBranches] = useState([
-    "HQ",
-    "Almaa Central",
-    "Almaa North",
-  ]);
-  const [newBranchName, setNewBranchName] = useState("");
-  const [branchError, setBranchError] = useState("");
+
 
   // Delete Confirmation State
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
-  const handleAddBranch = () => {
-    const branch = newBranchName.trim();
-    if (!branch) {
-      setBranchError("Enter branch name");
-      return;
-    }
-    if (branches.includes(branch)) {
-      setBranchError("Branch already exists");
-      return;
-    }
-    setBranches((prev) => [branch, ...prev]);
-    setNewBranchName("");
-    setBranchError("");
-  };
 
   const isAuthorized = isAdmin;
 
@@ -357,7 +335,7 @@ export default function AssociateManagement() {
                         </span>
                         <span className="flex items-center gap-1.5">
                           <MapPin size={12} className="text-slate-400" />{" "}
-                          {associate.branch || "HQ"}
+                          {associate.branch || "Please Add Branch"}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 mt-2 pt-3 border-t border-slate-50">
@@ -377,79 +355,10 @@ export default function AssociateManagement() {
             </div>
           </div>
 
-          <div className="max-w-[1600px] mx-auto mt-8">
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200">
-                <div>
-                  <h2 className="text-lg font-extrabold text-slate-800">
-                    Almaa Branches
-                  </h2>
-                  <p className="text-xs text-slate-500 font-medium mt-1">
-                    Add and review all active Almaa branches.
-                  </p>
-                </div>
-                <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-3">
-                  <div className="flex-1 min-w-0">
-                    <input
-                      type="text"
-                      value={newBranchName}
-                      onChange={(e) => {
-                        setNewBranchName(e.target.value);
-                        setBranchError("");
-                      }}
-                      placeholder="New branch name"
-                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#00a884]/30 focus:border-[#00a884]"
-                    />
-                    {branchError && (
-                      <p className="text-rose-500 text-[11px] mt-1">
-                        {branchError}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    onClick={handleAddBranch}
-                    className="px-5 py-3 bg-[#00a884] hover:bg-emerald-600 text-white rounded-xl text-sm font-bold transition-all"
-                  >
-                    Add Branch
-                  </button>
-                </div>
-              </div>
-              <div className="p-6">
-                {branches.length === 0 ? (
-                  <div className="text-slate-500 text-sm">
-                    No branches added yet.
-                  </div>
-                ) : (
-                  <div className="grid gap-3">
-                    {branches.map((branch, index) => (
-                      <div
-                        key={`${branch}-${index}`}
-                        className="flex items-center justify-between gap-3 p-4 border border-slate-200 rounded-2xl bg-slate-50"
-                      >
-                        <div className="flex items-center gap-3">
-                          <MapPin size={18} className="text-[#00a884]" />
-                          <div>
-                            <div className="font-bold text-slate-800">
-                              {branch}
-                            </div>
-                            <div className="text-[11px] text-slate-500 uppercase tracking-wider">
-                              Almaa branch
-                            </div>
-                          </div>
-                        </div>
-                        <span className="text-[11px] font-bold text-slate-500">
-                          {index + 1}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+
         </main>
 
-        {/* --- MODALS --- */}
+  
 
         {/* Create User Modal */}
         {isCreateModalOpen && (
