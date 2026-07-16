@@ -178,12 +178,12 @@ export default function LeadsPage() {
   return (
     <DashboardPage
       title="Customer Leads"
-      subtitle="Pipeline & Auditing"
+      subtitle="Manage and track customer leads, their interactions, and sales progress."
       maxWidth="1700px"
       actions={
         <>
           <SearchInput
-            placeholder="Search pipeline..."
+            placeholder="Search Leads..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full md:w-64"

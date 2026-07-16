@@ -120,11 +120,11 @@ export default function AssociateManagement() {
             </button>
             <div>
               <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
-                <Briefcase className="text-[#00a884]" size={24} /> Roster
+                <Briefcase className="text-[#00a884]" size={24} /> Associate
                 Management
               </h1>
               <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mt-0.5 ml-1">
-                Team configuration & targets
+                Management, roles, and access control
               </p>
             </div>
           </div>

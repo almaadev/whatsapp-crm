@@ -13,7 +13,6 @@ import {
   ChevronRight,
   X,
   Type,
-  ShieldAlert,
   Menu,
   History,
   Users,
@@ -36,6 +35,8 @@ export default function BulkTemplatePage() {
 
   const [campaignName, setCampaignName] = useState("");
   const [campaigns, setCampaigns] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const campaignsPerPage = 5;
 
   const [numbersText, setNumbersText] = useState("");
   const [templateId, setTemplateId] = useState("");
@@ -62,7 +63,10 @@ export default function BulkTemplatePage() {
   const fetchCampaigns = async () => {
     try {
       const { data } = await bulkMessageRepository.getBulkMessages();
-      if (data.success) setCampaigns(data.campaigns);
+      if (data.success) {
+        setCampaigns(data.campaigns);
+        setCurrentPage(1);
+      }
     } catch (err) {
       console.error("Failed to fetch campaigns");
     }
@@ -227,6 +231,15 @@ export default function BulkTemplatePage() {
   const canSend =
     !isSending && recipientCount > 0 && !!templateId && !!campaignName.trim();
 
+  const totalPages = Math.ceil(campaigns.length / campaignsPerPage);
+  const indexOfLastCampaign = currentPage * campaignsPerPage;
+  const indexOfFirstCampaign = indexOfLastCampaign - campaignsPerPage;
+  const currentCampaigns = campaigns.slice(indexOfFirstCampaign, indexOfLastCampaign);
+
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
+
   if (status === "loading" || isLoading) {
     return (
       <div className="flex h-screen items-center justify-center text-slate-500 font-bold tracking-widest uppercase text-sm">
@@ -243,405 +256,452 @@ export default function BulkTemplatePage() {
     );
   }
 
-  // 🚀 FIX: Wrapped everything in a Fragment to isolate the Panel from overflow-hidden constraints
   return (
     <>
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative bg-[#f8fafc]">
         <div className="flex-1 flex flex-col min-w-0 overflow-y-auto custom-scrollbar">
-          <div className="p-4 sm:p-6 md:p-10 max-w-6xl mx-auto w-full space-y-6 sm:space-y-8">
-            <div className="flex items-start gap-4 border-b border-slate-200 pb-5 sm:pb-6">
-              <button
-                onClick={() => setMobileOpen(true)}
-                className="md:hidden mt-1 flex items-center justify-center w-10 h-10 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors shrink-0"
-              >
-                <Menu size={20} />
-              </button>
-              <div className="flex flex-col gap-2">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full w-max text-[10px] sm:text-xs font-bold uppercase tracking-wider">
-                  <Send size={12} /> Almaa Campaign
-                </div>
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight leading-tight">
-                  Bulk Template Messenger
-                </h1>
-                <p className="text-xs sm:text-sm font-medium text-slate-500">
-                  Send templated WhatsApp messages safely with auto opt-out
-                  filtering.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">
-              {/* LEFT COLUMN - RECIPIENTS */}
-              <div
-                ref={formRef}
-                className="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"
-              >
-                <div className="px-5 sm:px-6 py-4 sm:py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                  <div className="flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-600">
-                    <Hash size={16} className="text-[#00a884]" /> Recipients
-                  </div>
-                  <div className="flex items-center gap-2 text-[10px] sm:text-xs font-bold text-slate-500">
-                    Detected{" "}
-                    <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
-                      {recipientCount}
-                    </span>{" "}
-                    unique numbers
-                  </div>
-                </div>
-                <div className="p-4 sm:p-6">
-                  <textarea
-                    className="w-full h-[300px] sm:h-[400px] p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/30 text-xs sm:text-sm font-mono text-slate-700 leading-relaxed resize-none custom-scrollbar transition-all"
-                    value={numbersText}
-                    onChange={(e) => setNumbersText(e.target.value)}
-                    placeholder={
-                      "Paste numbers here...\n9876543210, 9988776655"
-                    }
-                  />
-                  <div className="flex items-center justify-between mt-3">
-                    <span className="text-[10px] sm:text-[11px] font-mono text-slate-500">
-                      Separated by comma, space, or newline
+          <div className="p-4 sm:p-6 lg:p-8 w-full max-w-none">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              {/* LEFT MAIN PANEL: CAMPAIGN BUILDER */}
+              <div className="lg:col-span-8 flex flex-col gap-6">
+                {/* Header */}
+                <div className="flex items-start gap-4 border-b border-slate-200/60 pb-6 mb-2">
+                  <button
+                    onClick={() => setMobileOpen(true)}
+                    className="md:hidden mt-1 flex items-center justify-center w-10 h-10 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors shrink-0"
+                  >
+                    <Menu size={20} />
+                  </button>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-black uppercase tracking-[0.2em] text-[#00a884] bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-md w-max">
+                      Almaa Campaign
                     </span>
-                    {numbersText && (
-                      <button
-                        onClick={() => setNumbersText("")}
-                        className="text-xs font-mono text-slate-500 hover:text-red-500 transition-colors cursor-pointer"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* RIGHT COLUMN - CONFIG & ACTIONS */}
-              <div className="lg:col-span-5 flex flex-col gap-5 sm:gap-6">
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                  <div className="px-5 sm:px-6 py-4 border-b border-slate-100 flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-600 bg-slate-50/50">
-                    <Type size={16} className="text-[#00a884]" /> Campaign
-                    Profile
-                  </div>
-                  <div className="p-4 sm:p-6">
-                    <input
-                      type="text"
-                      value={campaignName}
-                      onChange={(e) => setCampaignName(e.target.value)}
-                      placeholder="e.g. Summer Sale 2026"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-[#00a884] focus:ring-2 focus:ring-[#00a884]/20 text-sm font-medium transition-all"
-                    />
+                    <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-800 tracking-tight leading-none mt-2">
+                      Bulk Template Messenger
+                    </h1>
+                    <p className="text-xs sm:text-sm font-semibold text-slate-400 mt-2">
+                      Send templated WhatsApp messages safely with auto opt-out filtering.
+                    </p>
                   </div>
                 </div>
 
-                {/* Template Selector Card */}
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                  <div className="px-5 sm:px-6 py-4 border-b border-slate-100 flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-600 bg-slate-50/50">
-                    <Layers size={16} className="text-[#00a884]" /> Message
-                    Template
-                  </div>
-                  <div className="p-4 sm:p-6 flex flex-col gap-4">
-                    <div className="flex items-center gap-2 sm:gap-3">
-                      <div
-                        className={`flex-1 min-w-0 flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-xl border transition-all cursor-pointer ${templateId ? "bg-emerald-50 border-emerald-200 hover:bg-emerald-100/80 hover:border-emerald-300" : "bg-slate-50 border-dashed border-slate-300 hover:bg-slate-100"}`}
-                        onClick={() => setPanelOpen(true)}
-                      >
-                        {templateId ? (
-                          <>
-                            <div className="w-8 h-8 rounded-lg flex-shrink-0 bg-emerald-100 border border-emerald-200 flex items-center justify-center">
-                              <Layers size={14} className="text-emerald-600" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-xs sm:text-sm font-bold text-emerald-800 truncate">
-                                {selectedName}
-                              </div>
-                            </div>
-                            <button
-                              className="p-1 text-emerald-500 hover:text-red-500 cursor-pointer"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleTemplateSelect(null, null);
-                              }}
-                            >
-                              <X size={16} />
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <div className="flex-1 text-xs sm:text-sm font-semibold text-slate-500 px-2">
-                              No template selected
-                            </div>
-                            <ChevronRight
-                              size={16}
-                              className="text-slate-400"
-                            />
-                          </>
-                        )}
+                {/* Sub-grid: Left Form and Right Config */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+                                    {/* Sub-column 2: Campaign Profile & Message Template */}
+                  <div className="md:col-span-5 flex flex-col gap-5">
+                    {/* Campaign Profile */}
+                    <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-slate-200/60 overflow-hidden hover:border-slate-300 transition-all duration-300">
+                      <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2 text-xs sm:text-sm font-black uppercase tracking-wider text-slate-600 bg-slate-50/40">
+                        <Type size={18} className="text-[#00a884]" /> Campaign Profile
+                      </div>
+                      <div className="p-5">
+                        <input
+                          type="text"
+                          value={campaignName}
+                          onChange={(e) => setCampaignName(e.target.value)}
+                          placeholder="e.g. Summer Sale 2026"
+                          className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl px-4 py-3.5 outline-none focus:border-[#00a884] focus:ring-4 focus:ring-[#00a884]/10 text-sm font-bold transition-all shadow-inner"
+                        />
                       </div>
                     </div>
 
-                    {requiredVariablesCount > 0 && (
-                      <div className="mt-2 bg-slate-50 border border-slate-200 rounded-xl p-4 animate-in fade-in slide-in-from-top-2">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Type size={14} className="text-blue-500" />
-                          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-600">
-                            Template Variables
+                    {/* Message Template */}
+                    <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-slate-200/60 overflow-hidden hover:border-slate-300 transition-all duration-300">
+                      <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2 text-xs sm:text-sm font-black uppercase tracking-wider text-slate-600 bg-slate-50/40">
+                        <Layers size={18} className="text-[#00a884]" /> Message Template
+                      </div>
+                      <div className="p-4 sm:p-5 flex flex-col gap-4">
+                        <div
+                          className={`w-full flex items-center gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer ${templateId ? "bg-emerald-50/50 border-emerald-200 hover:bg-emerald-100/50 hover:border-emerald-300" : "bg-slate-50/50 border-dashed border-slate-300 hover:bg-slate-100"}`}
+                          onClick={() => setPanelOpen(true)}
+                        >
+                          {templateId ? (
+                            <>
+                              <div className="w-8 h-8 rounded-lg flex-shrink-0 bg-emerald-100 border border-emerald-200 flex items-center justify-center">
+                                <Layers size={14} className="text-emerald-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs sm:text-sm font-extrabold text-emerald-800 truncate">
+                                  {selectedName}
+                                </div>
+                              </div>
+                              <button
+                                className="p-1 text-emerald-500 hover:text-red-500 transition-colors cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleTemplateSelect(null, null);
+                                }}
+                              >
+                                <X size={16} />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex-1 text-xs sm:text-sm font-bold text-slate-500 px-2">
+                                Select template
+                              </div>
+                              <ChevronRight size={16} className="text-slate-400" />
+                            </>
+                          )}
+                        </div>
+
+                        {requiredVariablesCount > 0 && (
+                          <div className="bg-slate-50/50 border border-slate-200 rounded-2xl p-4 animate-in fade-in slide-in-from-top-2">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Type size={14} className="text-blue-500" />
+                              <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-600">
+                                Template Variables
+                              </span>
+                            </div>
+                            <div className="space-y-3">
+                              {Array.from(
+                                { length: requiredVariablesCount },
+                                (_, i) => i + 1,
+                              ).map((num) => (
+                                <div key={num} className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-lg bg-blue-100 border border-blue-200 text-blue-700 font-mono text-xs font-bold flex items-center justify-center shrink-0 shadow-sm">
+                                    {"{"}
+                                    {num}
+                                    {"}"}
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={templateVariables[num.toString()] || ""}
+                                    onChange={(e) =>
+                                      handleVariableChange(num, e.target.value)
+                                    }
+                                    placeholder={`Value for variable ${num}...`}
+                                    className="flex-1 bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all w-full shadow-sm"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  {/* Sub-column 1: Recipients, Stats, Launch */}
+                  <div className="md:col-span-7 flex flex-col gap-5">
+                    {/* Recipients Card */}
+                    <div
+                      ref={formRef}
+                      className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-slate-200/60 overflow-hidden hover:border-slate-300 transition-all duration-300"
+                    >
+                      <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/40">
+                        <div className="flex items-center gap-2 text-xs sm:text-sm font-black uppercase tracking-wider text-slate-600">
+                          <Hash size={18} className="text-[#00a884]" /> Recipients
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] sm:text-xs font-bold text-slate-500">
+                          Detected{" "}
+                          <span className="bg-emerald-100/80 text-emerald-800 border border-emerald-200/50 px-2.5 py-0.5 rounded-full font-mono font-bold shadow-sm">
+                            {recipientCount}
+                          </span>{" "}
+                          unique numbers
+                        </div>
+                      </div>
+                      <div className="p-5">
+                        <textarea
+                          className="w-full h-[280px] sm:h-[350px] p-5 bg-slate-50/50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500/50 text-xs sm:text-sm font-mono text-slate-700 leading-relaxed resize-none custom-scrollbar transition-all shadow-inner"
+                          value={numbersText}
+                          onChange={(e) => setNumbersText(e.target.value)}
+                          placeholder={
+                            "Paste numbers here...\n9876543210, 9988776655"
+                          }
+                        />
+                        <div className="flex items-center justify-between mt-3">
+                          <span className="text-[10px] sm:text-[11px] font-semibold text-slate-400">
+                            Separated by comma, space, or newline
+                          </span>
+                          {numbersText && (
+                            <button
+                              onClick={() => setNumbersText("")}
+                              className="text-xs font-bold text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-200/60 rounded-2xl p-4 flex flex-col items-center justify-center shadow-[0_4px_20px_rgb(0,0,0,0.02)] transition-all hover:scale-[1.02] duration-300">
+                        <span className="text-2xl sm:text-3xl font-black text-slate-800 leading-none mb-1.5 font-mono">
+                          {recipientCount}
+                        </span>
+                        <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          Total
+                        </span>
+                      </div>
+                      <div className="bg-gradient-to-br from-emerald-50/30 to-emerald-100/20 border border-emerald-100/80 rounded-2xl p-4 flex flex-col items-center justify-center shadow-[0_4px_20px_rgb(0,0,0,0.02)] transition-all hover:scale-[1.02] duration-300">
+                        <span className="text-2xl sm:text-3xl font-black text-[#00a884] leading-none mb-1.5 font-mono">
+                          {progress.sent}
+                        </span>
+                        <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-emerald-600/80">
+                          Sent
+                        </span>
+                      </div>
+                      <div className="bg-gradient-to-br from-rose-50/30 to-rose-100/20 border border-rose-100/80 rounded-2xl p-4 flex flex-col items-center justify-center shadow-[0_4px_20px_rgb(0,0,0,0.02)] transition-all hover:scale-[1.02] duration-300">
+                        <span className="text-2xl sm:text-3xl font-black text-rose-500 leading-none mb-1.5 font-mono">
+                          {progress.failed}
+                        </span>
+                        <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-rose-500/80">
+                          Failed
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar (if sending) */}
+                    {(isSending || progress.total > 0) && (
+                      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-xs sm:text-sm font-bold text-slate-700 flex items-center gap-2">
+                            {isSending && (
+                              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            )}
+                            {isSending ? "Broadcasting..." : "Campaign Complete"}
+                          </span>
+                          <span className="text-xs sm:text-sm font-bold text-[#00a884] font-mono">
+                            {pct}%
                           </span>
                         </div>
-                        <div className="space-y-3">
-                          {Array.from(
-                            { length: requiredVariablesCount },
-                            (_, i) => i + 1,
-                          ).map((num) => (
-                            <div key={num} className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-blue-100 border border-blue-200 text-blue-700 font-mono text-xs font-bold flex items-center justify-center shrink-0">
-                                {"{"}
-                                {num}
-                                {"}"}
-                              </div>
-                              <input
-                                type="text"
-                                value={templateVariables[num.toString()] || ""}
-                                onChange={(e) =>
-                                  handleVariableChange(num, e.target.value)
-                                }
-                                placeholder={`Value for variable ${num}...`}
-                                className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all w-full"
-                              />
-                            </div>
-                          ))}
+                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden mb-3">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ease-out ${!isSending && pct === 100 ? "bg-[#059669]" : "bg-gradient-to-r from-emerald-400 to-[#00a884]"}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] sm:text-xs font-semibold text-slate-500">
+                          <div className="flex items-center gap-3">
+                            <span className="flex items-center gap-1.5 text-emerald-600">
+                              <CheckCircle2 size={12} /> {progress.sent} Delivered
+                            </span>
+                            <span className="flex items-center gap-1.5 text-red-500">
+                              <AlertCircle size={12} /> {progress.failed} Failed
+                            </span>
+                          </div>
+                          <span className="font-mono text-slate-400">
+                            {done} / {progress.total}
+                          </span>
                         </div>
                       </div>
                     )}
+
+                    {/* Launch Campaign Button */}
+                    <button
+                      onClick={handleBulkSend}
+                      disabled={!canSend}
+                      className={`w-full py-4 rounded-2xl font-extrabold text-sm flex items-center justify-center gap-2 transition-all shadow-md ${!canSend ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none border border-slate-200/50" : "bg-gradient-to-r from-emerald-500 to-[#00a884] text-white hover:from-emerald-600 hover:to-[#009675] shadow-lg shadow-emerald-200/40 hover:shadow-emerald-300/40 active:scale-[0.98] hover:scale-[1.01]"}`}
+                    >
+                      {isSending ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin mr-1" /> Batch{" "}
+                          {Math.min(
+                            Math.ceil((done + 1) / 50),
+                            Math.ceil(progress.total / 50),
+                          )}{" "}
+                          of {Math.ceil(progress.total / 50)}...
+                        </>
+                      ) : (
+                        <>
+                          <Send size={16} className="mr-1" /> Launch Campaign
+                        </>
+                      )}
+                    </button>
                   </div>
+
                 </div>
+              </div>
 
-                {/* Stats & Progress UI */}
-                <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 sm:p-4 flex flex-col items-center justify-center shadow-sm">
-                    <span className="text-xl sm:text-2xl font-bold text-slate-800 leading-none mb-1">
-                      {recipientCount}
-                    </span>
-                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                      Total
-                    </span>
+              {/* RIGHT MAIN PANEL: BROADCAST HISTORY */}
+              <div className="lg:col-span-4 flex flex-col gap-6 lg:pl-8 border-t lg:border-t-0 lg:border-l border-slate-200/80 pt-6 lg:pt-0 h-full">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+                  <div className="flex items-center gap-2 text-xs sm:text-sm font-black uppercase tracking-[0.1em] text-slate-700">
+                    <History size={18} className="text-[#00a884]" /> Broadcast History
                   </div>
-                  <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 sm:p-4 flex flex-col items-center justify-center shadow-sm">
-                    <span className="text-xl sm:text-2xl font-bold text-emerald-600 leading-none mb-1">
-                      {progress.sent}
-                    </span>
-                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-emerald-600/70">
-                      Sent
-                    </span>
-                  </div>
-                  <div className="bg-red-50 border border-red-100 rounded-xl p-3 sm:p-4 flex flex-col items-center justify-center shadow-sm">
-                    <span className="text-xl sm:text-2xl font-bold text-red-500 leading-none mb-1">
-                      {progress.failed}
-                    </span>
-                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-red-600/70">
-                      Failed
-                    </span>
-                  </div>
+                  <span className="text-[10px] font-extrabold bg-slate-100 text-slate-500 border border-slate-200/60 px-2 py-0.5 rounded-full">
+                    {campaigns.length} Campaigns
+                  </span>
                 </div>
-
-                {(isSending || progress.total > 0) && (
-                  <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-sm">
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="text-xs sm:text-sm font-bold text-slate-700 flex items-center gap-2">
-                        {isSending && (
-                          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        )}
-                        {isSending ? "Broadcasting..." : "Campaign Complete"}
-                      </span>
-                      <span className="text-xs sm:text-sm font-bold text-[#00a884] font-mono">
-                        {pct}%
-                      </span>
-                    </div>
-                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden mb-3 sm:mb-4">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ease-out ${!isSending && pct === 100 ? "bg-[#059669]" : "bg-gradient-to-r from-emerald-400 to-[#00a884]"}`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <div className="flex justify-between items-center text-[10px] sm:text-xs font-semibold text-slate-500">
-                      <div className="flex items-center gap-3 sm:gap-4">
-                        <span className="flex items-center gap-1 sm:gap-1.5 text-emerald-600">
-                          <CheckCircle2
-                            size={12}
-                            className="sm:w-3.5 sm:h-3.5"
-                          />{" "}
-                          {progress.sent} Delivered
-                        </span>
-                        <span className="flex items-center gap-1 sm:gap-1.5 text-red-500">
-                          <AlertCircle
-                            size={12}
-                            className="sm:w-3.5 sm:h-3.5"
-                          />{" "}
-                          {progress.failed} Failed
-                        </span>
-                      </div>
-                      <span className="font-mono text-slate-400">
-                        {done} / {progress.total}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  onClick={handleBulkSend}
-                  disabled={!canSend}
-                  className={`w-full py-3 sm:py-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md mt-auto ${!canSend ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none" : "bg-[#00a884] text-white hover:bg-emerald-600 hover:shadow-lg active:scale-[0.98]"}`}
-                >
-                  {isSending ? (
-                    <>
-                      <Loader2
-                        size={16}
-                        className="animate-spin sm:w-[18px] sm:h-[18px]"
-                      />{" "}
-                      Batch{" "}
-                      {Math.min(
-                        Math.ceil((done + 1) / 50),
-                        Math.ceil(progress.total / 50),
-                      )}{" "}
-                      of {Math.ceil(progress.total / 50)}...
-                    </>
+                <div className="overflow-y-auto max-h-[800px] pr-1.5 space-y-4 custom-scrollbar">
+                  {campaigns.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-8 font-medium">
+                      No campaigns sent yet.
+                    </p>
                   ) : (
-                    <>
-                      <Send size={16} className="sm:w-[18px] sm:h-[18px]" />{" "}
-                      Launch Campaign
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
+                    currentCampaigns.map((camp) => {
+                      const isExpanded = expandedCampaign === camp._id;
+                      const validNumbers =
+                        camp.successfulRecipients || camp.recipients || [];
 
-            {/* CAMPAIGN HISTORY WITH ACCORDION & RECALL */}
-            <div className="mt-8 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-5 sm:px-6 py-4 border-b border-slate-100 flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-600 bg-slate-50/50">
-                <History size={16} className="text-blue-500" /> Broadcast
-                History
-              </div>
-              <div className="p-4 sm:p-6 overflow-y-auto max-h-[600px] custom-scrollbar space-y-4">
-                {campaigns.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-4">
-                    No campaigns sent yet.
-                  </p>
-                ) : (
-                  campaigns.map((camp) => {
-                    const isExpanded = expandedCampaign === camp._id;
-                    const validNumbers =
-                      camp.successfulRecipients || camp.recipients || [];
-
-                    return (
-                      <div
-                        key={camp._id}
-                        className="border border-slate-100 bg-slate-50 rounded-xl p-4 transition-all hover:border-slate-200 hover:shadow-sm"
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <h4 className="font-extrabold text-slate-800 text-[15px]">
-                            {camp.campaignName}
-                          </h4>
-
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] bg-emerald-100 text-emerald-700 font-bold px-2 py-1 rounded uppercase tracking-wider hidden sm:block">
-                              {camp.status}
-                            </span>
-                            <button
-                              onClick={() => handleRecallCampaign(camp)}
-                              className="flex items-center gap-1 text-[10px] font-bold bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-2.5 py-1.5 rounded transition-colors"
-                              title="Reuse successful numbers"
-                            >
-                              <RefreshCw size={12} />{" "}
-                              <span className="hidden sm:inline">Recall</span>
-                            </button>
-
-                            {isSuperAdmin && (
-                              <button
-                                onClick={() =>
-                                  handleDeleteCampaign(
-                                    camp._id,
-                                    camp.campaignName,
-                                  )
-                                }
-                                disabled={isDeleting === camp._id}
-                                className="flex items-center gap-1 text-[10px] font-bold bg-rose-50 text-rose-600 hover:bg-rose-100 px-2.5 py-1.5 rounded transition-colors disabled:opacity-50"
-                                title="Delete Campaign History"
-                              >
-                                {isDeleting === camp._id ? (
-                                  <Loader2 size={12} className="animate-spin" />
-                                ) : (
-                                  <Trash2 size={12} />
-                                )}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        <p className="text-[11px] text-slate-500 mb-3 font-medium">
-                          Sent on {new Date(camp.createdAt).toLocaleString()} by{" "}
-                          {camp.sentBy}
-                        </p>
-
-                        <div className="flex flex-wrap items-center justify-between gap-4 text-[11px] font-bold text-slate-600 border-t border-slate-200/60 pt-3 mt-1">
-                          <div className="flex items-center gap-4">
-                            <span className="flex items-center gap-1.5">
-                              <Users size={14} className="text-blue-500" />{" "}
-                              {validNumbers.length} Recipients
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                              <CheckCircle2
-                                size={14}
-                                className="text-emerald-500"
-                              />{" "}
-                              {camp.successfulSends} Sent
-                            </span>
-                            {camp.failedSends > 0 && (
-                              <span className="flex items-center gap-1.5">
-                                <AlertCircle
-                                  size={14}
-                                  className="text-rose-500"
-                                />{" "}
-                                {camp.failedSends} Failed
-                              </span>
-                            )}
-                          </div>
-
-                          <button
-                            onClick={() =>
-                              setExpandedCampaign(isExpanded ? null : camp._id)
-                            }
-                            className="flex items-center gap-1 text-slate-400 hover:text-slate-700 transition-colors bg-white px-2 py-1 rounded border border-slate-200 shadow-sm"
+                      return (
+                        <div
+                          key={camp._id}
+                          className={`border rounded-2xl transition-all duration-300 ${
+                            isExpanded 
+                              ? "border-[#00a884] bg-emerald-50/5 shadow-[0_8px_30px_rgb(0,168,132,0.03)]" 
+                              : "border-slate-200/60 bg-white hover:border-slate-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.03)]"
+                          }`}
+                        >
+                          {/* Card Header (Click to expand) */}
+                          <div 
+                            onClick={() => setExpandedCampaign(isExpanded ? null : camp._id)}
+                            className="p-4.5 flex justify-between items-center cursor-pointer select-none"
                           >
-                            {isExpanded ? "Hide Numbers" : "View Numbers"}
-                            {isExpanded ? (
-                              <ChevronUp size={14} />
-                            ) : (
-                              <ChevronDown size={14} />
-                            )}
-                          </button>
-                        </div>
+                            <div className="flex-1 min-w-0 pr-4">
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <h4 className="font-extrabold text-slate-800 text-[15px] truncate max-w-[180px]" title={camp.campaignName}>
+                                  {camp.campaignName}
+                                </h4>
+                                <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                  camp.status === "active" || camp.status === "completed" || camp.status === "sent"
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-100" 
+                                    : "bg-amber-50 text-amber-700 border-amber-100"
+                                }`}>
+                                  {camp.status}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                {new Date(camp.createdAt).toLocaleDateString("en-GB", { 
+                                  day: 'numeric', 
+                                  month: 'short', 
+                                  year: 'numeric', 
+                                  hour: '2-digit', 
+                                  minute: '2-digit' 
+                                })}
+                              </p>
+                            </div>
 
-                        {isExpanded && (
-                          <div className="mt-4 p-3 bg-white border border-slate-200 rounded-lg max-h-48 overflow-y-auto custom-scrollbar animate-in slide-in-from-top-2">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                              Recipient List
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {validNumbers.map((num, i) => {
-                                const displayNum = num
-                                  .replace(/whatsapp:\+91/g, "")
-                                  .replace(/whatsapp:/g, "");
-                                return (
-                                  <span
-                                    key={i}
-                                    className="text-[11px] font-mono bg-slate-50 text-slate-600 px-2 py-1 rounded border border-slate-200"
-                                  >
-                                    {displayNum}
-                                  </span>
-                                );
-                              })}
+                            <div className="flex items-center gap-2.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={() => handleRecallCampaign(camp)}
+                                className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100 px-2.5 py-1.5 rounded-lg transition-all active:scale-95 cursor-pointer"
+                                title="Recall successful numbers"
+                              >
+                                <RefreshCw size={10} /> Recall
+                              </button>
+
+                              {isSuperAdmin && (
+                                <button
+                                  onClick={() => handleDeleteCampaign(camp._id, camp.campaignName)}
+                                  disabled={isDeleting === camp._id}
+                                  className="flex items-center justify-center text-rose-500 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg border border-transparent hover:border-rose-100 transition-all disabled:opacity-50 cursor-pointer"
+                                >
+                                  {isDeleting === camp._id ? (
+                                    <Loader2 size={12} className="animate-spin" />
+                                  ) : (
+                                    <Trash2 size={12} />
+                                  )}
+                                </button>
+                              )}
+                              
+                              <div className="text-slate-400 pl-1.5">
+                                <ChevronDown 
+                                  size={16} 
+                                  className={`transition-transform duration-300 ${isExpanded ? "rotate-180 text-[#00a884]" : ""}`} 
+                                />
+                              </div>
                             </div>
                           </div>
-                        )}
-                      </div>
-                    );
-                  })
+
+                          {/* Accordion Content */}
+                          {isExpanded && (
+                            <div className="px-4.5 pb-4.5 border-t border-slate-100 pt-4 bg-slate-50/20 rounded-b-2xl space-y-4 animate-in slide-in-from-top-2 duration-250">
+                              {/* Detailed Metadata Grid */}
+                              <div className="grid grid-cols-2 gap-3 bg-white p-3.5 rounded-xl border border-slate-200/50 shadow-sm text-xs text-slate-600">
+                                <div>
+                                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Sent By</span>
+                                  <span className="font-semibold text-slate-800">{camp.sentBy || "System"}</span>
+                                </div>
+                                <div>
+                                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Template ID/SID</span>
+                                  <span className="font-mono font-semibold text-slate-800 truncate block max-w-[120px]" title={camp.templateId}>
+                                    {camp.templateId || "N/A"}
+                                  </span>
+                                </div>
+                                {camp.errorMessage && (
+                                  <div className="col-span-2 bg-rose-50 text-rose-700 border border-rose-100/50 p-2 rounded-lg text-[11px] font-medium mt-1">
+                                    <span className="font-extrabold uppercase text-[9px] tracking-wider block mb-0.5">Error Message</span>
+                                    {camp.errorMessage}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Delivery Stats Summary */}
+                              <div className="bg-white p-3.5 rounded-xl border border-slate-200/50 shadow-sm">
+                                <span className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2.5">Delivery Status</span>
+                                <div className="flex items-center justify-between text-xs font-extrabold">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-100/30 rounded-md">
+                                      <Users size={12} /> {validNumbers.length} Recipient(s)
+                                    </span>
+                                    <span className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100/30 rounded-md">
+                                      <CheckCircle2 size={12} /> {camp.successfulSends} Sent
+                                    </span>
+                                    {camp.failedSends > 0 && (
+                                      <span className="flex items-center gap-1 px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-100/30 rounded-md">
+                                        <AlertCircle size={12} /> {camp.failedSends} Failed
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[#00a884] font-mono text-sm">
+                                    {((camp.successfulSends / (validNumbers.length || 1)) * 100).toFixed(0)}%
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Recipient Numbers Grid */}
+                              <div className="bg-white p-3.5 rounded-xl border border-slate-200/50 shadow-sm">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                                  Recipient List
+                                </p>
+                                <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto custom-scrollbar pr-1">
+                                  {validNumbers.map((num, i) => {
+                                    const displayNum = num
+                                      .replace(/whatsapp:\+91/g, "")
+                                      .replace(/whatsapp:/g, "");
+                                    return (
+                                      <span
+                                        key={i}
+                                        className="text-[10px] font-mono bg-slate-50 text-slate-600 px-2 py-0.5 rounded border border-slate-200/50 shadow-inner"
+                                      >
+                                        {displayNum}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between border-t border-slate-200 pt-4 mt-2">
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0"
+                    >
+                      Previous
+                    </button>
+                    <span className="text-xs font-bold text-slate-500 font-mono">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0"
+                    >
+                      Next
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -649,7 +709,6 @@ export default function BulkTemplatePage() {
         </div>
       </div>
 
-      {/* 🚀 FIX: Modal moved OUTSIDE the overflow-hidden relative page boundaries */}
       <TemplateManagerPanel
         open={panelOpen}
         onClose={() => setPanelOpen(false)}

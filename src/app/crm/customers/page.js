@@ -147,12 +147,12 @@ export default function CustomersPage() {
   return (
     <DashboardPage
       title="Customer Directory"
-      subtitle="Master Database"
+      subtitle="Comprehensive list of all customers with their details"
       maxWidth="1700px"
       actions={
         <>
           <SearchInput
-            placeholder="Search customers..."
+            placeholder="Search Customers..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full md:w-64 lg:w-80"

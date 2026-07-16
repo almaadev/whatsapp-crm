@@ -98,7 +98,7 @@ export default function AdminDashboard() {
             ? "Doctor Overview"
             : "Global Overview"
       }
-      subtitle="Command Center"
+      subtitle="Administrative monitoring and performance dashboard for all associates and branches."
       icon={Shield}
       headerChildren={
         <>
