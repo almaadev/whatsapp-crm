@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/shared/lib/auth";
 import connectDB from "@/shared/lib/db/mongodb";
 import User from "@/shared/models/User";
+import Branch from "@/shared/models/Branch";
 import redis from "@/shared/lib/db/redis"; 
 import bcrypt from "bcryptjs"; 
 import { isAdminAuthorized } from "@/shared/utils/auth";
@@ -20,9 +21,18 @@ export async function GET() {
   try {
     await connectDB();
 
+    const branches = await Branch.find().lean();
+    const branchMap = {};
+    branches.forEach(b => {
+      branchMap[b._id.toString()] = b.name;
+    });
+
     if (!isAuthorized(session)) {
         const me = await User.findOne({ email: session.user.email }).lean();
         if (!me) return NextResponse.json([]);
+        
+        const branchVal = me.branch?.toString() || "";
+        const branchName = branchMap[branchVal] || me.branch || "";
         
         return NextResponse.json([{
             id: me._id.toString(),
@@ -30,7 +40,7 @@ export async function GET() {
             email: me.email,
             role: me.role,
             department: me.department,
-            branch: me.branch || "",
+            branch: branchName,
             target: me.target || 0,
             achieved: me.achieved || 0,
         }]);
@@ -45,20 +55,24 @@ export async function GET() {
     if (associates.length === 0) {
         const users = await User.find({ role: { $ne: 'superAdmin' } }).lean();
 
-        associates = users.map(u => ({
-          id: u._id.toString(), 
-          name: u.name,
-          preferredName: u.preferredName || "",
-          email: u.email,
-          number: u.number || "",
-          role: u.role,
-          department: u.department,
-          branch: u.branch || "",
-          active: u.active,
-          leads: u.leads || 0,
-          target: u.target || 0,
-          achieved: u.achieved || 0,
-        }));
+        associates = users.map(u => {
+          const branchVal = u.branch?.toString() || "";
+          const branchName = branchMap[branchVal] || u.branch || "";
+          return {
+            id: u._id.toString(), 
+            name: u.name,
+            preferredName: u.preferredName || "",
+            email: u.email,
+            number: u.number || "",
+            role: u.role,
+            department: u.department,
+            branch: branchName,
+            active: u.active,
+            leads: u.leads || 0,
+            target: u.target || 0,
+            achieved: u.achieved || 0,
+          };
+        });
 
         if (redis && redis.status === 'ready') {
             await redis.set(USER_CACHE_KEY, JSON.stringify(associates), "EX", 3600);

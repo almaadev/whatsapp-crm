@@ -3,6 +3,7 @@ import { toast } from "react-toastify";
 import { useDebounce } from "@/shared/hooks/useDebounce";
 import { reportRepository } from "@/shared/api/repositories/reportRepository";
 import { userRepository } from "@/shared/api/repositories/userRepository";
+import { branchService } from "@/features/branches/services/branchService";
 
 export function useDashboardState(session, isAuthorized, isSuperAdminUser) {
   // Initialization & Loading State
@@ -22,6 +23,8 @@ export function useDashboardState(session, isAuthorized, isSuperAdminUser) {
   // Filter State
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedBranch, setSelectedBranch] = useState("all");
+  const [branches, setBranches] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [filterView, setFilterView] = useState("all");
@@ -29,6 +32,22 @@ export function useDashboardState(session, isAuthorized, isSuperAdminUser) {
     key: "achievedCount",
     direction: "desc",
   });
+
+  useEffect(() => {
+    async function loadBranches() {
+      try {
+        const res = await branchService.getBranches({ limit: 1000 });
+        if (res.success) {
+          setBranches(res.branches || []);
+        }
+      } catch (err) {
+        console.error("Failed to load branches:", err);
+      }
+    }
+    if (isAuthorized) {
+      loadBranches();
+    }
+  }, [isAuthorized]);
 
   // Edit State
   const [editingId, setEditingId] = useState(null);
@@ -84,7 +103,7 @@ export function useDashboardState(session, isAuthorized, isSuperAdminUser) {
         return;
       }
 
-      const { data } = await reportRepository.getAdminDashboard(endpoint, `month=${selectedMonth}&year=${selectedYear}`);
+      const { data } = await reportRepository.getAdminDashboard(endpoint, `month=${selectedMonth}&year=${selectedYear}&branchId=${selectedBranch}`);
 
       if (data.success) {
         setAssociates(data.roster || []);
@@ -101,7 +120,7 @@ export function useDashboardState(session, isAuthorized, isSuperAdminUser) {
     } finally {
       setLoading(false);
     }
-  }, [isAuthorized, isInitialized, isSuperAdminUser, filterView, selectedMonth, selectedYear, session]);
+  }, [isAuthorized, isInitialized, isSuperAdminUser, filterView, selectedMonth, selectedYear, selectedBranch, session]);
 
   useEffect(() => {
     fetchData();
@@ -175,6 +194,8 @@ export function useDashboardState(session, isAuthorized, isSuperAdminUser) {
       analytics,
       selectedMonth,
       selectedYear,
+      selectedBranch,
+      branches,
       searchQuery,
       filterView,
       sortConfig,
@@ -184,6 +205,7 @@ export function useDashboardState(session, isAuthorized, isSuperAdminUser) {
     setters: {
       setSelectedMonth,
       setSelectedYear,
+      setSelectedBranch,
       setSearchQuery,
       setFilterView,
       setTempTarget,

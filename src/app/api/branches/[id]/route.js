@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/shared/lib/db/mongodb";
 import Branch from "@/shared/models/Branch";
+import redis from "@/shared/lib/db/redis";
 import { authorizeBranchRequest } from "@/shared/utils/branchAuth";
 import { validateBranchInput, isValidObjectId } from "@/shared/utils/branchValidation";
 
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req, { params }) {
   try {
-    const auth = await authorizeBranchRequest();
+    const auth = await authorizeBranchRequest(false);
     if (auth.error) return auth.error;
 
     const { id } = await params;
@@ -119,6 +120,10 @@ export async function PUT(req, { params }) {
       { returnDocument: "after", runValidators: true }
     ).lean();
 
+    if (redis && redis.status === "ready") {
+      await redis.del("users:all");
+    }
+
     return NextResponse.json({
       success: true,
       message: "Branch updated successfully.",
@@ -163,6 +168,10 @@ export async function DELETE(req, { params }) {
         { success: false, message: "Branch not found." },
         { status: 404 }
       );
+    }
+
+    if (redis && redis.status === "ready") {
+      await redis.del("users:all");
     }
 
     return NextResponse.json({

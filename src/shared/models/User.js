@@ -8,7 +8,7 @@ const UserSchema = new mongoose.Schema({
   password: { type: String, required: true },
   role: { type: String, enum: ["sales","doctor","superAdmin"], default: "sales" },
   department: { type: String, enum: ["telecalling", "support","admin"], default: "telecalling" }, 
-  branch:{ type: String, required: true },
+  branch: { type: mongoose.Schema.Types.Mixed, required: true },
   isAdmin: { type: Boolean, default: false },
   active: { type: Boolean, default: true },
   accessModules: [{ type: String }],

@@ -23,13 +23,14 @@ export async function GET(req) {
             return NextResponse.json({ error: "Forbidden: Super Admin access required." }, { status: 403 });
         }
 
-        // 3. Time Intelligence
+        // 3. Time & Branch Intelligence
         const { searchParams } = new URL(req.url);
         const month = parseInt(searchParams.get("month")) || new Date().getUTCMonth() + 1;
         const year = parseInt(searchParams.get("year")) || new Date().getUTCFullYear();
+        const branchId = searchParams.get("branchId") || "all";
 
         // 4. Redis Cache Check
-        const cacheKey = `roster:superAdmin:all:${month}:${year}`;
+        const cacheKey = `roster:superAdmin:all:${month}:${year}:${branchId}`;
         if (redis && redis.status === 'ready') {
             const cached = await redis.get(cacheKey);
             if (cached) return NextResponse.json(JSON.parse(cached));
@@ -39,7 +40,11 @@ export async function GET(req) {
         const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
         // 5. Global Filtering (Everyone except Super Admins)
-        const users = await User.find({ role: { $ne: 'superAdmin' } }).lean();
+        const query = { role: { $ne: 'superAdmin' } };
+        if (branchId && branchId !== "all") {
+            query.branch = branchId;
+        }
+        const users = await User.find(query).lean();
 
 
         // 6. Fallback Safety for Empty Datasets

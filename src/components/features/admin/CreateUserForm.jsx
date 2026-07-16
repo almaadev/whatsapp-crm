@@ -138,7 +138,7 @@ export default function CreateUserForm({ onSuccess }) {
                         value={formData.branch} onChange={e => setFormData({...formData, branch: e.target.value})}>
                         <option value="" disabled>{loadingBranches ? "Loading branches..." : "Select Branch"}</option>
                         {branches.map((b) => (
-                            <option key={b.id || b._id} value={b.name}>
+                            <option key={b.id || b._id} value={b.id || b._id}>
                                 {b.name} ({b.status})
                             </option>
                         ))}

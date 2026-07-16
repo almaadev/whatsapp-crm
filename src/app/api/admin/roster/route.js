@@ -4,6 +4,7 @@ import { authOptions } from "@/shared/lib/auth";
 import connectDB from "@/shared/lib/db/mongodb";
 import User from "@/shared/models/User";
 import Lead from "@/shared/models/Lead";
+import Branch from "@/shared/models/Branch";
 
 export const dynamic = "force-dynamic";
 
@@ -17,11 +18,12 @@ export async function GET(req) {
         const isSuperAdmin = session?.user?.role === 'superAdmin';
         const currentUserEmail = session?.user?.email;
 
-        // --- 1. Parse Time Filters (Default to Current Month/Year) ---
+        // --- 1. Parse Filters (Default to Current Month/Year) ---
         const { searchParams } = new URL(req.url);
         const now = new Date();
         const monthParam = searchParams.get("month");
         const yearParam = searchParams.get("year");
+        const branchId = searchParams.get("branchId");
 
         const targetMonth = monthParam ? parseInt(monthParam) : now.getUTCMonth() + 1;
         const targetYear = yearParam ? parseInt(yearParam) : now.getUTCFullYear();
@@ -30,7 +32,17 @@ export async function GET(req) {
         const endDate = new Date(Date.UTC(targetYear, targetMonth, 0, 23, 59, 59, 999));
 
         // --- 2. Fetch Users ---
-        const allUsers = await User.find({ role: { $ne: 'superAdmin' } }).lean();
+        const userQuery = { role: { $ne: 'superAdmin' } };
+        if (branchId && branchId !== "all") {
+            userQuery.branch = branchId;
+        }
+        const allUsers = await User.find(userQuery).lean();
+
+        const branches = await Branch.find().lean();
+        const branchMap = {};
+        branches.forEach(b => {
+            branchMap[b._id.toString()] = b.name;
+        });
         let filteredUsers = allUsers;
         if (!isSuperAdmin) {
             filteredUsers = allUsers.filter(u => 
@@ -113,8 +125,11 @@ export async function GET(req) {
             const conversionRate = totalLeads > 0 ? Math.round((achievedCount / totalLeads) * 100) : 0;
             const progress = totalTarget > 0 ? Math.min(100, Math.round((achievedCount / totalTarget) * 100)) : 0;
 
+            const branchVal = user.branch?.toString() || "";
+            const branchName = branchMap[branchVal] || user.branch || "-";
+
             return {
-                id: userIdStr, name: userName, role: user.role, branch: user.branch || "-", 
+                id: userIdStr, name: userName, role: user.role, branch: branchName, 
                 target: totalTarget, totalLeads, pendingCount, followUpCount, achievedCount, conversionRate, progress
             };
         });

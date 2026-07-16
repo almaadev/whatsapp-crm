@@ -24,6 +24,7 @@ import {
   Calendar,
   Search,
   ArrowUpDown,
+  Building,
 } from "lucide-react";
 
 export default function AdminDashboard() {
@@ -151,6 +152,24 @@ export default function AdminDashboard() {
               ))}
             </select>
           </div>
+
+          {isSuperAdminUser && (
+            <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200 shadow-sm">
+              <Building size={16} className="text-slate-400 ml-2" />
+              <select
+                value={state.selectedBranch}
+                onChange={(e) => setters.setSelectedBranch(e.target.value)}
+                className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer py-1 pl-1 pr-2 max-w-[150px] truncate"
+              >
+                <option value="all">All Branches</option>
+                {state.branches?.map((b) => (
+                  <option key={b.id || b._id} value={b.id || b._id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </>
       }
     >

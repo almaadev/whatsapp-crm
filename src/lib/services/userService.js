@@ -1,6 +1,7 @@
 import { findAllUsers, findUserByEmail, findUserById, createUser, updateUser, deleteUser } from "../repositories/userRepository";
 import { getFromCache, setInCache, invalidateCache } from "./cacheService";
 import bcrypt from "bcryptjs";
+import Branch from "@/shared/models/Branch";
 
 const USER_CACHE_KEY = "users:all";
 
@@ -12,24 +13,36 @@ const isAuthorized = (session) => {
 
 export const userService = {
   async getUsers(session) {
+    const branches = await Branch.find().lean();
+    const branchMap = {};
+    branches.forEach(b => {
+      branchMap[b._id.toString()] = b.name;
+    });
+
     if (!isAuthorized(session)) {
       const me = await findUserByEmail(session.user.email);
       if (!me) return [];
+      const branchVal = me.branch?.toString() || "";
+      const branchName = branchMap[branchVal] || me.branch || "";
       return [{
         id: me._id.toString(), name: me.name, email: me.email, role: me.role,
-        department: me.department, branch: me.branch || "", target: me.target || 0, achieved: me.achieved || 0,
+        department: me.department, branch: branchName, target: me.target || 0, achieved: me.achieved || 0,
       }];
     }
 
     let associates = await getFromCache(USER_CACHE_KEY);
     if (!associates) {
       const users = await findAllUsers({ role: { $ne: 'superAdmin' } });
-      associates = users.map(u => ({
-        id: u._id.toString(), name: u.name, preferredName: u.preferredName || "",
-        email: u.email, number: u.number || "", role: u.role, department: u.department,
-        branch: u.branch || "", active: u.active, leads: u.leads || 0,
-        target: u.target || 0, achieved: u.achieved || 0,
-      }));
+      associates = users.map(u => {
+        const branchVal = u.branch?.toString() || "";
+        const branchName = branchMap[branchVal] || u.branch || "";
+        return {
+          id: u._id.toString(), name: u.name, preferredName: u.preferredName || "",
+          email: u.email, number: u.number || "", role: u.role, department: u.department,
+          branch: branchName, active: u.active, leads: u.leads || 0,
+          target: u.target || 0, achieved: u.achieved || 0,
+        };
+      });
       await setInCache(USER_CACHE_KEY, associates, 3600);
     }
 

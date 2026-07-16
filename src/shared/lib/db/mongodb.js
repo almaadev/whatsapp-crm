@@ -33,6 +33,33 @@ async function connectDB() {
             console.warn("Could not drop legacy unique index 'code_1':", err.message);
           }
         });
+
+        // Run user branch legacy data migration
+        mongoose.connection.db.collection("users").find({}).toArray().then(async (users) => {
+          const branches = await mongoose.connection.db.collection("branches").find({}).toArray();
+          const branchMapByName = {};
+          branches.forEach(b => {
+            branchMapByName[b.name.toLowerCase()] = b._id;
+          });
+          for (const u of users) {
+            if (u.branch) {
+              const currentBranch = u.branch.toString();
+              const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(currentBranch);
+              if (!isValidObjectId) {
+                const matchedBranchId = branchMapByName[currentBranch.toLowerCase()];
+                if (matchedBranchId) {
+                  await mongoose.connection.db.collection("users").updateOne(
+                    { _id: u._id },
+                    { $set: { branch: matchedBranchId.toString() } }
+                  );
+                  console.log(`[Migration] Updated user ${u.email} branch name "${u.branch}" to ID: ${matchedBranchId.toString()}`);
+                }
+              }
+            }
+          }
+        }).catch(err => {
+          console.warn("Error running user branch migration:", err.message);
+        });
       });
       return mongoose;
     });

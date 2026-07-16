@@ -1,4 +1,5 @@
 import Lead from "@/shared/models/Lead";
+import Branch from "@/shared/models/Branch";
 
 export async function processRosterMetrics(users, startDate, endDate) {
     // Fetch all active leads for the given timeframe (using indexes for speed)
@@ -10,11 +11,19 @@ export async function processRosterMetrics(users, startDate, endDate) {
         ]
     }).lean();
 
+    const branches = await Branch.find().lean();
+    const branchMap = {};
+    branches.forEach(b => {
+        branchMap[b._id.toString()] = b.name;
+    });
+
     let companyAnalytics = { totalLeads: 0, totalPending: 0, totalFollowUp: 0, totalAchieved: 0, totalTarget: 0 };
 
     const roster = users.map(user => {
         const userIdStr = user._id.toString();
         const userName = user.name;
+        const branchVal = user.branch?.toString() || "";
+        const branchName = branchMap[branchVal] || user.branch || "-";
 
         let totalLeads = 0;
         let pendingCount = 0;
@@ -86,7 +95,7 @@ export async function processRosterMetrics(users, startDate, endDate) {
         const progress = totalTarget > 0 ? Math.min(100, Math.round((achievedCount / totalTarget) * 100)) : 0;
 
         return {
-            id: userIdStr, name: userName, role: user.role, branch: user.branch || "-", department: user.department || "-",
+            id: userIdStr, name: userName, role: user.role, branch: branchName, department: user.department || "-",
             target: totalTarget, totalLeads, pendingCount, followUpCount, achievedCount, conversionRate, progress
         };
     });

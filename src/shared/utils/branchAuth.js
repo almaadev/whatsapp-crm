@@ -2,15 +2,17 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/shared/lib/auth";
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
+import { isAdminAuthorized } from "@/shared/utils/auth";
 
 /**
  * Reusable helper to authorize Branch management APIs.
- * Verifies JWT/session, and ensures department is "admin" AND role is "superAdmin".
+ * Verifies JWT/session, and ensures department is "admin" AND role is "superAdmin" for write actions.
+ * For read-only actions, any admin is authorized.
  * 
  * If verification fails, returns the appropriate NextResponse.
  * If verification succeeds, returns { session, user: session.user, error: null }
  */
-export async function authorizeBranchRequest() {
+export async function authorizeBranchRequest(isWrite = true) {
   if (process.env.NODE_ENV !== "production") {
     try {
       const headersList = await headers();
@@ -28,7 +30,11 @@ export async function authorizeBranchRequest() {
             email: "mock@almaa.com"
           }
         };
-        if (mockDept !== "admin" || mockRole !== "superAdmin") {
+        const isAllowed = isWrite 
+          ? (mockDept === "admin" && mockRole === "superAdmin")
+          : isAdminAuthorized(mockRole, mockDept);
+          
+        if (!isAllowed) {
           return {
             session,
             user: session.user,
@@ -62,7 +68,11 @@ export async function authorizeBranchRequest() {
 
   const { department, role } = session.user;
 
-  if (department !== "admin" || role !== "superAdmin") {
+  const isAllowed = isWrite 
+    ? (department === "admin" && role === "superAdmin")
+    : isAdminAuthorized(role, department);
+
+  if (!isAllowed) {
     return {
       session,
       user: session.user,

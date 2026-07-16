@@ -32,13 +32,14 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const month = parseInt(searchParams.get("month")) || new Date().getUTCMonth() + 1;
     const year = parseInt(searchParams.get("year")) || new Date().getUTCFullYear();
+    const branchId = searchParams.get("branchId") || "all";
     const adminBranch = await ( async () => {
       const user = await User.findById(session.user.id).lean();
       return user ? user.branch : null;
     })();
     
 
-    const cacheKey = `roster:doctorAdmin:${month}:${year}`;
+    const cacheKey = `roster:doctorAdmin:${month}:${year}:${branchId}`;
     if (redis && redis.status === "ready") {
       const cached = await redis.get(cacheKey);
       if (cached) return NextResponse.json(JSON.parse(cached));
@@ -47,11 +48,20 @@ export async function GET(req) {
     const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
     const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
-    const users = await User.find({
+    const query = {
       role: "doctor",
       department: { $regex: "^(telecalling|support)$", $options: "i" },
-      branch: adminBranch,
-    }).lean();
+    };
+
+    if (session.user.role === "superAdmin") {
+      if (branchId && branchId !== "all") {
+        query.branch = branchId;
+      }
+    } else {
+      query.branch = adminBranch;
+    }
+
+    const users = await User.find(query).lean();
 
     if (!users || users.length === 0) {
       return NextResponse.json({

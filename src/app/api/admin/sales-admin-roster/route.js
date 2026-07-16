@@ -30,19 +30,20 @@ export async function GET(req) {
       );
     }
 
-    // 3. Time Intelligence
+    // 3. Time & Branch Intelligence
     const { searchParams } = new URL(req.url);
     const month =
       parseInt(searchParams.get("month")) || new Date().getUTCMonth() + 1;
     const year =
       parseInt(searchParams.get("year")) || new Date().getUTCFullYear();
+    const branchId = searchParams.get("branchId") || "all";
     const adminBranch = await (async () => {
       const user = await User.findById(session.user.id).lean();
       return user ? user.branch : null;
     })();
 
     // 4. Redis Cache Check
-    const cacheKey = `roster:salesAdmin:${month}:${year}`;
+    const cacheKey = `roster:salesAdmin:${month}:${year}:${branchId}`;
     if (redis && redis.status === "ready") {
       const cached = await redis.get(cacheKey);
       if (cached) return NextResponse.json(JSON.parse(cached));
@@ -52,11 +53,20 @@ export async function GET(req) {
     const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
     // 5. 🚀 FIX: Correct Role and Department fetching based on your exact User Schema
-    const users = await User.find({
-    role: "sales",
-    department: { $regex: "^(telecalling|support)$", $options: "i" },
-    branch: adminBranch,
-    }).lean();
+    const query = {
+      role: "sales",
+      department: { $regex: "^(telecalling|support)$", $options: "i" },
+    };
+
+    if (session.user.role === "superAdmin") {
+      if (branchId && branchId !== "all") {
+        query.branch = branchId;
+      }
+    } else {
+      query.branch = adminBranch;
+    }
+
+    const users = await User.find(query).lean();
 
     // 6. Fallback Safety for Empty Datasets
     if (!users || users.length === 0) {
