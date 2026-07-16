@@ -5,11 +5,8 @@ import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { usePathStore } from "@/features/chat/stores/pathStore";
 import { customerRepository } from "@/shared/api/repositories/customerRepository";
-<<<<<<< HEAD
 import { useAuth } from "@/shared/hooks/useAuth";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
-=======
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
 import DashboardPage from "@/shared/components/layout/DashboardPage";
 import LoadingScreen from "@/shared/components/ui/LoadingScreen";

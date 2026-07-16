@@ -1,10 +1,5 @@
-<<<<<<<< HEAD:src/shared/utils/userUtils.js
 import connectDB from "@/shared/lib/db/mongodb";
 import User from "@/shared/models/User";
-========
-import connectDB from "@/lib/db/mongodb";
-import User from "@/models/User";
->>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32:src/utils/userUtils.js
 import mongoose from "mongoose";
 
 /**

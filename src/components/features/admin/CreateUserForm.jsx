@@ -3,11 +3,7 @@ import { useState, useEffect } from "react";
 import { User, Mail, Lock, Shield, CheckCircle, AlertCircle, Plus, Phone, Briefcase, Tag, Building, ChevronDown } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { userRepository } from "@/shared/api/repositories/userRepository";
-<<<<<<< HEAD
 import { branchService } from "@/features/branches/services/branchService";
-=======
-import { getDistricts } from "@/shared/utils/district";
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
 export default function CreateUserForm({ onSuccess }) {
     const { data: session } = useSession();

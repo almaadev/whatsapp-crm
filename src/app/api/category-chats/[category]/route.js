@@ -4,11 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/shared/lib/auth";
 import Customer from "@/shared/models/Customer";
 import Message from "@/shared/models/Message";
-<<<<<<< HEAD
 import { resolveCategoryChat } from "@/shared/api/utils/categoryChats";
-=======
-import { resolveCategoryChat } from "@/lib/categoryChats";
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 import twilio from "twilio";
 
 export async function GET(req, { params }) {

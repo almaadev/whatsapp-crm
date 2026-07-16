@@ -4,11 +4,8 @@ import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { usePathStore } from "@/features/chat/stores/pathStore";
 import { leadRepository } from "@/shared/api/repositories/leadRepository";
-<<<<<<< HEAD
 import { useAuth } from "@/shared/hooks/useAuth";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
-=======
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 import DashboardPage from "@/shared/components/layout/DashboardPage";
 import LoadingScreen from "@/shared/components/ui/LoadingScreen";
 import SearchInput from "@/shared/components/ui/SearchInput";
@@ -46,12 +43,8 @@ import { toast } from "react-toastify";
 export default function LeadsPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
-<<<<<<< HEAD
   const { user, isLoading, hasModuleAccess } = useAuth();
   const role = user?.role || session?.user?.role;
-=======
-  const role = session?.user?.role;
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
   const { setPath } = usePathStore();
   const pathname = usePathname();
 
@@ -168,7 +161,6 @@ export default function LeadsPage() {
     }
   };
 
-<<<<<<< HEAD
   const isAuthorized = hasModuleAccess("Leads");
 
   if (status === "loading" || isLoading) {
@@ -261,90 +253,6 @@ export default function LeadsPage() {
   );
 }
 
-=======
-  if (status === "loading") {
-    return <LoadingScreen />;
-  }
-
-  return (
-    <DashboardPage
-      title="Customer Leads"
-      subtitle="Pipeline & Auditing"
-      maxWidth="1700px"
-      actions={
-        <>
-          <SearchInput
-            placeholder="Search pipeline..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full md:w-64"
-          />
-          <Button
-            variant="icon"
-            onClick={fetchRecentLeads}
-            disabled={fetchingLeads}
-            title="Refresh Pipeline"
-          >
-            <RefreshCcw
-              size={18}
-              className={fetchingLeads ? "animate-spin" : ""}
-            />
-          </Button>
-          <Button onClick={() => setShowCreateForm(true)}>
-            <Plus size={18} />{" "}
-            <span className="hidden sm:inline">New Lead</span>
-          </Button>
-        </>
-      }
-    >
-      {fetchingLeads && paginatedLeads.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-64 text-slate-400">
-          <Loader2 size={32} className="animate-spin mb-3 text-[#00a884]" />
-          <span className="text-sm font-bold uppercase tracking-wider">
-            Syncing Leads Data...
-          </span>
-        </div>
-      ) : paginatedLeads.length === 0 ? (
-        <EmptyState icon={History} title="No leads found in the pipeline." />
-      ) : (
-        <>
-          <div className="flex flex-col flex-1">
-            {paginatedLeads.map((lead, idx) => (
-              <LeadIntelligenceRecord
-                key={lead._id || idx}
-                lead={lead}
-                handleCustomerRedirect={handleCustomerRedirect}
-                handleCopyPhone={handleCopyPhone}
-                copiedPhone={copiedPhone}
-              />
-            ))}
-          </div>
-
-          {/* Pagination Footer */}
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalRecords={totalRecords}
-            pageSize={pageSize}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={setPageSize}
-          />
-        </>
-      )}
-      {showCreateForm && (
-        <CreateLeadModal
-          formData={formData}
-          handleChange={handleChange}
-          handleSubmit={handleSubmit}
-          setShowCreateForm={setShowCreateForm}
-          loading={loading}
-        />
-      )}
-    </DashboardPage>
-  );
-}
-
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 function LifecycleBadge({ state }) {
   const icons = {
     New: <AlertCircle size={12} />,

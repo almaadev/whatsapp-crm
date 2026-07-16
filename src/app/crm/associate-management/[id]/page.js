@@ -4,22 +4,15 @@ import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import { useCrmLayout } from "@/shared/components/layout/CrmShell";
-<<<<<<< HEAD
 import { branchService } from "@/features/branches/services/branchService";
-=======
-import { getDistricts } from "@/shared/utils/district";
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 import { 
     User, Mail, Lock, Shield, Phone, Briefcase, Tag, 
     ArrowLeft, Save, ShieldAlert, Building, LayoutGrid, 
     Menu, Loader2, ChevronDown
 } from "lucide-react";
 import { userRepository } from "@/shared/api/repositories/userRepository";
-<<<<<<< HEAD
 import { useAuth } from "@/shared/hooks/useAuth";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
-=======
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
 
 export default function EditAssociatePage() {

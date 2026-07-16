@@ -15,11 +15,8 @@ import {
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { customerRepository } from "@/shared/api/repositories/customerRepository";
-<<<<<<< HEAD
 import { useAuth } from "@/shared/hooks/useAuth";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
-=======
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
 // Modern Enterprise Status Badges
 const StatusBadge = ({ status, labelOverride }) => {
@@ -49,10 +46,7 @@ export default function CustomerDetailPage({ params }) {
     const { setMobileOpen } = useCrmLayout();
     const lastPath = usePathStore((state) => state.lastpath);
     const { data: session } = useSession();
-<<<<<<< HEAD
     const { user, isLoading, hasModuleAccess } = useAuth();
-=======
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
     const { setSelectedChat }     = useChatStore();
     const [customer, setCustomer] = useState(null);
     const [loading, setLoading] = useState(true);

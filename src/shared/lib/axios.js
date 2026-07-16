@@ -1,13 +1,5 @@
 import axios from "axios";
 
-<<<<<<< HEAD
-=======
-/**
- * Enterprise API Client
- * Configured with interceptors, timeouts, cancellation, and retry logic.
- */
-
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 const MAX_RETRIES = 3;
 
 const api = axios.create({
@@ -78,7 +70,6 @@ api.interceptors.response.use(
       console.warn("[API] Unauthorized — session may have expired.");
     } else if (status === 403) {
       console.warn("[API] Forbidden — insufficient permissions.");
-<<<<<<< HEAD
       if (errorData?.error === "Suspended" || errorData?.message === "Suspended") {
         try {
           const { useUserStore } = require("@/features/user/store/userStore");
@@ -95,17 +86,6 @@ api.interceptors.response.use(
     normalizedError.code = error.code;
     normalizedError.data = errorData || null;
     normalizedError.isCancelled = false;
-=======
-    }
-
-    const normalizedError = {
-      message: errorData?.error || errorData?.message || error.message || "An unknown error occurred",
-      status: status || 500,
-      code: error.code,
-      data: errorData || null,
-      isCancelled: false,
-    };
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
     // Keep it as a rejected promise so UI try/catch blocks function identically
     return Promise.reject(normalizedError);

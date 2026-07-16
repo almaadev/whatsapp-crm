@@ -5,12 +5,8 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useChatStore } from "@/features/chat/stores/chatStore";
 import { useChat } from "@/features/chat/hooks/useChat";
-<<<<<<< HEAD
 import { useChatPresence } from "@/features/chat/hooks/useChatPresence";
 import { useAuth } from "@/shared/hooks/useAuth";
-=======
-import { hasModuleAccess } from "@/shared/utils/auth";
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 import InboxPage from "@/shared/components/layout/InboxPage";
 import LoadingScreen from "@/shared/components/ui/LoadingScreen";
 import AccessDenied from "@/shared/components/ui/AccessDenied";

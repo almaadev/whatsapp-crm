@@ -38,19 +38,10 @@ import {
 
 export default function MessageLogsPage() {
   const { data: session, status } = useSession();
-<<<<<<< HEAD
   const { user, isLoading, hasModuleAccess } = useAuth();
   const { setMobileOpen } = useCrmLayout();
 
   const isAuthorized = hasModuleAccess("Messages log");
-=======
-  const { setMobileOpen } = useCrmLayout();
-
-  const isAuthorized =
-    session?.user?.role === "superAdmin" ||
-    session?.user?.department === "admin" ||
-    session;
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
   const { state, setters, derived, actions } = useMessageLogsState(isAuthorized);
 
@@ -218,63 +209,23 @@ export default function MessageLogsPage() {
     );
   };
 
-<<<<<<< HEAD
   const hasLogAccess = isAuthorized;
 
   if (!hasLogAccess) {
     return (
       <AccessDenied message="You do not have permission to access Message Logs." />
-=======
-  const isSuperAdminUser = session?.user?.role === "superAdmin";
-  const haslogaccess =
-    isSuperAdminUser || session?.user?.accessModules?.includes("Messages log");
-
-  if (!haslogaccess) {
-    return (
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
-        <div className="flex flex-1 w-full h-full flex-col items-center justify-center p-6 text-center">
-          <ShieldAlert size={80} className="text-rose-400 mb-6" />
-          <h2 className="text-3xl font-extrabold text-slate-800">
-            Access Denied
-          </h2>
-          <p className="text-slate-500 mt-2">
-            You do not have permission to view this page. Please contact your
-            administrator.
-          </p>
-        </div>
-      </div>
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
     );
   }
 
   const isDangerousQuery = !state.startDate && !state.endDate && !state.searchQuery;
 
-<<<<<<< HEAD
   if (status === "loading" || isLoading)
-=======
-  if (status === "loading")
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
     return (
       <div className="flex h-screen items-center justify-center text-emerald-600 font-bold uppercase tracking-widest text-sm bg-slate-50">
         <Loader2 className="animate-spin mr-3" /> Authenticating...
       </div>
     );
-<<<<<<< HEAD
   if (!user && !session) return null;
-=======
-  if (!session || !isAuthorized) {
-    return (
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
-        <div className="flex flex-1 w-full h-full flex-col items-center justify-center p-6 text-center">
-          <ShieldAlert size={80} className="text-rose-400 mb-6" />
-          <h2 className="text-3xl font-extrabold text-slate-800">
-            Clearance Required
-          </h2>
-        </div>
-      </div>
-    );
-  }
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
   return (
     <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">

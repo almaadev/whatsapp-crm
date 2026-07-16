@@ -6,42 +6,24 @@ import { useSearchParams } from "next/navigation";
 import InboxPage from "@/shared/components/layout/InboxPage";
 import LoadingScreen from "@/shared/components/ui/LoadingScreen";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
-<<<<<<< HEAD
 import { useAuth } from "@/shared/hooks/useAuth";
 import { toast } from "react-toastify";
 import { chatRepository } from "@/shared/api/repositories/chatRepository";
 
-=======
-import { hasModuleAccess } from "@/shared/utils/auth";
-import { toast } from "react-toastify";
-import { chatRepository } from "@/shared/api/repositories/chatRepository";
-import { User, Search, Lock } from "lucide-react";
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 import dynamic from "next/dynamic";
 import { useDebounce } from "@/shared/hooks/useDebounce";
 
 const CustomerInfoPanel = dynamic(() => import("@/components/features/chat/CustomerInfoPanel"), { ssr: false });
-<<<<<<< HEAD
 
 import { useCategoryChat } from "@/features/chat/hooks/useCategoryChat";
 import { useChatPresence } from "@/features/chat/hooks/useChatPresence";
 
-=======
-import ChatHeader from "@/components/features/chat/ChatHeader";
-import MessageList from "@/components/features/chat/MessageList";
-import ChatInput from "@/components/features/chat/ChatInput";
-import { useCategoryChat } from "@/features/chat/hooks/useCategoryChat";
-import { formatSafeTime, getDisplayMessage } from "@/shared/utils/chatDisplay";
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 import ChatListPanel from "@/features/chat/components/ChatListPanel";
 import ChatViewPanel from "@/features/chat/components/ChatViewPanel";
 
 function CategoryInboxContent({ slug }) {
   const { data: session, status } = useSession();
-<<<<<<< HEAD
   const { user, isLoading, hasModuleAccess } = useAuth();
-=======
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
   const searchParams = useSearchParams();
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
@@ -58,13 +40,9 @@ function CategoryInboxContent({ slug }) {
   const updateChatDetails = useStore((s) => s.updateChatDetails);
 
   const { Icon, chatType, moduleName, leadCategory } = config;
-<<<<<<< HEAD
   const isAuthorized = hasModuleAccess(moduleName);
 
   useChatPresence(selectedChat?.phone);
-=======
-  const isAuthorized = hasModuleAccess(session, moduleName);
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 
@@ -94,11 +72,7 @@ function CategoryInboxContent({ slug }) {
           phone: selectedChat.phone,
           templateSid: template.sid,
           chatType,
-<<<<<<< HEAD
           associateName: user?.name,
-=======
-          associateName: session?.user?.name,
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
           contentVariables: variables,
         });
         fetchChats(debouncedSearch);
@@ -107,11 +81,7 @@ function CategoryInboxContent({ slug }) {
         toast.error("Failed to send template.");
       }
     },
-<<<<<<< HEAD
     [selectedChat, user, fetchChats, debouncedSearch, chatType]
-=======
-    [selectedChat, session, fetchChats, debouncedSearch, chatType]
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
   );
 
   const lastMessage =
@@ -160,19 +130,11 @@ function CategoryInboxContent({ slug }) {
     await updateStatus(selectedChat.phone, newStatus);
   };
 
-<<<<<<< HEAD
   if (status === "loading" || isLoading) {
     return <LoadingScreen message={config.loadingLabel} />;
   }
 
   if (!user && !session) return null;
-=======
-  if (status === "loading") {
-    return <LoadingScreen message={config.loadingLabel} />;
-  }
-
-  if (!session) return null;
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
   if (!isAuthorized) {
     return (
@@ -195,11 +157,7 @@ function CategoryInboxContent({ slug }) {
         <>
           <ChatViewPanel
             useStore={useStore}
-<<<<<<< HEAD
             session={user ? { user } : session}
-=======
-            session={session}
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
             isChatClosed={isChatClosed}
             isToggling={isToggling}
             handleToggleChatStatus={handleToggleChatStatus}

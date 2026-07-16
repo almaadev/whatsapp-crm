@@ -5,11 +5,7 @@ import {
   Loader2, Sparkles, Check, Trash2, AlertCircle, User 
 } from "lucide-react";
 import { toast } from "react-toastify";
-<<<<<<<< HEAD:src/shared/components/modals/ReminderModal.jsx
 import { reminderRepository } from "@/shared/api/repositories/reminderRepository";
-========
-import api from "@/lib/axios";
->>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32:src/components/modals/ReminderModal.jsx
 
 export default function ReminderModal({ isOpen, onClose, onSet, initialPhone }) {
   const [date, setDate] = useState("");
@@ -36,11 +32,7 @@ export default function ReminderModal({ isOpen, onClose, onSet, initialPhone }) 
   const checkActiveReminder = async () => {
       setFetching(true);
       try {
-<<<<<<<< HEAD:src/shared/components/modals/ReminderModal.jsx
           const { data } = await reminderRepository.getReminder(initialPhone);
-========
-          const { data } = await api.post("/api/reminders", { action: "GET", phone: initialPhone });
->>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32:src/components/modals/ReminderModal.jsx
           if (data.success && data.reminder) {
               setExistingReminder(data.reminder);
           } else {
@@ -72,11 +64,7 @@ export default function ReminderModal({ isOpen, onClose, onSet, initialPhone }) 
   const handleCancelReminder = async () => {
       setLoading(true);
       try {
-<<<<<<<< HEAD:src/shared/components/modals/ReminderModal.jsx
           await reminderRepository.cancelReminder(initialPhone);
-========
-          await api.post("/api/reminders", { action: "CANCEL", phone: initialPhone });
->>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32:src/components/modals/ReminderModal.jsx
           toast.info("Reminder Cancelled");
           setExistingReminder(null); // Switch back to 'Set' mode
       } catch (e) {

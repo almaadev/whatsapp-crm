@@ -2,14 +2,10 @@
 import api from "@/shared/lib/axios";
 import { useState, useMemo, useEffect } from "react";
 import { useChatStore } from "@/features/chat/stores/chatStore";
-<<<<<<< HEAD
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
-=======
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 import { useSession } from "next-auth/react";
 
 import Link from "next/link";
-<<<<<<< HEAD
 import {
   Search,
   PlusCircle,
@@ -22,9 +18,6 @@ import {
   X,
   AlertTriangle,
 } from "lucide-react";
-=======
-import { Search, PlusCircle, CheckCheck, Check, Clock, AlertCircle, ChevronDown, Trash2, X, AlertTriangle } from "lucide-react";
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 import { chatRepository } from "@/shared/api/repositories/chatRepository";
 import { customerRepository } from "@/shared/api/repositories/customerRepository";
 
@@ -44,19 +37,9 @@ export default function ChatList({ role, loading }) {
   const [showMainMenu, setShowMainMenu] = useState(false);
   const [activeChatMenu, setActiveChatMenu] = useState(null);
 
-<<<<<<< HEAD
   // 👇 New Custom Modal States
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, phones: [] });
   const [isDeleting, setIsDeleting] = useState(false);
-=======
-    useEffect(() => {
-        if (searchTerm.length > 0 && !allCustomers) {
-            customerRepository.getCustomers()
-                .then(({ data }) => setAllCustomers(Array.isArray(data) ? data : []))
-                .catch(err => console.error("Failed to fetch customers", err));
-        }
-    }, [searchTerm, allCustomers]);
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
   useEffect(() => {
     if (searchTerm.length > 0 && !allCustomers) {
@@ -70,7 +53,6 @@ export default function ChatList({ role, loading }) {
   const getPriorityStyles = (priority, isUnread) => {
     if (isUnread) return "bg-emerald-50/40 border-l-emerald-400/50";
 
-<<<<<<< HEAD
     switch (priority?.toLowerCase()) {
       case "high":
         return "bg-red-50/30 border-l-red-400/50 hover:bg-red-50/50";
@@ -79,83 +61,6 @@ export default function ChatList({ role, loading }) {
       default:
         return "bg-white border-l-transparent hover:bg-slate-50";
     }
-=======
-    const parseDate = (dateString) => {
-        if (!dateString) return new Date(0);
-        if (dateString.includes("T") || (dateString.includes("-") && dateString.includes(":"))) {
-            return new Date(dateString);
-        }
-        const parts = dateString.split(" ");
-        if (parts.length >= 2) {
-            const dateParts = parts[0].split("/");
-            const timeParts = parts[1].split(":");
-            if (dateParts.length === 3) {
-                return new Date(
-                    parseInt(dateParts[2]), parseInt(dateParts[0]) - 1, parseInt(dateParts[1]),
-                    parseInt(timeParts[0] || 0), parseInt(timeParts[1] || 0), parseInt(timeParts[2] || 0)
-                );
-            }
-        }
-        return new Date(dateString);
-    };
-
-    const formatTimeDisplay = (dateObj) => {
-        if (isNaN(dateObj.getTime())) return "";
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const msgDate = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
-        const diffTime = today - msgDate;
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-        if (diffDays === 0) return dateObj.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
-        if (diffDays === 1) return "Yesterday";
-        if (diffDays > 1 && diffDays < 7) return dateObj.toLocaleDateString([], { weekday: 'long' });
-
-        const d = String(dateObj.getDate()).padStart(2, '0');
-        const m = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const y = String(dateObj.getFullYear()).slice(-2);
-        return `${d}/${m}/${y}`;
-    };
-
-    const handleChatClick = async (chat) => {
-        setSelectedChat(chat);
-        if (chat.direction === "INBOUND" && chat.read === "FALSE") {
-            updateChatDetails(chat.phone, { read: "TRUE" });
-            try {
-                await chatRepository.markRead({ phone: chat.phone });
-            } catch (err) {
-                console.error("Failed to mark chat as read", err);
-            }
-        }
-    };
-
-    const handleCustomerClick = (customer) => {
-        let cleanPhone = customer.phone || "";
-        if (!cleanPhone.startsWith("whatsapp:")) {
-            cleanPhone = `whatsapp:${cleanPhone.replace(/\D/g, '')}`;
-        }
-
-        setSelectedChat({
-            phone: cleanPhone,
-            name: customer.name || "Unknown",
-            message: "",
-            direction: "OUTBOUND",
-            status: customer.status || "New",
-            priority: customer.priority || "Medium",
-            read: "TRUE",
-            timestamp: new Date().toISOString()
-        });
-        setSearchTerm("");
-    };
-
-    // You can pass customer.activeRouteCategory or chat.chatType as the prop
-const InboxSourceBadge = ({ sourceType }) => {
-  const config = {
-    "Product Lead": { color: "bg-emerald-100 text-emerald-800", dot: "bg-emerald-500", label: "Product Lead" },
-    "MD Camp": { color: "bg-blue-100 text-blue-800", dot: "bg-blue-500", label: "MD Camp" },
-    "Therapy": { color: "bg-purple-100 text-purple-800", dot: "bg-purple-500", label: "Therapy" },
-    "Direct Lead": { color: "bg-slate-100 text-slate-800", dot: "bg-slate-500", label: "General Inbox" },
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
   };
 
   const parseDate = (dateString) => {
@@ -270,7 +175,6 @@ const InboxSourceBadge = ({ sourceType }) => {
       },
     };
 
-<<<<<<< HEAD
     const style = config[sourceType] || config["Direct Lead"];
 
     return (
@@ -417,116 +321,6 @@ const InboxSourceBadge = ({ sourceType }) => {
               }}
               onMouseLeave={() => setActiveChatMenu(null)}
               className={`
-=======
-    const confirmDelete = async () => {
-        const phonesArray = deleteModal.phones;
-        setIsDeleting(true);
-        try {
-            const { data: res } = await api.delete("/api/chats", {
-                data: { phones: phonesArray }
-            });
-
-            if (selectedChat && phonesArray.includes(selectedChat.phone)) {
-                setSelectedChat(null);
-            }
-            setIsSelectionMode(false);
-            setSelectedPhones(new Set());
-            setActiveChatMenu(null);
-            setDeleteModal({ isOpen: false, phones: [] });
-
-            window.location.reload();
-        } catch (err) {
-            console.error("Delete Error", err);
-            alert("An error occurred while deleting.");
-        }
-        setIsDeleting(false);
-    };
-
-    const groupedChats = useMemo(() => {
-        const filtered = messages.filter((chat) => {
-            const term = searchTerm.toLowerCase();
-            const name = (chat.name || "").toLowerCase();
-            const phone = (chat.phone || "").toLowerCase();
-            return name.includes(term) || phone.includes(term);
-        });
-        
-        const sorted = filtered.sort((a, b) => {
-            return parseDate(b.lastSeenAt || b.timestamp) - parseDate(a.lastSeenAt || a.timestamp);
-        });
-
-        const groups = { today: [], yesterday: [], older: [] };
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-        sorted.forEach(chat => {
-            const chatDateRaw = parseDate(chat.lastSeenAt || chat.timestamp);
-            const chatDateOnly = new Date(chatDateRaw.getFullYear(), chatDateRaw.getMonth(), chatDateRaw.getDate());
-            const diffTime = today - chatDateOnly;
-            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-            if (diffDays === 0) groups.today.push(chat);
-            else if (diffDays === 1) groups.yesterday.push(chat);
-            else groups.older.push(chat);
-        });
-
-        return groups;
-    }, [messages, searchTerm]);
-    
-    const filteredCustomers = useMemo(() => {
-        if (!searchTerm || !allCustomers) return [];
-        const term = searchTerm.toLowerCase();
-
-        const existingPhones = new Set(messages.map(m => m.phone?.replace(/\D/g, '') || ""));
-
-        return allCustomers.filter(c => {
-            const phoneStr = c.phone?.replace(/\D/g, '') || "";
-            const nameStr = (c.name || "").toLowerCase();
-
-            const matches = nameStr.includes(term) || phoneStr.includes(term);
-            const notInChats = !existingPhones.has(phoneStr);
-
-            return matches && notInChats;
-        });
-    }, [searchTerm, allCustomers, messages]);
-
-    const renderChatGroup = (title, chats) => {
-        if (chats.length === 0) return null;
-        
-        return (
-            <div className="mb-2">
-                <div className="sticky top-0 bg-white/95 backdrop-blur-sm px-5 py-2 z-10 border-b border-slate-50">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{title}</span>
-                </div>
-                {chats.map((chat, index) => {
-                    const isSelected = selectedChat?.phone === chat.phone;
-                    const isUnread = !isSelected && chat.direction === "INBOUND" && chat.read === "FALSE";
-                    
-                    const cleanPhone = chat.phone ? chat.phone.replace("whatsapp:", "") : "";
-                    const displayName = chat.name || cleanPhone;
-                    const dateObj = parseDate(chat.lastSeenAt || chat.timestamp);
-                    
-                    const baseStyle = isSelected
-                        ? "bg-slate-50 border-l-emerald-500"
-                        : getPriorityStyles(chat.priority, isUnread);
-
-                    return (
-                        <div
-                            key={index}
-                            onClick={(e) => {
-                                if (isSelectionMode) {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    const newSet = new Set(selectedPhones);
-                                    if (newSet.has(chat.phone)) newSet.delete(chat.phone);
-                                    else newSet.add(chat.phone);
-                                    setSelectedPhones(newSet);
-                                } else {
-                                    handleChatClick(chat);
-                                }
-                            }}
-                            onMouseLeave={() => setActiveChatMenu(null)}
-                            className={`
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
                             relative flex items-start gap-3 px-5 py-3 cursor-pointer border-b border-slate-50 transition-all duration-200 group border-l-4
                             ${baseStyle}
                         `}

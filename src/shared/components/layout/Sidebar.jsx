@@ -8,14 +8,9 @@ import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png";
 import SignOutModal from "@/shared/components/modals/SignOutModal";
 import { authRepository } from "@/shared/api/repositories/authRepository";
 import { ChevronDown } from "lucide-react";
-<<<<<<< HEAD
 import { checkPermissions } from "@/shared/utils/auth";
 import { NAVIGATION_CONFIG } from "@/shared/config/navigation";
 import { useUserStore } from "@/features/user/store/userStore";
-=======
-import { isAdminAuthorized, hasModuleAccess } from "@/shared/utils/auth";
-import { NAVIGATION_CONFIG } from "@/shared/config/navigation";
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
 export default function Sidebar({
   role,
@@ -25,10 +20,7 @@ export default function Sidebar({
   isDesktopExpanded,
 }) {
   const { data: session } = useSession();
-<<<<<<< HEAD
   const user = useUserStore((state) => state.user);
-=======
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
   const pathname = usePathname();
 
   const [showSignOut, setShowSignOut] = useState(false);
@@ -51,15 +43,6 @@ export default function Sidebar({
     setDropdowns((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-<<<<<<< HEAD
-=======
-  const displayRole = role || "";
-  const department = session?.user?.department || "";
-
-  const isAdmin = isAdminAuthorized(displayRole, department);
-  const hasAccess = (moduleName) => hasModuleAccess(session, moduleName);
-
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 768) setMobileOpen(false);
@@ -148,18 +131,7 @@ export default function Sidebar({
         <nav className="flex-1 flex flex-col gap-2 p-4 mt-0 overflow-y-auto custom-scrollbar">
           {NAVIGATION_CONFIG.map((nav, index) => {
             // Permission checks
-<<<<<<< HEAD
             if (!checkPermissions(user || session, nav)) return null;
-=======
-            if (nav.adminOnly && !isAdmin) return null;
-            if (nav.hideForAdmin && isAdmin) return null;
-            if (nav.moduleName && !hasAccess(nav.moduleName)) return null;
-            if (
-              nav.accessRequirements &&
-              !nav.accessRequirements.some((req) => hasAccess(req))
-            )
-              return null;
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
             const Icon = nav.icon;
 
@@ -211,12 +183,7 @@ export default function Sidebar({
                   {isExpanded && isOpen && (
                     <div className="flex flex-col gap-1 ml-[22px] pl-4 border-l-2 border-white/20 mt-1 mb-2 crm-slide-in-top">
                       {nav.items.map((item, i) => {
-<<<<<<< HEAD
                         if (!checkPermissions(user || session, item)) return null;
-=======
-                        if (item.moduleName && !hasAccess(item.moduleName))
-                          return null;
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
                         const ItemIcon = item.icon;
                         const isItemActive = pathname === item.href;
 

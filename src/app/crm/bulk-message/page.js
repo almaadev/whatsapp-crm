@@ -23,11 +23,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
-<<<<<<< HEAD
 import { useAuth } from "@/shared/hooks/useAuth";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
-=======
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 import { bulkMessageRepository } from "@/shared/api/repositories/bulkMessageRepository";
 import TemplateManagerPanel from "@/features/templates/components/TemplateManagerPanel";
 import { useTemplateStore } from "@/features/templates/stores/templateStore";

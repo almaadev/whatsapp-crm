@@ -3,10 +3,7 @@
 import { useState, useRef, useEffect, memo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useChatStore } from "@/features/chat/stores/chatStore";
-<<<<<<< HEAD
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
-=======
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 import { chatService } from "@/features/chat/services/chatService";
 import dynamic from "next/dynamic";
 
@@ -14,21 +11,9 @@ const CustomerInfoPanel = dynamic(() => import("@/components/features/chat/Custo
 const ForwardLeadModal = dynamic(() => import("@/shared/components/modals/ForwardLeadModal"), { ssr: false });
 const ReminderModal = dynamic(() => import("@/shared/components/modals/ReminderModal"), { ssr: false });
 const PriorityModal = dynamic(() => import("@/shared/components/modals/PriorityModal"), { ssr: false });
-<<<<<<< HEAD
 
 import {mutateLastMessage} from "@/shared/utils/chatUtils";
 
-=======
-
-import {
-  parseMessageDate,
-  getDayHeader,
-  formatBubbleTime,
-  mutateLastMessage,
-  MessageStatusIcon,
-} from "@/shared/utils/chatUtils";
-import { getStatusColor } from "@/shared/utils/colorUtils";
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 import { toast } from "react-toastify";
 
 import {

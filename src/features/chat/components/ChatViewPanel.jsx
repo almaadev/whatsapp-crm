@@ -1,8 +1,5 @@
 import { Lock } from "lucide-react";
-<<<<<<< HEAD
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
-=======
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 import ChatHeader from "@/components/features/chat/ChatHeader";
 import MessageList from "@/components/features/chat/MessageList";
 import ChatInput from "@/components/features/chat/ChatInput";
@@ -42,13 +39,10 @@ export default function ChatViewPanel({
   const selectedChat = useStore((s) => s.selectedChat);
   const setSelectedChat = useStore((s) => s.setSelectedChat);
 
-<<<<<<< HEAD
   const activeHandlers = usePresenceStore((s) => s.activeHandlers);
   const handler = selectedChat ? activeHandlers[selectedChat.phone] : null;
   const isLockedByOther = handler && handler.userId !== (session?.user?.id || session?.user?.email) && (!handler.lockedUntil || handler.lockedUntil > Date.now());
 
-=======
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
   return (
     <div
       className={`flex flex-col bg-[var(--chat-wallpaper)] h-full transition-all ${
@@ -93,7 +87,6 @@ export default function ChatViewPanel({
               onMediaClick={() => {}}
               endRef={messagesEndRef}
             />
-<<<<<<< HEAD
             {isLockedByOther && (
               <div className="absolute inset-0 top-[65px] z-40 bg-white/30 backdrop-blur-[3px] flex flex-col items-center justify-center">
                    <div className="bg-red-50 text-red-700 px-6 py-4 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-red-100 flex items-center gap-3">
@@ -102,16 +95,11 @@ export default function ChatViewPanel({
                    </div>
               </div>
             )}
-=======
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
             <ChatInput
               onSendMessage={handleSend}
               onSendTemplate={handleSendTemplate}
               sending={sending}
-<<<<<<< HEAD
               disabled={isLockedByOther}
-=======
->>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
             />
           </>
         ) : (

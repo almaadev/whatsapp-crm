@@ -5,12 +5,8 @@ import { getCategoryChatStore } from "@/features/chat/stores/categoryChatStore";
 import { categoryChatService } from "@/features/chat/services/categoryChatService";
 import { connectSocket } from "@/features/chat/services/socketService";
 import { toast } from "react-toastify";
-import api from "@/lib/axios";
 
-<<<<<<<< HEAD:src/features/chat/hooks/useCategoryChat.js
 
-========
->>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32:src/hooks/useCategoryChat.js
 /**
  * Custom hook for managing category-specific chats (e.g., Product Lead, MD Camp).
  * Handles fetching chats for a specific slug, sending messages, updating statuses,
