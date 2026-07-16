@@ -173,6 +173,7 @@ export async function POST(req) {
           role: role || "sales",
           name: name || phone,
         });
+<<<<<<< HEAD
       }
 
       if (global.activeChatHandlers && global.activeChatHandlers.has(phone)) {
@@ -181,6 +182,10 @@ export async function POST(req) {
            handler.lockedUntil = null;
            if (global.io) global.io.emit("chat_lock_updated", { phone, handler });
         }
+=======
+        
+        
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
       }
 
       if (redis && redis.status === "ready") await redis.del("chats:main_inbox_data");

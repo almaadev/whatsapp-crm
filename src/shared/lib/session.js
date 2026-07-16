@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/shared/lib/auth";
+<<<<<<< HEAD
 import { cache } from "react";
 import connectDB from "@/shared/lib/db/mongodb";
 import User from "@/shared/models/User";
@@ -34,16 +35,37 @@ export async function requireSession() {
   const user = await getCurrentUser();
 
   if (!user) {
+=======
+
+export async function requireSession() {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user) {
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
     return {
       session: null,
       error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
     };
   }
 
+<<<<<<< HEAD
   const session = { user };
   return { session, error: null };
 }
 
+=======
+  return { session, error: null };
+}
+
+export function isAdminUser(user) {
+  return (
+    user?.role === "superAdmin" ||
+    (user?.role === "sales" && user?.department === "admin") ||
+    (user?.role === "doctor" && user?.department === "admin")
+  );
+}
+
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 export async function requireAdmin() {
   const { session, error } = await requireSession();
   if (error) return { session: null, error };
@@ -58,6 +80,7 @@ export async function requireAdmin() {
   return { session, error: null };
 }
 
+<<<<<<< HEAD
 export async function authorize({ 
   allowedRoles = [], 
   allowedDepartments = [], 
@@ -90,6 +113,8 @@ export async function authorize({
   return { session, user, error: null };
 }
 
+=======
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 export function verifyStudioLogSecret(req) {
   const secret = process.env.STUDIO_LOG_SECRET;
   if (!secret) return true;

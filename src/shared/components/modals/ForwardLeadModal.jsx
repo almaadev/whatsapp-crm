@@ -3,9 +3,15 @@ import api from "@/shared/lib/axios";
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { X, Send, User, Phone, MessageSquare, Share2, CheckCircle2, RotateCcw } from "lucide-react";
+<<<<<<<< HEAD:src/shared/components/modals/ForwardLeadModal.jsx
 import { useChatStore } from "@/features/chat/stores/chatStore";
 import { toast } from "react-toastify";
 import { leadRepository } from "@/shared/api/repositories/leadRepository";
+========
+import { useChatStore } from "@/stores/chatStore";
+import { toast } from "react-toastify";
+import api from "@/lib/axios";
+>>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32:src/components/modals/ForwardLeadModal.jsx
 
 export default function ForwardLeadModal({ isOpen, onClose, customer, onConfirm }) {
     const [targetPhone, setTargetPhone] = useState("+91");

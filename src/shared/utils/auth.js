@@ -8,13 +8,19 @@ export function isAdminAuthorized(role, department = "") {
 
 export function hasModuleAccess(session, moduleName) {
   if (!session?.user) return false;
+<<<<<<< HEAD
   const { accessModules = [] } = session.user;
+=======
+  const { role, department, accessModules = [] } = session.user;
+  if (isAdminAuthorized(role, department)) return true;
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
   return accessModules.includes(moduleName);
 }
 
 export function isSuperAdmin(role) {
   return role === "superAdmin";
 }
+<<<<<<< HEAD
 
 export function checkPermissions(userOrSession, config) {
   if (!userOrSession) return false;
@@ -121,3 +127,5 @@ export function isAPIAuthorized(session, pathname) {
   return checkPermissions(session, rule);
 }
 
+=======
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32

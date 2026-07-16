@@ -1,11 +1,18 @@
 "use client";
 
+<<<<<<< HEAD
 import { createContext, useContext, useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import Sidebar from "@/shared/components/layout/Sidebar";
 import Topbar from "@/shared/components/layout/Topbar";
 import { useUserStore } from "@/features/user/store/userStore";
 import { authRepository } from "@/shared/api/repositories/authRepository";
+=======
+import { createContext, useContext, useState } from "react";
+import { useSession } from "next-auth/react";
+import Sidebar from "@/shared/components/layout/Sidebar";
+import Topbar from "@/shared/components/layout/Topbar";
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
 const CrmLayoutContext = createContext(null);
 
@@ -21,6 +28,7 @@ export default function CrmShell({ children }) {
   const { data: session, status } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isDesktopExpanded, setIsDesktopExpanded] = useState(false);
+<<<<<<< HEAD
   
   const fetchCurrentUser = useUserStore((state) => state.fetchCurrentUser);
   const isSuspended = useUserStore((state) => state.isSuspended);
@@ -84,6 +92,8 @@ export default function CrmShell({ children }) {
     );
   }
 
+=======
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
   return (
     <CrmLayoutContext.Provider
       value={{

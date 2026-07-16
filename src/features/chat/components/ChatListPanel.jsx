@@ -1,9 +1,12 @@
 import React, { memo, useCallback } from "react";
 import { Search, User } from "lucide-react";
 import { formatSafeTime, getDisplayMessage } from "@/shared/utils/chatDisplay";
+<<<<<<< HEAD
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { useSession } from "next-auth/react";
 
+=======
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
 const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emptyFallback }) {
   if (!chat) return null;
@@ -11,6 +14,7 @@ const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emp
   const lastHistoryMsg = chat.history?.length > 0 ? chat.history[chat.history.length - 1] : null;
   const displayTime = chat.lastSeenAt || lastHistoryMsg?.createdAt || lastHistoryMsg?.timestamp || chat.createdAt;
 
+<<<<<<< HEAD
   const activeHandlers = usePresenceStore((s) => s.activeHandlers);
   const { data: session } = useSession();
   const handler = activeHandlers[chat.phone];
@@ -23,6 +27,11 @@ const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emp
   return (
     <div
       onClick={handleClick}
+=======
+  return (
+    <div
+      onClick={() => onClick(chat)}
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
       className={`flex items-center px-3 py-2.5 cursor-pointer hover:bg-[#f5f6f6] transition-colors ${
         isSelected ? "bg-[#f0f2f5]" : ""
       }`}
@@ -39,6 +48,7 @@ const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emp
         </div>
         <div className="flex justify-between items-center">
           <p className="text-[13px] text-[#667781] line-clamp-1 pr-2">{displayMsg}</p>
+<<<<<<< HEAD
           <div className="flex items-center gap-1.5 shrink-0">
             {isBeingHandledByOther && (
               <span className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-red-50 text-red-600 border border-red-100">
@@ -52,6 +62,13 @@ const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emp
               </span>
             )}
           </div>
+=======
+          {chat.status && (
+            <span className="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded-md font-bold shrink-0">
+              {chat.status}
+            </span>
+          )}
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
         </div>
       </div>
     </div>

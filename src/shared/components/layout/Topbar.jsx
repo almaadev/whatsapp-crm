@@ -1,19 +1,43 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+<<<<<<< HEAD
 import { signOut } from "next-auth/react";
 import { LayoutGrid, Bell, Menu, LogOut, ChevronDown } from "lucide-react";
+<<<<<<<< HEAD:src/shared/components/layout/Topbar.jsx
+=======
+import { useSession, signOut } from "next-auth/react";
+import { LayoutGrid, Bell, Menu, LogOut, ChevronDown } from "lucide-react";
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import SignOutModal from "@/shared/components/modals/SignOutModal";
 import NotificationPanel from "@/shared/components/layout/NotificationPanel";
 import { useChatStore } from "@/features/chat/stores/chatStore";
 import { authRepository } from "@/shared/api/repositories/authRepository";
+<<<<<<< HEAD
 import { useUserStore } from "@/features/user/store/userStore";
 
+========
+import { useCrmLayout } from "./CrmShell";
+import SignOutModal from "@/components/modals/SignOutModal";
+import NotificationPanel from "./NotificationPanel";
+import { useChatStore } from "@/stores/chatStore";
+import api from "@/lib/axios";
+>>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32:src/components/layout/Topbar.jsx
+=======
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
+/**
+ * Renders the top navigation bar of the CRM layout.
+ * Includes toggles for the sidebar (mobile/desktop), notifications panel,
+ * and user profile dropdown for signing out.
+ *
+ * @returns {JSX.Element} The Topbar component
+ */
 export default function Topbar() {
   const { setMobileOpen, isDesktopExpanded, setIsDesktopExpanded } =
     useCrmLayout();
+<<<<<<< HEAD
   
 
   const notifications = useChatStore((s) => s.notifications);
@@ -22,14 +46,26 @@ export default function Topbar() {
   const user = useUserStore((state) => state.user);
   const clearUser = useUserStore((state) => state.clearUser);
   
+=======
+  const { data: session } = useSession();
+
+  const notifications = useChatStore((s) => s.notifications);
+
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
   // States
   const [showSignOut, setShowSignOut] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const dropdownRef = useRef(null);
+<<<<<<< HEAD
   
   const userName = user?.name || "User";
   const displayRole = user?.role || "";
+=======
+
+  const userName = session?.user?.name || "User";
+  const displayRole = session?.user?.role || "";
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -44,11 +80,22 @@ export default function Topbar() {
 
   const handleConfirmSignOut = async () => {
     try {
+<<<<<<< HEAD
+<<<<<<<< HEAD:src/shared/components/layout/Topbar.jsx
       await authRepository.logout();
+========
+      await api.post("/api/auth/logout");
+>>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32:src/components/layout/Topbar.jsx
     } catch (error) {
       console.error("Secure logout API failed:", error);
     } finally {
       clearUser();
+=======
+      await authRepository.logout();
+    } catch (error) {
+      console.error("Secure logout API failed:", error);
+    } finally {
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
       await signOut({ redirect: false });
       window.location.href = "/";
     }
@@ -112,6 +159,7 @@ export default function Topbar() {
           {/* <div className="w-px h-12 bg-slate-200 mx-1 hidden sm:block"></div> */}
 
           {/* --- USER PROFILE & DROPDOWN --- */}
+<<<<<<< HEAD
           <div 
             className={`relative transition-all duration-200 border border-transparent ${
               showDropdown 
@@ -125,6 +173,12 @@ export default function Topbar() {
               className={`flex items-center gap-2 sm:gap-3 p-1 rounded-xl transition-colors focus:outline-none ${
                 showDropdown ? "md:bg-slate-50/50" : "hover:bg-slate-50"
               }`}
+=======
+          <div className="relative " ref={dropdownRef}>
+            <button
+              onClick={() => setShowDropdown(!showDropdown)}
+              className="flex items-center gap-2 sm:gap-3 p-1 rounded-xl hover:bg-slate-50 transition-colors focus:outline-none"
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
             >
               <div className="flex flex-col text-right hidden md:flex">
                 <span className="text-[13px] font-bold text-slate-800 leading-tight">
@@ -148,7 +202,11 @@ export default function Topbar() {
 
             {/* Dropdown Menu */}
             {showDropdown && (
+<<<<<<< HEAD
               <div className="absolute top-full right-[-1px] md:left-[-1px] mt-0 md:w-auto w-48 bg-white border border-slate-200 md:border-t-0 rounded-b-xl md:rounded-t-none rounded-t-xl shadow-lg py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+=======
+              <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
                 <div className="px-4 py-2 border-b border-slate-100 md:hidden">
                   <p className="text-sm font-bold text-slate-800 truncate">
                     {userName}

@@ -80,4 +80,9 @@ const MessageSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+<<<<<<< HEAD
 export default mongoose.models.Message || mongoose.model("Message", MessageSchema);
+=======
+export default mongoose.models.Message ||
+  mongoose.model("Message", MessageSchema);
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32

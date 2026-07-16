@@ -17,8 +17,11 @@ import Link from "next/link";
 import { toast } from "react-toastify";
 import { useSession } from "next-auth/react";
 import { leadRepository } from "@/shared/api/repositories/leadRepository";
+<<<<<<< HEAD
 import { useAuth } from "@/shared/hooks/useAuth";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
+=======
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  MODERN ENTERPRISE STATUS BADGES
@@ -244,7 +247,11 @@ export default function LeadDetailsPage({ params }) {
             <button onClick={() => setMobileOpen(true)} className="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"><Menu size={20} /></button>
             <Link href={lastPath ? lastPath : "/crm/leads"} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition-colors"><ArrowLeft size={20} /></Link>
             <div className="pl-2 border-l border-slate-200">
+<<<<<<< HEAD
                 <h1 className="text-[18px] font-bold text-slate-900 leading-tight">Lead Audit Profile</h1>
+=======
+                <h1 className="text-[18px] font-bold text-slate-900 leading-tight">Lead Profile</h1>
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
                 <p className="text-[11px] font-semibold text-slate-500 tracking-wide uppercase mt-0.5">Interaction History</p>
             </div>
           </div>

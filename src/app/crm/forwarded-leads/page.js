@@ -5,8 +5,12 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 import { useChatStore } from "@/features/chat/stores/chatStore";
+<<<<<<< HEAD
 import { useAuth } from "@/shared/hooks/useAuth";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
+=======
+import { isAdminAuthorized } from "@/shared/utils/auth";
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 import { chatRepository } from "@/shared/api/repositories/chatRepository";
 import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import {
@@ -26,7 +30,10 @@ import {
 export default function ForwardedLeadsPage() {
   const { setMobileOpen } = useCrmLayout();
   const { data: session } = useSession();
+<<<<<<< HEAD
   const { user, isLoading, hasModuleAccess, isAdmin } = useAuth();
+=======
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
   const router = useRouter();
   const setSelectedChat = useChatStore((s) => s.setSelectedChat);
 
@@ -35,6 +42,57 @@ export default function ForwardedLeadsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+<<<<<<< HEAD
+  const parseDate = (dateString) => {
+    if (!dateString) return new Date(0);
+    if (
+      dateString.includes("T") ||
+      (dateString.includes("-") && dateString.includes(":"))
+    )
+      return new Date(dateString);
+    const parts = dateString.split(" ");
+    if (parts.length >= 2) {
+      const dateParts = parts[0].split("/");
+      const timeParts = parts[1].split(":");
+      if (dateParts.length === 3) {
+        return new Date(
+          parseInt(dateParts[2]),
+          parseInt(dateParts[0]) - 1,
+          parseInt(dateParts[1]),
+          parseInt(timeParts[0] || 0),
+          parseInt(timeParts[1] || 0),
+          parseInt(timeParts[2] || 0),
+        );
+      }
+    }
+    return new Date(dateString);
+  };
+
+  useEffect(() => {
+    if (!session) return;
+
+    async function fetchForwardedLeads() {
+      try {
+        const { data } = await chatRepository.getChats();
+
+        const rawList = data.filter(
+          (chat) => chat.lastForwardedTo && chat.lastForwardedTo.length > 0,
+        );
+
+        const uniqueLeadsMap = new Map();
+        rawList.forEach((leadData) => {
+          if (!uniqueLeadsMap.has(leadData.phone)) {
+            uniqueLeadsMap.set(leadData.phone, leadData);
+          }
+        });
+        let uniqueLeads = Array.from(uniqueLeadsMap.values());
+
+=======
+  const isAdmin = isAdminAuthorized(
+    session?.user?.role,
+    session?.user?.department,
+  );
 
   const parseDate = (dateString) => {
     if (!dateString) return new Date(0);
@@ -80,6 +138,7 @@ export default function ForwardedLeadsPage() {
         });
         let uniqueLeads = Array.from(uniqueLeadsMap.values());
 
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
         if (!isAdmin) {
           uniqueLeads = uniqueLeads.filter(
             (lead) =>
@@ -130,6 +189,7 @@ export default function ForwardedLeadsPage() {
   const currentItems = filteredLeads.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
+<<<<<<< HEAD
   const isAuthorized = hasModuleAccess("Leads");
 
   if (isLoading) return <div className="flex h-[100dvh] items-center justify-center text-slate-500 font-medium">Loading CRM...</div>;
@@ -141,6 +201,10 @@ export default function ForwardedLeadsPage() {
       <AccessDenied message="You do not have permission to access Forwarded Leads." />
     );
   }
+=======
+
+  if (!session) return null;
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
   return (
     <div className="flex h-[100dvh]  bg-slate-50">

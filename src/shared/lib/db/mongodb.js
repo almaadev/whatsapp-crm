@@ -26,6 +26,7 @@ async function connectDB() {
     };
 
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
+<<<<<<< HEAD
       // Clean up legacy unique index on branches collection if it exists
       mongoose.connection.once("open", () => {
         mongoose.connection.db.collection("branches").dropIndex("code_1").catch((err) => {
@@ -34,6 +35,8 @@ async function connectDB() {
           }
         });
       });
+=======
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
       return mongoose;
     });
   }

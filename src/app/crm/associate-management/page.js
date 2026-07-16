@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { toast } from "react-toastify";
 import { useCrmLayout } from "@/shared/components/layout/CrmShell";
+<<<<<<< HEAD
 import {
   Trash2,
   UserPlus,
@@ -24,6 +25,15 @@ import {
 import { userRepository } from "@/shared/api/repositories/userRepository";
 import { useAuth } from "@/shared/hooks/useAuth";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
+=======
+import { 
+     Trash2, UserPlus, ShieldAlert, UserCog, 
+    Search, MapPin, Mail, Phone, Briefcase, CheckCircle2, 
+    XCircle, AlertTriangle, X, Loader2, Menu, Activity
+} from "lucide-react"; 
+import { userRepository } from "@/shared/api/repositories/userRepository";
+
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
 import CreateUserForm from "@/components/features/admin/CreateUserForm";
 
@@ -37,8 +47,56 @@ export default function AssociateManagement() {
 
   const [searchQuery, setSearchQuery] = useState("");
 
+<<<<<<< HEAD
   // Modal States
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+=======
+    
+    // Delete Confirmation State
+    const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+
+    const isAuthorized = session?.user?.role === 'superAdmin' || session?.user?.role === "sales" || session?.user?.department === "admin";
+
+    const fetchAssociates = async () => {
+        setLoading(true);
+        try {
+            const { data } = await userRepository.getUsers();
+            setAssociates(data);
+        } catch (error) {
+            toast.error("Error connecting to server");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isAuthorized) fetchAssociates();
+    }, [isAuthorized]);
+
+    // --- Search & Filter Logic ---
+    const filteredAssociates = useMemo(() => {
+        if (!searchQuery) return associates;
+        const lower = searchQuery.toLowerCase();
+        return associates.filter(a => 
+            a.name?.toLowerCase().includes(lower) || 
+            a.email?.toLowerCase().includes(lower) || 
+            a.branch?.toLowerCase().includes(lower) ||
+            a.number?.includes(lower)
+        );
+    }, [associates, searchQuery]);
+
+    const handleDelete = async (id) => {
+        try {
+            await userRepository.deleteUser(id);
+            toast.success("Associate removed from system");
+            setAssociates(prev => prev.filter(a => a.id !== id));
+        } catch (error) {
+            toast.error("Error deleting associate");
+        } finally {
+            setDeleteConfirmId(null);
+        }
+    };
+>>>>>>> 11ffb49e9c4b9bb7d6e6f9c45923b32f6d216d32
 
 
 
