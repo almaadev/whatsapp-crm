@@ -26,6 +26,14 @@ async function connectDB() {
     };
 
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
+      // Clean up legacy unique index on branches collection if it exists
+      mongoose.connection.once("open", () => {
+        mongoose.connection.db.collection("branches").dropIndex("code_1").catch((err) => {
+          if (err.codeName !== "IndexNotFound" && err.code !== 27) {
+            console.warn("Could not drop legacy unique index 'code_1':", err.message);
+          }
+        });
+      });
       return mongoose;
     });
   }

@@ -8,5 +8,4 @@ export const userRepository = {
   updateUser: (id, payload, options = {}) => api.put(`/api/users/${id}`, payload, options),
   updateUserWithoutId: (payload, options = {}) => api.put("/api/users", payload, options),
   deleteUser: (id, options = {}) => api.delete(`/api/users?id=${id}`, options),
-  getBranches: (options = {}) => api.get("/api/branches", options),
 };

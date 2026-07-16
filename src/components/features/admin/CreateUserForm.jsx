@@ -1,9 +1,9 @@
 "use client";
-import { useState } from "react";
-import { User, Mail, Lock, Shield, CheckCircle, AlertCircle, Plus, Phone, Briefcase, Tag, Building } from "lucide-react";
+import { useState, useEffect } from "react";
+import { User, Mail, Lock, Shield, CheckCircle, AlertCircle, Plus, Phone, Briefcase, Tag, Building, ChevronDown } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { userRepository } from "@/shared/api/repositories/userRepository";
-import { getDistricts } from "@/shared/utils/district";
+import { branchService } from "@/features/branches/services/branchService";
 
 export default function CreateUserForm({ onSuccess }) {
     const { data: session } = useSession();
@@ -19,7 +19,25 @@ export default function CreateUserForm({ onSuccess }) {
 
   const modulesList = ["Leads", "Customers", "Reports", "Bulk Messages", "Messages log" ,"Chat Inbox", "Product Lead", "MD Camp", "Therapy"];
 
-  const tamilNaduDistricts =  getDistricts();
+  const [branches, setBranches] = useState([]);
+  const [loadingBranches, setLoadingBranches] = useState(false);
+
+  useEffect(() => {
+    async function loadBranches() {
+      setLoadingBranches(true);
+      try {
+        const res = await branchService.getBranches({ limit: 1000 });
+        if (res.success) {
+          setBranches(res.branches || []);
+        }
+      } catch (err) {
+        console.error("Failed to load branches:", err);
+      } finally {
+        setLoadingBranches(false);
+      }
+    }
+    loadBranches();
+  }, []);
 
   const handleModuleChange = (module) => {
     setFormData(prev => ({
@@ -116,15 +134,16 @@ export default function CreateUserForm({ onSuccess }) {
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Branch *</label>
                 <div className="relative group">
                     <Building className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
-                    <select required className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm cursor-pointer appearance-none" 
+                    <select required className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm cursor-pointer appearance-none" 
                         value={formData.branch} onChange={e => setFormData({...formData, branch: e.target.value})}>
-                        <option value="" disabled>Select Branch / District</option>
-                        {tamilNaduDistricts.map((district) => (
-                            <option key={district} value={district}>
-                                {district}
+                        <option value="" disabled>{loadingBranches ? "Loading branches..." : "Select Branch"}</option>
+                        {branches.map((b) => (
+                            <option key={b.id || b._id} value={b.name}>
+                                {b.name} ({b.status})
                             </option>
                         ))}
                     </select>
+                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
             </div>
 

@@ -4,7 +4,7 @@ import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import { useCrmLayout } from "@/shared/components/layout/CrmShell";
-import { getDistricts } from "@/shared/utils/district";
+import { branchService } from "@/features/branches/services/branchService";
 import { 
     User, Mail, Lock, Shield, Phone, Briefcase, Tag, 
     ArrowLeft, Save, ShieldAlert, Building, LayoutGrid, 
@@ -32,7 +32,25 @@ export default function EditAssociatePage() {
 
   const modulesList = ["Leads", "Customers", "Reports", "Bulk Messages", "Messages log" ,"Chat Inbox", "Product Lead", "MD Camp", "Therapy"];
 
-  const tamilNaduDistricts = getDistricts();
+  const [branches, setBranches] = useState([]);
+  const [loadingBranches, setLoadingBranches] = useState(false);
+
+  useEffect(() => {
+    async function loadBranches() {
+      setLoadingBranches(true);
+      try {
+        const res = await branchService.getBranches({ limit: 1000 });
+        if (res.success) {
+          setBranches(res.branches || []);
+        }
+      } catch (err) {
+        console.error("Failed to load branches:", err);
+      } finally {
+        setLoadingBranches(false);
+      }
+    }
+    loadBranches();
+  }, []);
 
   const isAuthorized = isAdmin;
 
@@ -264,9 +282,9 @@ export default function EditAssociatePage() {
                             <div className="relative">
                                 <Building size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                                 <select required className="w-full bg-slate-50 border border-slate-200 rounded-lg py-3 pl-11 pr-10 text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-[#00a884]/20 focus:border-[#00a884] transition-all shadow-sm appearance-none cursor-pointer" value={formData.branch} onChange={(e) => setFormData({ ...formData, branch: e.target.value })}>
-                                    <option value="" disabled>Select District / Branch</option>
-                                    {tamilNaduDistricts.map(district => (
-                                        <option key={district} value={district}>{district}</option>
+                                    <option value="" disabled>{loadingBranches ? "Loading branches..." : "Select Branch"}</option>
+                                    {branches.map(b => (
+                                        <option key={b.id || b._id} value={b.name}>{b.name} ({b.status})</option>
                                     ))}
                                 </select>
                                 <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />

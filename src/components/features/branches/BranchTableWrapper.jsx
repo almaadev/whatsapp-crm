@@ -76,7 +76,7 @@ export default function BranchTableWrapper() {
 
   return (
     <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 custom-scrollbar bg-slate-50/50">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="max-w-8xl mx-auto space-y-6">
         
         {/* Header Title Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">

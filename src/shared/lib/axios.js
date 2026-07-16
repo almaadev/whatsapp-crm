@@ -1,10 +1,5 @@
 import axios from "axios";
 
-/**
- * Enterprise API Client
- * Configured with interceptors, timeouts, cancellation, and retry logic.
- */
-
 const MAX_RETRIES = 3;
 
 const api = axios.create({

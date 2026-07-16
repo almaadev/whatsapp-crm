@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { branchService } from "@/services/branchService";
+import { branchService } from "@/features/branches/services/branchService";
 import { useBranchStore } from "@/store/branchStore";
 import { toast } from "react-toastify";
 
