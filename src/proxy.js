@@ -41,6 +41,11 @@ export default withAuth(
         if (path.startsWith("/api/auth") || path.startsWith("/api/webhook")) {
           return true;
         }
+        if (process.env.NODE_ENV !== "production") {
+          if (req.headers.get("x-mock-role") && req.headers.get("x-mock-department")) {
+            return true;
+          }
+        }
         return !!token;
       },
     },

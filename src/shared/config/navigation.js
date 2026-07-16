@@ -22,10 +22,12 @@ export const NAVIGATION_CONFIG = [
       "/crm/admin/twilio",
       "/crm/admin/reports",
       "/crm/admin/keyword-automation",
+      "/crm/admin/branches",
     ],
     items: [
       { label: "Dashboard", href: "/crm/admin" },
       { label: "Manage Associates", href: "/crm/associate-management" },
+      { label: "Manage Branches", href: "/crm/admin/branches", superAdminAndAdminDeptOnly: true },
       { label: "Template Manager", href: "/crm/admin/template-manager" },
       { label: "Automatic Reply", href: "/crm/admin/keyword-automation" },
       { label: "Twilio Center", href: "/crm/admin/twilio" },

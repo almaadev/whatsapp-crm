@@ -85,13 +85,12 @@ api.interceptors.response.use(
       }
     }
 
-    const normalizedError = {
-      message: errorData?.error || errorData?.message || error.message || "An unknown error occurred",
-      status: status || 500,
-      code: error.code,
-      data: errorData || null,
-      isCancelled: false,
-    };
+    const errorMsg = errorData?.error || errorData?.message || error.message || "An unknown error occurred";
+    const normalizedError = new Error(errorMsg);
+    normalizedError.status = status || 500;
+    normalizedError.code = error.code;
+    normalizedError.data = errorData || null;
+    normalizedError.isCancelled = false;
 
     // Keep it as a rejected promise so UI try/catch blocks function identically
     return Promise.reject(normalizedError);

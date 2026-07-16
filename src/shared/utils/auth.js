@@ -23,6 +23,11 @@ export function checkPermissions(userOrSession, config) {
   const { role, department, accessModules = [] } = user;
   const isAdmin = isAdminAuthorized(role, department);
 
+  // Strict check for superAdmin role AND admin department
+  if (config.superAdminAndAdminDeptOnly && (role !== "superAdmin" || department !== "admin")) {
+    return false;
+  }
+
   // 1. Role verification
   if (config.adminOnly && !isAdmin) return false;
   if (config.hideForAdmin && isAdmin) return false;
@@ -44,6 +49,7 @@ export function checkPermissions(userOrSession, config) {
 }
 
 const ROUTE_RULES = [
+  { path: "/branches", superAdminAndAdminDeptOnly: true },
   { path: "/crm/admin", adminOnly: true },
   { path: "/crm/associate-management", adminOnly: true },
   { path: "/crm/associate", hideForAdmin: true },
