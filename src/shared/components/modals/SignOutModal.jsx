@@ -9,14 +9,12 @@ export default function SignOutModal({ isOpen, onClose, onConfirm }) {
       <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm overflow-hidden scale-100 transition-all md:ml-20 md:mt-10  ">
         
         {/* Header */}
-        <div className="bg-[#0b8343] p-4 flex items-center justify-between">
+        <div className="bg-[var(--brand-sidebar)] p-4 flex items-center justify-between">
             <h3 className="text-white font-bold flex items-center gap-2">
                 <LogOut size={18} className="text-red-400" />
                 Confirm Sign Out
             </h3>
-            <button onClick={onClose} className="text-slate-400 hover:text-white transition">
-                <X size={20} />
-            </button>
+
         </div>
 
         {/* Body */}

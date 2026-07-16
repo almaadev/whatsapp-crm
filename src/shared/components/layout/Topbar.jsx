@@ -112,10 +112,19 @@ export default function Topbar() {
           {/* <div className="w-px h-12 bg-slate-200 mx-1 hidden sm:block"></div> */}
 
           {/* --- USER PROFILE & DROPDOWN --- */}
-          <div className="relative " ref={dropdownRef}>
+          <div 
+            className={`relative transition-all duration-200 border border-transparent ${
+              showDropdown 
+                ? "md:bg-white md:border-slate-200 md:shadow-lg md:rounded-t-xl" 
+                : ""
+            }`} 
+            ref={dropdownRef}
+          >
             <button
               onClick={() => setShowDropdown(!showDropdown)}
-              className="flex items-center gap-2 sm:gap-3 p-1 rounded-xl hover:bg-slate-50 transition-colors focus:outline-none"
+              className={`flex items-center gap-2 sm:gap-3 p-1 rounded-xl transition-colors focus:outline-none ${
+                showDropdown ? "md:bg-slate-50/50" : "hover:bg-slate-50"
+              }`}
             >
               <div className="flex flex-col text-right hidden md:flex">
                 <span className="text-[13px] font-bold text-slate-800 leading-tight">
@@ -139,7 +148,7 @@ export default function Topbar() {
 
             {/* Dropdown Menu */}
             {showDropdown && (
-              <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="absolute top-full right-[-1px] md:left-[-1px] mt-0 md:w-auto w-48 bg-white border border-slate-200 md:border-t-0 rounded-b-xl md:rounded-t-none rounded-t-xl shadow-lg py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
                 <div className="px-4 py-2 border-b border-slate-100 md:hidden">
                   <p className="text-sm font-bold text-slate-800 truncate">
                     {userName}
