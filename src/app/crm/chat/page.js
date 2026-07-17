@@ -10,8 +10,8 @@ import { useAuth } from "@/shared/hooks/useAuth";
 import InboxPage from "@/shared/components/layout/InboxPage";
 import LoadingScreen from "@/shared/components/ui/LoadingScreen";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
-import ChatList from "@/components/features/chat/ChatList";
-import ChatArea from "@/components/features/chat/ChatArea";
+import ChatList from "@/features/chat/components/ChatList";
+import ChatArea from "@/features/chat/components/ChatArea";
 
 function ChatPageContent() {
   const { data: session, status } = useSession();

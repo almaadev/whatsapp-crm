@@ -25,7 +25,7 @@ import { userRepository } from "@/shared/api/repositories/userRepository";
 import { useAuth } from "@/shared/hooks/useAuth";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
 
-import CreateUserForm from "@/components/features/admin/CreateUserForm";
+import CreateUserForm from "@/features/admin/components/CreateUserForm";
 
 export default function AssociateManagement() {
   const { data: session, status } = useSession();

@@ -8,8 +8,7 @@ import SignOutModal from "@/shared/components/modals/SignOutModal";
 import NotificationPanel from "@/shared/components/layout/NotificationPanel";
 import { useChatStore } from "@/features/chat/stores/chatStore";
 import { authRepository } from "@/shared/api/repositories/authRepository";
-import { useUserStore } from "@/features/user/store/userStore";
-
+import { useUserStore } from "@/features/user/stores/userStore";
 
 /**
  * Renders the top navigation bar of the CRM layout.
@@ -21,20 +20,19 @@ import { useUserStore } from "@/features/user/store/userStore";
 export default function Topbar() {
   const { setMobileOpen, isDesktopExpanded, setIsDesktopExpanded } =
     useCrmLayout();
-  
 
   const notifications = useChatStore((s) => s.notifications);
-  
+
   // Get user from store and clearUser function
   const user = useUserStore((state) => state.user);
   const clearUser = useUserStore((state) => state.clearUser);
-  
+
   // States
   const [showSignOut, setShowSignOut] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const dropdownRef = useRef(null);
-  
+
   const userName = user?.name || "User";
   const displayRole = user?.role || "";
 
@@ -94,19 +92,18 @@ export default function Topbar() {
             <div className="hidden sm:block w-px h-8 bg-slate-200 mx-1"></div>
             {/* NOTIFICATION PANEL */}
 
-            
-              <button
-                onClick={() => setShowNotifications(!showNotifications)}
-                className="p-2  bg-white/10 rounded-xl hover:bg-white/20 relative transition-all"
-              >
-                <Bell size={20} />
-                {notifications.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-[var(--brand-sidebar-border)]">
-                    {notifications.length}
-                  </span>
-                )}
-              </button>
-            
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="p-2  bg-white/10 rounded-xl hover:bg-white/20 relative transition-all"
+            >
+              <Bell size={20} />
+              {notifications.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-[var(--brand-sidebar-border)]">
+                  {notifications.length}
+                </span>
+              )}
+            </button>
+
             <NotificationPanel
               isOpen={showNotifications}
               onClose={() => setShowNotifications(false)}
@@ -119,12 +116,12 @@ export default function Topbar() {
           {/* <div className="w-px h-12 bg-slate-200 mx-1 hidden sm:block"></div> */}
 
           {/* --- USER PROFILE & DROPDOWN --- */}
-          <div 
+          <div
             className={`relative transition-all duration-200 border border-transparent ${
-              showDropdown 
-                ? "md:bg-white md:border-slate-200 md:shadow-lg md:rounded-t-xl" 
+              showDropdown
+                ? "md:bg-white md:border-slate-200 md:shadow-lg md:rounded-t-xl"
                 : ""
-            }`} 
+            }`}
             ref={dropdownRef}
           >
             <button
@@ -165,11 +162,9 @@ export default function Topbar() {
                   </p>
                 </div>
 
-                {/* <button 
-                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors text-left"
-                                >
+                {/* <button className="w-full flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors text-left">
                                     <User size={16} className="text-slate-400" /> My Profile
-                                </button>
+                    </button>
                                 
                                 <div className="h-px bg-slate-100 my-1"></div> */}
 
@@ -178,7 +173,7 @@ export default function Topbar() {
                     setShowDropdown(false);
                     setShowSignOut(true);
                   }}
-                  className="w-full flex items-center gap-2 px-4 py-2 text-sm font-bold text-rose-600 hover:bg-rose-50 transition-colors text-left"
+                  className="w-full flex items-center gap-2 px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors text-left"
                 >
                   <LogOut size={16} /> Sign Out
                 </button>

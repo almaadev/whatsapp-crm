@@ -13,7 +13,7 @@ import { chatRepository } from "@/shared/api/repositories/chatRepository";
 import dynamic from "next/dynamic";
 import { useDebounce } from "@/shared/hooks/useDebounce";
 
-const CustomerInfoPanel = dynamic(() => import("@/components/features/chat/CustomerInfoPanel"), { ssr: false });
+const CustomerInfoPanel = dynamic(() => import("@/features/chat/components/CustomerInfoPanel"), { ssr: false });
 
 import { useCategoryChat } from "@/features/chat/hooks/useCategoryChat";
 import { useChatPresence } from "@/features/chat/hooks/useChatPresence";

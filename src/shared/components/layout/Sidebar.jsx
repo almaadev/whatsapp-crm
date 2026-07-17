@@ -10,7 +10,7 @@ import { authRepository } from "@/shared/api/repositories/authRepository";
 import { ChevronDown } from "lucide-react";
 import { checkPermissions } from "@/shared/utils/auth";
 import { NAVIGATION_CONFIG } from "@/shared/config/navigation";
-import { useUserStore } from "@/features/user/store/userStore";
+import { useUserStore } from "@/features/user/stores/userStore";
 
 export default function Sidebar({
   role,

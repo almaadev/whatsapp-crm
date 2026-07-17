@@ -1,4 +1,4 @@
-import { useUserStore } from "@/features/user/store/userStore";
+import { useUserStore } from "@/features/user/stores/userStore";
 import { isAdminAuthorized } from "@/shared/utils/auth";
 
 export function useAuth() {

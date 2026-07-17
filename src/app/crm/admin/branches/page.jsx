@@ -1,7 +1,7 @@
 "use client";
 
 
-import BranchTableWrapper from "@/components/features/branches/BranchTableWrapper";
+import BranchTableWrapper from "@/features/branches/components/BranchTableWrapper";
 
 export default function BranchesPage() {
   return (

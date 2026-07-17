@@ -7,7 +7,7 @@ import Image from "next/image";
 import { 
   TrendingUp, Users, Sparkles
 } from "lucide-react";
-import LoginCard from "@/components/features/auth/LoginCard";
+import LoginCard from "@/features/auth/components/LoginCard";
 import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png";
 
 

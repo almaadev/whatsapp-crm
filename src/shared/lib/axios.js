@@ -72,7 +72,7 @@ api.interceptors.response.use(
       console.warn("[API] Forbidden — insufficient permissions.");
       if (errorData?.error === "Suspended" || errorData?.message === "Suspended") {
         try {
-          const { useUserStore } = require("@/features/user/store/userStore");
+          const { useUserStore } = require("@/features/user/stores/userStore");
           useUserStore.setState({ isSuspended: true });
         } catch (e) {
           console.error("[API] Failed to update store suspension state:", e);

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useCrmLayout } from "@/shared/components/layout/CrmShell";
-import ChatArea from "@/components/features/chat/ChatArea";
+import ChatArea from "@/features/chat/components/ChatArea";
 import { useChatStore } from "@/features/chat/stores/chatStore";
 import { 
   FileText, Save, Loader2, MessageSquarePlus, ArrowLeft,CheckCircle, ShieldAlert ,Phone , User, MapPin, Briefcase,

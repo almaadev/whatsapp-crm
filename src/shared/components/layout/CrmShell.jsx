@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import Sidebar from "@/shared/components/layout/Sidebar";
 import Topbar from "@/shared/components/layout/Topbar";
-import { useUserStore } from "@/features/user/store/userStore";
+import { useUserStore } from "@/features/user/stores/userStore";
 import { authRepository } from "@/shared/api/repositories/authRepository";
 
 const CrmLayoutContext = createContext(null);

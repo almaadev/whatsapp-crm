@@ -1,8 +1,8 @@
 import { Lock } from "lucide-react";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
-import ChatHeader from "@/components/features/chat/ChatHeader";
-import MessageList from "@/components/features/chat/MessageList";
-import ChatInput from "@/components/features/chat/ChatInput";
+import ChatHeader from "@/features/chat/components/ChatHeader";
+import MessageList from "@/features/chat/components/MessageList";
+import ChatInput from "@/features/chat/components/ChatInput";
 
 /**
  * Renders the main chat view panel, including header, message list, and input.
@@ -91,7 +91,7 @@ export default function ChatViewPanel({
               <div className="absolute inset-0 top-[65px] z-40 bg-white/30 backdrop-blur-[3px] flex flex-col items-center justify-center">
                    <div className="bg-red-50 text-red-700 px-6 py-4 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-red-100 flex items-center gap-3">
                       <Lock size={20} className="text-red-500" />
-                      <span className="font-semibold text-sm">This conversation is locked by {handler}</span>
+                      <span className="font-semibold text-sm">This conversation is locked by {handler.name || handler.userId}</span>
                    </div>
               </div>
             )}
