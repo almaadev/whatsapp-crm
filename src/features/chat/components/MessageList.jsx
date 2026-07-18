@@ -35,15 +35,30 @@ const MessageList = memo(function MessageList({ messages, activeChat, userName, 
         )}
 
         {messages.map((item, index) => {
-          const currentMsgDate = parseMessageDate(item.timestamp);
-          const previousMsgDate = index > 0 ? parseMessageDate(messages[index - 1].timestamp) : null;
+          // ── Normalize item format ───────────────────────────────────────────
+          // History items can be in two shapes:
+          //   1. Wrapped:  { type: "message"|"audit", data: {...}, timestamp }
+          //      → produced by ChatArea's chronologicalTimeline builder
+          //   2. Flat raw: { direction, message, phone, timestamp, ... }
+          //      → pushed directly by categoryChatStore.addMessage
+          const isWrapped = item && (item.type === "audit" || item.type === "message" || item.data !== undefined);
+          const normalizedItem = isWrapped
+            ? item
+            : { type: "message", data: item, timestamp: item?.timestamp || item?.createdAt };
+
+          const currentMsgDate = parseMessageDate(normalizedItem.timestamp || normalizedItem.data?.timestamp);
+          const prevItem = index > 0 ? messages[index - 1] : null;
+          const prevNormalized = prevItem && (prevItem.type === "audit" || prevItem.type === "message" || prevItem.data !== undefined)
+            ? prevItem
+            : prevItem ? { type: "message", data: prevItem, timestamp: prevItem?.timestamp || prevItem?.createdAt } : null;
+          const previousMsgDate = prevNormalized ? parseMessageDate(prevNormalized.timestamp || prevNormalized.data?.timestamp) : null;
           const showDateHeader = index === 0 || (previousMsgDate && currentMsgDate.toDateString() !== previousMsgDate.toDateString());
 
-          if (item.type === "audit") {
-            const audit = item.data;
+          if (normalizedItem.type === "audit") {
+            const audit = normalizedItem.data;
             
             return (
-              <div key={item.key} className="w-full flex flex-col items-center my-4 select-none">
+              <div key={index} className="w-full flex flex-col items-center my-4 select-none">
                 {showDateHeader && (
                   <div className="flex justify-center my-4 sticky top-2 z-10">
                     <span className="bg-white/90 backdrop-blur text-slate-500 text-[11px] font-medium px-3 py-1 rounded-lg shadow-sm border border-slate-100">{getDayHeader(currentMsgDate)}</span>
@@ -81,9 +96,11 @@ const MessageList = memo(function MessageList({ messages, activeChat, userName, 
             );
           }
 
-          const msg = item.data;
+          const msg = normalizedItem.data;
+          // Safety guard: skip rendering if msg is still undefined (corrupt data)
+          if (!msg) return null;
           return (
-            <div key={item.key} className="w-full flex flex-col">
+            <div key={index} className="w-full flex flex-col">
               {showDateHeader && (
                 <div className="flex justify-center my-4 sticky top-2 z-10">
                   <span className="bg-white/90 backdrop-blur text-slate-500 text-[11px] font-medium px-3 py-1 rounded-lg shadow-sm">{getDayHeader(currentMsgDate)}</span>

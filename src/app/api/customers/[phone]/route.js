@@ -199,7 +199,7 @@ export async function PUT(req, { params }) {
         const updatedCustomer = await Customer.findOneAndUpdate(
             { phone: { $in: variations } },
             updateData,
-            { new: true, runValidators: true }
+            { returnDocument: "after", runValidators: true }
         );
 
         if (!updatedCustomer) {

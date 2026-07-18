@@ -5,7 +5,7 @@ import { toast } from "react-toastify";
 
 import EmojiPicker from "@/features/chat/components/EmojiPicker";
 
-const ChatInput = memo(function ChatInput({ onSendMessage, onSendTemplate, sending, disabled, onFocus }) {
+const ChatInput = memo(function ChatInput({ onSendMessage, onSendTemplate, sending, disabled, onFocus, isChatClosed }) {
   const [text, setText] = useState("");
   const [showBubble, setShowBubble] = useState(false);
   const [showEmojis, setShowEmojis] = useState(false);
@@ -186,7 +186,7 @@ const ChatInput = memo(function ChatInput({ onSendMessage, onSendTemplate, sendi
         {/* Paperclip Button */}
         <button
           type="button"
-          disabled={disabled}
+          disabled={isChatClosed || disabled}
           onClick={() => fileInputRef.current?.click()}
           className="p-2.5 rounded-xl border border-slate-200 text-slate-500 hover:text-[#00a884] hover:bg-slate-50 transition-all shadow-sm shrink-0 mb-0.5"
           title="Attach File"
@@ -197,7 +197,7 @@ const ChatInput = memo(function ChatInput({ onSendMessage, onSendTemplate, sendi
         {/* Emoji smile Button */}
         <button
           type="button"
-          disabled={disabled}
+          disabled={isChatClosed || disabled}
           onClick={() => setShowEmojis(!showEmojis)}
           className={`p-2.5 rounded-xl border transition-all shadow-sm shrink-0 mb-0.5
             ${showEmojis 
@@ -212,7 +212,7 @@ const ChatInput = memo(function ChatInput({ onSendMessage, onSendTemplate, sendi
 
         {/* Templates Button */}
         <button
-          disabled={disabled}
+          disabled={isChatClosed || disabled}
           onClick={() => setShowBubble(!showBubble)}
           className={`p-2.5 rounded-xl border transition-all shadow-sm shrink-0 mb-0.5
             ${showBubble 
@@ -229,11 +229,13 @@ const ChatInput = memo(function ChatInput({ onSendMessage, onSendTemplate, sendi
         <div className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col px-4 py-2 focus-within:bg-white focus-within:border-[#00a884] focus-within:ring-2 focus-within:ring-emerald-500/10 transition-all shadow-sm min-h-[44px]">
           <textarea
             ref={textareaRef}
-            className="w-full bg-transparent border-none text-sm outline-none placeholder:text-slate-400 resize-none py-1 text-slate-800 custom-scrollbar font-medium"
+            className={`w-full bg-transparent border-none text-sm outline-none placeholder:text-slate-400 resize-none py-1 text-slate-800 custom-scrollbar font-medium ${isChatClosed ? "bg-slate-100 text-slate-400 cursor-not-allowed" : ""}`}
+            title={isChatClosed ? "This chat is closed. You cannot send messages, reopen chat to continue." : "Type a message (or type '/' for templates)"}
             style={{ maxHeight: "150px" }}
             placeholder="Type a message (or type '/' for templates)..."
             rows={1}
             value={text}
+            readOnly={isChatClosed}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={disabled}
@@ -249,7 +251,7 @@ const ChatInput = memo(function ChatInput({ onSendMessage, onSendTemplate, sendi
         {/* Send Button */}
         <button
           onClick={handleSendClick}
-          disabled={sending || (!text.trim() && !selectedFile) || disabled}
+          disabled={sending || (!text.trim() && !selectedFile) || disabled || isChatClosed}
           className={`p-3 rounded-xl shadow-md transition-all shrink-0 mb-0.5 flex items-center justify-center
             ${(text.trim() || selectedFile) && !disabled
               ? "bg-[#00a884] text-white hover:bg-emerald-600 active:scale-95 shadow-emerald-200"

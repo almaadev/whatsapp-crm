@@ -19,7 +19,7 @@ export async function updateAutomation(id, automationPayload) {
   return await KeywordAutomation.findByIdAndUpdate(
     id,
     { $set: automationPayload },
-    { new: true },
+    { returnDocument: "after" },
   );
 }
 

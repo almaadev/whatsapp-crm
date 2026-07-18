@@ -167,7 +167,7 @@ export async function POST(req) {
         }, 
         $set: { name: resolvedName, city: resolvedCity, address: resolvedAddress, status: resolvedStatus, priority: resolvedPriority } 
       },
-      { upsert: true, new: true } 
+      { upsert: true, returnDocument: "after" } 
     );
 
     const rootFields = rootLeadFields(body, resolvedName, resolvedCity, resolvedAddress, currentUser, associateId);

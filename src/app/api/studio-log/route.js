@@ -38,7 +38,7 @@ export async function POST(req) {
     await Customer.findOneAndUpdate(
       { phone: phone },
       { $setOnInsert: { name: "Unknown", status: "New", assignedTo: "unassigned" } },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     );
 
     // 4. Save the automated message directly to MongoDB

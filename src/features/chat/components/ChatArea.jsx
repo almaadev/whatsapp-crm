@@ -273,7 +273,9 @@ export default function ChatArea({
 
     try {
       const res = await chatService.sendMessage(newMessage);
-      updateMessageStatus(activeChat.phone, tempId, "SENT", res?.twilioSid);
+      // API now returns { success, message, data: { twilioSid, ... } }
+      const twilioSid = res?.data?.twilioSid || res?.twilioSid;
+      updateMessageStatus(activeChat.phone, tempId, "SENT", twilioSid);
     } catch (error) {
       updateMessageStatus(activeChat.phone, tempId, "FAILED");
       toast.error("Message failed to send.");
@@ -428,6 +430,7 @@ export default function ChatArea({
           onSendTemplate={handleSendTemplate}
           sending={sending}
           disabled={isLockedByOther}
+          isChatClosed={isChatClosed}
           onFocus={() => {
             setTimeout(scrollToBottom, 150);
           }}

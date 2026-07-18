@@ -5,7 +5,6 @@ import { getStatusColor } from "@/shared/utils/colorUtils";
 const ChatHeader = memo(function ChatHeader({
   activeChat,
   detailedCustomer,
-  userName,
   isChatClosed,
   isToggling,
   onToggle,
@@ -19,6 +18,7 @@ const ChatHeader = memo(function ChatHeader({
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const displayName = activeChat.name || (activeChat.phone ? activeChat.phone.replace("whatsapp:", "") : "Unknown");
   const location = detailedCustomer?.city || "No City Info";
+  console.log(detailedCustomer, "detailedCustomer in ChatHeader");
 
   return (
     <div className="bg-white border-b border-slate-200/80 px-4 sm:px-6 py-3.5 flex items-center justify-between shadow-sm z-20 select-none">

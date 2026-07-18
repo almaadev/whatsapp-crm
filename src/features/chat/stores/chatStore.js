@@ -93,6 +93,7 @@ export const useChatStore = create((set, get) => ({
             isChatClosed: isRecentUpdate ? localChat.isChatClosed : remoteChat.isChatClosed,
             _localUpdatedAt: isRecentUpdate ? localChat._localUpdatedAt : null,
             history: mergeChatHistory(localChat.history || [], remoteChat.history || []),
+            
           };
         }
         return remoteChat;

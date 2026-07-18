@@ -23,7 +23,7 @@ export async function upsertCustomer(phone, customerPayload, createdById = null)
   return await Customer.findOneAndUpdate(
     { phone },
     update,
-    { upsert: true, new: true },
+    { upsert: true, returnDocument: "after" },
   );
 }
 
@@ -31,7 +31,7 @@ export async function updateCustomerOptOutStatus(phone, isOptedOut) {
   return await Customer.findOneAndUpdate(
     { phone },
     { isOptedOut },
-    { upsert: true, new: true },
+    { upsert: true, returnDocument: "after" },
   );
 }
 
@@ -40,5 +40,5 @@ export async function createCustomer(customerPayload) {
 }
 
 export async function updateCustomer(phone, updates) {
-  return await Customer.findOneAndUpdate({ phone }, updates, { new: true });
+  return await Customer.findOneAndUpdate({ phone }, updates, { returnDocument: "after" });
 }

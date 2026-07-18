@@ -98,7 +98,7 @@ export async function POST(req) {
                     }]
                 }
             },
-            { new: true, upsert: true }
+            { returnDocument: "after", upsert: true }
         ).populate({
             path: 'createdBy',
             select: 'name role department branch'

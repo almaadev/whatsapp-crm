@@ -45,7 +45,7 @@ export async function POST(req) {
     const updatedCustomer = await Customer.findOneAndUpdate(
       { phone: cleanPhone },
       updateData,
-      { new: true }, // Returns the updated document
+      { returnDocument: "after" }, // Returns the updated document
     );
 
     if (!updatedCustomer) {

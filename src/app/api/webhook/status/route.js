@@ -48,10 +48,10 @@ export async function POST(req) {
         let retries = 8; 
         while (retries > 0 && !updatedDoc) {
           const [m1, m2, m3, m4] = await Promise.all([
-            Message.findOneAndUpdate({ twilioSid: twilioSID }, { $set: { status: formattedStatus } }, { new: true }),
-            ProductMessage.findOneAndUpdate({ twilioSid: twilioSID }, { $set: { status: formattedStatus } }, { new: true }),
-            MDCampMessage.findOneAndUpdate({ twilioSid: twilioSID }, { $set: { status: formattedStatus } }, { new: true }),
-            TherapyMessage.findOneAndUpdate({ twilioSid: twilioSID }, { $set: { status: formattedStatus } }, { new: true }),
+            Message.findOneAndUpdate({ twilioSid: twilioSID }, { $set: { status: formattedStatus } }, { returnDocument: "after" }),
+            ProductMessage.findOneAndUpdate({ twilioSid: twilioSID }, { $set: { status: formattedStatus } }, { returnDocument: "after" }),
+            MDCampMessage.findOneAndUpdate({ twilioSid: twilioSID }, { $set: { status: formattedStatus } }, { returnDocument: "after" }),
+            TherapyMessage.findOneAndUpdate({ twilioSid: twilioSID }, { $set: { status: formattedStatus } }, { returnDocument: "after" }),
           ]);
 
           updatedDoc = m1 || m2 || m3 || m4;

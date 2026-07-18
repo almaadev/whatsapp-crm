@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useTemplateStore } from "@/features/templates/stores/templateStore";
 import { toast } from "react-toastify";
 import { 
@@ -29,15 +29,51 @@ export default function TemplateManagerPanel({ open, onClose, onSelect, selected
     const [activeFilter, setActiveFilter] = useState("ALL");
     const [expandedRejections, setExpandedRejections] = useState({});
 
-    // Refresh store when panel opens
+    // ─── Refs for Focus & Scroll management ──────────────────────────────────
+    const searchInputRef = useRef(null);
+    const triggerElementRef = useRef(null);
+
+    // Refresh store & manage side effects (Scroll lock, escape key, focus) when panel opens/closes
     useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === "Escape") {
+                onClose();
+            }
+        };
+
         if (open) {
             forceRefresh();
             setSearchQuery("");
             setActiveFilter("ALL");
             setExpandedRejections({});
+
+            // Save the currently focused element (the trigger button)
+            triggerElementRef.current = document.activeElement;
+
+            // Lock background body scroll
+            document.body.style.overflow = "hidden";
+
+            // Bind Escape key event listener
+            window.addEventListener("keydown", handleKeyDown);
+
+            // Auto-focus search input after drawer transition completes
+            const focusTimer = setTimeout(() => {
+                searchInputRef.current?.focus();
+            }, 150);
+
+            return () => {
+                document.body.style.overflow = "";
+                window.removeEventListener("keydown", handleKeyDown);
+                clearTimeout(focusTimer);
+
+                // Return focus to the trigger button
+                if (triggerElementRef.current && typeof triggerElementRef.current.focus === "function") {
+                    triggerElementRef.current.focus();
+                }
+            };
         }
-    }, [open, forceRefresh]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open]);
 
     // ─── Helper: Format Preview Body ────────────────────────────────────────
     const formatPreviewBody = (text) => {
@@ -187,7 +223,7 @@ export default function TemplateManagerPanel({ open, onClose, onSelect, selected
             />
             
             {/* Drawer Panel */}
-            <div className={`fixed top-0 left-0 h-[100dvh] w-full md:w-[600px] bg-slate-50 border-l border-slate-200 shadow-2xl z-[1000] flex flex-col transform transition-transform duration-300 ease-out ${open ? "translate-x-0" : "translate-x-full"}`}>
+            <div className={`fixed top-0 right-0 h-[100dvh] w-full md:w-[600px] bg-slate-50 border-l border-slate-200 shadow-2xl z-[1000] flex flex-col transform transition-transform duration-300 ease-out ${open ? "translate-x-0 pointer-events-auto" : "translate-x-full pointer-events-none"}`}>
                 
                 {/* Header */}
                 <div className="p-5 border-b border-slate-200 bg-white flex flex-col gap-4 shrink-0 z-10">
@@ -209,6 +245,7 @@ export default function TemplateManagerPanel({ open, onClose, onSelect, selected
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                         <input 
+                            ref={searchInputRef}
                             type="text" 
                             placeholder="Search by name, SID, language, category..." 
                             value={searchQuery}

@@ -21,7 +21,7 @@ export async function createUser(userPayload) {
 }
 
 export async function updateUser(id, userPayload) {
-  return await User.findByIdAndUpdate(id, { $set: userPayload }, { new: true });
+  return await User.findByIdAndUpdate(id, { $set: userPayload }, { returnDocument: "after" });
 }
 
 export async function deleteUser(id) {

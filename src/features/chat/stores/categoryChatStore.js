@@ -141,15 +141,18 @@ function buildCategoryStore() {
       set((state) => {
         const hasDuplicateInHistory = (history) => {
           if (!history) return false;
-          return history.some(
-            (existingMsg) =>
+          return history.some((existingItem) => {
+            // History entries may be wrapped { type, data } or flat raw objects
+            const existingMsg = existingItem?.data ?? existingItem;
+            return (
               existingMsg.message === newMessage.message &&
               existingMsg.direction === newMessage.direction &&
               Math.abs(
                 new Date(existingMsg.timestamp || existingMsg.createdAt || 0).getTime() -
                   new Date(newMessage.timestamp || newMessage.createdAt || 0).getTime()
               ) < 15000
-          );
+            );
+          });
         };
 
         const displayText = newMessage.message || "📷 Media";
@@ -167,9 +170,16 @@ function buildCategoryStore() {
             ? (existingChat.unreadCount || 0) + 1
             : (isCurrentActive ? 0 : (existingChat.unreadCount || 0));
 
+          // Wrap in { type, data, timestamp } shape so MessageList can render it
+          // consistently alongside audit entries from chronologicalTimeline.
+          const wrappedNewMessage = {
+            type: "message",
+            data: newMessage,
+            timestamp: newMessage.timestamp || newMessage.createdAt || new Date().toISOString(),
+          };
           const updatedHistory = existingChat.history
-            ? [...existingChat.history, newMessage]
-            : [newMessage];
+            ? [...existingChat.history, wrappedNewMessage]
+            : [wrappedNewMessage];
 
           updatedChat = {
             ...existingChat,

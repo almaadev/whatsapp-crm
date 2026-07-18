@@ -19,7 +19,7 @@ export async function PUT(req, { params }) {
       return NextResponse.json({ success: false, error: "Keyword already exists." }, { status: 400 });
     }
 
-    const updated = await KeywordAutomation.findByIdAndUpdate(id, body, { new: true });
+    const updated = await KeywordAutomation.findByIdAndUpdate(id, body, { returnDocument: "after" });
     return NextResponse.json({ success: true, data: updated });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -44,7 +44,7 @@ export async function PATCH(req, { params }) {
     // 🚀 Unwrap the params promise
     const { id } = await params;
     const { isActive } = await req.json();
-    const updated = await KeywordAutomation.findByIdAndUpdate(id, { isActive }, { new: true });
+    const updated = await KeywordAutomation.findByIdAndUpdate(id, { isActive }, { returnDocument: "after" });
     return NextResponse.json({ success: true, data: updated });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
