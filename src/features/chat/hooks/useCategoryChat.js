@@ -33,6 +33,32 @@ export function useCategoryChat(slug) {
     messagesRef.current = store.messages;
   }, [store.selectedChat, store.messages]);
 
+  const selectedChatPhone = store.selectedChat?.phone;
+
+  useEffect(() => {
+    if (selectedChatPhone) {
+      const cleanPhone = selectedChatPhone.replace("whatsapp:", "");
+      let routePrefix = slug;
+      if (slug === "product") routePrefix = "product-lead";
+      else if (slug === "mdcamp") routePrefix = "md-camp";
+      else if (slug === "therapy") routePrefix = "therapy";
+
+      console.log(`[useCategoryChat] Fetching detailed customer for slug: "${slug}", routePrefix: "${routePrefix}", phone: "${cleanPhone}"`);
+      
+      api.get(`/api/${routePrefix}/leads/${encodeURIComponent(cleanPhone)}`)
+        .then(({ data }) => {
+          console.log(`[useCategoryChat] Fetched detailed customer data successfully:`, data);
+          useStore.getState().setDetailedCustomer(data);
+        })
+        .catch(err => {
+          console.error(`[useCategoryChat] Failed to fetch category lead details:`, err);
+          useStore.getState().setDetailedCustomer(null);
+        });
+    } else {
+      useStore.getState().setDetailedCustomer(null);
+    }
+  }, [selectedChatPhone, slug, useStore]);
+
   const fetchChats = useCallback(async (search = "") => {
     try {
       setLoading(true);

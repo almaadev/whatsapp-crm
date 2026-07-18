@@ -5,6 +5,8 @@ function buildCategoryStore() {
     selectedChat: null,
     messages: [],
     notifications: [],
+    detailedCustomer: null,
+    setDetailedCustomer: (detailedCustomer) => set({ detailedCustomer }),
 
     setMessages: (newMessagesFromServer) =>
       set((state) => {

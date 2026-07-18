@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/shared/lib/auth";
 import Customer from "@/shared/models/Customer";
 import Message from "@/shared/models/Message";
+import Lead from "@/shared/models/Lead";
 import { resolveCategoryChat } from "@/shared/api/utils/categoryChats";
 import twilio from "twilio";
 
@@ -45,10 +46,16 @@ export async function GET(req, { params }) {
     });
     allMessages.sort((a, b) => a.time - b.time);
 
-    const customers = await Customer.find(
-      { phone: { $in: phones } },
-      { phone: 1, name: 1, priority: 1, status: 1, city: 1 }
-    ).lean();
+    const [customers, leads] = await Promise.all([
+      Customer.find(
+        { phone: { $in: phones } },
+        { phone: 1, name: 1, priority: 1, status: 1, city: 1 }
+      ).lean(),
+      Lead.find(
+        { phone: { $in: phones } },
+        { phone: 1, name: 1, city: 1, leads: 1 }
+      ).lean()
+    ]);
 
     const messagesByPhone = new Map();
     for (const msg of allMessages) {
@@ -57,16 +64,23 @@ export async function GET(req, { params }) {
     }
 
     const customerByPhone = new Map(customers.map((c) => [c.phone, c]));
+    const leadByPhone = new Map(leads.map((l) => [l.phone, l]));
 
     const chats = phones.map((phone) => {
       const history = messagesByPhone.get(phone) ?? [];
       const customer = customerByPhone.get(phone);
+      const lead = leadByPhone.get(phone);
+      const latestFollowUp = lead?.leads && lead.leads.length > 0 ? lead.leads[lead.leads.length - 1] : null;
+
+      const mergedCity = lead?.city || customer?.city || null;
+      console.log(`[GET /api/category-chats/${slug}] Phone: ${phone}, Lead City: "${lead?.city || ''}", Customer City: "${customer?.city || ''}", Merged: "${mergedCity || ''}"`);
+
       return {
         phone,
-        name: customer?.name && customer.name !== "Unknown" ? customer.name : phone,
+        name: lead?.name || (customer?.name && customer.name !== "Unknown" ? customer.name : phone),
         priority: customer?.priority ?? null,
-        city: customer?.city ?? null,
-        status: customer?.status ?? null,
+        city: mergedCity,
+        status: latestFollowUp?.status || customer?.status || null,
         history,
       };
     });

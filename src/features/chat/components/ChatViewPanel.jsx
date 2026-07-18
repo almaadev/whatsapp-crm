@@ -39,6 +39,7 @@ export default function ChatViewPanel({
   const { Icon, borderAccent, accentText, emptyTitle } = config;
   const selectedChat = useStore((s) => s.selectedChat);
   const setSelectedChat = useStore((s) => s.setSelectedChat);
+  const detailedCustomer = useStore((s) => s.detailedCustomer);
 
   const activeHandlers = usePresenceStore((s) => s.activeHandlers);
   const handler = selectedChat ? activeHandlers[selectedChat.phone] : null;
@@ -56,6 +57,7 @@ export default function ChatViewPanel({
           <>
             <ChatHeader
               activeChat={selectedChat}
+              detailedCustomer={detailedCustomer}
               userName={session?.user?.name}
               isChatClosed={isChatClosed}
               isToggling={isToggling}
