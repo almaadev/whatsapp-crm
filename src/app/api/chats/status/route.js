@@ -45,13 +45,25 @@ export async function POST(req) {
             );
         }
 
-        // 🚀 THE FIX: If the chat is being CLOSED, reset the routing so the next message goes to the Inbox!
+        const chatHistoryEntry = {
+            action: isChatClosed ? "Closed" : "Reopened",
+            performedBy: session.user.id,
+            timestamp: new Date(),
+            notes: isChatClosed ? "Chat marked as closed" : "Chat reopened"
+        };
+
+        const customerUpdate = {
+            $push: { chatHistory: chatHistoryEntry }
+        };
+
         if (isChatClosed === true) {
-            await Customer.findOneAndUpdate(
-                { phone: phone },
-                { $set: { activeRouteCategory: "Direct Lead" } }
-            );
+            customerUpdate.$set = { activeRouteCategory: "Direct Lead" };
         }
+
+        await Customer.findOneAndUpdate(
+            { phone: phone },
+            customerUpdate
+        );
 
         return NextResponse.json({
             success: true,

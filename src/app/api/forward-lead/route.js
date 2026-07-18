@@ -6,6 +6,7 @@ import connectDB from "@/shared/lib/db/mongodb";
 import Customer from "@/shared/models/Customer";
 import Message from "@/shared/models/Message";
 import redis from "@/shared/lib/db/redis"; 
+import User from "@/shared/models/User";
 
 export async function POST(req) {
   try {
@@ -30,10 +31,24 @@ export async function POST(req) {
     await connectDB();
     const forwardedBy = session.user.name;
 
+    const targetUser = await User.findOne({ name: associateName }).lean();
+    const targetUserId = targetUser?._id;
+
+    const chatHistoryEntry = {
+      action: "Transferred",
+      performedBy: session.user.id,
+      timestamp: new Date(),
+      targetUser: targetUserId || null,
+      notes: `Forwarded to ${associateName} by ${forwardedBy}`
+    };
+
     // Change assignedTo in Customer
     await Customer.findOneAndUpdate(
       { phone: customerPhone },
-      { assignedTo: associateName }
+      { 
+        $set: { assignedTo: associateName },
+        $push: { chatHistory: chatHistoryEntry }
+      }
     );
 
     // Add a system message to Chat History

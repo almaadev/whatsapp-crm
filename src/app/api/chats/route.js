@@ -7,6 +7,7 @@ import Message from "@/shared/models/Message";
 import Lead from "@/shared/models/Lead";
 import redis from "@/shared/lib/db/redis";
 import twilio from "twilio";
+import User from "@/shared/models/User";
 
 const REDIS_CACHE_TTL = 30;
 
@@ -30,7 +31,12 @@ export async function GET(request) {
 
     // 👇 FIX: Fetching ONLY from the main 'Message' collection for the general inbox.
     const [customers, msgs] = await Promise.all([
-      Customer.find({}).lean(),
+      Customer.find({})
+        .populate({
+          path: "chatHistory.performedBy",
+          select: "name role department"
+        })
+        .lean(),
       Message.find({ timestamp: { $gte: sixtyDaysAgo } }).lean(),
     ]);
 
@@ -45,6 +51,18 @@ export async function GET(request) {
     const contactMap = new Map();
 
     customers.forEach((c) => {
+      let lastHandled = null;
+      if (c.chatHistory && c.chatHistory.length > 0) {
+        const latest = c.chatHistory[c.chatHistory.length - 1];
+        if (latest.performedBy) {
+          lastHandled = {
+            name: latest.performedBy.name || "Unknown",
+            role: latest.performedBy.role || "",
+            department: latest.performedBy.department || ""
+          };
+        }
+      }
+
       contactMap.set(c.phone, {
         name: c.name,
         status: c.status,
@@ -53,6 +71,7 @@ export async function GET(request) {
         activeRouteCategory: c.activeRouteCategory,
         unreadCount: c.unreadCount || 0,
         priority: c.priority,
+        lastHandled: lastHandled
       });
     });
 
@@ -78,6 +97,7 @@ export async function GET(request) {
           role: "sales",
           isChatClosed: msg.isChatClosed,
           mediaUrl: msg.mediaUrl || "",
+          lastHandled: customerInfo.lastHandled || null,
           mediaType: msg.mediaType || "",
           lastSeenAt: new Date(msg.time).toISOString(),
           ...customerInfo,
@@ -136,7 +156,20 @@ export async function POST(req) {
 
       await Customer.findOneAndUpdate(
         { phone: phone },
-        { $setOnInsert: { name: name || phone, status: "New", assignedTo: "unassigned", createdBy: session.user.id } },
+        { 
+          $setOnInsert: { 
+            name: name || phone, 
+            status: "New", 
+            assignedTo: "unassigned", 
+            createdBy: session.user.id,
+            chatHistory: [{
+                action: "Started",
+                performedBy: session.user.id,
+                timestamp: new Date(),
+                notes: "First outbound message sent"
+            }]
+          } 
+        },
         { upsert: true }
       );
 

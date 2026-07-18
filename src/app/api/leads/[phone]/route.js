@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req, { params }) {
   try {
-    const { error } = await requireSession();
+    const { session, error } = await requireSession();
     if (error) return error;
 
     await connectDB();
@@ -35,6 +35,14 @@ export async function GET(req, { params }) {
         path: 'createdBy',
         select: 'name role department branch'
       })
+      .populate({
+        path: 'chatHistory.performedBy',
+        select: 'name role department branch'
+      })
+      .populate({
+        path: 'chatHistory.targetUser',
+        select: 'name role department branch'
+      })
       .lean();
 
     // If neither exists, return an empty object so the frontend doesn't crash
@@ -46,16 +54,16 @@ export async function GET(req, { params }) {
     const history = lead?.leads || [];
     const latest = history.length > 0 ? history[history.length - 1] : null;
 
+    const branches = await Branch.find().lean();
+    const branchMap = {};
+    branches.forEach(b => {
+      branchMap[b._id.toString()] = b.name;
+    });
+
     let creatorInfo = null;
     if (customer?.createdBy) {
       const branchVal = customer.createdBy.branch?.toString() || "";
-      let branchName = customer.createdBy.branch || "";
-      if (mongoose.Types.ObjectId.isValid(branchVal)) {
-        const branchObj = await Branch.findById(branchVal).lean();
-        if (branchObj) {
-          branchName = branchObj.name;
-        }
-      }
+      const branchName = branchMap[branchVal] || customer.createdBy.branch || "";
       creatorInfo = {
         name: customer.createdBy.name || "Unknown",
         role: customer.createdBy.role || "",
@@ -63,6 +71,48 @@ export async function GET(req, { params }) {
         branchName: branchName || ""
       };
     }
+
+    const resolvedChatHistory = (customer?.chatHistory || []).map(entry => {
+      let performedByResolved = null;
+      if (entry.performedBy) {
+        const branchVal = entry.performedBy.branch?.toString() || "";
+        const branchName = branchMap[branchVal] || entry.performedBy.branch || "";
+        performedByResolved = {
+          name: entry.performedBy.name || "Unknown",
+          role: entry.performedBy.role || "",
+          department: entry.performedBy.department || "",
+          branchName: branchName
+        };
+      }
+      let targetUserResolved = null;
+      if (entry.targetUser) {
+        const branchVal = entry.targetUser.branch?.toString() || "";
+        const branchName = branchMap[branchVal] || entry.targetUser.branch || "";
+        targetUserResolved = {
+          name: entry.targetUser.name || "Unknown",
+          role: entry.targetUser.role || "",
+          department: entry.targetUser.department || "",
+          branchName: branchName
+        };
+      }
+      return {
+        _id: entry._id?.toString(),
+        action: entry.action,
+        timestamp: entry.timestamp,
+        notes: entry.notes || "",
+        isInternal: entry.isInternal || false,
+        performedBy: performedByResolved,
+        targetUser: targetUserResolved
+      };
+    });
+
+    const userRole = session?.user?.role || "associate";
+    const filteredChatHistory = resolvedChatHistory.filter(entry => {
+      if (entry.isInternal) {
+        return userRole === "superAdmin";
+      }
+      return true;
+    });
 
     // Construct the schema-aligned response
     const data = {
@@ -86,7 +136,8 @@ export async function GET(req, { params }) {
       leadType: latest?.leadType || "Direct Lead",
       history: history,
       latestFollowUp: latest || {},
-      creatorInfo
+      creatorInfo,
+      chatHistory: filteredChatHistory
     };
 
     return NextResponse.json(data, { status: 200 });

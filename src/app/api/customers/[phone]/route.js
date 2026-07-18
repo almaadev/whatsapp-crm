@@ -46,6 +46,12 @@ export async function GET(req, { params }) {
         }).populate({
             path: 'createdBy',
             select: 'name role department branch'
+        }).populate({
+            path: 'chatHistory.performedBy',
+            select: 'name role department branch'
+        }).populate({
+            path: 'chatHistory.targetUser',
+            select: 'name role department branch'
         }).lean();
 
         if (!customer) {
@@ -53,16 +59,16 @@ export async function GET(req, { params }) {
             return NextResponse.json({ error: "Customer not found" }, { status: 404 });
         }
 
+        const branches = await Branch.find().lean();
+        const branchMap = {};
+        branches.forEach(b => {
+            branchMap[b._id.toString()] = b.name;
+        });
+
         let creatorInfo = null;
         if (customer.createdBy) {
             const branchVal = customer.createdBy.branch?.toString() || "";
-            let branchName = customer.createdBy.branch || "";
-            if (mongoose.Types.ObjectId.isValid(branchVal)) {
-                const branchObj = await Branch.findById(branchVal).lean();
-                if (branchObj) {
-                    branchName = branchObj.name;
-                }
-            }
+            const branchName = branchMap[branchVal] || customer.createdBy.branch || "";
             creatorInfo = {
                 name: customer.createdBy.name || "Unknown",
                 role: customer.createdBy.role || "",
@@ -70,6 +76,48 @@ export async function GET(req, { params }) {
                 branchName: branchName || ""
             };
         }
+
+        const resolvedChatHistory = (customer.chatHistory || []).map(entry => {
+            let performedByResolved = null;
+            if (entry.performedBy) {
+                const branchVal = entry.performedBy.branch?.toString() || "";
+                const branchName = branchMap[branchVal] || entry.performedBy.branch || "";
+                performedByResolved = {
+                    name: entry.performedBy.name || "Unknown",
+                    role: entry.performedBy.role || "",
+                    department: entry.performedBy.department || "",
+                    branchName: branchName
+                };
+            }
+            let targetUserResolved = null;
+            if (entry.targetUser) {
+                const branchVal = entry.targetUser.branch?.toString() || "";
+                const branchName = branchMap[branchVal] || entry.targetUser.branch || "";
+                targetUserResolved = {
+                    name: entry.targetUser.name || "Unknown",
+                    role: entry.targetUser.role || "",
+                    department: entry.targetUser.department || "",
+                    branchName: branchName
+                };
+            }
+            return {
+                _id: entry._id?.toString(),
+                action: entry.action,
+                timestamp: entry.timestamp,
+                notes: entry.notes || "",
+                isInternal: entry.isInternal || false,
+                performedBy: performedByResolved,
+                targetUser: targetUserResolved
+            };
+        });
+
+        const userRole = session.user.role || "associate";
+        const filteredChatHistory = resolvedChatHistory.filter(entry => {
+            if (entry.isInternal) {
+                return userRole === "superAdmin";
+            }
+            return true;
+        });
 
         const formattedData = {
             phone: customer.phone,
@@ -87,7 +135,8 @@ export async function GET(req, { params }) {
             date: customer.createdAt ? new Date(customer.createdAt).toISOString() : null,
             isClosed: customer.isClosed || false,
             followUpStartDate: customer.followUpStartDate || null,
-            creatorInfo
+            creatorInfo,
+            chatHistory: filteredChatHistory
         };
 
         return NextResponse.json(formattedData, { status: 200 });

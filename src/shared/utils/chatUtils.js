@@ -9,6 +9,12 @@ import { Check, CheckCheck, Clock, AlertCircle } from "lucide-react";
  */
 export const parseMessageDate = (dateString) => {
     if (!dateString) return new Date();
+    if (dateString instanceof Date) return dateString;
+    if (typeof dateString !== "string") {
+        const d = new Date(dateString);
+        if (!isNaN(d.getTime())) return d;
+        dateString = String(dateString);
+    }
     if (dateString.includes("T") || (dateString.includes("-") && dateString.includes(":"))) return new Date(dateString);
     const parts = dateString.split(" ");
     if (parts.length >= 2) {

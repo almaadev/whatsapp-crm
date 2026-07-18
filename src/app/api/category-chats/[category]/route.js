@@ -158,7 +158,17 @@ export async function POST(req, { params }) {
       { phone: formattedTo },
       {
         $set: { activeRouteCategory: chatType, lastInteractionAt: new Date() },
-        $setOnInsert: { name: formattedTo, status: "New", createdBy: session?.user?.id },
+        $setOnInsert: { 
+          name: formattedTo, 
+          status: "New", 
+          createdBy: session?.user?.id,
+          chatHistory: [{
+              action: "Started",
+              performedBy: session?.user?.id,
+              timestamp: new Date(),
+              notes: `First outbound message sent via ${chatType}`
+          }]
+        },
       },
       { upsert: true }
     );

@@ -27,12 +27,34 @@ export async function POST(req) {
     // 1. Update Customer Record (If exists)
     let customer = await Customer.findOne({ phone: cleanPhone });
     if (customer) {
+        const oldIsClosed = customer.isClosed;
+        const oldAssignedTo = customer.assignedTo;
+
         customer.status = status;
         customer.assignedTo = resolvedAssociateName;
         customer.isClosed = isClosed;
         if (priority) customer.priority = priority;
         if (notes) customer.remarks = notes;
         
+        if (oldIsClosed !== isClosed) {
+            customer.chatHistory.push({
+                action: isClosed ? "Closed" : "Reopened",
+                performedBy: session.user.id,
+                timestamp: new Date(),
+                notes: notes || (isClosed ? "Lead closed via status change" : "Lead reopened via status change")
+            });
+        }
+
+        if (oldAssignedTo !== resolvedAssociateName) {
+            customer.chatHistory.push({
+                action: "Assigned",
+                performedBy: session.user.id,
+                timestamp: new Date(),
+                targetUser: associateId || null,
+                notes: `Reassigned to ${resolvedAssociateName}`
+            });
+        }
+
         await customer.save();
     }
 

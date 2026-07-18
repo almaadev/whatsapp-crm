@@ -58,6 +58,12 @@ export async function POST(req, { params }) {
         const customerInsert = {};
         if (session?.user?.id) {
             customerInsert.createdBy = session.user.id;
+            customerInsert.chatHistory = [{
+                action: "Started",
+                performedBy: session.user.id,
+                timestamp: new Date(),
+                notes: "Record created via category lead update"
+            }];
         }
         if (updateData.name) {
             customerUpdate.name = updateData.name;

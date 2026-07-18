@@ -1,5 +1,14 @@
 import mongoose from "mongoose";
 
+const ChatHistorySchema = new mongoose.Schema({
+  action: { type: String, required: true },
+  performedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  timestamp: { type: Date, default: Date.now },
+  notes: { type: String },
+  isInternal: { type: Boolean, default: false },
+  targetUser: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
+}, { _id: true });
+
 const CustomerSchema = new mongoose.Schema({
   phone: { type: String, required: true, unique: true },
   name: { type: String, default: "Unknown" },
@@ -18,6 +27,7 @@ const CustomerSchema = new mongoose.Schema({
   lastInteractionAt: { type: Date, default: null },
   unreadCount: { type: Number, default: 0 },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  chatHistory: [ChatHistorySchema],
 }, { timestamps: true });
 
 if (mongoose.models.Customer) {

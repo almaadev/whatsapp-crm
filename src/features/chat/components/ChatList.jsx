@@ -423,6 +423,14 @@ export default function ChatList({ role, loading }) {
                       })()}
                   </div>
                 </div>
+
+                {chat.lastHandled && (
+                  <div className="mt-1 flex items-center gap-1 select-none leading-none">
+                    <span className="text-slate-400 text-[10px] font-semibold">Last Handled:</span>
+                    <span className="text-slate-600 bg-slate-150 border border-slate-200/60 px-1.5 py-0.5 rounded-md text-[9px] font-bold">{chat.lastHandled.name}</span>
+                    <span className="text-slate-400 font-bold capitalize text-[9px]">({chat.lastHandled.role})</span>
+                  </div>
+                )}
                 {isBeingHandledByOther && (
                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 mt-1 rounded text-[9px] font-bold tracking-wider bg-red-50 text-red-600 border border-red-100">
                     <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>

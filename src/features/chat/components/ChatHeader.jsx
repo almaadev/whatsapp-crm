@@ -2,10 +2,44 @@ import React, { useState, memo } from "react";
 import { FileText, ToggleLeft, ToggleRight, ChevronLeft, Bell, Share2, Info, User, History, MapPin } from "lucide-react";
 import { getStatusColor } from "@/shared/utils/colorUtils";
 
-const ChatHeader = memo(function ChatHeader({ activeChat, userName, isChatClosed, isToggling, onToggle, onStatusChange, onBack, onInfo, onReminder, onForward }) {
+const ChatHeader = memo(function ChatHeader({ activeChat, detailedCustomer, userName, isChatClosed, isToggling, onToggle, onStatusChange, onBack, onInfo, onReminder, onForward }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const displayName = activeChat.name || (activeChat.phone ? activeChat.phone.replace("whatsapp:", "") : "Unknown");
   const statusColor = getStatusColor(activeChat.status);
+
+  const getStartedByLabel = () => {
+    const startAction = detailedCustomer?.chatHistory?.find(h => h.action === "Started");
+    if (startAction?.performedBy) {
+      return `${startAction.performedBy.name} (${startAction.performedBy.role})`;
+    }
+    if (detailedCustomer?.creatorInfo) {
+      return `${detailedCustomer.creatorInfo.name} (${detailedCustomer.creatorInfo.role})`;
+    }
+    return null;
+  };
+
+  const getLastHandledByLabel = () => {
+    const history = detailedCustomer?.chatHistory || [];
+    if (history.length > 0) {
+      const latest = history[history.length - 1];
+      if (latest.performedBy) {
+        return `${latest.performedBy.name} (${latest.performedBy.role})`;
+      }
+    }
+    return null;
+  };
+
+  const getLastClosedByLabel = () => {
+    const history = detailedCustomer?.chatHistory || [];
+    const closedActions = history.filter(h => h.action === "Closed");
+    if (closedActions.length > 0) {
+      const latestClosed = closedActions[closedActions.length - 1];
+      if (latestClosed.performedBy) {
+        return `${latestClosed.performedBy.name} (${latestClosed.performedBy.role})`;
+      }
+    }
+    return null;
+  };
 
   return (
     <div className="bg-[#f0f2f5] border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm z-20">
@@ -26,14 +60,28 @@ const ChatHeader = memo(function ChatHeader({ activeChat, userName, isChatClosed
             </div>
             <p className="text-xs text-slate-500 truncate mb-0.5">{activeChat.phone?.replace("whatsapp:", "")}</p>
 
-            <div className="flex items-center gap-2 text-[12px] font-medium tracking-tight">
-              {activeChat.currentHandler && activeChat.currentHandler !== userName && (
-                <span className="flex items-center gap-1 px-1.5 py-0.5 rounded border bg-slate-200/50 text-slate-600 border-slate-200"><User size={10} /> Prev: {activeChat.currentHandler}</span>
-              )}
-              {activeChat.lastClosedBy && (
-                <span className="flex items-center gap-1 text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100"><History size={10} /> Closed By: {activeChat.lastClosedBy}</span>
-              )}
-            </div>
+            {detailedCustomer && (
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-semibold tracking-tight mt-1 select-none">
+                {getStartedByLabel() && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm">
+                    <span className="text-slate-400 font-medium">Started By:</span> 
+                    <strong className="text-slate-700">{getStartedByLabel()}</strong>
+                  </span>
+                )}
+                {getLastHandledByLabel() && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm">
+                    <span className="text-slate-400 font-medium">Last Handled:</span> 
+                    <strong className="text-slate-700">{getLastHandledByLabel()}</strong>
+                  </span>
+                )}
+                {getLastClosedByLabel() && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-rose-100 bg-rose-50 text-rose-700 shadow-sm">
+                    <span className="text-rose-400 font-medium">Last Closed:</span> 
+                    <strong className="text-rose-800">{getLastClosedByLabel()}</strong>
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

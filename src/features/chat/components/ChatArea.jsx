@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect, memo, useCallback } from "react";
+import { useState, useRef, useEffect, memo, useCallback, useMemo } from "react";
+import api from "@/shared/lib/axios";
 import { useSession } from "next-auth/react";
 import { useChatStore } from "@/features/chat/stores/chatStore";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
@@ -71,6 +72,60 @@ export default function ChatArea({
   const lastMessage =
     messages.length > 0 ? messages[messages.length - 1] : null;
   const isChatClosed = lastMessage?.isChatClosed || false;
+
+  const [detailedCustomer, setDetailedCustomer] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+
+  useEffect(() => {
+    if (activeChat?.phone) {
+      setDetailsLoading(true);
+      const cleanPhone = activeChat.phone.replace("whatsapp:", "");
+      api.get(`/api/leads/${encodeURIComponent(cleanPhone)}`)
+        .then(({ data }) => {
+          if (data && !data.error) {
+            setDetailedCustomer(data);
+          } else {
+            setDetailedCustomer(null);
+          }
+        })
+        .catch(err => {
+          console.error("Failed to load detailed customer:", err);
+          setDetailedCustomer(null);
+        })
+        .finally(() => setDetailsLoading(false));
+    } else {
+      setDetailedCustomer(null);
+    }
+  }, [activeChat?.phone, isToggling, showPriorityModal, showClosingModal]);
+
+  const chronologicalTimeline = useMemo(() => {
+    const list = [];
+    
+    // Add messages
+    messages.forEach((msg, idx) => {
+      list.push({
+        type: "message",
+        timestamp: new Date(msg.timestamp || msg.createdAt || 0),
+        data: msg,
+        key: `msg-${idx}-${msg.timestamp}`
+      });
+    });
+
+    // Add chatHistory audit entries
+    if (detailedCustomer?.chatHistory) {
+      detailedCustomer.chatHistory.forEach((audit, idx) => {
+        list.push({
+          type: "audit",
+          timestamp: new Date(audit.timestamp),
+          data: audit,
+          key: `audit-${idx}-${audit.timestamp}`
+        });
+      });
+    }
+
+    // Sort chronologically
+    return list.sort((a, b) => a.timestamp - b.timestamp);
+  }, [messages, detailedCustomer?.chatHistory]);
 
   const activeHandlers = usePresenceStore((s) => s.activeHandlers);
   const handler = activeChat ? activeHandlers[activeChat.phone] : null;
@@ -317,6 +372,7 @@ export default function ChatArea({
 
       <ChatHeader
         activeChat={activeChat}
+        detailedCustomer={detailedCustomer}
         userName={userName}
         isChatClosed={isChatClosed}
         isToggling={isToggling}
@@ -334,7 +390,7 @@ export default function ChatArea({
       />
 
       <MessageList
-        messages={messages}
+        messages={chronologicalTimeline}
         activeChat={activeChat}
         userName={userName}
         scrollRef={scrollContainerRef}

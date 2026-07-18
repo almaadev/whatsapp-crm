@@ -89,7 +89,13 @@ export async function POST(req) {
                     status: "New" // Default state for manually added customers
                 },
                 $setOnInsert: {
-                    createdBy: session.user.id
+                    createdBy: session.user.id,
+                    chatHistory: [{
+                        action: "Started",
+                        performedBy: session.user.id,
+                        timestamp: new Date(),
+                        notes: "Customer record created"
+                    }]
                 }
             },
             { new: true, upsert: true }

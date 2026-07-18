@@ -85,7 +85,19 @@ export async function POST(req) {
 
     await Customer.findOneAndUpdate(
       { phone: formattedTo },
-      { lastMessageAt: new Date(), $setOnInsert: { status: "New", createdBy: session.user.id } },
+      { 
+        lastMessageAt: new Date(), 
+        $setOnInsert: { 
+          status: "New", 
+          createdBy: session.user.id,
+          chatHistory: [{
+              action: "Started",
+              performedBy: session.user.id,
+              timestamp: new Date(),
+              notes: "First template sent"
+          }]
+        } 
+      },
       { upsert: true },
     );
 
