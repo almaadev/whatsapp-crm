@@ -17,6 +17,11 @@ const CustomerSchema = new mongoose.Schema({
   activeRouteCategory: { type: String, default: "Direct Lead" },
   lastInteractionAt: { type: Date, default: null },
   unreadCount: { type: Number, default: 0 },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 }, { timestamps: true });
 
-export default mongoose.models.Customer || mongoose.model("Customer", CustomerSchema);
+if (mongoose.models.Customer) {
+    delete mongoose.models.Customer;
+}
+
+export default mongoose.model("Customer", CustomerSchema);

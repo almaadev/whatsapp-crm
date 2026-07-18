@@ -226,6 +226,7 @@ const CustomerTable = ({ customers, onClick }) => (
         <th className="px-6 py-4">Contact Info</th>
         <th className="px-6 py-4">Enquired For</th>
         <th className="px-6 py-4">Current Status</th>
+        <th className="px-6 py-4">Created By</th>
         <th className="px-6 py-4 text-right">Actions</th>
       </tr>
     </thead>
@@ -269,6 +270,20 @@ const CustomerTable = ({ customers, onClick }) => (
               {c.status}
             </span>
           </td>
+          <td className="px-6 py-4">
+            {c.creatorInfo ? (
+              <div>
+                <div className="font-semibold text-slate-800 truncate max-w-[150px]">
+                  {c.creatorInfo.name}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-0.5 font-medium truncate max-w-[150px] capitalize">
+                  {c.creatorInfo.role} ({c.creatorInfo.branchName || "No Branch"})
+                </div>
+              </div>
+            ) : (
+              <span className="text-slate-400 italic text-[11px]">System / Webhook</span>
+            )}
+          </td>
 
           <td className="px-6 py-4 text-right">
             <button className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:text-white hover:bg-[#00a884] transition-all shadow-sm">
@@ -299,23 +314,31 @@ const CustomerMobileList = ({ customers, onClick }) => (
             <div className="font-extrabold text-slate-800 text-base truncate">
               {c.name || "Unknown"}
             </div>
-            <div className="font-mono text-xs font-bold text-slate-500 mt-1">
-              {c.phone.replace("whatsapp:", "")}
+            <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+              <MapPin size={12} /> {c.city || "No City"}
             </div>
           </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 mt-1 border-t border-slate-50 pt-3">
           <span
-            className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${getStatusColor(c.status)}`}
+            className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase border shrink-0 ${getStatusColor(c.status)}`}
           >
             {c.status}
           </span>
-          {c.city && (
-            <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-              <MapPin size={10} /> {c.city}
-            </span>
-          )}
         </div>
+        <div className="flex items-center justify-between text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+          <div className="flex items-center gap-1 font-mono font-bold text-slate-700">
+            <Phone size={12} className="text-slate-400" />
+            {c.phone.replace("whatsapp:", "")}
+          </div>
+          <div className="font-medium text-slate-500">
+            {c.enquiredFor || "General Enquiry"}
+          </div>
+        </div>
+        {c.creatorInfo && (
+          <div className="text-[11px] text-slate-500 border-t border-slate-100 pt-2 flex justify-between items-center">
+            <span>Owner: <strong className="text-slate-700">{c.creatorInfo.name}</strong></span>
+            <span className="capitalize">{c.creatorInfo.role} ({c.creatorInfo.branchName || "No Branch"})</span>
+          </div>
+        )}
       </div>
     ))}
   </>

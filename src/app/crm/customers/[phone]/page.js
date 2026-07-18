@@ -144,11 +144,9 @@ export default function CustomerDetailPage({ params }) {
 
     if (isLoading) {
         return (
-            <div className="flex h-screen w-screen bg-[#f8fafc]">
-                <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
-                    <Loader2 size={32} className="animate-spin text-[#00a884] mb-4" />
-                    <p className="text-sm font-semibold tracking-wide">Loading Intelligence Profile...</p>
-                </div>
+            <div className="flex-1 flex flex-col items-center justify-center bg-[#f8fafc]">
+                <Loader2 size={32} className="animate-spin text-[#00a884] mb-4" />
+                <p className="text-sm font-semibold tracking-wide text-slate-500">Loading Intelligence Profile...</p>
             </div>
         );
     }
@@ -163,35 +161,31 @@ export default function CustomerDetailPage({ params }) {
 
     if (loading) {
         return (
-            <div className="flex h-screen w-screen bg-[#f8fafc]">
-                <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
-                    <Loader2 size={32} className="animate-spin text-[#00a884] mb-4" />
-                    <p className="text-sm font-semibold tracking-wide">Loading Intelligence Profile...</p>
-                </div>
+            <div className="flex-1 flex flex-col items-center justify-center bg-[#f8fafc]">
+                <Loader2 size={32} className="animate-spin text-[#00a884] mb-4" />
+                <p className="text-sm font-semibold tracking-wide text-slate-500">Loading Intelligence Profile...</p>
             </div>
         );
     }
 
     if (!customer) {
         return (
-            <div className="flex h-screen bg-[#f8fafc]">
-                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-                    <div className="w-20 h-20 bg-white rounded-full shadow-sm border border-slate-200 flex items-center justify-center mb-6">
-                        <User size={32} className="text-slate-300" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-slate-800 mb-2">Customer Not Found</h2>
-                    <p className="text-slate-500 mb-8 max-w-sm text-sm">The requested identity could not be resolved in the database.</p>
-                    <Link href={lastPath ? lastPath : "/crm/customers"} className="px-6 py-2.5 bg-[#00a884] text-white rounded-xl font-semibold shadow-sm hover:bg-emerald-600 transition">
-                        Return to Directory
-                    </Link>
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-[#f8fafc]">
+                <div className="w-20 h-20 bg-white rounded-full shadow-sm border border-slate-200 flex items-center justify-center mb-6">
+                    <User size={32} className="text-slate-300" />
                 </div>
+                <h2 className="text-2xl font-bold text-slate-800 mb-2">Customer Not Found</h2>
+                <p className="text-slate-500 mb-8 max-w-sm text-sm">The requested identity could not be resolved in the database.</p>
+                <Link href={lastPath ? lastPath : "/crm/customers"} className="px-6 py-2.5 bg-[#00a884] text-white rounded-xl font-semibold shadow-sm hover:bg-emerald-600 transition">
+                    Return to Directory
+                </Link>
             </div>
         );
     }
 
     return (
-        <div className="flex h-full w-full bg-[#f4f7f9] font-sans">
-            <main className="flex-1 flex flex-col overflow-hidden relative">
+        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-[#f4f7f9] font-sans custom-scrollbar">
+            <main className="flex-1 flex flex-col relative w-full">
                 
                 {/* --- HEADER --- */}
                 <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0 z-20 sticky top-0 shadow-sm shadow-slate-100/50">
@@ -225,7 +219,7 @@ export default function CustomerDetailPage({ params }) {
                     </div>
                 </header>
 
-                <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 custom-scrollbar">
+                <div className="p-4 md:p-6 lg:p-8">
                     <div className="w-full max-w-[1400px] mx-auto space-y-6 lg:space-y-8">
 
                         {/* --- 1. PREMIUM HERO SECTION --- */}
@@ -293,6 +287,33 @@ export default function CustomerDetailPage({ params }) {
                                         <DetailRow icon={<IndianRupee size={16} />} label="Deal Value (₹)" value={formData.saleAmount} onChange={v => setFormData({ ...formData, saleAmount: v })} isEditing={isEditing} type="number" />
                                     </div>
                                 </div>
+
+                                {/* --- CUSTOMER OWNER PANEL --- */}
+                                {customer.creatorInfo && (
+                                    <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 p-6 md:p-8 space-y-6">
+                                        <h3 className="text-[18px] font-bold text-slate-900 pb-4 border-b border-slate-100 flex items-center gap-2">
+                                            <User size={18} className="text-[#00a884]" /> Customer Owner
+                                        </h3>
+                                        <div className="space-y-5">
+                                            <div>
+                                                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Associate Name</p>
+                                                <p className="text-[15px] font-semibold text-slate-800 mt-1">{customer.creatorInfo.name}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Role</p>
+                                                <p className="text-[15px] font-semibold text-slate-800 mt-1 capitalize">{customer.creatorInfo.role}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Department</p>
+                                                <p className="text-[15px] font-semibold text-slate-800 mt-1 capitalize">{customer.creatorInfo.department}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Branch Name</p>
+                                                <p className="text-[15px] font-semibold text-slate-800 mt-1">{customer.creatorInfo.branchName || "N/A"}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="lg:col-span-8 space-y-6 lg:space-y-8">

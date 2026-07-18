@@ -158,7 +158,7 @@ export async function POST(req, { params }) {
       { phone: formattedTo },
       {
         $set: { activeRouteCategory: chatType, lastInteractionAt: new Date() },
-        $setOnInsert: { name: formattedTo, status: "New" },
+        $setOnInsert: { name: formattedTo, status: "New", createdBy: session?.user?.id },
       },
       { upsert: true }
     );

@@ -252,6 +252,33 @@ export default function CustomerInfoPanel({
           )}
         </div>
 
+        {/* Customer Owner Info (Read-Only) */}
+        {leadData?.creatorInfo && (
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-3">
+            <h3 className="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5 border-b border-slate-100 pb-2">
+              <User size={14} className="text-[#00a884]" /> Customer Owner
+            </h3>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
+              <div>
+                <p className="font-bold text-slate-400 uppercase">Associate</p>
+                <p className="font-semibold text-slate-700 mt-0.5">{leadData.creatorInfo.name}</p>
+              </div>
+              <div>
+                <p className="font-bold text-slate-400 uppercase">Role</p>
+                <p className="font-semibold text-slate-700 mt-0.5 capitalize">{leadData.creatorInfo.role}</p>
+              </div>
+              <div>
+                <p className="font-bold text-slate-400 uppercase">Department</p>
+                <p className="font-semibold text-slate-700 mt-0.5 capitalize">{leadData.creatorInfo.department}</p>
+              </div>
+              <div>
+                <p className="font-bold text-slate-400 uppercase">Branch</p>
+                <p className="font-semibold text-slate-700 mt-0.5">{leadData.creatorInfo.branchName || "N/A"}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/*   Core fields card   */}
         <div className="space-y-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
           <InputGroup label="Full Name" name="name" value={formData.name}

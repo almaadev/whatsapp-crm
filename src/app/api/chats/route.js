@@ -136,7 +136,7 @@ export async function POST(req) {
 
       await Customer.findOneAndUpdate(
         { phone: phone },
-        { $setOnInsert: { name: name || phone, status: "New", assignedTo: "unassigned" } },
+        { $setOnInsert: { name: name || phone, status: "New", assignedTo: "unassigned", createdBy: session.user.id } },
         { upsert: true }
       );
 

@@ -91,7 +91,7 @@ export const leadMutationService = {
     
     const updatedCustomer = await upsertCustomer(cleanPhone, { 
       name: resolvedName, city: resolvedCity, address: resolvedAddress, status: resolvedStatus, priority: resolvedPriority 
-    });
+    }, associateId);
 
     const rootFields = rootLeadFields(body, resolvedName, resolvedCity, resolvedAddress, currentUser, associateId);
 

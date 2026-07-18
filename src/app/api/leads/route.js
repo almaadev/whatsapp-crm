@@ -155,7 +155,7 @@ export async function POST(req) {
     const updatedCustomer = await Customer.findOneAndUpdate(
       { phone: cleanPhone },
       { 
-        $setOnInsert: { phone: cleanPhone }, 
+        $setOnInsert: { phone: cleanPhone, createdBy: session.user.id }, 
         $set: { name: resolvedName, city: resolvedCity, address: resolvedAddress, status: resolvedStatus, priority: resolvedPriority } 
       },
       { upsert: true, new: true } 

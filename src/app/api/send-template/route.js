@@ -85,7 +85,7 @@ export async function POST(req) {
 
     await Customer.findOneAndUpdate(
       { phone: formattedTo },
-      { lastMessageAt: new Date(), $setOnInsert: { status: "New" } },
+      { lastMessageAt: new Date(), $setOnInsert: { status: "New", createdBy: session.user.id } },
       { upsert: true },
     );
 

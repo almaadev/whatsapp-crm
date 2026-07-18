@@ -3,12 +3,13 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/shared/lib/auth";
 import connectDB from "@/shared/lib/db/mongodb";
 import Customer from "@/shared/models/Customer";
-
+import Branch from "@/shared/models/Branch";
+import User from "@/shared/models/User";
 
 export const dynamic = "force-dynamic";
 
 // --- Formatter Helper to maintain UI consistency ---
-const formatCustomerForUI = (c) => ({
+const formatCustomerForUI = (c, branchMap = {}) => ({
     phone: c.phone,
     name: c.name || "Unknown",
     city: c.city || "",
@@ -21,17 +22,34 @@ const formatCustomerForUI = (c) => ({
     saleAmount: c.saleAmount || "0",
     associate: c.assignedTo || "Unassigned",
     date: c.updatedAt ? new Date(c.updatedAt).toISOString() : new Date().toISOString(),
-    isClosed: c.isClosed || false
+    isClosed: c.isClosed || false,
+    creatorInfo: c.createdBy ? {
+        name: c.createdBy.name || "Unknown",
+        role: c.createdBy.role || "",
+        department: c.createdBy.department || "",
+        branchName: branchMap[c.createdBy.branch?.toString()] || c.createdBy.branch || ""
+    } : null
 });
 
 export async function GET(req) {
     try {
         await connectDB();
         
+        const branches = await Branch.find().lean();
+        const branchMap = {};
+        branches.forEach(b => {
+          branchMap[b._id.toString()] = b.name;
+        });
+
         // Fetch lean records sorted by latest updates
-        const customers = await Customer.find({}).sort({ updatedAt: -1 }).lean();
+        const customers = await Customer.find({}).sort({ updatedAt: -1 })
+            .populate({
+                path: 'createdBy',
+                select: 'name role department branch'
+            })
+            .lean();
         
-        const formattedData = customers.map(formatCustomerForUI);
+        const formattedData = customers.map(c => formatCustomerForUI(c, branchMap));
 
         return NextResponse.json(formattedData);
     } catch (error) {
@@ -69,14 +87,26 @@ export async function POST(req) {
                     address: address?.trim() || "",
                     source: source?.trim() || "Manual Entry",
                     status: "New" // Default state for manually added customers
+                },
+                $setOnInsert: {
+                    createdBy: session.user.id
                 }
             },
             { new: true, upsert: true }
-        );
+        ).populate({
+            path: 'createdBy',
+            select: 'name role department branch'
+        });
+
+        const branches = await Branch.find().lean();
+        const branchMap = {};
+        branches.forEach(b => {
+          branchMap[b._id.toString()] = b.name;
+        });
 
         return NextResponse.json({ 
             success: true, 
-            data: formatCustomerForUI(updatedCustomer) 
+            data: formatCustomerForUI(updatedCustomer, branchMap) 
         }, { status: 201 });
 
     } catch (error) {

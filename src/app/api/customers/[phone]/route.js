@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/shared/lib/auth";
 import connectDB from "@/shared/lib/db/mongodb";
 import Customer from "@/shared/models/Customer";
+import mongoose from "mongoose";
+import Branch from "@/shared/models/Branch";
+import User from "@/shared/models/User";
 
 export const dynamic = "force-dynamic";
 
@@ -40,12 +43,34 @@ export async function GET(req, { params }) {
         // Use $in to search across all possible variations
         const customer = await Customer.findOne({
             phone: { $in: variations }
+        }).populate({
+            path: 'createdBy',
+            select: 'name role department branch'
         }).lean();
 
         if (!customer) {
            console.warn(`Customer not found for phone variations: ${variations.join(", ")}`);
             return NextResponse.json({ error: "Customer not found" }, { status: 404 });
         }
+
+        let creatorInfo = null;
+        if (customer.createdBy) {
+            const branchVal = customer.createdBy.branch?.toString() || "";
+            let branchName = customer.createdBy.branch || "";
+            if (mongoose.Types.ObjectId.isValid(branchVal)) {
+                const branchObj = await Branch.findById(branchVal).lean();
+                if (branchObj) {
+                    branchName = branchObj.name;
+                }
+            }
+            creatorInfo = {
+                name: customer.createdBy.name || "Unknown",
+                role: customer.createdBy.role || "",
+                department: customer.createdBy.department || "",
+                branchName: branchName || ""
+            };
+        }
+
         const formattedData = {
             phone: customer.phone,
             name: customer.name || "Unknown",
@@ -61,7 +86,8 @@ export async function GET(req, { params }) {
             
             date: customer.createdAt ? new Date(customer.createdAt).toISOString() : null,
             isClosed: customer.isClosed || false,
-            followUpStartDate: customer.followUpStartDate || null
+            followUpStartDate: customer.followUpStartDate || null,
+            creatorInfo
         };
 
         return NextResponse.json(formattedData, { status: 200 });

@@ -1,6 +1,9 @@
 import { aggregateLeads, findLeadByPhone } from "@/shared/repositories/leadRepository";
 import { findCustomerByPhone } from "@/shared/repositories/customerRepository";
 import { normalizePhone } from "@/shared/utils/phoneUtils";
+import mongoose from "mongoose";
+import Branch from "@/shared/models/Branch";
+import User from "@/shared/models/User";
 
 export const leadQueryService = {
   async getLeads(params) {
@@ -223,6 +226,24 @@ export const leadQueryService = {
     const history = lead?.leads || [];
     const latest = history.length > 0 ? history[history.length - 1] : null;
 
+    let creatorInfo = null;
+    if (customer?.createdBy) {
+      const branchVal = customer.createdBy.branch?.toString() || "";
+      let branchName = customer.createdBy.branch || "";
+      if (mongoose.Types.ObjectId.isValid(branchVal)) {
+        const branchObj = await Branch.findById(branchVal).lean();
+        if (branchObj) {
+          branchName = branchObj.name;
+        }
+      }
+      creatorInfo = {
+        name: customer.createdBy.name || "Unknown",
+        role: customer.createdBy.role || "",
+        department: customer.createdBy.department || "",
+        branchName: branchName || ""
+      };
+    }
+
     return {
       name: lead?.name || customer?.name || "",
       city: lead?.city || customer?.city || "",
@@ -234,13 +255,14 @@ export const leadQueryService = {
       status: latest?.status || "",
       priority: latest?.priority || "Medium",
       remarks: latest?.overAllRemarks || "",
-      day1Remarks: latest?.day1Remarks || "",
-      day2Remarks: latest?.day2Remarks || "",
-      day3Remarks: latest?.day3Remarks || "",
+      day1Remarks: latest?.day1Remarks ?? "",
+      day2Remarks: latest?.day2Remarks ?? "",
+      day3Remarks: latest?.day3Remarks ?? "",
       saleAmount: latest?.saleAmount || "0",
       leadType: latest?.leadType || "Direct Lead",
       history: history,
-      latestFollowUp: latest || {}
+      latestFollowUp: latest || {},
+      creatorInfo
     };
   }
 };

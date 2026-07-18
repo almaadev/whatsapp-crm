@@ -55,8 +55,10 @@ export async function POST(req, { params }) {
 
         // 👇 2. Upsert into Main Customer Collection without conflicts
         const customerUpdate = {};
-        const customerInsert = {}; 
-
+        const customerInsert = {};
+        if (session?.user?.id) {
+            customerInsert.createdBy = session.user.id;
+        }
         if (updateData.name) {
             customerUpdate.name = updateData.name;
         } else {
