@@ -50,7 +50,8 @@ export async function GET(req) {
 
     const query = {
       role: "doctor",
-      department: { $regex: "^(telecalling|support)$", $options: "i" },
+      department: { $regex: `^(telecalling|support|${session.user.role === "superAdmin" ? "admin" : ""})$`, $options: "i" },
+
     };
 
     if (session.user.role === "superAdmin") {

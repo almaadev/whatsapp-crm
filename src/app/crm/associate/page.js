@@ -264,7 +264,10 @@ export default function AssociateDashboard() {
 
     const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     const years = [2024, 2025, 2026, 2027];
+    // Compute last month as 1-12 (handles January -> December)
+    const lastMonth = (() => { const m = new Date().getMonth(); return m === 0 ? 12 : m; })();
     const isThisMonth = selectedMonth === new Date().getMonth() + 1 && selectedYear === new Date().getFullYear();
+    const isLastMonth = selectedMonth === lastMonth && selectedYear === new Date().getFullYear();
 
     // Prevent rendering dashboard flash before redirect finishes
     if (!isAuthorized || status === "loading") {
@@ -295,7 +298,7 @@ export default function AssociateDashboard() {
 
                     <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0 pb-0.5 sm:pb-0">
                         <div className="flex items-center gap-2 sm:gap-3 bg-slate-50 p-1.5 rounded-xl border border-slate-200 w-max sm:w-auto min-w-0">
-                            <button onClick={() => setQuickFilter("lastMonth")} className="px-3 py-2 text-xs font-bold text-slate-600 hover:bg-white rounded-lg transition-all whitespace-nowrap min-h-[36px]">Last Month</button>
+                            <button onClick={() => setQuickFilter("lastMonth")} className={`px-3 py-2 text-xs font-bold text-slate-600 hover:bg-white rounded-lg transition-all whitespace-nowrap min-h-[36px] ${isLastMonth ? "bg-white text-[#00a884] shadow-sm" : "text-slate-600 hover:bg-white"}`}>Last Month</button>
                             <button onClick={() => setQuickFilter("thisMonth")} className={`px-3 py-2 text-xs font-bold rounded-lg transition-all whitespace-nowrap min-h-[36px] ${isThisMonth ? "bg-white text-[#00a884] shadow-sm" : "text-slate-600 hover:bg-white"}`}>This Month</button>
                             <div className="w-px h-4 bg-slate-300 mx-0.5 shrink-0" />
                             <div className="flex items-center gap-1.5 sm:gap-2 px-1 sm:px-2">

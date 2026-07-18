@@ -249,7 +249,7 @@ export default function LeadDetailsPage({ params }) {
             </div>
           </div>
           <button onClick={handleOpenChat} className="flex items-center justify-center gap-2 bg-[#00a884] text-white px-5 py-2.5 rounded-xl text-[13px] font-bold shadow-md shadow-emerald-500/20 hover:bg-emerald-600 transition-all">
-            <MessageSquare size={16} /> <span className="hidden sm:inline">Open CRM Chat</span>
+            <MessageSquare size={16} /> <span className="hidden sm:inline">Open Chat</span>
           </button>
         </header>
 
