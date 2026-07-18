@@ -187,7 +187,7 @@ export default function TemplateManagerPanel({ open, onClose, onSelect, selected
             />
             
             {/* Drawer Panel */}
-            <div className={`fixed top-0 right-0 h-[100dvh] w-full md:w-[600px] bg-slate-50 border-l border-slate-200 shadow-2xl z-[1000] flex flex-col transform transition-transform duration-300 ease-out ${open ? "translate-x-0" : "translate-x-full"}`}>
+            <div className={`fixed top-0 left-0 h-[100dvh] w-full md:w-[600px] bg-slate-50 border-l border-slate-200 shadow-2xl z-[1000] flex flex-col transform transition-transform duration-300 ease-out ${open ? "translate-x-0" : "translate-x-full"}`}>
                 
                 {/* Header */}
                 <div className="p-5 border-b border-slate-200 bg-white flex flex-col gap-4 shrink-0 z-10">

@@ -168,6 +168,9 @@ function CategoryInboxContent({ slug }) {
             handleSendTemplate={handleSendTemplate}
             sending={sending}
             messagesEndRef={messagesEndRef}
+            onFocus={() => {
+              setTimeout(scrollToBottom, 150);
+            }}
           />
           {selectedChat && (
             <CustomerInfoPanel

@@ -62,23 +62,13 @@ function ChatPageContent() {
       }
       chatPanel={
         <div
-          className={`flex flex-col bg-[var(--chat-wallpaper)] h-full transition-all ${
+          className={`flex flex-col bg-white h-full transition-all ${
             selectedChat
-              ? "fixed inset-0 z-50 md:static md:z-auto flex w-full"
+              ? "fixed inset-0 z-50 md:static md:z-auto flex-1 min-w-0"
               : "hidden md:flex flex-1"
           }`}
         >
-          <div
-            className="absolute inset-0 opacity-50 pointer-events-none z-0"
-            style={{
-              backgroundImage:
-                "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')",
-              backgroundSize: "500px",
-            }}
-          />
-          <div className="relative z-10 h-full flex flex-col">
-            <ChatArea />
-          </div>
+          <ChatArea />
         </div>
       }
     />

@@ -34,6 +34,7 @@ export default function ChatViewPanel({
   handleSendTemplate,
   sending,
   messagesEndRef,
+  onFocus,
 }) {
   const { Icon, borderAccent, accentText, emptyTitle } = config;
   const selectedChat = useStore((s) => s.selectedChat);
@@ -45,22 +46,12 @@ export default function ChatViewPanel({
 
   return (
     <div
-      className={`flex flex-col bg-[var(--chat-wallpaper)] h-full transition-all ${
+      className={`flex flex-col bg-white h-full transition-all relative ${
         selectedChat
-          ? "fixed inset-0 z-50 md:static md:z-auto flex w-full"
+          ? "fixed inset-0 z-50 md:static md:z-auto flex-1 min-w-0"
           : "hidden md:flex flex-1"
       }`}
     >
-      <div
-        className="absolute inset-0 opacity-[0.03] pointer-events-none z-0"
-        style={{
-          backgroundImage:
-            "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')",
-          backgroundSize: "400px",
-        }}
-      />
-
-      <div className="relative z-10 h-full flex flex-col">
         {selectedChat ? (
           <>
             <ChatHeader
@@ -71,7 +62,7 @@ export default function ChatViewPanel({
               onToggle={handleToggleChatStatus}
               onStatusChange={handleStatusChange}
               onBack={() => setSelectedChat(null)}
-              onInfo={() => setIsInfoOpen(true)}
+              onInfo={() => setIsInfoOpen(prev => !prev)}
               onReminder={() => {}}
               onForward={() => {}}
               themeGradient={config.themeGradient}
@@ -100,6 +91,7 @@ export default function ChatViewPanel({
               onSendTemplate={handleSendTemplate}
               sending={sending}
               disabled={isLockedByOther}
+              onFocus={onFocus}
             />
           </>
         ) : (
@@ -120,7 +112,6 @@ export default function ChatViewPanel({
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 }

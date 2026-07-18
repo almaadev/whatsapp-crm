@@ -1,6 +1,6 @@
 "use client";
 import api from "@/shared/lib/axios";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useChatStore } from "@/features/chat/stores/chatStore";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { useSession } from "next-auth/react";
@@ -21,6 +21,19 @@ import {
 import { chatRepository } from "@/shared/api/repositories/chatRepository";
 import { customerRepository } from "@/shared/api/repositories/customerRepository";
 
+const getAvatarGradient = (name) => {
+  const char = name ? name.charCodeAt(0) : 65;
+  const gradients = [
+    "bg-gradient-to-tr from-blue-400 to-indigo-500",
+    "bg-gradient-to-tr from-emerald-400 to-teal-500",
+    "bg-gradient-to-tr from-violet-400 to-purple-500",
+    "bg-gradient-to-tr from-rose-400 to-pink-500",
+    "bg-gradient-to-tr from-amber-400 to-orange-500",
+    "bg-gradient-to-tr from-sky-400 to-cyan-500",
+  ];
+  return gradients[char % gradients.length];
+};
+
 export default function ChatList({ role, loading }) {
   const messages = useChatStore((s) => s.messages);
 
@@ -40,6 +53,23 @@ export default function ChatList({ role, loading }) {
   // 👇 New Custom Modal States
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, phones: [] });
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const [activeFilter, setActiveFilter] = useState("All");
+  const [visibleCount, setVisibleCount] = useState(30);
+  const listContainerRef = useRef(null);
+
+  useEffect(() => {
+    const el = listContainerRef.current;
+    if (!el) return;
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = el;
+      if (scrollHeight - scrollTop - clientHeight < 100) {
+        setVisibleCount((prev) => prev + 20);
+      }
+    };
+    el.addEventListener("scroll", handleScroll);
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, []);
 
   useEffect(() => {
     if (searchTerm.length > 0 && !allCustomers) {
@@ -221,7 +251,21 @@ export default function ChatList({ role, loading }) {
       const term = searchTerm.toLowerCase();
       const name = (chat.name || "").toLowerCase();
       const phone = (chat.phone || "").toLowerCase();
-      return name.includes(term) || phone.includes(term);
+      const matchesSearch = name.includes(term) || phone.includes(term);
+      if (!matchesSearch) return false;
+
+      // Filter by tab
+      const isClosed = chat.isChatClosed || chat.status === "Closed";
+      if (activeFilter === "Active") {
+        return !isClosed && chat.status !== "Closed";
+      }
+      if (activeFilter === "Closed") {
+        return isClosed;
+      }
+      if (activeFilter === "Follow Up") {
+        return chat.status === "Follow Up";
+      }
+      return true;
     });
 
     const sorted = filtered.sort((a, b) => {
@@ -231,11 +275,14 @@ export default function ChatList({ role, loading }) {
       );
     });
 
+    // Lazy load pagination slice
+    const sliced = sorted.slice(0, visibleCount);
+
     const groups = { today: [], yesterday: [], older: [] };
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    sorted.forEach((chat) => {
+    sliced.forEach((chat) => {
       const chatDateRaw = parseDate(chat.lastSeenAt || chat.timestamp);
       const chatDateOnly = new Date(
         chatDateRaw.getFullYear(),
@@ -251,7 +298,7 @@ export default function ChatList({ role, loading }) {
     });
 
     return groups;
-  }, [messages, searchTerm]);
+  }, [messages, searchTerm, activeFilter, visibleCount]);
 
   const filteredCustomers = useMemo(() => {
     if (!searchTerm || !allCustomers) return [];
@@ -276,202 +323,211 @@ export default function ChatList({ role, loading }) {
     if (chats.length === 0) return null;
 
     return (
-      <div className="mb-2">
-        <div className="sticky top-0 bg-white/95 backdrop-blur-sm px-5 py-2 z-10 border-b border-slate-50">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+      <div className="mb-4">
+        <div className="sticky top-0 bg-white/95 backdrop-blur-sm px-5 py-2.5 z-10 border-b border-slate-100 flex items-center justify-between">
+          <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">
             {title}
           </span>
+          <span className="bg-slate-100 text-slate-500 font-bold px-2 py-0.5 rounded-full text-[9px]">
+            {chats.length}
+          </span>
         </div>
-        {chats.map((chat, index) => {
-          const isSelected = selectedChat?.phone === chat.phone;
-          const isUnread =
-            !isSelected &&
-            chat.direction === "INBOUND" &&
-            chat.read === "FALSE";
-          const handler = activeHandlers[chat.phone];
-          const isBeingHandledByOther =
-            handler &&
-            handler.userId !== (session?.user?.id || session?.user?.email) &&
-            (!handler.lockedUntil || handler.lockedUntil > Date.now());
+        <div className="space-y-1.5 pt-2">
+          {chats.map((chat, index) => {
+            const isSelected = selectedChat?.phone === chat.phone;
+            const isUnread =
+              !isSelected &&
+              chat.direction === "INBOUND" &&
+              chat.read === "FALSE";
+            const handler = activeHandlers[chat.phone];
+            const isBeingHandledByOther =
+              handler &&
+              handler.userId !== (session?.user?.id || session?.user?.email) &&
+              (!handler.lockedUntil || handler.lockedUntil > Date.now());
 
-          const cleanPhone = chat.phone
-            ? chat.phone.replace("whatsapp:", "")
-            : "";
-          const displayName = chat.name || cleanPhone;
-          const dateObj = parseDate(chat.lastSeenAt || chat.timestamp);
+            const cleanPhone = chat.phone
+              ? chat.phone.replace("whatsapp:", "")
+              : "";
+            const displayName = chat.name || cleanPhone;
+            const dateObj = parseDate(chat.lastSeenAt || chat.timestamp);
 
-          const baseStyle = isSelected
-            ? "bg-slate-50 border-l-emerald-500"
-            : getPriorityStyles(chat.priority, isUnread);
+            const isClosed = chat.isChatClosed || chat.status === "Closed";
 
-          return (
-            <div
-              key={index}
-              onClick={(e) => {
-                if (isSelectionMode) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const newSet = new Set(selectedPhones);
-                  if (newSet.has(chat.phone)) newSet.delete(chat.phone);
-                  else newSet.add(chat.phone);
-                  setSelectedPhones(newSet);
-                } else {
-                  handleChatClick(chat);
-                }
-              }}
-              onMouseLeave={() => setActiveChatMenu(null)}
-              className={`
-                            relative flex items-start gap-3 px-5 py-3 cursor-pointer border-b border-slate-50 transition-all duration-200 group border-l-4
-                            ${baseStyle}
-                        `}
-            >
-              {isSelectionMode && (
-                <div className="flex items-center self-center shrink-0 mr-1">
-                  <input
-                    type="checkbox"
-                    checked={selectedPhones.has(chat.phone)}
-                    readOnly
-                    className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                  />
-                </div>
-              )}
-
-              <div className="relative shrink-0">
-                <div
-                  className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm transition-transform group-hover:scale-105
-                                ${isUnread ? "bg-emerald-500 shadow-emerald-200" : "bg-slate-200 text-slate-500"}
-                            `}
-                >
-                  {chat.name && chat.name !== "Unknown"
-                    ? chat.name.charAt(0).toUpperCase()
-                    : "#"}
-                </div>
-                {isUnread && (
-                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 border-2 border-white rounded-full animate-pulse"></span>
-                )}
-              </div>
-
-              <div className="flex-1 min-w-0 pt-0.5">
-                <div className="flex justify-between items-baseline mb-1">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span
-                      className={`truncate text-sm ${isUnread ? "font-bold text-slate-900" : "font-semibold text-slate-700"}`}
-                    >
-                      {displayName}
-                    </span>
-
-                    {chat.priority &&
-                      chat.priority.toLowerCase() === "high" && (
-                        <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-red-100 text-red-700 border border-red-200">
-                          <AlertCircle size={8} className="stroke-[3]" /> High
-                        </span>
-                      )}
-                    {chat.priority &&
-                      chat.priority.toLowerCase() === "medium" && (
-                        <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 border border-amber-200">
-                          Medium
-                        </span>
-                      )}
-                  </div>
-
-                  <span
-                    className={`text-[10px] shrink-0 ml-2 ${isUnread ? "text-emerald-600 font-bold" : "text-slate-400"}`}
-                  >
-                    {formatTimeDisplay(dateObj)}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center pr-3">
-                  <p
-                    className={`text-xs truncate pr-3 max-w-[180px] ${isUnread ? "text-slate-900 font-bold" : "text-slate-500"}`}
-                  >
-                    {chat.direction === "OUTBOUND" && (
-                      <span className="text-emerald-600 mr-1">You:</span>
-                    )}
-                    {chat.message}
-                  </p>
-
-                  {chat.categoryLabel && (
-                    <span className="inline-block mt-1 bg-indigo-50 text-indigo-600 text-[9px] font-bold px-2 py-0.5 rounded border border-indigo-100">
-                      {chat.categoryLabel}
-                    </span>
-                  )}
-
-                  <div className="flex items-center gap-1 shrink-0">
-                    {chat.direction === "OUTBOUND" &&
-                      (() => {
-                        const msgStat = (
-                          chat.messageStatus || ""
-                        ).toUpperCase();
-                        if (msgStat === "SENDING")
-                          return <Clock size={14} className="text-slate-400" />;
-                        if (msgStat === "SENT")
-                          return <Check size={16} className="text-slate-400" />;
-                        if (msgStat === "DELIVERED")
-                          return (
-                            <CheckCheck size={16} className="text-slate-400" />
-                          );
-                        if (msgStat === "READ")
-                          return (
-                            <CheckCheck size={16} className="text-blue-500" />
-                          );
-                        if (msgStat === "FAILED")
-                          return (
-                            <AlertCircle size={14} className="text-red-500" />
-                          );
-                        return null;
-                      })()}
-                  </div>
-                </div>
-
-                {chat.lastHandled && (
-                  <div className="mt-1 flex items-center gap-1 select-none leading-none">
-                    <span className="text-slate-400 text-[10px] font-semibold">Last Handled:</span>
-                    <span className="text-slate-600 bg-slate-150 border border-slate-200/60 px-1.5 py-0.5 rounded-md text-[9px] font-bold">{chat.lastHandled.name}</span>
-                    <span className="text-slate-400 font-bold capitalize text-[9px]">({chat.lastHandled.role})</span>
+            return (
+              <div
+                key={index}
+                onClick={(e) => {
+                  if (isSelectionMode) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const newSet = new Set(selectedPhones);
+                    if (newSet.has(chat.phone)) newSet.delete(chat.phone);
+                    else newSet.add(chat.phone);
+                    setSelectedPhones(newSet);
+                  } else {
+                    handleChatClick(chat);
+                  }
+                }}
+                onMouseLeave={() => setActiveChatMenu(null)}
+                className={`
+                  relative flex items-start gap-3.5 mx-3.5 my-1 p-3.5 rounded-2xl cursor-pointer border transition-all duration-200 select-none group
+                  ${
+                    isSelected
+                      ? "bg-emerald-50/60 border-emerald-200/80 shadow-sm shadow-emerald-100/20"
+                      : "bg-white border-slate-100 hover:bg-slate-50/50 hover:border-slate-200/50 hover:shadow-sm"
+                  }
+                `}
+              >
+                {isSelectionMode && (
+                  <div className="flex items-center self-center shrink-0 mr-1.5">
+                    <input
+                      type="checkbox"
+                      checked={selectedPhones.has(chat.phone)}
+                      readOnly
+                      className="w-4 h-4 rounded border-slate-300 text-[#00a884] focus:ring-[#00a884] cursor-pointer"
+                    />
                   </div>
                 )}
-                {isBeingHandledByOther && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 mt-1 rounded text-[9px] font-bold tracking-wider bg-red-50 text-red-600 border border-red-100">
-                    <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
-                    {handler.name}
-                  </span>
-                )}
-              </div>
 
-              {!isSelectionMode && (
-                <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveChatMenu(
-                        activeChatMenu === chat.phone ? null : chat.phone,
-                      );
-                      setShowMainMenu(false);
-                    }}
-                    className="p-1.5 text-slate-400 hover:text-slate-700 bg-white shadow-sm border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                <div className="relative shrink-0">
+                  <div
+                    className={`w-11 h-11 rounded-full flex items-center justify-center text-white font-extrabold text-sm shadow-sm transition-transform group-hover:scale-105 uppercase tracking-wide
+                      ${isUnread ? "shadow-emerald-200" : ""}
+                      ${getAvatarGradient(displayName)}
+                    `}
                   >
-                    <ChevronDown size={16} />
-                  </button>
-                  {activeChatMenu === chat.phone && (
-                    <div className="absolute right-10 top-0 mt-1 w-32 bg-white border border-slate-100 rounded-xl shadow-lg z-50 py-1 overflow-hidden">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          triggerDelete([chat.phone]); // Trigger modal instead of deleting immediately
-                        }}
-                        disabled={isDeleting}
-                        className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
+                    {displayName.charAt(0)}
+                  </div>
+                  {/* Status Indicator Dot */}
+                  <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white shadow-sm flex items-center justify-center
+                    ${isClosed ? "bg-slate-300" : "bg-emerald-500"}
+                  `} title={isClosed ? "Closed" : "Active"} />
+                </div>
+
+                <div className="flex-1 min-w-0 pt-0.5">
+                  <div className="flex justify-between items-baseline mb-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className={`truncate text-sm ${isUnread ? "font-bold text-slate-900" : "font-semibold text-slate-700"}`}
                       >
-                        <Trash2 size={14} /> Delete
-                      </button>
+                        {displayName}
+                      </span>
+
+                      {chat.priority &&
+                        chat.priority.toLowerCase() === "high" && (
+                          <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wider bg-rose-50 text-rose-600 border border-rose-100">
+                            <AlertCircle size={8} className="stroke-[3]" /> High
+                          </span>
+                        )}
+                      {chat.priority &&
+                        chat.priority.toLowerCase() === "medium" && (
+                          <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wider bg-amber-50 text-amber-600 border border-amber-200">
+                            Medium
+                          </span>
+                        )}
+                    </div>
+
+                    <span
+                      className={`text-[10px] shrink-0 ml-2 ${isUnread ? "text-emerald-600 font-bold" : "text-slate-400"}`}
+                    >
+                      {formatTimeDisplay(dateObj)}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center pr-3">
+                    <p
+                      className={`text-xs truncate pr-3 max-w-[180px] ${isUnread ? "text-slate-900 font-bold" : "text-slate-500"}`}
+                    >
+                      {chat.direction === "OUTBOUND" && (
+                        <span className="text-[#00a884] font-semibold mr-1">You:</span>
+                      )}
+                      {chat.message}
+                    </p>
+
+                    {chat.categoryLabel && (
+                      <span className="inline-block bg-indigo-50 text-indigo-650 text-[9px] font-bold px-2 py-0.5 rounded-md border border-indigo-100">
+                        {chat.categoryLabel}
+                      </span>
+                    )}
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      {chat.direction === "OUTBOUND" &&
+                        (() => {
+                          const msgStat = (
+                            chat.messageStatus || ""
+                          ).toUpperCase();
+                          if (msgStat === "SENDING")
+                            return <Clock size={12} className="text-slate-400" />;
+                          if (msgStat === "SENT")
+                            return <Check size={14} className="text-slate-400" />;
+                          if (msgStat === "DELIVERED")
+                            return (
+                              <CheckCheck size={14} className="text-slate-400" />
+                            );
+                          if (msgStat === "READ")
+                            return (
+                              <CheckCheck size={14} className="text-blue-500" />
+                            );
+                          if (msgStat === "FAILED")
+                            return (
+                              <AlertCircle size={12} className="text-red-500" />
+                            );
+                          return null;
+                        })()}
+                    </div>
+                  </div>
+
+                  {/* Handles dynamically displayed creator / timeline details */}
+                  {chat.lastHandled && (
+                    <div className="mt-2 flex items-center gap-1 select-none leading-none">
+                      <span className="text-slate-400 text-[10px] font-medium">Last Handled:</span>
+                      <span className="text-slate-650 bg-slate-100 border border-slate-200/60 px-1.5 py-0.5 rounded-md text-[9px] font-bold">{chat.lastHandled.name}</span>
+                      <span className="text-slate-400 font-bold capitalize text-[9px]">({chat.lastHandled.role})</span>
                     </div>
                   )}
+
+                  {isBeingHandledByOther && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 mt-2 rounded text-[9px] font-bold tracking-wider bg-red-50 text-red-600 border border-red-100">
+                      <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
+                      {handler.name}
+                    </span>
+                  )}
                 </div>
-              )}
-            </div>
-          );
-        })}
+
+                {!isSelectionMode && (
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveChatMenu(
+                          activeChatMenu === chat.phone ? null : chat.phone,
+                        );
+                        setShowMainMenu(false);
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-slate-700 bg-white shadow-sm border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+                    {activeChatMenu === chat.phone && (
+                      <div className="absolute right-8 top-0 mt-1 w-32 bg-white border border-slate-100 rounded-xl shadow-lg z-50 py-1 overflow-hidden">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            triggerDelete([chat.phone]);
+                          }}
+                          disabled={isDeleting}
+                          className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors font-semibold"
+                        >
+                          <Trash2 size={13} /> Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   };
@@ -611,7 +667,30 @@ export default function ChatList({ role, loading }) {
         </div>
       </div>
 
-      <div className="overflow-y-auto flex-1 custom-scrollbar">
+      {/* Dynamic Tab Filter Pills */}
+      <div className="px-3 pb-3 flex gap-1.5 overflow-x-auto shrink-0 select-none no-scrollbar border-b border-slate-100">
+        {["All", "Active", "Follow Up", "Closed"].map((filter) => {
+          const isActive = activeFilter === filter;
+          return (
+            <button
+              key={filter}
+              onClick={() => {
+                setActiveFilter(filter);
+                setVisibleCount(30);
+              }}
+              className={`px-3 py-1.5 text-xs font-extrabold rounded-full border transition-all shrink-0 ${
+                isActive
+                  ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                  : "bg-slate-55 bg-white text-slate-500 border-slate-200 hover:bg-slate-100/80"
+              }`}
+            >
+              {filter}
+            </button>
+          );
+        })}
+      </div>
+
+      <div ref={listContainerRef} className="overflow-y-auto flex-1 custom-scrollbar">
         {searchTerm ? (
           <>
             {renderChatGroup("Recent Chats", [

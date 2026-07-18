@@ -328,12 +328,8 @@ export default function ChatArea({
   }
 
   return (
-    <div className="flex flex-col h-full w-full relative bg-[#e5ddd5]/30">
-      {/* Modals & Drawers */}
-      <CustomerInfoPanel
-        isOpen={isInfoOpen}
-        onClose={() => setIsInfoOpen(false)}
-      />
+    <div className="flex flex-row h-full w-full relative overflow-hidden bg-slate-50">
+      {/* Modals & Overlay Drawers */}
       <ForwardLeadModal
         isOpen={showForwardModal}
         onClose={() => setShowForwardModal(false)}
@@ -370,58 +366,70 @@ export default function ChatArea({
         />
       )}
 
-      <ChatHeader
-        activeChat={activeChat}
-        detailedCustomer={detailedCustomer}
-        userName={userName}
-        isChatClosed={isChatClosed}
-        isToggling={isToggling}
-        onToggle={handleToggleChatStatus}
-        onStatusChange={(st) => {
-          setActionNote("");
-          if (st === "Follow Up") setShowPriorityModal(true);
-          else if (st === "Closed") setShowClosingModal(true);
-          else submitStatusChange(st);
-        }}
-        onBack={() => setSelectedChat(null)}
-        onInfo={() => setIsInfoOpen(true)}
-        onReminder={() => setShowReminderModal(true)}
-        onForward={() => setShowForwardModal(true)}
-      />
+      {/* Main Messaging View Column */}
+      <div className="flex-1 flex flex-col h-full min-w-0 relative">
+        <ChatHeader
+          activeChat={activeChat}
+          detailedCustomer={detailedCustomer}
+          userName={userName}
+          isChatClosed={isChatClosed}
+          isToggling={isToggling}
+          onToggle={handleToggleChatStatus}
+          onStatusChange={(st) => {
+            setActionNote("");
+            if (st === "Follow Up") setShowPriorityModal(true);
+            else if (st === "Closed") setShowClosingModal(true);
+            else submitStatusChange(st);
+          }}
+          onBack={() => setSelectedChat(null)}
+          onInfo={() => setIsInfoOpen(!isInfoOpen)}
+          onReminder={() => setShowReminderModal(true)}
+          onForward={() => setShowForwardModal(true)}
+        />
 
-      <MessageList
-        messages={chronologicalTimeline}
-        activeChat={activeChat}
-        userName={userName}
-        scrollRef={scrollContainerRef}
-        onScroll={handleScroll}
-        onMediaClick={setSelectedMedia}
-        endRef={messagesEndRef}
-      />
+        <MessageList
+          messages={chronologicalTimeline}
+          activeChat={activeChat}
+          userName={userName}
+          scrollRef={scrollContainerRef}
+          onScroll={handleScroll}
+          onMediaClick={setSelectedMedia}
+          endRef={messagesEndRef}
+        />
 
-      {showScrollButton && (
-        <button
-          onClick={scrollToBottom}
-          className="fixed bottom-24 right-5 bg-slate-700 text-white p-2 rounded-full shadow-lg z-30"
-        >
-          <ArrowDown size={20} />
-        </button>
-      )}
+        {showScrollButton && (
+          <button
+            onClick={scrollToBottom}
+            className="fixed bottom-24 right-5 bg-slate-700 text-white p-2 rounded-full shadow-lg z-30 animate-bounce"
+          >
+            <ArrowDown size={20} />
+          </button>
+        )}
 
-      {isLockedByOther && (
-        <div className="absolute inset-0 top-[65px] z-40 bg-white/30 backdrop-blur-[3px] flex flex-col items-center justify-center">
+        {isLockedByOther && (
+          <div className="absolute inset-0 top-[65px] z-40 bg-white/30 backdrop-blur-[3px] flex flex-col items-center justify-center">
              <div className="bg-red-50 text-red-700 px-6 py-4 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-red-100 flex items-center gap-3">
                 <Lock size={20} className="text-red-500" />
                 <span className="font-semibold text-sm">This conversation is locked by {handler.name}</span>
              </div>
-        </div>
-      )}
+          </div>
+        )}
 
-      <ChatInput
-        onSendMessage={handleSend}
-        onSendTemplate={handleSendTemplate}
-        sending={sending}
-        disabled={isLockedByOther}
+        <ChatInput
+          onSendMessage={handleSend}
+          onSendTemplate={handleSendTemplate}
+          sending={sending}
+          disabled={isLockedByOther}
+          onFocus={() => {
+            setTimeout(scrollToBottom, 150);
+          }}
+        />
+      </div>
+
+      {/* Customer Info Panel (Persistent Right Sidebar Column) */}
+      <CustomerInfoPanel
+        isOpen={isInfoOpen}
+        onClose={() => setIsInfoOpen(false)}
       />
     </div>
   );

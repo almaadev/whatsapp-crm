@@ -2,6 +2,7 @@ import api from "@/shared/lib/axios";
 
 export const templateRepository = {
   getTemplates: (options = {}) => api.get("/api/admin/templates", options),
+  getGeneralTemplates: (options = {}) => api.get("/api/templates", options),
   getTemplateById: (id, options = {}) => api.get(`/api/admin/templates/${id}`, options),
   syncTwilioTemplates: (options = {}) => api.get("/api/admin/twilio", options),
   syncTwilioRate: (payload, options = {}) => api.post("/api/admin/twilio", payload, options),

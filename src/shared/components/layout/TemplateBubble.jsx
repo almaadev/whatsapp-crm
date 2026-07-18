@@ -17,7 +17,7 @@ function useDebounce(value, delay) {
 export const TemplateBubble = memo(function TemplateBubble({
   onSelect,
   onClose,
-  positionClasses = "absolute bottom-[70px] right-4", // Allow passing custom positioning
+  positionClasses = "absolute bottom-[70px] left-4", // Allow passing custom positioning
 }) {
   const { templates, loading, fetchTemplates } = useTemplateStore();
   const [search, setSearch] = useState("");

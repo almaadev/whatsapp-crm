@@ -10,9 +10,9 @@ export const useTemplateStore = create((set, get) => ({
     if (get().fetched) return;
     set({ loading: true });
     try {
-      const { data: json } = await templateRepository.getTemplates();
+      const { data: json } = await templateRepository.getGeneralTemplates();
       if (json.success) {
-        set({ templates: json.templates || [], fetched: true });
+        set({ templates: json.data || [], fetched: true });
       }
     } catch (error) {
       console.error("Failed to fetch templates:", error);

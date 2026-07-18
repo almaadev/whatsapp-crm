@@ -5,14 +5,12 @@ import { useChatStore } from "@/features/chat/stores/chatStore";
 import {
   X, User, MapPin, Globe, HelpCircle, DollarSign, FileText,
   Save, History, Tag, ChevronDown, ChevronUp, Clock, BadgeCheck,
-  AlertCircle, RefreshCw, Filter, Lock
+  AlertCircle, RefreshCw, Filter, Lock, Paperclip, Share2, ToggleRight
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { toast } from "react-toastify";
-import { customerRepository } from "@/shared/api/repositories/customerRepository";
 
-//  STATUS CONFIG  (colour + icon per status value)
 const STATUS_CONFIG = {
   "New":            { color: "blue",    icon: <AlertCircle  size={11} /> },
   "Follow Up":      { color: "amber",   icon: <Clock        size={11} /> },
@@ -36,7 +34,6 @@ const STATUS_BADGE = ({ status }) => {
   );
 };
 
-//  EMPTY FORM STATE
 const EMPTY_FORM = {
   name: "", city: "", address: "",
   source: "Whatsapp", enquiredFor: "", status: "New",
@@ -45,7 +42,6 @@ const EMPTY_FORM = {
   leadType: "Direct Lead", adType: "",
 };
 
-//  COMPONENT
 export default function CustomerInfoPanel({
   isOpen, onClose, activeChat = null,
 }) {
@@ -62,28 +58,19 @@ export default function CustomerInfoPanel({
   const [loading,        setLoading]       = useState(false);
   const [leadData,       setLeadData]      = useState(null); 
   const [followUps,      setFollowUps]     = useState([]);   
-  const [showHistory,    setShowHistory]   = useState(false);
   const [formData,       setFormData]      = useState(EMPTY_FORM);
   const [historyFilter,  setHistoryFilter] = useState("All"); 
+  const [activeTab,      setActiveTab]     = useState("details"); // tabs: details, timeline, remarks, attachments
 
-  //   Derived Values (Memoized for Performance) 
-  const latestFollowUp = useMemo(() => {
-    return followUps.length > 0 ? followUps[followUps.length - 1] : null;
-  }, [followUps]);
-
+  // Derived Values
   const uniqueAssociates = useMemo(() => {
     return [...new Set(followUps.map(f => f.associateName).filter(Boolean))];
   }, [followUps]);
 
-  //   THE FIX: Filter History & Cycle Counts
   const { filteredHistory, closedCycleCount } = useMemo(() => {
-    // 1. Remove 'New' and 'Not Interested' to clean up the timeline
     let validHistory = followUps.filter(f => f.status !== "New" && f.status !== "Not Interested");
-    
-    // 2. Count ONLY 'Closed' statuses for the cycle badge metric
     const closedCount = followUps.filter(f => f.status === "Closed").length;
 
-    // 3. Apply the Associate dropdown filter if selected
     if (historyFilter !== "All") {
         validHistory = validHistory.filter(f => f.associateName === historyFilter);
     }
@@ -91,7 +78,13 @@ export default function CustomerInfoPanel({
     return { filteredHistory: validHistory, closedCycleCount: closedCount };
   }, [followUps, historyFilter]);
 
-  //   Fetch lead data directly from Unified API 
+  // Extract shared media attachments in conversation history
+  const mediaAttachments = useMemo(() => {
+    const chatHistory = selectedChat?.history || globalSelectedChat?.history || [];
+    return chatHistory.filter((msg) => msg.mediaUrl);
+  }, [selectedChat?.history, globalSelectedChat?.history]);
+
+  // Fetch lead data directly from Unified API 
   useEffect(() => {
     const phoneToFetch = activeChat?.phone || selectedChat?.phone;
     
@@ -131,7 +124,7 @@ export default function CustomerInfoPanel({
     }
   }, [isOpen, activeChat, selectedChat]);
    
-  //   Form handlers 
+  // Form handlers 
   const handleChange = (e) =>
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
@@ -199,266 +192,293 @@ export default function CustomerInfoPanel({
     }
   };
 
-  const showDayWiseRemarks = 
-    formData.status === "Follow Up" ||
-    formData.day1Remarks ||
-    formData.day2Remarks ||
-    formData.day3Remarks;
+  const getTimelineIcon = (action) => {
+    switch (action) {
+      case "Started": return <Clock size={12} className="text-emerald-500" />;
+      case "Closed": return <BadgeCheck size={12} className="text-rose-500" />;
+      case "Reopened": return <ToggleRight size={12} className="text-blue-500" />;
+      case "Assigned": return <User size={12} className="text-indigo-500" />;
+      case "Transferred": return <Share2 size={12} className="text-amber-500" />;
+      default: return <History size={12} className="text-slate-500" />;
+    }
+  };
 
   return (
     <div className={`
-      absolute inset-y-0 right-0 w-[420px] bg-white shadow-2xl transform transition-transform
-      duration-300 ease-in-out z-[60] border-l border-slate-200 flex flex-col
-      ${isOpen ? "translate-x-0" : "translate-x-full"}
+      absolute lg:static inset-y-0 right-0 h-full bg-white border-l border-slate-200 flex flex-col
+      transition-all duration-300 shrink-0 z-50 shadow-2xl lg:shadow-none select-none
+      ${isOpen ? "w-[100vw] sm:w-[400px] translate-x-0 opacity-100" : "w-0 translate-x-full opacity-0 overflow-hidden border-l-0 lg:w-0 lg:translate-x-0"}
     `}>
-      {/* 🚀 FIX: Ensure Header shows completely with a visible Close Button */}
+      {/* Sidebar Header */}
       <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100 shrink-0 bg-white">
-        <h2 className="font-bold text-slate-800 text-lg">Customer Details</h2>
-        <button onClick={onClose} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 rounded-lg transition-colors">
-          <X size={16} /> Close
+        <h2 className="font-bold text-slate-800 text-lg">Lead Center</h2>
+        <button onClick={onClose} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-650 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 rounded-lg transition-colors border border-transparent">
+          <X size={16} /> Hide
         </button>
       </div>
 
-      {/*   Scrollable body   */}
-      <div className="flex-1 p-6 overflow-y-auto space-y-5 custom-scrollbar bg-slate-50/50">
-        {/* Avatar + name */}
-        <div className="flex flex-col items-center relative">
-          <div className="w-20 h-20 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-full flex items-center justify-center text-3xl font-bold text-emerald-700 shadow-sm border-4 border-white">
-            {formData.name ? formData.name.charAt(0).toUpperCase() : "#"}
-          </div>
-          <p className="text-slate-900 font-bold text-lg mt-3">
-            {formData.name || selectedChat?.phone}
-          </p>
-          
-          {closedCycleCount > 0 && (
-            <span className="mt-1 flex items-center gap-1 text-xs font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
-              <History size={12} />
-              {closedCycleCount} Closed {closedCycleCount === 1 ? "Cycle" : "Cycles"}
-            </span>
-          )}
+      {/* Tabs Row */}
+      <div className="flex border-b border-slate-250 border-slate-200 shrink-0 bg-white sticky top-0 z-20">
+        {["details", "timeline", "remarks", "attachments"].map((tab) => {
+          const active = activeTab === tab;
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex-1 text-center py-3 text-[10px] font-black uppercase tracking-widest transition-all border-b-2
+                ${active
+                  ? "text-[#00a884] border-[#00a884] bg-emerald-50/10 font-bold"
+                  : "text-slate-400 border-transparent hover:text-slate-650"
+                }
+              `}
+            >
+              {tab}
+            </button>
+          );
+        })}
+      </div>
 
-          {/* Explicit Lead Closure Attribution */}
-          {leadData?.isClosed && (
-            <div className="mt-4 w-full bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3 text-center">
-              <span className="text-[13px] font-bold text-emerald-800 flex items-center justify-center gap-1.5 mb-1">
-                <BadgeCheck size={16} className="text-emerald-500" /> Lead Closed
-              </span>
-              {leadData.closedBy && (
-                <p className="text-[11px] text-emerald-600 font-medium">
-                  by <span className="font-bold">{leadData.closedBy}</span> on {new Date(leadData.closedAt).toLocaleDateString("en-IN", { day: 'numeric', month: 'short', year: 'numeric' })}
-                </p>
+      {/* Scrollable Body */}
+      <div className="flex-1 p-6 overflow-y-auto space-y-5 custom-scrollbar bg-slate-50/40">
+        
+        {/* DETAILS TAB */}
+        {activeTab === "details" && (
+          <div className="space-y-5">
+            {/* Avatar + name */}
+            <div className="flex flex-col items-center pb-2">
+              <div className="w-16 h-16 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-full flex items-center justify-center text-2xl font-bold text-emerald-700 shadow-sm border-4 border-white">
+                {formData.name ? formData.name.charAt(0).toUpperCase() : "#"}
+              </div>
+              <p className="text-slate-900 font-bold text-base mt-2.5">
+                {formData.name || selectedChat?.phone}
+              </p>
+              
+              {closedCycleCount > 0 && (
+                <span className="mt-1.5 flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200/55">
+                  <History size={10} />
+                  {closedCycleCount} Closed {closedCycleCount === 1 ? "Cycle" : "Cycles"}
+                </span>
               )}
             </div>
-          )}
-        </div>
 
-        {/* Customer Owner Info (Read-Only) */}
-        {leadData?.creatorInfo && (
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-3">
-            <h3 className="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5 border-b border-slate-100 pb-2">
-              <User size={14} className="text-[#00a884]" /> Customer Owner
-            </h3>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
-              <div>
-                <p className="font-bold text-slate-400 uppercase">Associate</p>
-                <p className="font-semibold text-slate-700 mt-0.5">{leadData.creatorInfo.name}</p>
-              </div>
-              <div>
-                <p className="font-bold text-slate-400 uppercase">Role</p>
-                <p className="font-semibold text-slate-700 mt-0.5 capitalize">{leadData.creatorInfo.role}</p>
-              </div>
-              <div>
-                <p className="font-bold text-slate-400 uppercase">Department</p>
-                <p className="font-semibold text-slate-700 mt-0.5 capitalize">{leadData.creatorInfo.department}</p>
-              </div>
-              <div>
-                <p className="font-bold text-slate-400 uppercase">Branch</p>
-                <p className="font-semibold text-slate-700 mt-0.5">{leadData.creatorInfo.branchName || "N/A"}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/*   Core fields card   */}
-        <div className="space-y-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-          <InputGroup label="Full Name" name="name" value={formData.name}
-            onChange={handleChange} icon={<User size={14} />} required />
-
-          <div className="grid grid-cols-2 gap-4">
-            <InputGroup label="City" name="city" value={formData.city}
-              onChange={handleChange} icon={<MapPin size={14} />} />
-            <InputGroup label="Address" name="address" value={formData.address}
-              onChange={handleChange} icon={<MapPin size={14} />} placeholder="Full address..." />
-          </div>
-
-          <SelectGroup label="Source" name="source" value={formData.source}
-            onChange={handleChange} icon={<Globe size={14} />}
-            options={["Whatsapp","Facebook","Instagram","Google","Referral","Direct","Manual Entry","Phone Call"]} />
-
-          <InputGroup label="Enquired For" name="enquiredFor" value={formData.enquiredFor}
-            onChange={handleChange} icon={<HelpCircle size={14} />} placeholder="e.g. Treatment" />
-
-          <SelectGroup label="Lead Type" name="leadType" value={formData.leadType}
-            onChange={handleChange} icon={<Tag size={14} />}
-            options={["Direct Lead","Product Lead","MD Camp","Therapy"]} />
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5">Status</label>
-              <select name="status" value={formData.status} onChange={handleChange}
-                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none bg-slate-50 text-sm font-medium text-slate-700 cursor-pointer">
-                {formData.status === "New" && <option value="New">New</option>}
-                <option value="Follow Up">Follow Up</option>
-                <option value="Closed">Closed</option>
-                <option value="Not Interested">Not Interested</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5">Priority</label>
-              <select name="priority" value={formData.priority} onChange={handleChange}
-                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none bg-slate-50 text-sm font-medium text-slate-700 cursor-pointer">
-                <option value="Low">Low</option>
-                <option value="Medium">Medium</option>
-                <option value="High">High</option>
-              </select>
-            </div>
-          </div>
-
-          <InputGroup label="Amount (₹)" name="saleAmount" value={formData.saleAmount}
-            onChange={handleChange} type="number" placeholder="0" icon={<DollarSign size={14} />} />
-
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5 flex items-center gap-1">
-              <FileText size={12} /> Overall Remarks
-            </label>
-            <textarea name="remarks" value={formData.remarks} onChange={handleChange}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none h-24 resize-none text-sm bg-slate-50 text-slate-700 placeholder:text-slate-400"
-              placeholder="Add general notes about the customer..." />
-          </div>
-        </div>
-
-        {/*   Day-wise follow-up   */}
-        {showDayWiseRemarks && (
-          <div className="space-y-4 bg-emerald-50/50 p-5 rounded-2xl shadow-sm border border-emerald-100 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <h3 className="text-sm font-bold text-emerald-800 border-b border-emerald-200/50 pb-2">
-              Current Enquiry Follow-up
-            </h3>
-            {["day1Remarks","day2Remarks","day3Remarks"].map((field, i) => (
-              <div key={field}>
-                <label className="block text-xs font-bold text-emerald-700 uppercase mb-1.5">
-                  Day {i + 1} Remarks
-                </label>
-                <textarea name={field} value={formData[field]} onChange={handleChange}
-                  className="w-full px-3 py-2.5 border border-emerald-200/60 rounded-xl focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none h-20 resize-none text-sm bg-white text-slate-700"
-                  placeholder={`Notes from Day ${i + 1}...`} />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {filteredHistory.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <button
-              onClick={() => setShowHistory((v) => !v)}
-              className="w-full flex items-center justify-between px-5 py-4 text-sm font-bold text-slate-700 hover:bg-slate-50 transition"
-            >
-              <span className="flex items-center gap-2">
-                <RefreshCw size={14} className="text-emerald-600" />
-                Activity Timeline ({filteredHistory.length})
-              </span>
-              {showHistory ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            </button>
-
-            {showHistory && (
-              <div className="px-5 pb-4">
-                
-                {/* Associate Filter */}
-                {uniqueAssociates.length > 1 && (
-                  <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
-                    <Filter size={12} className="text-slate-400" />
-                    <select 
-                      className="text-xs border-none bg-slate-50 text-slate-600 rounded-md px-2 py-1 outline-none cursor-pointer"
-                      value={historyFilter}
-                      onChange={(e) => setHistoryFilter(e.target.value)}
-                    >
-                      <option value="All">All Associates</option>
-                      {uniqueAssociates.map(name => <option key={name} value={name}>{name}</option>)}
-                    </select>
+            {/* Customer Owner Information Card */}
+            {leadData?.creatorInfo && (
+              <div className="bg-white p-4.5 p-4 rounded-xl shadow-sm border border-slate-150 border-slate-200/60 space-y-3">
+                <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                  <User size={13} className="text-[#00a884]" /> Creator Details
+                </h3>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs">
+                  <div>
+                    <p className="font-bold text-slate-400 text-[10px] uppercase">Associate</p>
+                    <p className="font-bold text-slate-700 mt-0.5">{leadData.creatorInfo.name}</p>
                   </div>
-                )}
-
-                <div className="divide-y divide-slate-100">
-                  {[...filteredHistory].reverse().map((fu, idx) => (
-                    <div key={fu._id || idx} className="py-4 space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-500">
-                           Entry {filteredHistory.length - idx}
-                        </span>
-                        <STATUS_BADGE status={fu.status} />
-                      </div>
-                      <div className="flex items-center justify-between mt-1">
-                        <p className="text-[11px] font-mono text-slate-400">
-                          {fu.date ? new Date(fu.date).toLocaleString("en-IN", {
-                            day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute:"2-digit"
-                          }) : "-"}
-                        </p>
-                        {fu.associateName && (
-                          <p className="text-[10px] bg-slate-50 border border-slate-200 px-2 py-0.5 rounded text-slate-600 font-medium">
-                            By: {fu.associateName}
-                          </p>
-                        )}
-                      </div>
-                      
-                      {fu.enquiredFor && (
-                        <p className="text-xs text-slate-700 mt-2">
-                          <span className="font-bold text-slate-500">Enquiry:</span> {fu.enquiredFor}
-                        </p>
-                      )}
-                      
-                      {fu.overAllRemarks && (
-                        <p className="text-xs text-slate-600 italic bg-slate-50 p-2 rounded-lg mt-1 border border-slate-100">
-                          "{fu.overAllRemarks}"
-                        </p>
-                      )}
-                      
-                      {fu.day1Remarks && <p className="text-xs text-slate-600 mt-1"><span className="font-semibold text-emerald-700">Day 1:</span> {fu.day1Remarks}</p>}
-                      {fu.day2Remarks && <p className="text-xs text-slate-600 mt-1"><span className="font-semibold text-emerald-700">Day 2:</span> {fu.day2Remarks}</p>}
-                      {fu.day3Remarks && <p className="text-xs text-slate-600 mt-1"><span className="font-semibold text-emerald-700">Day 3:</span> {fu.day3Remarks}</p>}
-                      
-                      {fu.saleAmount && fu.saleAmount !== "0" && (
-                        <p className="text-xs text-emerald-700 font-bold mt-1">₹ {fu.saleAmount}</p>
-                      )}
-                    </div>
-                  ))}
-                  {filteredHistory.length === 0 && (
-                    <p className="text-xs text-center text-slate-400 py-4">No activities found for this filter.</p>
-                  )}
+                  <div>
+                    <p className="font-bold text-slate-400 text-[10px] uppercase">Role</p>
+                    <p className="font-bold text-slate-700 mt-0.5 capitalize">{leadData.creatorInfo.role}</p>
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-400 text-[10px] uppercase">Department</p>
+                    <p className="font-bold text-slate-700 mt-0.5 capitalize">{leadData.creatorInfo.department}</p>
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-400 text-[10px] uppercase">Branch</p>
+                    <p className="font-bold text-slate-700 mt-0.5">{leadData.creatorInfo.branchName || "N/A"}</p>
+                  </div>
                 </div>
               </div>
             )}
+
+            {/* Form Fields Card */}
+            <div className="space-y-4 bg-white p-5 rounded-xl shadow-sm border border-slate-200/60">
+              <InputGroup label="Full Name" name="name" value={formData.name}
+                onChange={handleChange} icon={<User size={12} />} required />
+
+              <div className="grid grid-cols-2 gap-4">
+                <InputGroup label="City" name="city" value={formData.city}
+                  onChange={handleChange} icon={<MapPin size={12} />} />
+                <InputGroup label="Address" name="address" value={formData.address}
+                  onChange={handleChange} icon={<MapPin size={12} />} placeholder="Full address..." />
+              </div>
+
+              <SelectGroup label="Source" name="source" value={formData.source}
+                onChange={handleChange} icon={<Globe size={12} />}
+                options={["Whatsapp","Facebook","Instagram","Google","Referral","Direct","Manual Entry","Phone Call"]} />
+
+              <InputGroup label="Enquired For" name="enquiredFor" value={formData.enquiredFor}
+                onChange={handleChange} icon={<HelpCircle size={12} />} placeholder="e.g. Treatment" />
+
+              <SelectGroup label="Lead Type" name="leadType" value={formData.leadType}
+                onChange={handleChange} icon={<Tag size={12} />}
+                options={["Direct Lead","Product Lead","MD Camp","Therapy"]} />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">Status</label>
+                  <select name="status" value={formData.status} onChange={handleChange}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none bg-slate-50 text-sm font-semibold text-slate-700 cursor-pointer">
+                    {formData.status === "New" && <option value="New">New</option>}
+                    <option value="Follow Up">Follow Up</option>
+                    <option value="Closed">Closed</option>
+                    <option value="Not Interested">Not Interested</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">Priority</label>
+                  <select name="priority" value={formData.priority} onChange={handleChange}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none bg-slate-50 text-sm font-semibold text-slate-700 cursor-pointer">
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                  </select>
+                </div>
+              </div>
+
+              <InputGroup label="Amount (₹)" name="saleAmount" value={formData.saleAmount}
+                onChange={handleChange} type="number" placeholder="0" icon={<DollarSign size={12} />} />
+            </div>
           </div>
         )}
+
+        {/* TIMELINE TAB */}
+        {activeTab === "timeline" && (
+          <div className="space-y-4">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">Audit Activity Log</h3>
+            
+            {/* Interactive Timeline resolved from chatHistory */}
+            {leadData?.chatHistory && leadData.chatHistory.length > 0 ? (
+              <div className="relative pl-5 border-l border-slate-200 space-y-5 py-2">
+                {[...leadData.chatHistory].reverse().map((audit, idx) => (
+                  <div key={idx} className="relative">
+                    {/* Timeline bullet icon wrapper */}
+                    <span className="absolute -left-[27px] top-1 bg-white p-1 rounded-full border border-slate-200 shadow-sm shrink-0">
+                      {getTimelineIcon(audit.action)}
+                    </span>
+                    <div className="flex flex-col text-left">
+                      <span className="text-xs font-bold text-slate-800">
+                        Chat {audit.action}
+                      </span>
+                      <span className="text-[11px] text-slate-550 text-slate-500 mt-0.5">
+                        {audit.performedBy ? (
+                          <>
+                            by <strong>{audit.performedBy.name}</strong> <span className="text-slate-400 text-[10px]">({audit.performedBy.role})</span>
+                          </>
+                        ) : (
+                          "System Automation"
+                        )}
+                        {audit.targetUser && (
+                          <>
+                            {" "}to <strong>{audit.targetUser.name}</strong> <span className="text-slate-400 text-[10px]">({audit.targetUser.role})</span>
+                          </>
+                        )}
+                      </span>
+                      {audit.notes && (
+                        <span className="text-[10px] text-slate-400 italic mt-0.5">"{audit.notes}"</span>
+                      )}
+                      <span className="text-[9px] text-slate-400 font-bold font-mono uppercase tracking-tight mt-1">
+                        {new Date(audit.timestamp).toLocaleString("en-IN", {
+                          day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-slate-400 text-xs font-semibold">No timeline history items found.</div>
+            )}
+          </div>
+        )}
+
+        {/* REMARKS / NOTES TAB */}
+        {activeTab === "remarks" && (
+          <div className="space-y-4">
+            <div className="bg-white p-5 rounded-xl border border-slate-200/60 shadow-sm space-y-4">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 flex items-center gap-1">
+                  <FileText size={12} /> Overall Remarks
+                </label>
+                <textarea name="remarks" value={formData.remarks} onChange={handleChange}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none h-24 resize-none text-sm bg-slate-50 text-slate-700 placeholder:text-slate-400"
+                  placeholder="Add general notes about the customer..." />
+              </div>
+            </div>
+
+            <div className="space-y-4 bg-emerald-50/50 p-5 rounded-xl border border-emerald-100 shadow-sm">
+              <h3 className="text-xs font-black text-emerald-800 border-b border-emerald-200/50 pb-2 uppercase tracking-wide">
+                Current Enquiry Follow-up
+              </h3>
+              {["day1Remarks","day2Remarks","day3Remarks"].map((field, i) => (
+                <div key={field}>
+                  <label className="block text-[10px] font-black text-emerald-700 uppercase mb-1.5">
+                    Day {i + 1} Remarks
+                  </label>
+                  <textarea name={field} value={formData[field]} onChange={handleChange}
+                    className="w-full px-3 py-2 border border-emerald-200/60 rounded-xl focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none h-20 resize-none text-sm bg-white text-slate-700"
+                    placeholder={`Notes from Day ${i + 1}...`} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ATTACHMENTS TAB */}
+        {activeTab === "attachments" && (
+          <div className="space-y-3">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">Conversation Files</h3>
+            {mediaAttachments.length > 0 ? (
+              <div className="grid grid-cols-1 gap-2.5">
+                {mediaAttachments.map((msg, idx) => (
+                  <a
+                    key={idx}
+                    href={msg.mediaUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-3 p-3 bg-white border border-slate-250 border-slate-200/80 rounded-xl hover:bg-slate-50 transition-colors shadow-sm select-none"
+                  >
+                    <div className="p-2 bg-slate-55 bg-slate-100 text-slate-500 rounded-lg shrink-0 border border-slate-200/60">
+                      <Paperclip size={14} className="text-[#00a884]" />
+                    </div>
+                    <div className="flex-1 min-w-0 flex flex-col text-left">
+                      <span className="text-xs font-bold text-slate-700 truncate">
+                        {msg.mediaType?.includes("image") ? "Image Attachment" : msg.mediaType?.includes("video") ? "Video Attachment" : msg.mediaType?.includes("audio") ? "Voice Note" : "Document File"}
+                      </span>
+                      <span className="text-[9px] text-slate-400 font-bold font-mono uppercase tracking-tight mt-0.5">
+                        {new Date(msg.timestamp || msg.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-slate-400 text-xs font-semibold">No file attachments shared in this chat.</div>
+            )}
+          </div>
+        )}
+
       </div>
 
-      <div className="p-5 border-t border-slate-100 bg-white shrink-0">
-        <button
-          onClick={handleSave}
-          disabled={loading || isLockedByOther}
-          className={`w-full text-white py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 ${
-            loading || isLockedByOther ? "bg-slate-400 opacity-70 cursor-not-allowed shadow-none" : "bg-[#00a884] hover:bg-emerald-600 shadow-emerald-200/50"
-          }`}
-        >
-          {loading ? (
-            <span className="flex items-center gap-2">
-              <RefreshCw size={16} className="animate-spin" /> Syncing Database...
-            </span>
-          ) : isLockedByOther ? (
-            <><Lock size={18} /> Locked by {handler.name.split(' ')[0]}</>
-          ) : (
-            <><Save size={18} /> Sync Lead Data</>
-          )}
-        </button>
-      </div>
+      {/* Footer Sync Button (only visible when details/remarks are editable) */}
+      {(activeTab === "details" || activeTab === "remarks") && (
+        <div className="p-5 border-t border-slate-100 bg-white shrink-0">
+          <button
+            onClick={handleSave}
+            disabled={loading || isLockedByOther}
+            className={`w-full text-white py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 ${
+              loading || isLockedByOther ? "bg-slate-400 opacity-70 cursor-not-allowed shadow-none" : "bg-[#00a884] hover:bg-emerald-600 shadow-emerald-200/50"
+            }`}
+          >
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <RefreshCw size={16} className="animate-spin" /> Syncing Database...
+              </span>
+            ) : isLockedByOther ? (
+              <><Lock size={18} /> Locked by {handler.name.split(' ')[0]}</>
+            ) : (
+              <><Save size={18} /> Sync Lead Data</>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -466,13 +486,13 @@ export default function CustomerInfoPanel({
 function InputGroup({ label, name, value, onChange, type = "text", placeholder = "", icon, required }) {
   return (
     <div>
-      <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5 flex items-center gap-1">
-        {icon} {label} {required && <span className="text-red-500">*</span>}
+      <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 flex items-center gap-1 tracking-wider">
+        {icon} {label} {required && <span className="text-rose-500">*</span>}
       </label>
       <input
         type={type} name={name} value={value} onChange={onChange}
         placeholder={placeholder} required={required}
-        className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-sm text-slate-700 bg-slate-50 placeholder:text-slate-400 transition-all"
+        className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-sm text-slate-750 bg-slate-50 placeholder:text-slate-400 transition-all font-semibold"
       />
     </div>
   );
@@ -481,12 +501,12 @@ function InputGroup({ label, name, value, onChange, type = "text", placeholder =
 function SelectGroup({ label, name, value, onChange, icon, options }) {
   return (
     <div>
-      <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5 flex items-center gap-1">
+      <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 flex items-center gap-1 tracking-wider">
         {icon} {label}
       </label>
       <select
         name={name} value={value} onChange={onChange}
-        className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none bg-slate-50 text-sm text-slate-700 transition-all cursor-pointer"
+        className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none bg-slate-50 text-sm text-slate-750 font-semibold transition-all cursor-pointer"
       >
         {options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
