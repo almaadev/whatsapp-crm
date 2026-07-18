@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { chatService } from "@/features/chat/services/chatService";
 import { connectSocket, disconnectSocket } from "@/features/chat/services/socketService";
@@ -18,6 +19,7 @@ import { showChatNotification } from "@/shared/utils/notification";
  * @returns {Object} An object containing the `loading` state.
  */
 export function useChat(role) {
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(true);
 
   const setMessages = useChatStore((state) => state.setMessages);
@@ -55,6 +57,9 @@ export function useChat(role) {
   const handleIncomingMessage = useCallback(
     (newMessage) => {
       addMessage(newMessage);
+      try {
+        queryClient.invalidateQueries({ queryKey: ["chats"] });
+      } catch (qErr) {}
 
       if (newMessage.direction !== "INBOUND") {
         return;

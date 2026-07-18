@@ -39,7 +39,7 @@ export async function GET(req, { params }) {
       if (!phones.length) return NextResponse.json([]);
     }
 
-    const allMessages = await Model.find({ phone: { $in: phones } }).lean();
+    const allMessages = await Model.find({ phone: { $in: phones } }).populate({ path: "sendBy", select: "name" }).lean();
     allMessages.forEach((m) => {
       m.time = new Date(m.createdAt || m.timestamp || 0).getTime();
     });
@@ -142,6 +142,9 @@ export async function POST(req, { params }) {
       twilioSid,
       timestamp: new Date(),
       chatType,
+      senderName: session?.user?.name || "Associate",
+      role: session?.user?.role || "associate",
+      sendBy: session.user.id,
     });
 
     const messageRecord = await Message.create({
@@ -152,6 +155,9 @@ export async function POST(req, { params }) {
       twilioSid,
       timestamp: new Date(),
       chatType,
+      senderName: session?.user?.name || "Associate",
+      role: session?.user?.role || "associate",
+      sendBy: session.user.id,
     });
 
     await Customer.findOneAndUpdate(
@@ -179,6 +185,13 @@ export async function POST(req, { params }) {
         message,
         direction: "OUTBOUND",
         timestamp: saved.timestamp ?? saved.createdAt ?? new Date(),
+        sendBy: {
+          _id: session.user.id,
+          name: session.user.name,
+        },
+        twilioSid: twilioSid,
+        senderName: session?.user?.name || "Associate",
+        senderRole: session?.user?.role || "associate",
       };
       global.io.emit(socketEvent, emitPayload);
       global.io.emit("new_message", {

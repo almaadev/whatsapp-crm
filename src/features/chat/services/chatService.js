@@ -43,8 +43,11 @@ export const chatService = {
           uniqueConversations[msg.phone].status = msg.status;
           uniqueConversations[msg.phone].messageStatus = msg.messageStatus;
 
-          uniqueConversations[msg.phone].direction = msg.direction;
+           uniqueConversations[msg.phone].direction = msg.direction;
           uniqueConversations[msg.phone].read = msg.read;
+          uniqueConversations[msg.phone].senderName = msg.senderName;
+          uniqueConversations[msg.phone].senderRole = msg.senderRole;
+          uniqueConversations[msg.phone].sendBy = msg.sendBy;
 
           // 🚀 FIX: Prevent Priority and Closed state from being stripped during array grouping!
           uniqueConversations[msg.phone].priority = msg.priority;

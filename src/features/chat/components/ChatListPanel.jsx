@@ -1,18 +1,18 @@
 import React, { memo, useCallback } from "react";
 import { Search, User } from "lucide-react";
-import { formatSafeTime, getDisplayMessage } from "@/shared/utils/chatDisplay";
+import { formatSafeTime, getDisplayMessage, getChatMessagePreview } from "@/shared/utils/chatDisplay";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { useSession } from "next-auth/react";
 
 
 const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emptyFallback }) {
   if (!chat) return null;
-  const displayMsg = getDisplayMessage(chat, emptyFallback);
   const lastHistoryMsg = chat.history?.length > 0 ? chat.history[chat.history.length - 1] : null;
   const displayTime = chat.lastSeenAt || lastHistoryMsg?.createdAt || lastHistoryMsg?.timestamp || chat.createdAt;
 
   const activeHandlers = usePresenceStore((s) => s.activeHandlers);
   const { data: session } = useSession();
+  const displayMsg = getChatMessagePreview(chat, session?.user, emptyFallback);
   const handler = activeHandlers[chat.phone];
   const isBeingHandledByOther = handler && handler.userId !== (session?.user?.id || session?.user?.email) && (!handler.lockedUntil || handler.lockedUntil > Date.now());
 

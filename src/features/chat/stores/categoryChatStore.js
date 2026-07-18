@@ -139,58 +139,93 @@ function buildCategoryStore() {
 
     addMessage: (newMessage) => {
       set((state) => {
-        const displayText = newMessage.message || "📷 Media";
-        let chatExists = false;
-        const updatedMessages = state.messages.map((chat) => {
-          if (chat.phone === newMessage.phone) {
-            chatExists = true;
-            const updatedHistory = chat.history
-              ? [...chat.history, newMessage]
-              : [newMessage];
-            return {
-              ...chat,
-              message: displayText,
-              direction: newMessage.direction,
-              read: newMessage.direction === "INBOUND" ? "FALSE" : chat.read,
-              messageStatus: newMessage.status,
-              lastSeenAt: new Date().toISOString(),
-              history: updatedHistory,
-            };
-          }
-          return chat;
-        });
+        const hasDuplicateInHistory = (history) => {
+          if (!history) return false;
+          return history.some(
+            (existingMsg) =>
+              existingMsg.message === newMessage.message &&
+              existingMsg.direction === newMessage.direction &&
+              Math.abs(
+                new Date(existingMsg.timestamp || existingMsg.createdAt || 0).getTime() -
+                  new Date(newMessage.timestamp || newMessage.createdAt || 0).getTime()
+              ) < 15000
+          );
+        };
 
-        if (!chatExists) {
-          updatedMessages.unshift({
+        const displayText = newMessage.message || "📷 Media";
+        const existingChat = state.messages.find((chat) => chat.phone === newMessage.phone);
+        let updatedChat = null;
+
+        if (existingChat) {
+          if (hasDuplicateInHistory(existingChat.history)) {
+            return {};
+          }
+
+          const isCurrentActive = state.selectedChat?.phone === newMessage.phone;
+          const shouldIncrementUnread = newMessage.direction === "INBOUND" && !isCurrentActive;
+          const newUnreadCount = shouldIncrementUnread
+            ? (existingChat.unreadCount || 0) + 1
+            : (isCurrentActive ? 0 : (existingChat.unreadCount || 0));
+
+          const updatedHistory = existingChat.history
+            ? [...existingChat.history, newMessage]
+            : [newMessage];
+
+          updatedChat = {
+            ...existingChat,
+            message: displayText,
+            direction: newMessage.direction,
+            read: newMessage.direction === "INBOUND" ? "FALSE" : existingChat.read,
+            messageStatus: newMessage.status,
+            lastSeenAt: newMessage.timestamp || new Date().toISOString(),
+            timestamp: newMessage.timestamp || new Date().toISOString(),
+            history: updatedHistory,
+            sendBy: newMessage.sendBy || null,
+            unreadCount: newUnreadCount,
+          };
+        } else {
+          const isCurrentActive = state.selectedChat?.phone === newMessage.phone;
+          const shouldIncrementUnread = newMessage.direction === "INBOUND" && !isCurrentActive;
+
+          updatedChat = {
             phone: newMessage.phone,
             name: newMessage.name || newMessage.phone,
             message: displayText,
             direction: newMessage.direction,
+            city: newMessage.city,
             read: newMessage.direction === "INBOUND" ? "FALSE" : "TRUE",
             messageStatus: newMessage.status,
-            lastSeenAt: new Date().toISOString(),
+            lastSeenAt: newMessage.timestamp || new Date().toISOString(),
+            timestamp: newMessage.timestamp || new Date().toISOString(),
             status: "New",
             role: newMessage.role || "sales",
             history: [newMessage],
-          });
+            sendBy: newMessage.sendBy || null,
+            unreadCount: shouldIncrementUnread ? 1 : 0,
+          };
         }
+
+        const otherMessages = state.messages.filter((chat) => chat.phone !== newMessage.phone);
+        const updatedMessages = [updatedChat, ...otherMessages];
 
         let updatedSelectedChat = state.selectedChat;
         if (state.selectedChat?.phone === newMessage.phone) {
-          updatedSelectedChat = {
-            ...state.selectedChat,
-            message: displayText,
-            direction: newMessage.direction,
-            read:
-              newMessage.direction === "INBOUND"
-                ? "FALSE"
-                : state.selectedChat.read,
-            messageStatus: newMessage.status,
-            lastSeenAt: new Date().toISOString(),
-            history: state.selectedChat.history
-              ? [...state.selectedChat.history, newMessage]
-              : [newMessage],
-          };
+          if (!hasDuplicateInHistory(state.selectedChat.history)) {
+            updatedSelectedChat = {
+              ...state.selectedChat,
+              message: displayText,
+              direction: newMessage.direction,
+              read: newMessage.direction === "INBOUND" ? "FALSE" : state.selectedChat.read,
+              messageStatus: newMessage.status,
+              lastSeenAt: newMessage.timestamp || new Date().toISOString(),
+              timestamp: newMessage.timestamp || new Date().toISOString(),
+              history: state.selectedChat.history
+                ? [...state.selectedChat.history, newMessage]
+                : [newMessage],
+              sendBy: newMessage.sendBy || null,
+              unreadCount: 0,
+            };
+          }
         }
 
         return { messages: updatedMessages, selectedChat: updatedSelectedChat };

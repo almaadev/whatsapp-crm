@@ -30,15 +30,22 @@ export async function GET(request) {
     sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
     // 👇 FIX: Fetching ONLY from the main 'Message' collection for the general inbox.
-    const [customers, msgs] = await Promise.all([
-      Customer.find({})
-        .populate({
-          path: "chatHistory.performedBy",
-          select: "name role department"
-        })
-        .lean(),
-      Message.find({ timestamp: { $gte: sixtyDaysAgo } }).lean(),
-    ]);
+    const customers = await Customer.find({})
+      .populate({
+        path: "chatHistory.performedBy",
+        select: "name role department",
+      })
+      .lean();
+
+    // Safe populate: fall back to plain .lean() if sendBy populate throws (e.g. old string values)
+    let msgs;
+    try {
+      msgs = await Message.find({ timestamp: { $gte: sixtyDaysAgo } })
+        .populate({ path: "sendBy", select: "name" })
+        .lean();
+    } catch (populateErr) {
+      msgs = await Message.find({ timestamp: { $gte: sixtyDaysAgo } }).lean();
+    }
 
     const allMessages = msgs.map((m) => ({
       ...m,
@@ -100,6 +107,9 @@ export async function GET(request) {
           lastHandled: customerInfo.lastHandled || null,
           mediaType: msg.mediaType || "",
           lastSeenAt: new Date(msg.time).toISOString(),
+          senderName: msg.senderName || msg.associateName || "",
+          senderRole: msg.role || "",
+          sendBy: msg.sendBy || null,
           ...customerInfo,
         };
       })
@@ -194,6 +204,8 @@ export async function POST(req) {
         status: "SENT",
         twilioSid: twilioSid,
         senderName: name || "Associate",
+        role: role || session?.user?.role || "associate",
+        sendBy: session.user.id,
       });
 
       if (global.io) {
@@ -205,6 +217,11 @@ export async function POST(req) {
           status: "SENT",
           role: role || "sales",
           name: name || phone,
+          sendBy: {
+            _id: session.user.id,
+            name: session.user.name,
+          },
+          twilioSid: twilioSid,
         });
       }
 
@@ -218,7 +235,24 @@ export async function POST(req) {
 
       if (redis && redis.status === "ready") await redis.del("chats:main_inbox_data");
     }
-    return NextResponse.json({ success: true, twilioSid });
+    return NextResponse.json({
+      success: true,
+      twilioSid,
+      message: {
+        phone: phone,
+        message: message,
+        direction: "OUTBOUND",
+        status: "SENT",
+        twilioSid: twilioSid,
+        senderName: name || "Associate",
+        role: role || session?.user?.role || "associate",
+        sendBy: {
+          _id: session.user.id,
+          name: session.user.name,
+        },
+        timestamp: isoTimestamp,
+      }
+    });
   } catch (error) {
     return NextResponse.json({ error: "Failed" }, { status: 500 });
   }

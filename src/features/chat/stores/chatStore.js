@@ -190,31 +190,39 @@ export const useChatStore = create((set, get) => ({
         else displayText = "📷 Photo";
       }
 
-      let chatExists = false;
-      const updatedMessages = state.messages.map((chat) => {
-        if (chat.phone === newMessage.phone) {
-          chatExists = true;
+      const existingChat = state.messages.find((chat) => chat.phone === newMessage.phone);
+      let updatedChat = null;
 
-          if (hasDuplicateInHistory(chat.history)) {
-            return chat;
-          }
-
-          const updatedHistory = chat.history ? [...chat.history, newMessage] : [newMessage];
-          return {
-            ...chat,
-            message: displayText,
-            direction: newMessage.direction,
-            read: newMessage.direction === "INBOUND" ? "FALSE" : chat.read,
-            messageStatus: newMessage.status,
-            lastSeenAt: newMessage.timestamp || new Date().toISOString(),
-            history: updatedHistory,
-          };
+      if (existingChat) {
+        if (hasDuplicateInHistory(existingChat.history)) {
+          return {};
         }
-        return chat;
-      });
 
-      if (!chatExists) {
-        const newChat = {
+        const isCurrentActive = state.selectedChat?.phone === newMessage.phone;
+        const shouldIncrementUnread = newMessage.direction === "INBOUND" && !isCurrentActive;
+        const newUnreadCount = shouldIncrementUnread 
+          ? (existingChat.unreadCount || 0) + 1 
+          : (isCurrentActive ? 0 : (existingChat.unreadCount || 0));
+
+        const updatedHistory = existingChat.history ? [...existingChat.history, newMessage] : [newMessage];
+        
+        updatedChat = {
+          ...existingChat,
+          message: displayText,
+          direction: newMessage.direction,
+          read: newMessage.direction === "INBOUND" ? "FALSE" : existingChat.read,
+          messageStatus: newMessage.status,
+          lastSeenAt: newMessage.timestamp || new Date().toISOString(),
+          timestamp: newMessage.timestamp || new Date().toISOString(),
+          history: updatedHistory,
+          sendBy: newMessage.sendBy || null,
+          unreadCount: newUnreadCount,
+        };
+      } else {
+        const isCurrentActive = state.selectedChat?.phone === newMessage.phone;
+        const shouldIncrementUnread = newMessage.direction === "INBOUND" && !isCurrentActive;
+        
+        updatedChat = {
           phone: newMessage.phone,
           name: newMessage.name || newMessage.phone,
           message: displayText,
@@ -223,12 +231,17 @@ export const useChatStore = create((set, get) => ({
           read: newMessage.direction === "INBOUND" ? "FALSE" : "TRUE",
           messageStatus: newMessage.status,
           lastSeenAt: newMessage.timestamp || new Date().toISOString(),
+          timestamp: newMessage.timestamp || new Date().toISOString(),
           status: "New",
           role: newMessage.role || "sales",
           history: [newMessage],
+          sendBy: newMessage.sendBy || null,
+          unreadCount: shouldIncrementUnread ? 1 : 0,
         };
-        updatedMessages.unshift(newChat);
       }
+
+      const otherMessages = state.messages.filter((chat) => chat.phone !== newMessage.phone);
+      const updatedMessages = [updatedChat, ...otherMessages];
 
       let updatedSelectedChat = state.selectedChat;
       if (state.selectedChat?.phone === newMessage.phone) {
@@ -240,7 +253,10 @@ export const useChatStore = create((set, get) => ({
             read: newMessage.direction === "INBOUND" ? "FALSE" : state.selectedChat.read,
             messageStatus: newMessage.status,
             lastSeenAt: newMessage.timestamp || new Date().toISOString(),
+            timestamp: newMessage.timestamp || new Date().toISOString(),
             history: state.selectedChat.history ? [...state.selectedChat.history, newMessage] : [newMessage],
+            sendBy: newMessage.sendBy || null,
+            unreadCount: 0,
           };
         }
       }

@@ -78,9 +78,11 @@ export async function POST(req) {
       twilioSid: message.sid,
       chatType: chatType || "Direct Lead",
       associateName: associateName || (await findUserNameById(session.user.id)) || "Unknown",
+      senderName: associateName || (await findUserNameById(session.user.id)) || "Unknown",
       role: session.user.role || "associate",
       isTemplate: true,
       templateSid: templateSid,
+      sendBy: session.user.id,
     });
 
     await Customer.findOneAndUpdate(
@@ -100,6 +102,25 @@ export async function POST(req) {
       },
       { upsert: true },
     );
+
+    if (global.io) {
+      const resolvedName = associateName || (await findUserNameById(session.user.id)) || "Unknown";
+      global.io.emit("new_message", {
+        phone: formattedTo,
+        message: `Template Sent: ${message.body}`,
+        direction: "OUTBOUND",
+        status: "SENT",
+        twilioSid: message.sid,
+        chatType: chatType || "Direct Lead",
+        timestamp: new Date().toISOString(),
+        sendBy: {
+          _id: session.user.id,
+          name: session.user.name,
+        },
+        senderName: resolvedName,
+        senderRole: session.user.role || "associate",
+      });
+    }
 
     return NextResponse.json(
       { success: true, messageSid: message.sid },

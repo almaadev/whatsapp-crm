@@ -35,9 +35,13 @@ api.interceptors.response.use(
   async (error) => {
     const config = error.config;
     
-    // 1. Retry Logic for transient 5xx errors or network failures
-    // Idempotent methods usually (GET/PUT/DELETE) but we can apply cautiously
-    if (config && (!config._retryCount || config._retryCount < MAX_RETRIES)) {
+    // 1. Retry Logic — ONLY for idempotent methods (GET, PUT, DELETE, HEAD).
+    // NEVER retry POST/PATCH: they are non-idempotent and retrying would cause
+    // duplicate messages, duplicate records, or duplicate Twilio sends.
+    const method = (config?.method || "").toUpperCase();
+    const isIdempotent = ["GET", "PUT", "DELETE", "HEAD"].includes(method);
+
+    if (config && isIdempotent && (!config._retryCount || config._retryCount < MAX_RETRIES)) {
       const isNetworkError = error.message === 'Network Error' || error.code === 'ECONNABORTED';
       const isServerError = error.response && error.response.status >= 500;
       

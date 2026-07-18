@@ -27,3 +27,57 @@ export function getDisplayMessage(chat, emptyFallback = "No messages yet") {
 
   return chat.message || emptyFallback;
 }
+
+export function getChatMessagePreview(chat, currentUser, emptyFallback = "No messages yet") {
+  if (!chat) return emptyFallback;
+
+  const lastMsg = chat.history?.length > 0 ? chat.history[chat.history.length - 1] : null;
+  
+  let content = "";
+  if (lastMsg) {
+    if (lastMsg.message?.trim()) {
+      content = lastMsg.message;
+    } else if (lastMsg.mediaUrl) {
+      const mType = (lastMsg.mediaType || "").toLowerCase();
+      const mUrl = lastMsg.mediaUrl.toLowerCase();
+      if (mType.includes("video") || mUrl.endsWith(".mp4")) content = "🎥 Video";
+      else if (mType.includes("audio") || mUrl.match(/\.(mp3|ogg|wav)$/)) content = "🎵 Audio";
+      else if (mType.includes("pdf") || mUrl.endsWith(".pdf")) content = "📄 Document";
+      else content = "📷 Photo";
+    }
+  } else {
+    content = chat.message || "";
+  }
+
+  if (!content.trim()) return emptyFallback;
+
+  const direction = lastMsg ? lastMsg.direction : chat.direction;
+  if (direction === "OUTBOUND") {
+    const sendByField = lastMsg ? lastMsg.sendBy : chat.sendBy;
+    
+    if (!sendByField) {
+      return `Unknown User: ${content}`;
+    }
+
+    let senderId = "";
+    let senderName = "Unknown User";
+
+    if (typeof sendByField === "object" && sendByField !== null) {
+      senderId = sendByField._id ? sendByField._id.toString() : "";
+      senderName = sendByField.name || "Unknown User";
+    } else {
+      senderId = sendByField.toString();
+      senderName = "Unknown User";
+    }
+
+    const currentUserId = currentUser?.id || currentUser?._id;
+    
+    if (currentUserId && senderId && currentUserId.toString() === senderId) {
+      return `You: ${content}`;
+    }
+    
+    return `${senderName}: ${content}`;
+  }
+
+  return content;
+}

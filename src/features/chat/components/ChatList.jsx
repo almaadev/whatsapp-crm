@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { chatRepository } from "@/shared/api/repositories/chatRepository";
 import { customerRepository } from "@/shared/api/repositories/customerRepository";
+import { getChatMessagePreview } from "@/shared/utils/chatDisplay";
 
 const getAvatarGradient = (name) => {
   const char = name ? name.charCodeAt(0) : 65;
@@ -438,10 +439,7 @@ export default function ChatList({ role, loading }) {
                     <p
                       className={`text-xs truncate pr-3 max-w-[180px] ${isUnread ? "text-slate-900 font-bold" : "text-slate-500"}`}
                     >
-                      {chat.direction === "OUTBOUND" && (
-                        <span className="text-[#00a884] font-semibold mr-1">You:</span>
-                      )}
-                      {chat.message}
+                      {getChatMessagePreview(chat, session?.user)}
                     </p>
 
                     {chat.categoryLabel && (

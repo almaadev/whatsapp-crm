@@ -1,5 +1,6 @@
 import api from "@/shared/lib/axios";
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { getCategoryConfig } from "@/shared/constants/categories";
 import { getCategoryChatStore } from "@/features/chat/stores/categoryChatStore";
 import { categoryChatService } from "@/features/chat/services/categoryChatService";
@@ -16,6 +17,7 @@ import { toast } from "react-toastify";
  * @returns {Object} Tools and state needed by the category inbox UI.
  */
 export function useCategoryChat(slug) {
+  const queryClient = useQueryClient();
   const config = getCategoryConfig(slug);
   const useStore = getCategoryChatStore(slug);
 
@@ -65,7 +67,13 @@ export function useCategoryChat(slug) {
   const sendMessage = async (phone, message) => {
     try {
       setSending(true);
-      await categoryChatService.sendMessage(slug, phone, message);
+      const res = await categoryChatService.sendMessage(slug, phone, message);
+      if (res && res.message) {
+        useStore.getState().addMessage({
+          ...res.message,
+          timestamp: res.message.timestamp || new Date().toISOString(),
+        });
+      }
       return true;
     } catch {
       toast.error("Failed to send message");
@@ -97,22 +105,9 @@ export function useCategoryChat(slug) {
 
       const currentState = useStore.getState();
       currentState.addMessage(newMsg);
-
-      const updatedMessages = messagesRef.current.map((chat) => {
-        if (chat.phone === msg.phone) {
-          return { ...chat, history: [...(chat.history || []), newMsg] };
-        }
-        return chat;
-      });
-      currentState.setMessages(updatedMessages);
-
-      const activeChat = selectedChatRef.current;
-      if (activeChat?.phone === msg.phone) {
-        currentState.setSelectedChat({
-          ...activeChat,
-          history: [...(activeChat.history || []), newMsg],
-        });
-      }
+      try {
+        queryClient.invalidateQueries({ queryKey: ["category-chats", slug] });
+      } catch (qErr) {}
     };
 
     const handleStatusUpdate = (update) => {

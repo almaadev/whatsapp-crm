@@ -67,6 +67,10 @@ const MessageSchema = new mongoose.Schema(
     senderName: {
       type: String,
     },
+    sendBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
     isChatClosed: {
       type: Boolean,
       default: false,

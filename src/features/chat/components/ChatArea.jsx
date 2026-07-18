@@ -261,6 +261,10 @@ export default function ChatArea({
       role: userRole,
       tempId: tempId,
       isChatClosed: false,
+      sendBy: {
+        _id: session?.user?.id || session?.user?._id,
+        name: session?.user?.name || userName,
+      },
     };
 
     addMessage(newMessage);
@@ -296,6 +300,10 @@ export default function ChatArea({
         isChatClosed: false,
         isTemplate: true,
         templateSid: template.sid,
+        sendBy: {
+          _id: session?.user?.id || session?.user?._id,
+          name: session?.user?.name || userName,
+        },
       };
 
       addMessage(newMessage);

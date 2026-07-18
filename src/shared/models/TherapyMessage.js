@@ -15,6 +15,7 @@ const TherapyMessageSchema = new mongoose.Schema(
     mediaUrl: { type: String },
     mediaType: { type: String },
     senderName: { type: String },
+    sendBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     isChatClosed: { type: Boolean, default: false },
     timestamp: { type: Date, default: Date.now, index: true },
   },
