@@ -20,6 +20,7 @@ export function isSuperAdmin(role) {
 export function checkPermissions(userOrSession, config) {
   if (!userOrSession) return false;
   const user = userOrSession.user ? userOrSession.user : userOrSession;
+  
   if (!user) return false;
   const { role, department, accessModules = [] } = user;
   const isAdmin = isAdminAuthorized(role, department);

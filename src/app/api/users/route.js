@@ -14,6 +14,8 @@ const isAuthorized = (session) => {
     return isAdminAuthorized(session?.user?.role, session?.user?.department);
 };
 
+
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -53,7 +55,12 @@ export async function GET() {
     }
 
     if (associates.length === 0) {
-        const users = await User.find({ role: { $ne: 'superAdmin' } }).lean();
+      const userBranch = await User.findById(session.user.id).select('branch').lean();
+      console.log("User Branch:", userBranch);
+      
+      const users = session.user.role === 'superAdmin' 
+        ? await User.find({ role: { $ne: 'superAdmin' } }).lean()
+        : await User.find({ role: { $ne: 'superAdmin' }, branch: { $eq: userBranch.branch } }).lean();
 
         associates = users.map(u => {
           const branchVal = u.branch?.toString() || "";
