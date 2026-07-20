@@ -477,19 +477,23 @@ export default function ChatList({ role, loading }) {
 
                   {/* Handles dynamically displayed creator / timeline details */}
                   {chat.lastHandled && (
-                    <div className="mt-2 flex items-center gap-1 select-none leading-none">
-                      <span className="text-slate-400 text-[10px] font-medium">Last Handled:</span>
-                      <span className="text-slate-650 bg-slate-100 border border-slate-200/60 px-1.5 py-0.5 rounded-md text-[9px] font-bold">{chat.lastHandled.name}</span>
-                      <span className="text-slate-400 font-bold capitalize text-[9px]">({chat.lastHandled.role})</span>
-                    </div>
-                  )}
-
-                  {isBeingHandledByOther && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 mt-2 rounded text-[9px] font-bold tracking-wider bg-red-50 text-red-600 border border-red-100">
+                    <div className="mt-2 flex items-center justify-between gap-1 select-none leading-none">
+                     <div className="flex items-center gap-1">
+                       <span className="text-slate-400 text-[10px] font-medium">Last Handled:</span>
+                      <span className="text-slate-650 bg-slate-100 border border-slate-200/60 px-1.5 py-0.5 rounded-md text-[9px] font-bold">{chat.lastHandled.name === session.user.name ? "You" : chat.lastHandled.name} | {chat.lastHandled.role}</span>
+                     </div>
+                      <div className="text-slate-400 text-[10px] font-medium">
+                                                                {isBeingHandledByOther && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-red-50 text-red-600 border border-red-100">
                       <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
                       {handler.name}
                     </span>
                   )}
+                      </div>
+                    </div>
+                  )}
+
+
                 </div>
 
                 {!isSelectionMode && (

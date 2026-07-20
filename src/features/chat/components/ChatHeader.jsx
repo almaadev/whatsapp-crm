@@ -18,6 +18,17 @@ const ChatHeader = memo(function ChatHeader({
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const displayName = activeChat.name || (activeChat.phone ? activeChat.phone.replace("whatsapp:", "") : "Unknown");
   const location = detailedCustomer?.city || "No City Info";
+  const hasStatusHistory = Boolean(
+    activeChat?.statusHistory?.length ||
+    activeChat?.status_history?.length ||
+    activeChat?.customerStatusHistory?.length ||
+    detailedCustomer?.statusHistory?.length ||
+    detailedCustomer?.status_history?.length ||
+    detailedCustomer?.customerStatusHistory?.length
+  );
+  const statusOptions = hasStatusHistory
+    ? ["Follow Up", "Closed", "Not Interested"]
+    : ["New", "Follow Up", "Closed", "Not Interested"];
   console.log(detailedCustomer, "detailedCustomer in ChatHeader");
 
   return (
@@ -94,7 +105,7 @@ const ChatHeader = memo(function ChatHeader({
           </button>
           {menuOpen && (
             <div className="absolute right-0 mt-2 w-44 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-50 animate-in fade-in zoom-in-95 font-semibold text-xs text-slate-700">
-              {["New", "Follow Up", "Closed", "Not Interested"].map((st) => (
+              {[ "Follow Up", "Closed", "Not Interested"].map((st) => (
                 <button
                   key={st}
                   onClick={() => {
@@ -115,16 +126,18 @@ const ChatHeader = memo(function ChatHeader({
 
         <button
           onClick={onReminder}
-          className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-          title="Set Follow-up Reminder"
+          className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all *:cursor-not-allowed"
+          disabled={true}
+          title="Set Follow-up Reminder (Coming Soon)"
         >
           <Bell size={18} />
         </button>
 
         <button
           onClick={onForward}
-          className="p-2 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all"
-          title="Transfer Lead / Assign"
+          className="p-2 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all *:cursor-not-allowed"
+          disabled={true}
+          title="Transfer Lead / Assign to Another Associate (Coming Soon)"
         >
           <Share2 size={18} />
         </button>
