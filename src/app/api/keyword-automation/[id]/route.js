@@ -8,18 +8,53 @@ export async function PUT(req, { params }) {
     // 🚀 Unwrap the params promise before destructuring
     const { id } = await params; 
     const body = await req.json();
+    const { templateSid, isActive } = body;
     
-    // Ensure uniqueness except for self
-    const exists = await KeywordAutomation.findOne({ 
-      key: body.key.trim(), 
-      _id: { $ne: id } 
-    });
-
-    if (exists) {
-      return NextResponse.json({ success: false, error: "Keyword already exists." }, { status: 400 });
+    let rawKeywords = body.keywords;
+    if (!Array.isArray(rawKeywords)) {
+      rawKeywords = [];
+    }
+    const legacyKey = body.key || body.keyword;
+    if (legacyKey && !rawKeywords.includes(legacyKey)) {
+      rawKeywords.push(legacyKey);
     }
 
-    const updated = await KeywordAutomation.findByIdAndUpdate(id, body, { returnDocument: "after" });
+    // Normalize keywords: trim, lowercase, filter out empty or >100 characters, limit to 50
+    const normalizedKeywords = Array.from(new Set(
+      rawKeywords
+        .map(k => typeof k === "string" ? k.trim().toLowerCase() : "")
+        .filter(k => k.length > 0 && k.length <= 100)
+    )).slice(0, 50);
+
+    if (normalizedKeywords.length === 0) {
+      return NextResponse.json({ success: false, error: "At least one valid keyword is required." }, { status: 400 });
+    }
+
+    if (!templateSid) {
+      return NextResponse.json({ success: false, error: "Template SID is required." }, { status: 400 });
+    }
+
+    // Ensure uniqueness except for self
+    const conflict = await KeywordAutomation.findOne({ 
+      _id: { $ne: id },
+      $or: [
+        { keywords: { $in: normalizedKeywords } },
+        { key: { $in: normalizedKeywords } }
+      ]
+    });
+
+    if (conflict) {
+      return NextResponse.json({ success: false, error: "One or more keywords in the list already conflict with an existing automation rule." }, { status: 400 });
+    }
+
+    const updateBody = {
+      keywords: normalizedKeywords,
+      key: normalizedKeywords[0], // backward compatibility
+      templateSid: templateSid.trim(),
+      isActive: isActive !== false
+    };
+
+    const updated = await KeywordAutomation.findByIdAndUpdate(id, updateBody, { returnDocument: "after" });
     return NextResponse.json({ success: true, data: updated });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

@@ -94,6 +94,16 @@ async function saveAndEmitMessage({ phone, messageText, status, twilioSid, templ
   return savedMsg;
 }
 
+function normalizeText(text) {
+  if (!text) return "";
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export async function processKeywordAutoReply(phone, messageText, profileName = "") {
   if (!messageText) return false;
 
@@ -101,8 +111,21 @@ export async function processKeywordAutoReply(phone, messageText, profileName = 
     const activeKeywords = await findAllAutomations({ isActive: true });
     if (!activeKeywords.length) return false;
 
-    const cleanText = messageText.toLowerCase().trim();
-    const matchedKeyword = activeKeywords.find((k) => k.key === cleanText);
+    const cleanText = normalizeText(messageText);
+    const matchedKeyword = activeKeywords.find((k) => {
+      if (Array.isArray(k.keywords) && k.keywords.length > 0) {
+        return k.keywords.some(keyword => {
+          const cleanKeyword = normalizeText(keyword);
+          return cleanKeyword && cleanText === cleanKeyword;
+        });
+      }
+      const legacyKey = k.key || k.keyword;
+      if (legacyKey) {
+        const cleanKeyword = normalizeText(legacyKey);
+        return cleanKeyword && cleanText === cleanKeyword;
+      }
+      return false;
+    });
 
     if (matchedKeyword) {
       console.log(`🤖 [AUTO-REPLY] Match found for keyword: "${matchedKeyword.key}"`);

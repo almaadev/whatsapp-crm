@@ -14,7 +14,8 @@ export default function KeywordAutomationPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [currentEdit, setCurrentEdit] = useState(null);
-  const [formData, setFormData] = useState({ key: "", templateSid: "", isActive: true });
+  const [keywordInput, setKeywordInput] = useState("");
+  const [formData, setFormData] = useState({ keywords: [], templateSid: "", isActive: true });
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -34,14 +35,50 @@ export default function KeywordAutomationPage() {
     fetchKeywords();
   }, []);
 
+  const addKeyword = (rawWord) => {
+    const word = rawWord.trim().toLowerCase();
+    if (!word) return;
+    if (word.length > 100) {
+      toast.warn("Keyword too long (max 100 characters)");
+      return;
+    }
+    setFormData((prev) => {
+      if (prev.keywords.includes(word)) {
+        return prev;
+      }
+      if (prev.keywords.length >= 50) {
+        toast.warn("Maximum 50 keywords allowed per rule");
+        return prev;
+      }
+      return {
+        ...prev,
+        keywords: [...prev.keywords, word]
+      };
+    });
+    setKeywordInput("");
+  };
+
   const handleOpenModal = (automationRule = null) => {
     setError("");
+    setKeywordInput("");
     if (automationRule) {
       setCurrentEdit(automationRule._id);
-      setFormData({ key: automationRule.key, templateSid: automationRule.templateSid, isActive: automationRule.isActive });
+      
+      let initialKeywords = [];
+      if (Array.isArray(automationRule.keywords) && automationRule.keywords.length > 0) {
+        initialKeywords = [...automationRule.keywords];
+      } else if (automationRule.key) {
+        initialKeywords = [automationRule.key];
+      }
+
+      setFormData({ 
+        keywords: initialKeywords, 
+        templateSid: automationRule.templateSid, 
+        isActive: automationRule.isActive 
+      });
     } else {
       setCurrentEdit(null);
-      setFormData({ key: "", templateSid: "", isActive: true });
+      setFormData({ keywords: [], templateSid: "", isActive: true });
     }
     setModalOpen(true);
   };
@@ -50,26 +87,45 @@ export default function KeywordAutomationPage() {
     e.preventDefault();
     setError("");
     setIsSubmitting(true);
-    
-    if (!formData.key.trim() || !formData.templateSid.trim()) {
-      setIsSubmitting(false);
-      return setError("Keyword and Template SID are required.");
+
+    let finalKeywords = [...formData.keywords];
+    const remainingInput = keywordInput.trim().toLowerCase();
+    if (remainingInput && !finalKeywords.includes(remainingInput)) {
+      if (remainingInput.length <= 100 && finalKeywords.length < 50) {
+        finalKeywords.push(remainingInput);
+      }
     }
+    
+    if (finalKeywords.length === 0) {
+      setIsSubmitting(false);
+      return setError("At least one trigger keyword is required.");
+    }
+    if (!formData.templateSid.trim()) {
+      setIsSubmitting(false);
+      return setError("Template SID is required.");
+    }
+
+    const payload = {
+      keywords: finalKeywords,
+      key: finalKeywords[0],
+      templateSid: formData.templateSid.trim(),
+      isActive: formData.isActive
+    };
 
     try {
       let result;
       if (currentEdit) {
-        const { data } = await automationRepository.updateKeyword(currentEdit, formData);
+        const { data } = await automationRepository.updateKeyword(currentEdit, payload);
         result = data;
       } else {
-        const { data } = await automationRepository.createKeyword(formData);
+        const { data } = await automationRepository.createKeyword(payload);
         result = data;
       }
       
       setModalOpen(false);
       fetchKeywords();
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.error || err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -83,14 +139,19 @@ export default function KeywordAutomationPage() {
 
   const handleToggle = async (id, currentStatus) => {
     const updatedStatus = !currentStatus;
-    // Optimistic UI update
     setKeywords(keywords.map(k => k._id === id ? { ...k, isActive: updatedStatus } : k));
     await automationRepository.patchKeyword(id, { isActive: updatedStatus });
   };
 
-  const filteredKeywords = keywords.filter((k) =>
-    k.key.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredKeywords = keywords.filter((k) => {
+    const q = search.toLowerCase().trim();
+    if (!q) return true;
+    if (k.key && k.key.toLowerCase().includes(q)) return true;
+    if (Array.isArray(k.keywords)) {
+      return k.keywords.some(word => word && word.toLowerCase().includes(q));
+    }
+    return false;
+  });
 
   return (
     <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-slate-50 relative">
@@ -175,7 +236,33 @@ export default function KeywordAutomationPage() {
                             <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs border border-emerald-100">
                               <Zap size={14} />
                             </div>
-                            <span className="font-bold text-slate-800">{automationRule.key}</span>
+                            <div className="flex flex-col max-w-[280px] sm:max-w-[350px] overflow-hidden" title={
+                              Array.isArray(automationRule.keywords) && automationRule.keywords.length > 0
+                                ? automationRule.keywords.join(", ")
+                                : automationRule.key
+                            }>
+                              {(() => {
+                                const list = Array.isArray(automationRule.keywords) && automationRule.keywords.length > 0
+                                  ? automationRule.keywords
+                                  : [automationRule.key].filter(Boolean);
+                                  
+                                if (list.length === 0) return <span className="text-slate-450 italic">No keywords</span>;
+                                
+                                const firstFew = list.slice(0, 3);
+                                const extraCount = list.length - firstFew.length;
+                                
+                                return (
+                                  <div className="text-sm font-bold text-slate-800 truncate">
+                                    {firstFew.join(", ")}
+                                    {extraCount > 0 && (
+                                      <span className="text-[10px] bg-slate-100 text-slate-650 px-1.5 py-0.5 rounded ml-1.5 border border-slate-200 inline-block font-extrabold align-middle">
+                                        +{extraCount} more
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            </div>
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -263,20 +350,64 @@ export default function KeywordAutomationPage() {
                 <form id="keyword-form" onSubmit={handleSave} className="space-y-5">
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-                      Trigger Keyword <span className="text-rose-500">*</span>
+                      Trigger Keywords <span className="text-rose-500">*</span>
                     </label>
-                    <div className="relative group">
-                      <MessageSquareCode className="absolute left-3.5 top-3 text-slate-400 group-focus-within:text-[#00a884] transition-colors" size={16} />
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus-within:bg-white focus-within:ring-4 focus-within:ring-[#00a884]/10 focus-within:border-[#00a884] transition-all min-h-[96px] flex flex-col justify-between">
+                      <div className="flex flex-wrap gap-1.5 mb-2 overflow-y-auto max-h-[120px] custom-scrollbar">
+                        {formData.keywords.map((kw, index) => (
+                          <span key={index} className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg border border-emerald-100 shadow-sm select-none animate-in fade-in zoom-in-95">
+                            {kw}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  keywords: prev.keywords.filter((_, i) => i !== index)
+                                }));
+                              }}
+                              className="text-emerald-500 hover:text-emerald-700 font-bold ml-1 transition-colors"
+                            >
+                              <X size={12} />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
                       <input
                         type="text"
-                        required
-                        autoFocus
-                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-4 focus:ring-[#00a884]/10 focus:border-[#00a884] transition-all text-sm font-bold text-slate-800 placeholder:font-medium placeholder:text-slate-400"
-                        value={formData.key}
-                        onChange={(e) => setFormData({ ...formData, key: e.target.value })}
-                        placeholder="e.g., book now, pricing"
+                        placeholder={formData.keywords.length === 0 ? "Type keyword and press Enter..." : "Add keyword..."}
+                        className="w-full bg-transparent outline-none text-sm font-bold text-slate-800 placeholder:font-medium placeholder:text-slate-400"
+                        value={keywordInput}
+                        onChange={(e) => setKeywordInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === "," || e.key === "Tab") {
+                            e.preventDefault();
+                            addKeyword(keywordInput);
+                          } else if (e.key === "Backspace" && !keywordInput) {
+                            e.preventDefault();
+                            if (formData.keywords.length > 0) {
+                              setFormData(prev => ({
+                                ...prev,
+                                keywords: prev.keywords.slice(0, -1)
+                              }));
+                            }
+                          }
+                        }}
+                        onBlur={() => {
+                          if (keywordInput.trim()) {
+                            addKeyword(keywordInput);
+                          }
+                        }}
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const text = e.clipboardData.getData("text");
+                          const words = text.split(/,|\n/);
+                          words.forEach(addKeyword);
+                        }}
                       />
                     </div>
+                    <p className="text-[10px] text-slate-400 font-semibold mt-1.5 ml-1 leading-normal">
+                      Press Enter, Comma, or Tab to add. Max 50 keywords (up to 100 chars each).
+                    </p>
                   </div>
                   
                   <div>

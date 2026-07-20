@@ -6,7 +6,30 @@ export async function GET(req) {
   try {
     await connectDB();
     const keywords = await KeywordAutomation.find().sort({ createdAt: -1 });
-    return NextResponse.json({ success: true, data: keywords });
+    
+    // On-the-fly migration for legacy rules
+    let migratedAny = false;
+    for (let rule of keywords) {
+      if (!Array.isArray(rule.keywords) || rule.keywords.length === 0) {
+        const fallbackKey = rule.key || rule.keyword;
+        if (fallbackKey) {
+          const cleanKey = fallbackKey.trim().toLowerCase();
+          rule.keywords = [cleanKey];
+          rule.key = cleanKey;
+          await KeywordAutomation.findByIdAndUpdate(rule._id, {
+            keywords: [cleanKey],
+            key: cleanKey
+          });
+          migratedAny = true;
+        }
+      }
+    }
+
+    const cleanKeywords = migratedAny 
+      ? await KeywordAutomation.find().sort({ createdAt: -1 })
+      : keywords;
+
+    return NextResponse.json({ success: true, data: cleanKeywords });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
@@ -16,19 +39,53 @@ export async function POST(req) {
   try {
     await connectDB();
     const body = await req.json();
-    const { key, templateSid, isActive } = body;
+    const { templateSid, isActive } = body;
 
-    if (!key || !templateSid) {
-      return NextResponse.json({ success: false, error: "Keyword and Template SID are required." }, { status: 400 });
+    let rawKeywords = body.keywords;
+    if (!Array.isArray(rawKeywords)) {
+      rawKeywords = [];
+    }
+    // Also extract legacy key/keyword fields
+    const legacyKey = body.key || body.keyword;
+    if (legacyKey && !rawKeywords.includes(legacyKey)) {
+      rawKeywords.push(legacyKey);
     }
 
-    const exists = await KeywordAutomation.findOne({ key: key.toLowerCase().trim() });
-    if (exists) {
-      return NextResponse.json({ success: false, error: "This keyword already exists." }, { status: 400 });
+    // Normalize keywords: trim, lowercase, filter out empty or >100 characters, limit to 50
+    const normalizedKeywords = Array.from(new Set(
+      rawKeywords
+        .map(k => typeof k === "string" ? k.trim().toLowerCase() : "")
+        .filter(k => k.length > 0 && k.length <= 100)
+    )).slice(0, 50);
+
+    if (normalizedKeywords.length === 0) {
+      return NextResponse.json({ success: false, error: "At least one valid keyword is required." }, { status: 400 });
     }
 
-    const keyword = await KeywordAutomation.create({ key, templateSid, isActive });
-    return NextResponse.json({ success: true, data: keyword });
+    if (!templateSid) {
+      return NextResponse.json({ success: false, error: "Template SID is required." }, { status: 400 });
+    }
+
+    // Uniqueness validation check: check if any keyword conflicts with existing rules (check both keywords array and legacy key/keyword)
+    const conflict = await KeywordAutomation.findOne({
+      $or: [
+        { keywords: { $in: normalizedKeywords } },
+        { key: { $in: normalizedKeywords } }
+      ]
+    });
+
+    if (conflict) {
+      return NextResponse.json({ success: false, error: "One or more keywords in the list already conflict with an existing automation rule." }, { status: 400 });
+    }
+
+    const rule = await KeywordAutomation.create({
+      keywords: normalizedKeywords,
+      key: normalizedKeywords[0], // backward compatibility
+      templateSid: templateSid.trim(),
+      isActive: isActive !== false
+    });
+
+    return NextResponse.json({ success: true, data: rule });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

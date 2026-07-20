@@ -4,10 +4,12 @@ const KeywordAutomationSchema = new mongoose.Schema(
   {
     key: {
       type: String,
-      required: [true, "Keyword is required"],
-      unique: true,
       trim: true,
       lowercase: true,
+    },
+    keywords: {
+      type: [String],
+      default: [],
     },
     templateSid: {
       type: String,
@@ -22,6 +24,13 @@ const KeywordAutomationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+KeywordAutomationSchema.index({ keywords: 1 });
+
 delete mongoose.models.KeywordAutomation;
-export default mongoose.models.KeywordAutomation ||
+const Model = mongoose.models.KeywordAutomation ||
   mongoose.model("KeywordAutomation", KeywordAutomationSchema);
+
+// Safely drop legacy unique index key_1
+Model.collection.dropIndex("key_1").catch(() => {});
+
+export default Model;
