@@ -1,16 +1,11 @@
 import { NextResponse } from "next/server";
-import twilio from "twilio";
+import { sendTemplateMessage } from "@/features/admin/services/twilioService";
 import connectDB from "@/shared/lib/db/mongodb";
 import Message from "@/shared/models/Message";
 import Customer from "@/shared/models/Customer";
 import User from "@/shared/models/User";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/shared/lib/auth";
-
-const client = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN,
-);
 const findUserNameById = async (id) => {
   const user = await User.findById(id).lean();
   return user ? user.name : "Unknown";
@@ -32,31 +27,11 @@ export async function POST(req) {
         { status: 400 },
       );
 
-    const twilioPhoneNumber =
-      process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER || "whatsapp:+14155238886";
-    const formattedTo = phone.startsWith("whatsapp:")
+        const formattedTo = phone.startsWith("whatsapp:")
       ? phone
       : `whatsapp:${phone}`;
-    const formattedFrom = twilioPhoneNumber.startsWith("whatsapp:")
-      ? twilioPhoneNumber
-      : `whatsapp:${twilioPhoneNumber}`;
-    const callbackUrl = process.env.NEXT_PUBLIC_BASE_URL
-      ? `${process.env.NEXT_PUBLIC_BASE_URL}/api/webhook/status`
-      : "https://nonarsenic-nonparous-clotilde.ngrok-free.dev/api/webhook/status";
-    const messagePayload = {
-      contentSid: templateSid,
-      from: formattedFrom,
-      to: formattedTo,
-      // 🚀 NOTE: Unngaluku thevaipattal Twilio Status Webhook URL-ai inge add seiyyalam
-      statusCallback: callbackUrl,
-    };
 
-    // Inject Dynamic Variables into Twilio Payload
-    if (contentVariables && Object.keys(contentVariables).length > 0) {
-      messagePayload.contentVariables = JSON.stringify(contentVariables);
-    }
-
-    const message = await client.messages.create(messagePayload);
+    const message = await sendTemplateMessage(formattedTo, templateSid, contentVariables);
     console.log(message);
     
     // 🚀 THE FIX: Dynamically select the correct MongoDB Collection based on chatType
@@ -128,9 +103,10 @@ export async function POST(req) {
     );
   } catch (error) {
     console.error("Send Template Error:", error);
+    const isValidationError = error.message && error.message.includes("Validation Failed");
     return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
+      { error: error.message || "Internal Server Error" },
+      { status: isValidationError ? 400 : 500 },
     );
   }
 }

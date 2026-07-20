@@ -67,6 +67,10 @@ const MessageSchema = new mongoose.Schema(
     senderName: {
       type: String,
     },
+    senderType: {
+      type: String,
+      default: "",
+    },
     sendBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

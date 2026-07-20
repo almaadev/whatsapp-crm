@@ -59,7 +59,10 @@ export async function POST(req) {
       direction: "OUTBOUND",
       status: "READ",
       twilioSid: "sys_" + Date.now(),
-      senderName: "System"
+      senderName: "Auto Answer",
+      senderType: "system",
+      isAutomated: true,
+      sendBy: null
     });
 
     // 3. Clear Cache

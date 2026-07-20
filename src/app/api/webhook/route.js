@@ -115,7 +115,7 @@ export async function POST(req) {
     let numMedia = parseInt(body.NumMedia || body.numMedia || "0", 10);
     if (isNaN(numMedia)) numMedia = 0;
 
-    const profileName =  phone || "Unknown";
+    const profileName = body.ProfileName || body.profileName || phone || "Unknown";
 
     if (!phone || (!messageText && numMedia === 0)) {
       console.log("ℹ️ [WEBHOOK] Ignored — no phone or content.");
@@ -339,7 +339,11 @@ export async function POST(req) {
     // 🚀 --- MOVED: KEYWORD AUTO-REPLY MIDDLEWARE ---
     // Moved here so the customer's message saves to the DB and emits to UI first.
     // This ensures the auto-reply always appears AFTER the user's message chronologically.
-    await processKeywordAutoReply(phone, messageText);
+    try {
+      await processKeywordAutoReply(phone, messageText, profileName);
+    } catch (autoReplyErr) {
+      console.error("❌ [WEBHOOK] Auto-reply failed silently to not impact webhook flow:", autoReplyErr);
+    }
     // ----------------------------------------------
 
     if (redis && redis.status !== "disabled") {

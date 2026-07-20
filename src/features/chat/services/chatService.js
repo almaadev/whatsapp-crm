@@ -48,6 +48,8 @@ export const chatService = {
           uniqueConversations[msg.phone].senderName = msg.senderName;
           uniqueConversations[msg.phone].senderRole = msg.senderRole;
           uniqueConversations[msg.phone].sendBy = msg.sendBy;
+          uniqueConversations[msg.phone].isAutomated = msg.isAutomated;
+          uniqueConversations[msg.phone].senderType = msg.senderType;
 
           // 🚀 FIX: Prevent Priority and Closed state from being stripped during array grouping!
           uniqueConversations[msg.phone].priority = msg.priority;

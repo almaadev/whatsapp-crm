@@ -6,6 +6,7 @@ import Customer from "@/shared/models/Customer";
 import BulkMessage from "@/shared/models/BulkMessage";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/shared/lib/auth";
+import { getTemplateDetail, validateTemplatePayload } from "@/features/admin/services/twilioService";
 
 const client = twilio(
   process.env.TWILIO_ACCOUNT_SID,
@@ -53,6 +54,22 @@ export async function POST(req) {
         { error: "Template ID is required." },
         { status: 400 },
       );
+
+    // Fast Pre-Validation: Fetch and validate template once before sending bulk messages
+    const template = await getTemplateDetail(templateId);
+    if (!template) {
+      return NextResponse.json(
+        { error: `Validation Failed: Template with SID ${templateId} not found.` },
+        { status: 400 },
+      );
+    }
+    const validation = validateTemplatePayload(template, contentVariables);
+    if (!validation.isValid) {
+      return NextResponse.json(
+        { error: `Validation Failed: ${validation.reason}` },
+        { status: 400 },
+      );
+    }
 
     const twilioPhoneNumber = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER;
     const formattedFrom = twilioPhoneNumber.startsWith("whatsapp:")
@@ -139,8 +156,8 @@ export async function POST(req) {
         from: formattedFrom,
         to: formattedTo,
       };
-      if (contentVariables && Object.keys(contentVariables).length > 0)
-        messagePayload.contentVariables = JSON.stringify(contentVariables);
+      if (validation.isDynamic && validation.contentVariables)
+        messagePayload.contentVariables = JSON.stringify(validation.contentVariables);
       try {
         await client.messages.create(messagePayload);
         successCount++;

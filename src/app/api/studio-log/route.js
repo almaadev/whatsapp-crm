@@ -48,7 +48,10 @@ export async function POST(req) {
       direction: "OUTBOUND",
       status: "DELIVERED",
       twilioSid: twilioSID,
-      senderName: "Twilio bot"
+      senderName: "Auto Answer",
+      senderType: "system",
+      isAutomated: true,
+      sendBy: null
     });
 
     // 5. Send Live Update to UI via Socket
@@ -60,7 +63,10 @@ export async function POST(req) {
           timestamp: isoTimestamp, 
           status: "DELIVERED", 
           role: "", 
-          name: "Twilio bot"
+          name: "Auto Answer",
+          senderName: "Auto Answer",
+          senderType: "system",
+          isAutomated: true
       });
     }
 

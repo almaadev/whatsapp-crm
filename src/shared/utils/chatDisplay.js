@@ -53,6 +53,26 @@ export function getChatMessagePreview(chat, currentUser, emptyFallback = "No mes
 
   const direction = lastMsg ? lastMsg.direction : chat.direction;
   if (direction === "OUTBOUND") {
+    const isAutomated = lastMsg
+      ? (lastMsg.isAutomated === true ||
+         lastMsg.senderType === "system" ||
+         lastMsg.senderType === "automation" ||
+         lastMsg.senderName === "Auto Answer" ||
+         lastMsg.senderName === "System Automation" ||
+         lastMsg.senderName === "System" ||
+         lastMsg.senderName === "Twilio bot")
+      : (chat.isAutomated === true ||
+         chat.senderType === "system" ||
+         chat.senderType === "automation" ||
+         chat.senderName === "Auto Answer" ||
+         chat.senderName === "System Automation" ||
+         chat.senderName === "System" ||
+         chat.senderName === "Twilio bot");
+
+    if (isAutomated) {
+      return `Auto Answer: ${content}`;
+    }
+
     const sendByField = lastMsg ? lastMsg.sendBy : chat.sendBy;
     
     if (!sendByField) {
