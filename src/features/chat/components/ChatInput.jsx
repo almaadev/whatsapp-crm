@@ -251,7 +251,7 @@ const ChatInput = memo(function ChatInput({ onSendMessage, onSendTemplate, sendi
         {/* Send Button */}
         <button
           onClick={handleSendClick}
-          disabled={sending || (!text.trim() && !selectedFile) || disabled || isChatClosed}
+          disabled={ sending || (!text.trim() && !selectedFile) || disabled || isChatClosed }
           className={`p-3 rounded-xl shadow-md transition-all shrink-0 mb-0.5 flex items-center justify-center
             ${(text.trim() || selectedFile) && !disabled
               ? "bg-[#00a884] text-white hover:bg-emerald-600 active:scale-95 shadow-emerald-200"
