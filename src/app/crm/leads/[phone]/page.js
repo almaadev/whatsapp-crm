@@ -342,7 +342,8 @@ export default function LeadDetailsPage({ params }) {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
                           <h3 className="text-[18px] font-bold text-slate-900 flex items-center gap-2">
-                            <History size={18} className="text-slate-400" /> Interaction Audit Trail
+                            <History size={18} className="text-slate-400" /> 
+                            Lead Timeline
                           </h3>
                           <p className="text-[13px] font-medium text-slate-500 mt-1">Review lifecycle history, handoffs, and progressions.</p>
                         </div>

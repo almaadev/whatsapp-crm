@@ -18,18 +18,17 @@ const ChatHeader = memo(function ChatHeader({
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const displayName = activeChat.name || (activeChat.phone ? activeChat.phone.replace("whatsapp:", "") : "Unknown");
   const location = detailedCustomer?.city || "No City Info";
+  
   const hasStatusHistory = Boolean(
-    activeChat?.statusHistory?.length ||
-    activeChat?.status_history?.length ||
-    activeChat?.customerStatusHistory?.length ||
-    detailedCustomer?.statusHistory?.length ||
-    detailedCustomer?.status_history?.length ||
-    detailedCustomer?.customerStatusHistory?.length
+    activeChat?.history[activeChat.history.length - 1]?.status === "Follow Up" ||
+    activeChat?.history[activeChat.history.length - 1]?.status === "Closed" ||
+    activeChat?.history[activeChat.history.length - 1]?.status === "Not Interested"
   );
+  
   const statusOptions = hasStatusHistory
     ? ["Follow Up", "Closed", "Not Interested"]
     : ["New", "Follow Up", "Closed", "Not Interested"];
-  console.log(detailedCustomer, "detailedCustomer in ChatHeader");
+  
 
   return (
     <div className="bg-white border-b border-slate-200/80 px-4 sm:px-6 py-3.5 flex items-center justify-between shadow-sm z-20 select-none">
@@ -105,7 +104,7 @@ const ChatHeader = memo(function ChatHeader({
           </button>
           {menuOpen && (
             <div className="absolute right-0 mt-2 w-44 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-50 animate-in fade-in zoom-in-95 font-semibold text-xs text-slate-700">
-              {[ "Follow Up", "Closed", "Not Interested"].map((st) => (
+              {statusOptions.map((st) => (
                 <button
                   key={st}
                   onClick={() => {
