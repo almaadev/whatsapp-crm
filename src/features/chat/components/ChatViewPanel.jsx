@@ -1,4 +1,5 @@
-import { Lock } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Lock, ArrowDown } from "lucide-react";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import ChatHeader from "@/features/chat/components/ChatHeader";
 import MessageList from "@/features/chat/components/MessageList";
@@ -45,6 +46,66 @@ export default function ChatViewPanel({
   const handler = selectedChat ? activeHandlers[selectedChat.phone] : null;
   const isLockedByOther = handler && handler.userId !== (session?.user?.id || session?.user?.email) && (!handler.lockedUntil || handler.lockedUntil > Date.now());
 
+  // --- Scroll Handling ---
+  const scrollContainerRef = useRef(null);
+  const isNearBottomRef = useRef(true);
+  const prevChatPhoneRef = useRef(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+
+  const chatHistory = selectedChat?.history || [];
+
+  const checkIfNearBottom = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return true;
+    const threshold = 150;
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= threshold;
+  }, []);
+
+  const forceScrollToBottom = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
+    isNearBottomRef.current = true;
+    setShowScrollButton(false);
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    isNearBottomRef.current = true;
+    setShowScrollButton(false);
+  }, [messagesEndRef]);
+
+  // On conversation switch: force instant scroll to bottom
+  useEffect(() => {
+    const currentPhone = selectedChat?.phone;
+    if (currentPhone !== prevChatPhoneRef.current) {
+      prevChatPhoneRef.current = currentPhone;
+      isNearBottomRef.current = true;
+      requestAnimationFrame(() => {
+        setTimeout(forceScrollToBottom, 0);
+      });
+    }
+  }, [selectedChat?.phone, forceScrollToBottom]);
+
+  // On new messages: auto-scroll only if user is near the bottom
+  useEffect(() => {
+    if (isNearBottomRef.current) {
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          scrollToBottom();
+        }, 0);
+      });
+    }
+  }, [chatHistory.length, scrollToBottom]);
+
+  const handleScroll = useCallback(() => {
+    if (!scrollContainerRef.current) return;
+    const nearBottom = checkIfNearBottom();
+    isNearBottomRef.current = nearBottom;
+    setShowScrollButton(!nearBottom);
+  }, [checkIfNearBottom]);
+
   return (
     <div
       className={`flex flex-col bg-white h-full transition-all relative ${
@@ -72,14 +133,22 @@ export default function ChatViewPanel({
               themeIconHoverClasses={config.themeIconHoverClasses}
             />
             <MessageList
-              messages={selectedChat?.history || []}
+              messages={chatHistory}
               activeChat={selectedChat}
               userName={session?.user?.name}
-              scrollRef={null}
-              onScroll={() => {}}
+              scrollRef={scrollContainerRef}
+              onScroll={handleScroll}
               onMediaClick={() => {}}
               endRef={messagesEndRef}
             />
+            {showScrollButton && (
+              <button
+                onClick={scrollToBottom}
+                className="absolute bottom-24 right-5 bg-slate-700 text-white p-2 rounded-full shadow-lg z-30 animate-bounce"
+              >
+                <ArrowDown size={20} />
+              </button>
+            )}
             {isLockedByOther && (
               <div className="absolute inset-0 top-[65px] z-40 bg-white/30 backdrop-blur-[3px] flex flex-col items-center justify-center">
                    <div className="bg-red-50 text-red-700 px-6 py-4 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-red-100 flex items-center gap-3">

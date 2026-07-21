@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, memo, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, memo, useCallback, useMemo, useLayoutEffect } from "react";
 import api from "@/shared/lib/axios";
 import { useSession } from "next-auth/react";
 import { useChatStore } from "@/features/chat/stores/chatStore";
@@ -64,6 +64,8 @@ export default function ChatArea({
   const scrollContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const isNearBottomRef = useRef(true);
+  const prevChatPhoneRef = useRef(null);
 
   // --- Derived Data ---
   const activeChat =
@@ -132,24 +134,66 @@ export default function ChatArea({
   const isLockedByOther = handler && handler.userId !== (session?.user?.id || session?.user?.email) && (!handler.lockedUntil || handler.lockedUntil > Date.now());
 
   // --- Scroll Handling ---
-  useEffect(() => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop =
-        scrollContainerRef.current.scrollHeight;
+
+  // Helper: check if user is near the bottom of the scroll container
+  const checkIfNearBottom = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return true;
+    const threshold = 150; // px from bottom
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= threshold;
+  }, []);
+
+  // Force-scroll to bottom instantly (no animation) — used on conversation switch
+  const forceScrollToBottom = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
     }
-  }, [messages.length, activeChat?.phone]);
-
-  const handleScroll = () => {
-    if (!scrollContainerRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } =
-      scrollContainerRef.current;
-    setShowScrollButton(scrollHeight - scrollTop - clientHeight > 100);
-  };
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    isNearBottomRef.current = true;
     setShowScrollButton(false);
-  };
+  }, []);
+
+  // Smooth-scroll to bottom — used for new messages & user-triggered scroll
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    isNearBottomRef.current = true;
+    setShowScrollButton(false);
+  }, []);
+
+  // On conversation switch: always force-scroll to bottom instantly
+  // Uses staggered attempts to handle async DOM rendering (images, templates, etc.)
+  useEffect(() => {
+    const currentPhone = activeChat?.phone;
+    if (currentPhone !== prevChatPhoneRef.current) {
+      prevChatPhoneRef.current = currentPhone;
+      isNearBottomRef.current = true;
+      // Staggered scroll attempts to catch late-rendering content
+      const timers = [
+        setTimeout(forceScrollToBottom, 0),
+        setTimeout(forceScrollToBottom, 100),
+        setTimeout(forceScrollToBottom, 300),
+      ];
+      return () => timers.forEach(clearTimeout);
+    }
+  }, [activeChat?.phone, forceScrollToBottom]);
+
+  // On timeline changes (new messages OR async audit entries loading):
+  // auto-scroll only if user was already near the bottom
+  useEffect(() => {
+    if (chronologicalTimeline.length === 0) return;
+    if (isNearBottomRef.current) {
+      requestAnimationFrame(() => {
+        setTimeout(forceScrollToBottom, 0);
+      });
+    }
+  }, [chronologicalTimeline.length, forceScrollToBottom]);
+
+  const handleScroll = useCallback(() => {
+    if (!scrollContainerRef.current) return;
+    const nearBottom = checkIfNearBottom();
+    isNearBottomRef.current = nearBottom;
+    setShowScrollButton(!nearBottom);
+  }, [checkIfNearBottom]);
 
   // --- Business Logic ---
   const handleSetReminder = async ({ date, time, message }) => {

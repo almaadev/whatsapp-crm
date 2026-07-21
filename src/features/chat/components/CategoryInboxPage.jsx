@@ -47,10 +47,6 @@ function CategoryInboxContent({ slug }) {
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 
   useEffect(() => {
-    scrollToBottom();
-  }, [selectedChat?.history]);
-
-  useEffect(() => {
     if (isAuthorized) fetchChats(debouncedSearch);
   }, [debouncedSearch, isAuthorized, fetchChats]);
 
