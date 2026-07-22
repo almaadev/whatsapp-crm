@@ -37,23 +37,42 @@ export async function GET(req) {
             end.setHours(23, 59, 59, 999);
             fetchOptions.dateSentBefore = end;
         }
-        if (status && status !== 'all') fetchOptions.status = status;
 
         const messages = await client.messages.list(fetchOptions);
 
+        const filterByGroupedStatus = (msgStatus, targetStatus) => {
+            if (!targetStatus || targetStatus === 'all') return true;
+            const s = msgStatus?.toLowerCase() || "";
+            const t = targetStatus.toLowerCase();
+            if (t === 'delivered') return s === 'delivered';
+            if (t === 'read') return s === 'read';
+            if (t === 'failed') return ['failed', 'undelivered'].includes(s);
+            if (t === 'sent' || t === 'queued') return ['queued', 'accepted', 'scheduled', 'sending', 'sent'].includes(s);
+            return s === t;
+        };
+
         let delivered = 0, failed = 0, inbound = 0, outbound = 0, media = 0;
 
-        let formattedMessages = messages.map(msg => {
-            const numMedia = Number(msg.numMedia || 0);
+        let formattedMessages = [];
+        
+        messages.forEach(msg => {
             const msgStatus = msg.status?.toLowerCase() || "";
+
+            // 1. Apply Server-Side Status Filter FIRST
+            if (!filterByGroupedStatus(msgStatus, status)) {
+                return;
+            }
+
+            const numMedia = Number(msg.numMedia || 0);
             const isOutbound = msg.direction.includes('outbound');
 
+            // 2. Recalculate Analytics on Filtered Dataset
             if (['delivered', 'read'].includes(msgStatus)) delivered++;
             if (['failed', 'undelivered'].includes(msgStatus)) failed++;
             if (isOutbound) outbound++; else inbound++;
             if (numMedia > 0) media++;
 
-            return {
+            formattedMessages.push({
                 id: msg.sid,
                 dateSent: msg.dateSent,
                 direction: msg.direction,
@@ -63,7 +82,7 @@ export async function GET(req) {
                 numMedia: numMedia,
                 status: msg.status,
                 errorMessage: msg.errorMessage || ""
-            };
+            });
         });
 
         // ─── ENTERPRISE DIRECT CSV EXPORT MODE ───

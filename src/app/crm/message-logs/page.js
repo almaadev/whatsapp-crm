@@ -8,7 +8,10 @@ import { toast } from "react-toastify";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import { reportRepository } from "@/shared/api/repositories/reportRepository";
-import { useMessageLogsState, downloadBlob } from "@/features/reports/hooks/useMessageLogsState";
+import {
+  useMessageLogsState,
+  downloadBlob,
+} from "@/features/reports/hooks/useMessageLogsState";
 
 import {
   Loader2,
@@ -43,7 +46,8 @@ export default function MessageLogsPage() {
 
   const isAuthorized = hasModuleAccess("Messages log");
 
-  const { state, setters, derived, actions } = useMessageLogsState(isAuthorized);
+  const { state, setters, derived, actions } =
+    useMessageLogsState(isAuthorized);
 
   const [expandedRows, setExpandedRows] = useState({});
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -90,16 +94,21 @@ export default function MessageLogsPage() {
     setShowExportModal(false);
     try {
       let queryStr = `limit=all`;
-      if (state.startDate) queryStr += `&startDate=${encodeURIComponent(state.startDate)}`;
-      if (state.endDate) queryStr += `&endDate=${encodeURIComponent(state.endDate)}`;
-      if (state.apiStatusFilter !== "all") queryStr += `&status=${encodeURIComponent(state.apiStatusFilter)}`;
-      if (state.searchQuery) queryStr += `&search=${encodeURIComponent(state.searchQuery)}`;
-      if (state.clientDirection !== "all") queryStr += `&direction=${state.clientDirection}`;
+      if (state.startDate)
+        queryStr += `&startDate=${encodeURIComponent(state.startDate)}`;
+      if (state.endDate)
+        queryStr += `&endDate=${encodeURIComponent(state.endDate)}`;
+      if (state.apiStatusFilter !== "all")
+        queryStr += `&status=${encodeURIComponent(state.apiStatusFilter)}`;
+      if (state.searchQuery)
+        queryStr += `&search=${encodeURIComponent(state.searchQuery)}`;
+      if (state.clientDirection !== "all")
+        queryStr += `&direction=${state.clientDirection}`;
       if (state.clientMediaOnly) queryStr += `&mediaOnly=true`;
       if (state.clientFailedOnly) queryStr += `&failedOnly=true`;
 
       const res = await reportRepository.exportMessageLogs(queryStr);
-      
+
       const blob = res.data;
       downloadBlob(blob, `enterprise_message_archive_${Date.now()}.csv`);
       toast.success("Enterprise archive downloaded safely.");
@@ -168,9 +177,12 @@ export default function MessageLogsPage() {
         });
         downloadBlob(blob, `communication_logs_${new Date().getTime()}.csv`);
       } else if (type === "json") {
-        const blob = new Blob([JSON.stringify(derived.filteredMessages, null, 2)], {
-          type: "application/json",
-        });
+        const blob = new Blob(
+          [JSON.stringify(derived.filteredMessages, null, 2)],
+          {
+            type: "application/json",
+          },
+        );
         downloadBlob(blob, `communication_logs_${new Date().getTime()}.json`);
       }
       toast.update(toastId, {
@@ -217,7 +229,8 @@ export default function MessageLogsPage() {
     );
   }
 
-  const isDangerousQuery = !state.startDate && !state.endDate && !state.searchQuery;
+  const isDangerousQuery =
+    !state.startDate && !state.endDate && !state.searchQuery;
 
   if (status === "loading" || isLoading)
     return (
@@ -497,8 +510,11 @@ export default function MessageLogsPage() {
                     <option value="all">Any Status</option>
                     <option value="delivered">Delivered</option>
                     <option value="read">Read</option>
+                    <option value="received">Received</option>
+                    <option value="sent">Sent</option>
+                    <option value="queued">Queued</option>
                     <option value="failed">Failed</option>
-                    <option value="sent">Sent/Queued</option>
+                    <option value="undelivered">Undelivered</option>
                   </select>
                 </div>
 
@@ -671,7 +687,10 @@ export default function MessageLogsPage() {
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col min-h-0 overflow-hidden relative">
               {state.loading ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm z-10">
-                  <Loader2 size={40} className="animate-spin text-emerald-500 mb-4" />
+                  <Loader2
+                    size={40}
+                    className="animate-spin text-emerald-500 mb-4"
+                  />
                   <p className="text-sm font-bold text-slate-500 uppercase tracking-wider animate-pulse">
                     Connecting to Archives...
                   </p>
@@ -685,11 +704,15 @@ export default function MessageLogsPage() {
                     No Logs Found
                   </h3>
                   <p className="text-sm text-slate-500 max-w-sm">
-                    {state.searchQuery || state.apiStatusFilter !== "all" || state.clientDirection !== "all"
+                    {state.searchQuery ||
+                    state.apiStatusFilter !== "all" ||
+                    state.clientDirection !== "all"
                       ? "Try adjusting your filters or search terms."
                       : "No communication logs match the current timeframe."}
                   </p>
-                  {(state.searchQuery || state.apiStatusFilter !== "all" || state.clientDirection !== "all") && (
+                  {(state.searchQuery ||
+                    state.apiStatusFilter !== "all" ||
+                    state.clientDirection !== "all") && (
                     <button
                       onClick={() => {
                         setters.setSearchQuery("");
@@ -734,7 +757,8 @@ export default function MessageLogsPage() {
                       <tbody className="divide-y divide-slate-100">
                         {derived.paginatedMessages.map((msg, idx) => {
                           const isExpanded = expandedRows[msg.id || idx];
-                          const isOutbound = msg.direction?.includes("outbound");
+                          const isOutbound =
+                            msg.direction?.includes("outbound");
                           const mCount = msg.numMedia || msg.mediaCount || 0;
 
                           return (
@@ -832,8 +856,7 @@ export default function MessageLogsPage() {
                                               <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
                                                 {msg.body || (
                                                   <span className="italic text-slate-400">
-                                                    Media only. No text
-                                                    content.
+                                                    Media only. No text content.
                                                   </span>
                                                 )}
                                               </p>
@@ -950,9 +973,14 @@ export default function MessageLogsPage() {
                       </button>
                       <button
                         onClick={() =>
-                          setters.setCurrentPage((p) => Math.min(derived.totalPages, p + 1))
+                          setters.setCurrentPage((p) =>
+                            Math.min(derived.totalPages, p + 1),
+                          )
                         }
-                        disabled={state.currentPage === derived.totalPages || derived.totalPages === 0}
+                        disabled={
+                          state.currentPage === derived.totalPages ||
+                          derived.totalPages === 0
+                        }
                         className="px-3 py-1.5 sm:px-4 sm:py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 bg-white hover:bg-slate-50 disabled:opacity-50 transition-all flex items-center gap-1"
                       >
                         Next <ChevronRight size={14} />
