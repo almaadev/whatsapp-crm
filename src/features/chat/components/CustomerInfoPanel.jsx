@@ -256,7 +256,7 @@ export default function CustomerInfoPanel({
       >
       {/* Sidebar Header */}
       <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100 shrink-0 bg-white">
-        <h2 className="font-bold text-slate-800 text-lg">Lead Center</h2>
+        <h2 className="font-bold text-slate-800 text-lg">Customer Info</h2>
         <button onClick={onClose} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-650 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 rounded-lg transition-colors border border-transparent">
           <X size={16} /> Hide
         </button>
