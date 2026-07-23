@@ -1,4 +1,5 @@
 "use client";
+
 import { useSession, signOut } from "next-auth/react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -7,7 +8,7 @@ import { usePathname } from "next/navigation";
 import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png";
 import SignOutModal from "@/shared/components/modals/SignOutModal";
 import { authRepository } from "@/shared/api/repositories/authRepository";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { checkPermissions } from "@/shared/utils/auth";
 import { NAVIGATION_CONFIG } from "@/shared/config/navigation";
 import { useUserStore } from "@/features/user/stores/userStore";
@@ -18,22 +19,22 @@ export default function Sidebar({
   setMobileOpen = () => {},
   setIsDesktopExpanded,
   isDesktopExpanded,
+  toggleDesktopSidebar,
 }) {
   const { data: session } = useSession();
   const user = useUserStore((state) => state.user);
   const pathname = usePathname();
 
   const [showSignOut, setShowSignOut] = useState(false);
+  const [hoveredNav, setHoveredNav] = useState(null);
 
-  // Manage dropdown states generically
+  // Manage dropdown states
   const [dropdowns, setDropdowns] = useState(() => {
     const initialState = {};
     NAVIGATION_CONFIG.forEach((nav) => {
       if (nav.type === "dropdown" && nav.stateKey) {
         initialState[nav.stateKey] =
-          nav.paths?.some(
-            (p) => pathname === p || pathname.startsWith(p + "/"),
-          ) || false;
+          nav.paths?.some((p) => pathname === p || pathname.startsWith(p + "/")) || false;
       }
     });
     return initialState;
@@ -66,9 +67,10 @@ export default function Sidebar({
 
   return (
     <>
+      {/* Mobile Backdrop Overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm"
+          className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm transition-opacity duration-300"
           onClick={() => setMobileOpen(false)}
         />
       )}
@@ -80,60 +82,67 @@ export default function Sidebar({
       />
 
       <aside
+        role="navigation"
+        aria-expanded={isExpanded}
         className={`
-          bg-[var(--brand-sidebar)] text-white flex flex-col border-r border-white/10 transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] z-50
-          fixed inset-y-0 left-0 h-full shadow-2xl md:shadow-none select-none
-          ${mobileOpen ? "translate-x-0 w-72" : "-translate-x-full w-72"}
-          md:relative md:translate-x-0 
-          ${isDesktopExpanded ? "md:w-72" : "md:w-[72px]"}
+          bg-[var(--brand-sidebar)] text-white flex flex-col border-r border-white/10
+          transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] z-50
+          fixed inset-y-0 left-0 h-full shadow-2xl md:shadow-none select-none shrink-0 relative
+          ${mobileOpen ? "translate-x-0 w-[272px]" : "-translate-x-full w-[272px]"}
+          md:relative md:translate-x-0
+          ${isExpanded ? "md:w-[272px]" : "md:w-[70px]"}
         `}
       >
-        {/* Header */}
+    
+
+        {/* Header / Logo Section */}
         <div
-          className={`flex items-center h-20  ${isExpanded ? "px-4" : "px-2"} shrink-0 border-b border-white/10 ${isExpanded ? "justify-between" : "justify-center"}`}
+          className={`flex items-center h-16 shrink-0 border-b border-white/10 transition-all duration-300 ${
+            isExpanded ? "px-4 justify-between" : "px-0 justify-center"
+          }`}
         >
           {isExpanded ? (
             <div className="flex items-center gap-3 overflow-hidden">
-              <div className=" w-28 flex items-center justify-center shrink-0 p-1">
+              <div className="w-10 h-10 flex items-center justify-center shrink-0 p-0.5">
                 <Image
                   src={AlmaaLogo.src}
-                  alt="Almaa"
-                  width={100}
-                  height={100}
+                  alt="Almaa Logo"
+                  width={36}
+                  height={36}
                   className="w-full h-full object-contain"
                   draggable={false}
                 />
               </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-white text-lg leading-tight tracking-wide">
+              <div className="flex flex-col truncate">
+                <span className="font-extrabold text-white text-base leading-tight tracking-wide truncate">
                   Almaa
                 </span>
-                <span className="text-[10px] text-green-100 uppercase tracking-wider font-medium">
+                <span className="text-[10px] text-emerald-200 uppercase tracking-widest font-bold truncate">
                   Herbal Nature
                 </span>
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-center">
+            <div className="w-full h-full flex items-center justify-center">
               <Image
                 src={AlmaaLogo.src}
-                alt="Almaa"
-                height={100}
-                width={100}
-                className="w-full h-full object-contain"
+                alt="Almaa Logo"
+                width={36}
+                height={36}
+                className="w-9 h-9 object-contain"
                 draggable={false}
               />
             </div>
           )}
         </div>
 
-        {/* Nav Links */}
-        <nav className="flex-1 flex flex-col gap-2 p-4 mt-0 overflow-y-auto custom-scrollbar">
+        {/* Navigation Items Scroll Container */}
+        <nav className="flex-1 flex flex-col gap-1.5 p-2.5 overflow-y-auto custom-scrollbar overflow-x-hidden">
           {NAVIGATION_CONFIG.map((nav, index) => {
-            // Permission checks
             if (!checkPermissions(user || session, nav)) return null;
 
             const Icon = nav.icon;
+            const isHovered = hoveredNav === index;
 
             if (nav.type === "dropdown") {
               const isOpen = dropdowns[nav.stateKey];
@@ -142,11 +151,20 @@ export default function Sidebar({
               );
 
               return (
-                <div key={index} className="flex flex-col gap-1">
-                  <div
+                <div
+                  key={index}
+                  className="flex flex-col gap-1 relative"
+                  onMouseEnter={() => setHoveredNav(index)}
+                  onMouseLeave={() => setHoveredNav(null)}
+                >
+                  <button
+                    type="button"
+                    tabIndex={0}
+                    aria-label={nav.label}
                     onClick={() => {
                       if (!isExpanded) {
                         if (window.innerWidth < 768) setMobileOpen(true);
+                        else if (toggleDesktopSidebar) toggleDesktopSidebar();
                         else setIsDesktopExpanded(true);
                         setDropdowns((prev) => ({
                           ...prev,
@@ -156,18 +174,22 @@ export default function Sidebar({
                         toggleDropdown(nav.stateKey);
                       }
                     }}
-                    className={`flex items-center gap-4 p-3.5 rounded-xl transition-all duration-200 cursor-pointer group font-medium ${
-                      isActiveRoute && !isOpen
-                        ? "bg-white/10 text-white"
-                        : "text-white hover:bg-white/20"
-                    } ${isExpanded ? "justify-between" : "justify-center"}`}
+                    className={`
+                      relative flex items-center rounded-xl transition-all duration-200 cursor-pointer group outline-none font-medium w-full
+                      ${
+                        isActiveRoute
+                          ? "bg-white/15 text-white font-bold before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1.5 before:bg-emerald-400 before:rounded-r-full"
+                          : "text-white/80 hover:text-white hover:bg-white/10"
+                      }
+                      ${isExpanded ? "px-3.5 py-2.5 justify-between" : "h-11 w-11 mx-auto justify-center"}
+                    `}
                   >
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3.5 min-w-0">
                       <span className="shrink-0 transition-transform duration-200 group-hover:scale-110">
-                        {Icon && <Icon size={22} />}
+                        {Icon && <Icon size={20} />}
                       </span>
                       {isExpanded && (
-                        <span className="text-[15px] tracking-wide crm-fade-in font-medium">
+                        <span className="text-sm font-semibold tracking-wide truncate">
                           {nav.label}
                         </span>
                       )}
@@ -175,31 +197,40 @@ export default function Sidebar({
                     {isExpanded && (
                       <ChevronDown
                         size={16}
-                        className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                        className={`shrink-0 transition-transform duration-200 ${
+                          isOpen ? "rotate-180 text-white" : "text-white/60"
+                        }`}
                       />
                     )}
-                  </div>
+                  </button>
 
+                  {/* Collapsed Hover Tooltip */}
+                  {!isExpanded && isHovered && (
+                    <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-lg shadow-2xl border border-slate-700 pointer-events-none whitespace-nowrap z-[100] animate-in fade-in zoom-in-95">
+                      {nav.label}
+                    </div>
+                  )}
+
+                  {/* Expanded Dropdown Items */}
                   {isExpanded && isOpen && (
-                    <div className="flex flex-col gap-1 ml-[22px] pl-4 border-l-2 border-white/20 mt-1 mb-2 crm-slide-in-top">
+                    <div className="flex flex-col gap-1 ml-4 pl-3.5 border-l-2 border-white/15 my-1 crm-slide-in-top">
                       {nav.items.map((item, i) => {
                         if (!checkPermissions(user || session, item)) return null;
                         const ItemIcon = item.icon;
                         const isItemActive = pathname === item.href;
 
                         return (
-                          <Link key={i} href={item.href}>
+                          <Link key={i} href={item.href} className="outline-none">
                             <div
-                              className={`py-2 px-3 rounded-lg text-sm transition-all duration-200 flex items-center gap-2 ${
+                              tabIndex={0}
+                              className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center gap-2.5 ${
                                 isItemActive
                                   ? "bg-white text-[var(--brand-sidebar-active)] font-bold shadow-sm translate-x-1"
-                                  : "text-white/80 hover:text-white hover:bg-white/10 hover:translate-x-1"
+                                  : "text-white/75 hover:text-white hover:bg-white/10 hover:translate-x-1"
                               }`}
                             >
-                              {ItemIcon && (
-                                <ItemIcon size={item.iconSize || 14} />
-                              )}
-                              <span>{item.label}</span>
+                              {ItemIcon && <ItemIcon size={item.iconSize || 14} className="shrink-0" />}
+                              <span className="truncate">{item.label}</span>
                             </div>
                           </Link>
                         );
@@ -210,65 +241,68 @@ export default function Sidebar({
               );
             }
 
-            // Regular link
+            // Regular Link
             const isActive = nav.matchStartsWith
               ? pathname.startsWith(nav.href)
               : pathname === nav.href;
+
             return (
-              <Link key={index} href={nav.href}>
-                <NavItem
-                  isOpen={isExpanded}
-                  active={isActive}
-                  label={nav.label}
-                  icon={Icon ? <Icon size={22} /> : null}
-                />
-              </Link>
+              <div
+                key={index}
+                className="relative"
+                onMouseEnter={() => setHoveredNav(index)}
+                onMouseLeave={() => setHoveredNav(null)}
+              >
+                <Link href={nav.href} className="outline-none">
+                  <div
+                    tabIndex={0}
+                    aria-label={nav.label}
+                    className={`
+                      relative flex items-center rounded-xl transition-all duration-200 cursor-pointer group font-medium w-full
+                      ${
+                        isActive
+                          ? "bg-white text-[var(--brand-sidebar-active)] font-bold shadow-md shadow-black/10 before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1.5 before:bg-emerald-500 before:rounded-r-full"
+                          : "text-white/80 hover:text-white hover:bg-white/10"
+                      }
+                      ${isExpanded ? "px-3.5 py-2.5 justify-start gap-3.5" : "h-11 w-11 mx-auto justify-center"}
+                    `}
+                  >
+                    <span className="shrink-0 transition-transform duration-200 group-hover:scale-110">
+                      {Icon && <Icon size={20} />}
+                    </span>
+                    {isExpanded && (
+                      <span className="text-sm font-semibold tracking-wide truncate">
+                        {nav.label}
+                      </span>
+                    )}
+                  </div>
+                </Link>
+
+                {/* Collapsed Hover Tooltip */}
+                {!isExpanded && isHovered && (
+                  <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-lg shadow-2xl border border-slate-700 pointer-events-none whitespace-nowrap z-[100] animate-in fade-in zoom-in-95">
+                    {nav.label}
+                  </div>
+                )}
+              </div>
             );
           })}
         </nav>
 
         {/* Footer */}
-        {isExpanded && (
-          <div className="border-t border-white/10 px-4 py-4 shrink-0 bg-(--brand-sidebar-footer)">
-            <div className="space-y-1 text-white/80 text-xs">
-              <p className="font-semibold text-white">Almaa Whatsapp CRM</p>
-              <p className="leading-relaxed">
-                Managed by Almaa Software Systems
-              </p>
+        {isExpanded ? (
+          <div className="border-t border-white/10 px-4 py-3.5 shrink-0 bg-white/5">
+            <div className="space-y-0.5 text-white/80 text-xs">
+              <p className="font-extrabold text-white truncate">Almaa Whatsapp CRM</p>
+              <p className="text-[10px] text-white/60 truncate">Enterprise Management System</p>
             </div>
+          </div>
+        ) : (
+          <div className="border-t border-white/10 py-3 flex justify-center shrink-0">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="System Online" />
           </div>
         )}
       </aside>
     </>
-  );
-}
-
-function NavItem({ isOpen, icon, label, active }) {
-  return (
-    <div
-      className={`
-      flex items-center gap-4 p-3.5 rounded-xl transition-all duration-200 cursor-pointer group font-medium
-      ${
-        active
-          ? "bg-white text-[var(--brand-sidebar-active)] shadow-lg shadow-black/10 translate-x-1"
-          : "text-white hover:bg-white/20 hover:text-white hover:translate-x-1"
-      } 
-      ${isOpen ? "justify-start" : "justify-center"}
-    `}
-    >
-      <span
-        className={`shrink-0 transition-transform duration-200 ${active ? "scale-110" : "group-hover:scale-110"}`}
-      >
-        {icon}
-      </span>
-
-      {isOpen && (
-        <span
-          className={`text-[15px] tracking-wide crm-fade-in ${active ? "font-bold" : "font-medium"}`}
-        >
-          {label}
-        </span>
-      )}
-    </div>
   );
 }

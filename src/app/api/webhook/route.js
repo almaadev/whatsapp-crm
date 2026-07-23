@@ -96,19 +96,32 @@ export async function POST(req) {
 
     const twilioSid = body.MessageSid || body.sid || "";
 
-    // 🚀 NEW: Robust Phone Formatting (Strictly forces "whatsapp:+")
+    // Extract & format recipient business number (To) and customer number (From)
+    let rawTo = body.To || body.to || "";
+    let receivedOnNumber = rawTo.replace("whatsapp:", "").trim();
+    if (receivedOnNumber && !receivedOnNumber.startsWith("+")) receivedOnNumber = `+${receivedOnNumber}`;
+
+    // Lookup TwilioNumber to get branch assignment
+    let twilioNumberDoc = null;
+    let branchId = null;
+    let twilioNumberId = null;
+    if (receivedOnNumber) {
+      twilioNumberDoc = await import("@/shared/models/TwilioNumber").then(m => m.default.findOne({ phoneNumber: receivedOnNumber }).lean());
+      if (twilioNumberDoc) {
+        branchId = twilioNumberDoc.branchId || null;
+        twilioNumberId = twilioNumberDoc._id || null;
+      }
+    }
+
+    // Robust Phone Formatting (Strictly forces "whatsapp:+")
     let rawPhone = body.From || body.from || "";
     let phone = "";
     if (rawPhone) {
-      // Remove any existing "whatsapp:" prefix and trim spaces
       let cleaned = rawPhone.replace("whatsapp:", "").trim();
-      // Ensure it starts with a '+'
       if (!cleaned.startsWith("+")) cleaned = `+${cleaned}`;
-      // Rebuild the perfect format
       phone = `whatsapp:${cleaned}`;
     }
 
-    // Safely extract the body text and replace linebreaks
     const rawMessage = body.Body || body.body || "";
     let messageText = rawMessage.replace(/\\n/g, "\n");
 
@@ -241,11 +254,13 @@ export async function POST(req) {
         lastInteractionAt: new Date(),
         unreadCount: 1,
         source: "Whatsapp",
+        lastIncomingNumber: receivedOnNumber,
       });
     } else {
       customer.activeRouteCategory = targetCategory;
       customer.lastInteractionAt = new Date();
       customer.unreadCount = (customer.unreadCount || 0) + 1;
+      customer.lastIncomingNumber = receivedOnNumber;
       if (
         customer.name === "Unknown" ||
         customer.name === phone.replace("whatsapp:", "")
@@ -265,6 +280,10 @@ export async function POST(req) {
     }).map((msg) => ({
       ...msg,
       chatType: targetCategory,
+      receivedOnNumber,
+      senderNumber: receivedOnNumber,
+      branchId,
+      twilioNumberId,
     }));
 
     const TargetModel = getModelByCategory(targetCategory);
@@ -301,6 +320,9 @@ export async function POST(req) {
         mediaType: inboundMessages[0]?.mediaType || "",
         isChatClosed: false,
         read: "FALSE",
+        receivedOnNumber,
+        branchId,
+        friendlyName: twilioNumberDoc?.friendlyName || "",
       };
 
       const catLabel =
@@ -336,11 +358,9 @@ export async function POST(req) {
       console.log("⚡ [WEBHOOK] Socket events emitted.");
     }
 
-    // 🚀 --- MOVED: KEYWORD AUTO-REPLY MIDDLEWARE ---
-    // Moved here so the customer's message saves to the DB and emits to UI first.
-    // This ensures the auto-reply always appears AFTER the user's message chronologically.
+    // 🚀 KEYWORD AUTO-REPLY MIDDLEWARE (Uses incoming business number)
     try {
-      await processKeywordAutoReply(phone, messageText, profileName);
+      await processKeywordAutoReply(phone, messageText, profileName, receivedOnNumber);
     } catch (autoReplyErr) {
       console.error("❌ [WEBHOOK] Auto-reply failed silently to not impact webhook flow:", autoReplyErr);
     }

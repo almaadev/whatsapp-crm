@@ -24,6 +24,7 @@ import {
   X,
   Phone,
   Globe,
+  Building2,
 } from "lucide-react";
 import { getStatusColor } from "@/shared/utils/colorUtils";
 import { toast } from "react-toastify";
@@ -99,7 +100,8 @@ export default function CustomersPage() {
         (c) =>
           (c.name && c.name.toLowerCase().includes(lower)) ||
           (c.phone && c.phone.includes(lower)) ||
-          (c.city && c.city.toLowerCase().includes(lower)),
+          (c.city && c.city.toLowerCase().includes(lower)) ||
+          (c.branchName && c.branchName.toLowerCase().includes(lower)),
       );
     }
 
@@ -224,6 +226,7 @@ const CustomerTable = ({ customers, onClick }) => (
       <tr>
         <th className="px-6 py-4">Customer Details</th>
         <th className="px-6 py-4">Contact Info</th>
+        <th className="px-6 py-4">Branch</th>
         <th className="px-6 py-4">Enquired For</th>
         <th className="px-6 py-4">Current Status</th>
         <th className="px-6 py-4">Created By</th>
@@ -259,6 +262,12 @@ const CustomerTable = ({ customers, onClick }) => (
             <div className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-md border border-slate-200 w-max">
               {c.phone.replace("whatsapp:", "")}
             </div>
+          </td>
+          <td className="px-6 py-4">
+            <span className="inline-flex items-center gap-1 font-semibold text-xs text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 whitespace-nowrap">
+              <Building2 size={11} />
+              {c.branchName || "Unassigned Branch"}
+            </span>
           </td>
           <td className="px-6 py-4 text-slate-600 max-w-[200px] truncate font-medium">
             {c.enquiredFor || "-"}

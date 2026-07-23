@@ -81,6 +81,7 @@ export function isRouteAuthorized(session, pathname) {
 }
 
 const API_RULES = [
+  { prefix: "/api/admin/twilio", accessRequirements: ["Chat Inbox", "Bulk Messages"] },
   { prefix: "/api/admin", adminOnly: true },
   { prefix: "/api/users", adminOnly: true },
   { prefix: "/api/associate", hideForAdmin: true },
@@ -95,6 +96,7 @@ const API_RULES = [
   { prefix: "/api/category-leads-update", moduleName: "Chat Inbox" },
   { prefix: "/api/keyword-automation", adminOnly: true },
   { prefix: "/api/templates", moduleName: "Chat Inbox" },
+  { prefix: "/api/branches", accessRequirements: ["Chat Inbox", "Customers", "Leads"] },
 ];
 
 export function getAPIRule(pathname) {

@@ -1,8 +1,13 @@
 import mongoose from "mongoose";
 
 const ChatHistorySchema = new mongoose.Schema({
-  action: { type: String, required: true },
-  performedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  action: { type: String },
+  eventType: { type: String },
+  performedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  performedByName: { type: String },
+  performedByRole: { type: String },
+  performedById: { type: String },
+  performedAt: { type: Date, default: Date.now },
   timestamp: { type: Date, default: Date.now },
   notes: { type: String },
   isInternal: { type: Boolean, default: false },
@@ -27,6 +32,9 @@ const CustomerSchema = new mongoose.Schema({
   lastInteractionAt: { type: Date, default: null },
   unreadCount: { type: Number, default: 0 },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  branchId: { type: mongoose.Schema.Types.ObjectId, ref: "Branch", default: null, index: true },
+  assignedTwilioNumber: { type: String, default: null, index: true },
+  lastIncomingNumber: { type: String, default: null, index: true },
   chatHistory: [ChatHistorySchema],
 }, { timestamps: true });
 

@@ -34,10 +34,16 @@ export async function POST(req) {
     const targetUser = await User.findOne({ name: associateName }).lean();
     const targetUserId = targetUser?._id;
 
+    const now = new Date();
     const chatHistoryEntry = {
       action: "Transferred",
+      eventType: "Assigned to Associate",
       performedBy: session.user.id,
-      timestamp: new Date(),
+      performedById: session.user.id,
+      performedByName: forwardedBy || "User",
+      performedByRole: session.user.role || "associate",
+      performedAt: now,
+      timestamp: now,
       targetUser: targetUserId || null,
       notes: `Forwarded to ${associateName} by ${forwardedBy}`
     };

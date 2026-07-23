@@ -55,9 +55,25 @@ export default function BulkTemplatePage() {
   const [isDeleting, setIsDeleting] = useState(null);
   const formRef = useRef(null);
 
+  const [availableNumbers, setAvailableNumbers] = useState([]);
+  const [selectedSender, setSelectedSender] = useState("");
+
   useEffect(() => {
     fetchTemplates();
     fetchCampaigns();
+
+    // Fetch Twilio Numbers available to the user
+    fetch("/api/admin/twilio")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.numbers && Array.isArray(data.numbers)) {
+          setAvailableNumbers(data.numbers);
+          if (data.numbers.length > 0) {
+            setSelectedSender(data.numbers[0].phoneNumber);
+          }
+        }
+      })
+      .catch((err) => console.error("Failed to load Twilio senders:", err));
   }, [fetchTemplates]);
 
   const fetchCampaigns = async () => {
@@ -135,6 +151,7 @@ export default function BulkTemplatePage() {
           campaignId: currentCampaignId,
           numbers: batch,
           templateId,
+          senderNumber: selectedSender,
           contentVariables:
             Object.keys(templateVariables).length > 0
               ? templateVariables
@@ -229,7 +246,7 @@ export default function BulkTemplatePage() {
   const recipientCount = [...new Set(extracted)].length;
 
   const canSend =
-    !isSending && recipientCount > 0 && !!templateId && !!campaignName.trim();
+    !isSending && recipientCount > 0 && !!templateId && !!campaignName.trim() && availableNumbers.length > 0;
 
   const totalPages = Math.ceil(campaigns.length / campaignsPerPage);
   const indexOfLastCampaign = currentPage * campaignsPerPage;
@@ -294,14 +311,75 @@ export default function BulkTemplatePage() {
                       <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2 text-xs sm:text-sm font-black uppercase tracking-wider text-slate-600 bg-slate-50/40">
                         <Type size={18} className="text-[#00a884]" /> Campaign Profile
                       </div>
-                      <div className="p-5">
-                        <input
-                          type="text"
-                          value={campaignName}
-                          onChange={(e) => setCampaignName(e.target.value)}
-                          placeholder="e.g. Summer Sale 2026"
-                          className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl px-4 py-3.5 outline-none focus:border-[#00a884] focus:ring-4 focus:ring-[#00a884]/10 text-sm font-bold transition-all shadow-inner"
-                        />
+                      <div className="p-5 flex flex-col gap-4">
+                        <div>
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+                            Campaign Name
+                          </label>
+                          <input
+                            type="text"
+                            value={campaignName}
+                            onChange={(e) => setCampaignName(e.target.value)}
+                            placeholder="e.g. Summer Sale 2026"
+                            className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl px-4 py-3 outline-none focus:border-[#00a884] focus:ring-4 focus:ring-[#00a884]/10 text-sm font-bold transition-all shadow-inner"
+                          />
+                        </div>
+
+                        {/* Outbound Sender Number Control */}
+                        {(() => {
+                          const isSuperAdminUser = session?.user?.role === "superAdmin";
+                          const isAdminUser = session?.user?.department === "admin" || session?.user?.role === "admin";
+                          const isAssociateUser = !isSuperAdminUser && !isAdminUser;
+
+                          if (availableNumbers.length === 0) {
+                            return (
+                              <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+                                  Outgoing Business Sender Number
+                                </label>
+                                <div className="w-full bg-rose-50 border border-rose-200 rounded-2xl px-4 py-3 text-xs font-bold text-rose-700 select-none">
+                                  No WhatsApp sender assigned. Contact administrator.
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          if (isAssociateUser && availableNumbers.length === 1) {
+                            const assignedDoc = availableNumbers[0];
+                            return (
+                              <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+                                  Assigned Outgoing Business Sender
+                                </label>
+                                <div className="w-full bg-slate-100 border border-slate-200 rounded-2xl px-4 py-3 text-xs font-bold text-slate-800 flex items-center gap-2 select-none">
+                                  <Send size={12} className="text-emerald-600 shrink-0" />
+                                  <span className="truncate">
+                                    {assignedDoc.friendlyName} ({assignedDoc.phoneNumber})
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div>
+                              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+                                Outgoing Business Sender Number ({isSuperAdminUser ? "Super Admin" : isAdminUser ? "Admin Senders" : "Your Assigned Senders"})
+                              </label>
+                              <select
+                                value={selectedSender}
+                                onChange={(e) => setSelectedSender(e.target.value)}
+                                className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl px-4 py-3 outline-none focus:border-[#00a884] focus:ring-4 focus:ring-[#00a884]/10 text-xs font-bold transition-all cursor-pointer"
+                              >
+                                {availableNumbers.map((num) => (
+                                  <option key={num._id || num.phoneNumber} value={num.phoneNumber}>
+                                    {num.friendlyName} ({num.phoneNumber})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
 

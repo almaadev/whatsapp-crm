@@ -6,7 +6,7 @@ import Branch from "@/shared/models/Branch";
 import User from "@/shared/models/User";
 
 export const leadQueryService = {
-  async getLeads(params) {
+  async getLeads(params, session = null) {
     console.log("Fetching leads with params:", params);
     const { from, to, month, year, today, associate, isClosed, view, search, page = 1, limit = 10 } = params;
     const match = {};
@@ -27,6 +27,14 @@ export const leadQueryService = {
     }
 
     const andConditions = [];
+
+    if (session) {
+      const { getBranchFilterForUser } = await import("@/shared/utils/serverAuth");
+      const { branchQuery } = await getBranchFilterForUser(session);
+      if (branchQuery && Object.keys(branchQuery).length > 0) {
+        andConditions.push(branchQuery);
+      }
+    }
 
     if (startDate || endDate) {
       const dateMatch = {};
@@ -201,13 +209,50 @@ export const leadQueryService = {
     
     const result = await aggregateLeads(pipeline);
     
+    const rawLeads = view === "activities" ? result : (result[0]?.data || []);
+    const phones = rawLeads.map((l) => l.phone).filter(Boolean);
+
+    let enrichedLeads = rawLeads;
+    if (phones.length > 0) {
+      const Customer = (await import("@/shared/models/Customer")).default;
+      const customers = await Customer.find({ phone: { $in: phones } }).select("phone branchId").lean();
+      const branches = await Branch.find().select("name code").lean();
+      const branchMapObj = {};
+      branches.forEach((b) => {
+        branchMapObj[b._id.toString()] = { name: b.name, code: b.code || "" };
+      });
+
+      const custBranchByPhone = new Map();
+      customers.forEach((c) => {
+        const bId = c.branchId ? c.branchId.toString() : null;
+        const bObj = bId && branchMapObj[bId] ? branchMapObj[bId] : null;
+        custBranchByPhone.set(c.phone, {
+          branchId: bId,
+          branchName: bObj ? bObj.name : "Unassigned Branch",
+          branchCode: bObj ? bObj.code : "",
+        });
+      });
+
+      enrichedLeads = rawLeads.map((l) => {
+        const bInfo = custBranchByPhone.get(l.phone) || {
+          branchId: null,
+          branchName: "Unassigned Branch",
+          branchCode: "",
+        };
+        return {
+          ...l,
+          ...bInfo,
+        };
+      });
+    }
+
     if (view === "activities") {
-      return { leads: result, total: result.length, totalPages: 1 };
+      return { leads: enrichedLeads, total: enrichedLeads.length, totalPages: 1 };
     }
 
     const total = result[0]?.metadata[0]?.total || 0;
     return {
-      leads: result[0]?.data || [],
+      leads: enrichedLeads,
       total,
       totalPages: Math.ceil(total / parseInt(limit))
     };
@@ -244,6 +289,17 @@ export const leadQueryService = {
       };
     }
 
+    let customerBranchId = customer?.branchId ? customer.branchId.toString() : null;
+    let customerBranchName = "Unassigned Branch";
+    let customerBranchCode = "";
+    if (customerBranchId && mongoose.Types.ObjectId.isValid(customerBranchId)) {
+      const bObj = await Branch.findById(customerBranchId).lean();
+      if (bObj) {
+        customerBranchName = bObj.name;
+        customerBranchCode = bObj.code || "";
+      }
+    }
+
     return {
       name: lead?.name || customer?.name || "",
       city: lead?.city || customer?.city || "",
@@ -260,6 +316,9 @@ export const leadQueryService = {
       day3Remarks: latest?.day3Remarks ?? "",
       saleAmount: latest?.saleAmount || "0",
       leadType: latest?.leadType || "Direct Lead",
+      branchId: customerBranchId,
+      branchName: customerBranchName,
+      branchCode: customerBranchCode,
       history: history,
       latestFollowUp: latest || {},
       creatorInfo

@@ -18,7 +18,7 @@ export async function POST(req) {
 
     await connectDB();
 
-    const { phone, templateSid, chatType, associateName, contentVariables } =
+    const { phone, templateSid, chatType, associateName, contentVariables, senderNumber } =
       await req.json();
 
     if (!phone || !templateSid)
@@ -27,16 +27,19 @@ export async function POST(req) {
         { status: 400 },
       );
 
-        const formattedTo = phone.startsWith("whatsapp:")
+    const formattedTo = phone.startsWith("whatsapp:")
       ? phone
       : `whatsapp:${phone}`;
 
-    const message = await sendTemplateMessage(formattedTo, templateSid, contentVariables);
+    const message = await sendTemplateMessage(formattedTo, templateSid, contentVariables, {
+      senderNumber,
+      user: session.user,
+    });
     console.log(message);
-    
-    // 🚀 THE FIX: Dynamically select the correct MongoDB Collection based on chatType
+
+    // Dynamically select the correct MongoDB Collection based on chatType
     let MsgModel = Message;
-    
+
     if (chatType === "Product Lead")
       MsgModel = (await import("@/shared/models/ProductMessage")).default;
     else if (chatType === "MD Camp")
@@ -51,6 +54,7 @@ export async function POST(req) {
       direction: "OUTBOUND",
       status: "SENT",
       twilioSid: message.sid,
+      senderNumber: message.senderNumber,
       chatType: chatType || "Direct Lead",
       associateName: associateName || (await findUserNameById(session.user.id)) || "Unknown",
       senderName: associateName || (await findUserNameById(session.user.id)) || "Unknown",
@@ -103,10 +107,11 @@ export async function POST(req) {
     );
   } catch (error) {
     console.error("Send Template Error:", error);
+    const isForbidden = error.message && (error.message.includes("Forbidden") || error.message.includes("permission") || error.message.includes("assigned"));
     const isValidationError = error.message && error.message.includes("Validation Failed");
     return NextResponse.json(
       { error: error.message || "Internal Server Error" },
-      { status: isValidationError ? 400 : 500 },
+      { status: isForbidden ? 403 : isValidationError ? 400 : 500 },
     );
   }
 }

@@ -90,8 +90,18 @@ const ChatInput = memo(function ChatInput({ onSendMessage, onSendTemplate, sendi
   };
 
   return (
-    <div className="relative bg-white border-t border-slate-200/80 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] flex flex-col gap-2.5 z-20 select-none">
+    <div className="relative bg-white border-t border-slate-200/80 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] flex flex-col gap-2.5 z-20 select-none shrink-0">
       
+      {/* Unassigned Sender Warning Banner */}
+      {disabled && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-800 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between shadow-sm animate-in fade-in duration-200">
+          <span className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+            No WhatsApp sender has been assigned. Please contact your administrator.
+          </span>
+        </div>
+      )}
+
       {/* Template picker popover */}
       {showBubble && (
         <TemplateBubble onSelect={handleTemplateSelect} onManage={() => setShowBubble(false)} onClose={() => setShowBubble(false)} />

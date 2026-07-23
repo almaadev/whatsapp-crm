@@ -162,6 +162,7 @@ export default function ChatViewPanel({
               onSendTemplate={handleSendTemplate}
               sending={sending}
               disabled={isLockedByOther}
+              chatClosed={isChatClosed}
               onFocus={onFocus}
             />
           </>

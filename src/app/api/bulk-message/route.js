@@ -35,8 +35,8 @@ export async function POST(req) {
 
     await connectDB();
 
-    // 🚀 Accept campaignName and campaignId (for batching)
-    const { campaignName, campaignId, numbers, templateId, contentVariables } =
+    // Accept campaignName, campaignId, numbers, templateId, contentVariables, senderNumber
+    const { campaignName, campaignId, numbers, templateId, contentVariables, senderNumber } =
       await req.json();
 
     if (!campaignName)
@@ -71,10 +71,9 @@ export async function POST(req) {
       );
     }
 
-    const twilioPhoneNumber = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER;
-    const formattedFrom = twilioPhoneNumber.startsWith("whatsapp:")
-      ? twilioPhoneNumber
-      : `whatsapp:${twilioPhoneNumber}`;
+    const { resolveSenderNumber, formatWhatsAppAddress } = await import("@/features/admin/services/twilioService");
+    const resolvedSender = await resolveSenderNumber(session.user, senderNumber);
+    const formattedFrom = formatWhatsAppAddress(resolvedSender);
 
     // 1. Clean & Format
     const validFormattedNumbers = [
@@ -136,12 +135,14 @@ export async function POST(req) {
     if (campaignId) {
       bulkRecord = await BulkMessage.findById(campaignId);
       bulkRecord.recipients.push(...finalRecipients);
+      if (resolvedSender) bulkRecord.senderNumber = resolvedSender;
     } else {
       bulkRecord = await BulkMessage.create({
         campaignName,
         templateId,
         recipients: finalRecipients,
         status: "processing",
+        senderNumber: resolvedSender,
         sentBy: session?.user?.name || "System",
       });
     }

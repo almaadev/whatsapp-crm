@@ -1,6 +1,5 @@
 import React, { useState, memo } from "react";
-import { ChevronLeft, Bell, Share2, Info, Tag, MapPin, MoreVertical } from "lucide-react";
-import { getStatusColor } from "@/shared/utils/colorUtils";
+import { ChevronLeft,ChevronDown, Bell, Share2, Info, Tag, MapPin, MoreVertical, Smartphone, Building2 } from "lucide-react";
 
 const ChatHeader = memo(function ChatHeader({
   activeChat,
@@ -12,23 +11,34 @@ const ChatHeader = memo(function ChatHeader({
   onBack,
   onInfo,
   onReminder,
-  onForward
+  onForward,
+  availableNumbers = [],
+  selectedSender = "",
+  onSelectSender,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
+  const [senderMenuOpen, setSenderMenuOpen] = useState(false);
+
   const displayName = activeChat.name || (activeChat.phone ? activeChat.phone.replace("whatsapp:", "") : "Unknown");
   const location = detailedCustomer?.city || "No City Info";
+  const branchName = detailedCustomer?.branchName || activeChat?.branchName || "Unassigned Branch";
   
+  const receivedOn = detailedCustomer?.lastIncomingNumber || activeChat?.receivedOnNumber;
+
+  const activeSenderDoc = availableNumbers.find(
+    (n) => n.phoneNumber === selectedSender || `whatsapp:${n.phoneNumber}` === selectedSender
+  ) || availableNumbers[0];
+
   const hasStatusHistory = Boolean(
     activeChat?.history[activeChat.history.length - 1]?.status === "Follow Up" ||
     activeChat?.history[activeChat.history.length - 1]?.status === "Closed" ||
     activeChat?.history[activeChat.history.length - 1]?.status === "Not Interested"
   );
-  
+
   const statusOptions = hasStatusHistory
     ? ["Follow Up", "Closed", "Not Interested"]
     : ["New", "Follow Up", "Closed", "Not Interested"];
-  
 
   return (
     <div className="bg-white border-b border-slate-200/80 px-4 sm:px-6 py-3.5 flex items-center justify-between shadow-sm z-20 select-none">
@@ -36,15 +46,15 @@ const ChatHeader = memo(function ChatHeader({
         <button onClick={onBack} className="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors">
           <ChevronLeft size={20} />
         </button>
-        
+
         <div className="flex items-center gap-3 cursor-pointer min-w-0" onClick={onInfo}>
-          {/* Avatar with dynamic Soft Gradient */}
+          {/* Avatar */}
           <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-500 flex items-center justify-center text-white font-extrabold text-base shrink-0 shadow-sm uppercase">
             {displayName.charAt(0)}
           </div>
-          
+
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h2 className="font-bold text-slate-800 text-base truncate">{displayName}</h2>
               {/* Active/Closed Status */}
               <span className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full border shadow-sm shrink-0
@@ -56,8 +66,16 @@ const ChatHeader = memo(function ChatHeader({
                 <span className={`w-1.5 h-1.5 rounded-full ${isChatClosed ? "bg-rose-500" : "bg-emerald-500 animate-pulse"}`} />
                 {isChatClosed ? "Closed" : "Active"}
               </span>
+
+              {/* Received On Business Number Badge */}
+              {receivedOn && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                  <Smartphone size={10} className="text-emerald-600" />
+                  Received on: {receivedOn}
+                </span>
+              )}
             </div>
-            
+
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-400 mt-0.5">
               <span>{activeChat.phone?.replace("whatsapp:", "")}</span>
               <span className="hidden sm:inline text-slate-300">•</span>
@@ -65,20 +83,107 @@ const ChatHeader = memo(function ChatHeader({
                 <MapPin size={11} className="text-slate-400" />
                 {location}
               </span>
+              <span className="hidden sm:inline text-slate-300">•</span>
+              <span className="hidden sm:inline-flex items-center gap-0.5 font-medium text-indigo-600 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-100">
+                <Building2 size={10} />
+                {branchName}
+              </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Desktop/Tablet Actions (Visible above sm breakpoint) */}
+      {/* Desktop/Tablet Actions */}
       <div className="hidden sm:flex items-center gap-2 shrink-0">
+        {/* Outgoing Sender Number Component (Super Admin / Admin / Associate) */}
+        {(() => {
+          const { useSession } = require("next-auth/react");
+          const { data: session } = useSession();
+          const isSuperAdmin = session?.user?.role === "superAdmin";
+          const isAdmin = session?.user?.department === "admin" || session?.user?.role === "admin";
+          const isAssociate = !isSuperAdmin && !isAdmin;
+
+          if (availableNumbers.length === 0) {
+            return (
+              <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 text-rose-700 px-3 py-1.5 rounded-xl text-xs font-extrabold shadow-sm select-none">
+                <span>No WhatsApp sender assigned. Contact administrator.</span>
+              </div>
+            );
+          }
+
+          // Associate with ONLY 1 assigned sender -> Hide dropdown, show static badge
+          if (isAssociate && availableNumbers.length === 1) {
+            const singleSender = activeSenderDoc || availableNumbers[0];
+            return (
+              <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 text-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm select-none">
+                <Smartphone size={13} className="text-emerald-600 shrink-0" />
+                <span className="truncate">
+                   <strong className="text-slate-900">{singleSender.friendlyName}</strong> ({singleSender.phoneNumber})
+                </span>
+              </div>
+            );
+          }
+
+          // Multi-number dropdown (Super Admin, Admin, or Associate with multiple senders)
+          return (
+            <div className="relative">
+              <button
+                onClick={() => setSenderMenuOpen(!senderMenuOpen)}
+                className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                title="Select Outgoing WhatsApp Sender Number"
+              >
+                <Smartphone size={13} className="text-emerald-600" />
+                <span>
+                  {activeSenderDoc ? `${activeSenderDoc.friendlyName} (${activeSenderDoc.phoneNumber})` : "Select Sender"}
+                </span>
+                <ChevronDown size={14} className="text-emerald-600" />
+              </button>
+              {senderMenuOpen && (
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95 font-semibold text-xs text-slate-700">
+                  <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                    {isSuperAdmin
+                      ? "All System Senders (Super Admin)"
+                      : isAdmin
+                      ? "Assigned Senders (Admin)"
+                      : "Your Assigned Senders"}
+                  </div>
+                  {availableNumbers.map((num) => {
+                    const isSelected =
+                      selectedSender === num.phoneNumber || selectedSender === `whatsapp:${num.phoneNumber}`;
+                    return (
+                      <button
+                        key={num._id || num.phoneNumber}
+                        onClick={() => {
+                          if (onSelectSender) onSelectSender(num.phoneNumber);
+                          setSenderMenuOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 hover:bg-slate-50 transition-colors flex flex-col gap-0.5 cursor-pointer ${
+                          isSelected ? "bg-emerald-50/70 border-l-4 border-emerald-500" : ""
+                        }`}
+                      >
+                        <span className="font-bold text-slate-800 flex items-center justify-between">
+                          {num.friendlyName}
+                          {isSelected && <span className="text-[10px] text-emerald-600 font-extrabold">Active</span>}
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-mono">
+                          {num.phoneNumber}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Toggle Status Controls */}
         <button
           onClick={onToggle}
           disabled={isToggling}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-sm
             ${isChatClosed
-              ? "bg-emerald-650 bg-emerald-600 hover:bg-emerald-750 hover:bg-emerald-700 text-white border-emerald-600"
+              ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600"
               : "bg-white text-slate-650 hover:text-slate-800 border-slate-200 hover:bg-slate-50"
             }
           `}
@@ -120,14 +225,13 @@ const ChatHeader = memo(function ChatHeader({
           )}
         </div>
 
-        {/* Grouped Icons */}
         <div className="h-6 w-px bg-slate-200 mx-1" />
 
         <button
           onClick={onReminder}
           className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all *:cursor-not-allowed"
           disabled={true}
-          title="Set Follow-up Reminder (Coming Soon)"
+          title="Set Follow-up Reminder"
         >
           <Bell size={18} />
         </button>
@@ -136,7 +240,7 @@ const ChatHeader = memo(function ChatHeader({
           onClick={onForward}
           className="p-2 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all *:cursor-not-allowed"
           disabled={true}
-          title="Transfer Lead / Assign to Another Associate (Coming Soon)"
+          title="Transfer Lead"
         >
           <Share2 size={18} />
         </button>
@@ -150,7 +254,7 @@ const ChatHeader = memo(function ChatHeader({
         </button>
       </div>
 
-      {/* Mobile Actions Dropdown (Visible below sm breakpoint) */}
+      {/* Mobile Actions Dropdown */}
       <div className="flex sm:hidden items-center gap-1.5 shrink-0 relative">
         <button
           onClick={() => setActionsMenuOpen(!actionsMenuOpen)}
@@ -192,26 +296,6 @@ const ChatHeader = memo(function ChatHeader({
             ))}
 
             <div className="border-t border-slate-100 my-1" />
-
-            <button
-              onClick={() => {
-                onReminder();
-                setActionsMenuOpen(false);
-              }}
-              className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors"
-            >
-              Set Reminder
-            </button>
-
-            <button
-              onClick={() => {
-                onForward();
-                setActionsMenuOpen(false);
-              }}
-              className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors"
-            >
-              Transfer Lead
-            </button>
 
             <button
               onClick={() => {

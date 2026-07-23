@@ -40,9 +40,13 @@ export async function GET(req, { params }) {
             variations.push(`+91${tenDigit}`);
         }
 
+        const { getBranchFilterForUser } = await import("@/shared/utils/serverAuth");
+        const { branchQuery } = await getBranchFilterForUser(session);
+
         // Use $in to search across all possible variations
         const customer = await Customer.findOne({
-            phone: { $in: variations }
+            phone: { $in: variations },
+            ...branchQuery
         }).populate({
             path: 'createdBy',
             select: 'name role department branch'
@@ -59,16 +63,17 @@ export async function GET(req, { params }) {
             return NextResponse.json({ error: "Customer not found" }, { status: 404 });
         }
 
-        const branches = await Branch.find().lean();
+        const branches = await Branch.find().select("name code").lean();
         const branchMap = {};
         branches.forEach(b => {
-            branchMap[b._id.toString()] = b.name;
+            branchMap[b._id.toString()] = { name: b.name, code: b.code || "" };
         });
 
         let creatorInfo = null;
         if (customer.createdBy) {
             const branchVal = customer.createdBy.branch?.toString() || "";
-            const branchName = branchMap[branchVal] || customer.createdBy.branch || "";
+            const bObj = branchMap[branchVal];
+            const branchName = bObj ? bObj.name : (customer.createdBy.branch || "");
             creatorInfo = {
                 name: customer.createdBy.name || "Unknown",
                 role: customer.createdBy.role || "",
@@ -81,7 +86,8 @@ export async function GET(req, { params }) {
             let performedByResolved = null;
             if (entry.performedBy) {
                 const branchVal = entry.performedBy.branch?.toString() || "";
-                const branchName = branchMap[branchVal] || entry.performedBy.branch || "";
+                const bObj = branchMap[branchVal];
+                const branchName = bObj ? bObj.name : (entry.performedBy.branch || "");
                 performedByResolved = {
                     name: entry.performedBy.name || "Unknown",
                     role: entry.performedBy.role || "",
@@ -92,7 +98,8 @@ export async function GET(req, { params }) {
             let targetUserResolved = null;
             if (entry.targetUser) {
                 const branchVal = entry.targetUser.branch?.toString() || "";
-                const branchName = branchMap[branchVal] || entry.targetUser.branch || "";
+                const bObj = branchMap[branchVal];
+                const branchName = bObj ? bObj.name : (entry.targetUser.branch || "");
                 targetUserResolved = {
                     name: entry.targetUser.name || "Unknown",
                     role: entry.targetUser.role || "",
@@ -100,13 +107,21 @@ export async function GET(req, { params }) {
                     branchName: branchName
                 };
             }
+            const performedAtVal = entry.performedAt || entry.timestamp || new Date();
+            const performedByIdVal = entry.performedById || (entry.performedBy?._id ? entry.performedBy._id.toString() : (typeof entry.performedBy === "string" ? entry.performedBy : null));
+            const performedByRoleVal = entry.performedByRole || performedByResolved?.role || "";
+
             return {
                 _id: entry._id?.toString(),
-                action: entry.action,
-                timestamp: entry.timestamp,
+                action: entry.action || "System Action",
+                eventType: entry.eventType || (entry.action === "Branch Reassigned" ? "Chat Branch Reassigned" : entry.action) || "System Action",
+                timestamp: performedAtVal,
+                performedAt: performedAtVal,
                 notes: entry.notes || "",
                 isInternal: entry.isInternal || false,
-                performedBy: performedByResolved,
+                performedBy: performedByResolved || entry.performedByName || (typeof entry.performedBy === "string" ? entry.performedBy : "System Admin"),
+                performedByRole: performedByRoleVal,
+                performedById: performedByIdVal,
                 targetUser: targetUserResolved
             };
         });
@@ -118,6 +133,9 @@ export async function GET(req, { params }) {
             }
             return true;
         });
+
+        const custBranchIdStr = customer.branchId ? customer.branchId.toString() : null;
+        const custBranchObj = custBranchIdStr ? branchMap[custBranchIdStr] : null;
 
         const formattedData = {
             phone: customer.phone,
@@ -131,7 +149,11 @@ export async function GET(req, { params }) {
             remarks: customer.remarks || "",
             saleAmount: customer.saleAmount || "0",
             associate: customer.assignedTo || "Unassigned",
-            
+            branchId: custBranchIdStr,
+            branchName: custBranchObj ? custBranchObj.name : "Unassigned Branch",
+            branchCode: custBranchObj ? custBranchObj.code : "",
+            lastIncomingNumber: customer.lastIncomingNumber || "",
+            assignedTwilioNumber: customer.assignedTwilioNumber || "",
             date: customer.createdAt ? new Date(customer.createdAt).toISOString() : null,
             isClosed: customer.isClosed || false,
             followUpStartDate: customer.followUpStartDate || null,
@@ -174,30 +196,68 @@ export async function PUT(req, { params }) {
 
         const body = await req.json();
 
-        // Dynamically build the update payload safely
-        const updateData = {
-            $set: {
-                name: body.name?.trim(),
-                city: body.city?.trim(),
-                address: body.address?.trim(),
-                source: body.source?.trim(),
-                enquiredFor: body.enquiredFor?.trim(),
-                status: body.status?.trim(),
-                saleAmount: body.saleAmount?.toString(),
-                remarks: body.remarks?.trim(),
-                updatedAt: new Date()
+        // Validate branchId if supplied
+        let resolvedBranchName = "Unassigned Branch";
+        let resolvedBranchCode = "";
+        if (body.branchId) {
+            const branchDoc = await Branch.findOne({ _id: body.branchId, status: "active" }).lean();
+            if (!branchDoc) {
+                return NextResponse.json({ error: "Invalid or inactive branch selected." }, { status: 400 });
             }
+            resolvedBranchName = branchDoc.name;
+            resolvedBranchCode = branchDoc.code || "";
+        }
+
+        // Dynamically build the update payload safely
+        const setPayload = {
+            name: body.name?.trim(),
+            city: body.city?.trim(),
+            address: body.address?.trim(),
+            source: body.source?.trim(),
+            enquiredFor: body.enquiredFor?.trim(),
+            status: body.status?.trim(),
+            saleAmount: body.saleAmount?.toString(),
+            remarks: body.remarks?.trim(),
+            updatedAt: new Date()
         };
 
-        // Remove undefined/null keys to avoid breaking DB
+        if (body.branchId !== undefined) {
+            setPayload.branchId = body.branchId || null;
+        }
+        if (body.assignedTwilioNumber !== undefined) {
+            setPayload.assignedTwilioNumber = body.assignedTwilioNumber || null;
+        }
+
+        const updateData = { $set: setPayload };
+
         Object.keys(updateData.$set).forEach(key => {
             if (updateData.$set[key] === undefined) {
                 delete updateData.$set[key];
             }
         });
 
+        if (body.branchId !== undefined) {
+            const now = new Date();
+            updateData.$push = {
+                chatHistory: {
+                    action: "Branch Reassigned",
+                    eventType: "Chat Branch Reassigned",
+                    performedBy: session.user.id,
+                    performedById: session.user.id,
+                    performedByName: session.user.name || "User",
+                    performedByRole: session.user.role || "associate",
+                    performedAt: now,
+                    timestamp: now,
+                    notes: `Branch updated to ${resolvedBranchName} by ${session.user.name}`
+                }
+            };
+        }
+
+        const { getBranchFilterForUser } = await import("@/shared/utils/serverAuth");
+        const { branchQuery } = await getBranchFilterForUser(session);
+
         const updatedCustomer = await Customer.findOneAndUpdate(
-            { phone: { $in: variations } },
+            { phone: { $in: variations }, ...branchQuery },
             updateData,
             { returnDocument: "after", runValidators: true }
         );
@@ -206,7 +266,28 @@ export async function PUT(req, { params }) {
             return NextResponse.json({ error: "Customer not found for update" }, { status: 404 });
         }
 
-        return NextResponse.json({ success: true, message: "Profile updated securely." }, { status: 200 });
+        // Emit Socket.IO Event for Real-Time Branch Visibility & UI Updates
+        if (global.io) {
+            const emitData = {
+                phone: updatedCustomer.phone,
+                branchId: updatedCustomer.branchId ? updatedCustomer.branchId.toString() : null,
+                branchName: resolvedBranchName,
+                updatedBy: { id: session.user.id, name: session.user.name }
+            };
+            global.io.emit("customer_branch_updated", emitData);
+            global.io.emit("customer_updated", emitData);
+        }
+
+        return NextResponse.json({
+            success: true,
+            message: "Profile updated securely.",
+            customer: {
+                ...updatedCustomer.toObject(),
+                branchId: updatedCustomer.branchId ? updatedCustomer.branchId.toString() : null,
+                branchName: resolvedBranchName,
+                branchCode: resolvedBranchCode
+            }
+        }, { status: 200 });
 
     } catch (error) {
         console.error("Update Customer Error:", error);

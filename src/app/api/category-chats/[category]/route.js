@@ -46,16 +46,25 @@ export async function GET(req, { params }) {
     });
     allMessages.sort((a, b) => a.time - b.time);
 
+    const session = await getServerSession(authOptions);
+    const { getBranchFilterForUser } = await import("@/shared/utils/serverAuth");
+    const { branchQuery } = await getBranchFilterForUser(session);
+
     const [customers, leads] = await Promise.all([
       Customer.find(
-        { phone: { $in: phones } },
-        { phone: 1, name: 1, priority: 1, status: 1, city: 1 }
+        { phone: { $in: phones }, ...branchQuery },
+        { phone: 1, name: 1, priority: 1, status: 1, city: 1, branchId: 1 }
       ).lean(),
       Lead.find(
         { phone: { $in: phones } },
         { phone: 1, name: 1, city: 1, leads: 1 }
       ).lean()
     ]);
+
+    const allowedPhonesSet = new Set(customers.map((c) => c.phone));
+    if (session?.user?.role !== "superAdmin") {
+      phones = phones.filter((p) => allowedPhonesSet.has(p));
+    }
 
     const messagesByPhone = new Map();
     for (const msg of allMessages) {
@@ -66,6 +75,13 @@ export async function GET(req, { params }) {
     const customerByPhone = new Map(customers.map((c) => [c.phone, c]));
     const leadByPhone = new Map(leads.map((l) => [l.phone, l]));
 
+    const Branch = (await import("@/shared/models/Branch")).default;
+    const branches = await Branch.find().select("name code").lean();
+    const branchMap = {};
+    branches.forEach((b) => {
+      branchMap[b._id.toString()] = { name: b.name, code: b.code || "" };
+    });
+
     const chats = phones.map((phone) => {
       const history = messagesByPhone.get(phone) ?? [];
       const customer = customerByPhone.get(phone);
@@ -73,7 +89,8 @@ export async function GET(req, { params }) {
       const latestFollowUp = lead?.leads && lead.leads.length > 0 ? lead.leads[lead.leads.length - 1] : null;
 
       const mergedCity = lead?.city || customer?.city || null;
-      console.log(`[GET /api/category-chats/${slug}] Phone: ${phone}, Lead City: "${lead?.city || ''}", Customer City: "${customer?.city || ''}", Merged: "${mergedCity || ''}"`);
+      const bId = customer?.branchId ? customer.branchId.toString() : null;
+      const bObj = bId && branchMap[bId] ? branchMap[bId] : null;
 
       return {
         phone,
@@ -81,6 +98,9 @@ export async function GET(req, { params }) {
         priority: customer?.priority ?? null,
         city: mergedCity,
         status: latestFollowUp?.status || customer?.status || null,
+        branchId: bId,
+        branchName: bObj ? bObj.name : "Unassigned Branch",
+        branchCode: bObj ? bObj.code : "",
         history,
       };
     });

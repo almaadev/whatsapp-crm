@@ -1,4 +1,4 @@
-import { Check, CheckCheck, Clock, AlertCircle } from "lucide-react";
+import { Check, CheckCheck, Clock, AlertCircle, Lock, Unlock, MapPin, UserCheck, Stethoscope, RefreshCw, Cog, Share2 } from "lucide-react";
 
 /**
  * Parses a date string into a Date object.
@@ -64,6 +64,107 @@ export const getDayHeader = (date) => {
 export const formatBubbleTime = (date) => {
     if (isNaN(date.getTime())) return "";
     return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+};
+
+/**
+ * Formats an event timestamp into friendly relative/absolute strings:
+ * "Today, 03:45 PM", "Yesterday, 11:20 AM", "22 Jul 2026, 03:45 PM"
+ */
+export const formatEventDateTime = (dateInput) => {
+    const date = parseMessageDate(dateInput);
+    if (!date || isNaN(date.getTime())) return "";
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const targetDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+    const timeStr = date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+    });
+
+    if (targetDay.getTime() === today.getTime()) {
+        return `Today, ${timeStr}`;
+    } else if (targetDay.getTime() === yesterday.getTime()) {
+        return `Yesterday, ${timeStr}`;
+    } else {
+        const day = String(date.getDate()).padStart(2, "0");
+        const month = date.toLocaleDateString("en-US", { month: "short" });
+        const year = date.getFullYear();
+        return `${day} ${month} ${year}, ${timeStr}`;
+    }
+};
+
+/**
+ * Maps system event audit data to standard title, Lucide icon, and formatted username.
+ * Supports events: Chat Closed, Chat Reopened, Branch Reassigned, Assigned to Associate,
+ * Assigned to Doctor, Status Changed, Transferred, System Action.
+ */
+export const getSystemEventDetails = (audit) => {
+    if (!audit) {
+        return {
+            title: "System Action",
+            icon: <Cog size={14} className="text-slate-500 shrink-0" />,
+            performedBy: "System Admin"
+        };
+    }
+
+    const action = audit.eventType || audit.action || "System Action";
+
+    let performedBy = "System Admin";
+    if (audit.performedBy) {
+        if (typeof audit.performedBy === "object" && audit.performedBy.name) {
+            performedBy = audit.performedBy.name;
+        } else if (typeof audit.performedBy === "string") {
+            performedBy = audit.performedBy;
+        }
+    } else if (audit.performedByName) {
+        performedBy = audit.performedByName;
+    }
+
+    const actionLower = action.toLowerCase();
+
+    let title = action;
+    let icon = <Cog size={14} className="text-slate-500 shrink-0" />;
+
+    if (actionLower.includes("closed")) {
+        title = "Chat Closed";
+        icon = <Lock size={14} className="text-rose-500 shrink-0" />;
+    } else if (actionLower.includes("reopened")) {
+        title = "Chat Reopened";
+        icon = <Unlock size={14} className="text-emerald-500 shrink-0" />;
+    } else if (actionLower.includes("branch") || actionLower.includes("reassigned")) {
+        title = "Chat Branch Reassigned";
+        icon = <MapPin size={14} className="text-amber-500 shrink-0" />;
+    } else if (actionLower.includes("doctor")) {
+        const targetName = audit.targetUser?.name || audit.targetUserName;
+        title = targetName ? `Assigned to Dr. ${targetName}` : "Assigned to Doctor";
+        icon = <Stethoscope size={14} className="text-teal-500 shrink-0" />;
+    } else if (actionLower.includes("assigned") || actionLower.includes("associate")) {
+        const targetName = audit.targetUser?.name || audit.targetUserName;
+        title = targetName ? `Assigned to ${targetName}` : "Assigned to Associate";
+        icon = <UserCheck size={14} className="text-blue-500 shrink-0" />;
+    } else if (actionLower.includes("transfer") || actionLower.includes("forward")) {
+        const targetName = audit.targetUser?.name || audit.targetUserName;
+        title = targetName ? `Transferred to ${targetName}` : "Chat Transferred";
+        icon = <Share2 size={14} className="text-indigo-500 shrink-0" />;
+    } else if (actionLower.includes("status")) {
+        title = "Status Changed";
+        icon = <RefreshCw size={14} className="text-violet-500 shrink-0" />;
+    } else {
+        if (!title.startsWith("Chat ") && !title.startsWith("Status ") && !title.startsWith("System ")) {
+            title = `Chat ${title}`;
+        }
+    }
+
+    return {
+        title,
+        icon,
+        performedBy
+    };
 };
 
 /**

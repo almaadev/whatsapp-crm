@@ -14,7 +14,10 @@ const UserSchema = new mongoose.Schema({
   accessModules: [{ type: String }],
   leads: { type: Number, default: 0 },
   target: { type: Number, default: 0 },
-  achieved: { type: Number, default: 0 }
+  achieved: { type: Number, default: 0 },
+  assignedSenderNumbers: [{ type: mongoose.Schema.Types.ObjectId, ref: "TwilioNumber" }],
+  assignedTwilioNumbers: [{ type: mongoose.Schema.Types.ObjectId, ref: "TwilioNumber" }],
+  assignedSenderNumber: { type: mongoose.Schema.Types.ObjectId, ref: "TwilioNumber", default: null }
 }, { timestamps: true });
 
 if (mongoose.models.User) {

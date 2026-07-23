@@ -87,7 +87,7 @@ export async function GET(req) {
     
     // Lazy load the service to prevent import cycles if any
     const { leadQueryService } = await import("@/features/leads/services/leadQueryService");
-    const result = await leadQueryService.getLeads(params);
+    const result = await leadQueryService.getLeads(params, session);
     
     return NextResponse.json(result);
   } catch (error) {
@@ -151,6 +151,36 @@ export async function POST(req) {
     const resolvedStatus = body.status || "New"; // Safely defaults back to Closed if intercepted
     const resolvedPriority = body.priority || "Medium";
     
+    let resolvedBranchId = existingCustomer?.branchId || null;
+    let resolvedBranchName = "Unassigned Branch";
+    let resolvedBranchCode = "";
+
+    if (body.branchId !== undefined) {
+      if (body.branchId) {
+        const Branch = (await import("@/shared/models/Branch")).default;
+        const branchDoc = await Branch.findOne({ _id: body.branchId, status: "active" }).lean();
+        if (!branchDoc) {
+          return NextResponse.json({ error: "Invalid or inactive branch selected." }, { status: 400 });
+        }
+        resolvedBranchId = body.branchId;
+        resolvedBranchName = branchDoc.name;
+        resolvedBranchCode = branchDoc.code || "";
+      } else {
+        resolvedBranchId = null;
+      }
+    }
+
+    const customerSetPayload = {
+      name: resolvedName,
+      city: resolvedCity,
+      address: resolvedAddress,
+      status: resolvedStatus,
+      priority: resolvedPriority,
+    };
+    if (body.branchId !== undefined) {
+      customerSetPayload.branchId = resolvedBranchId;
+    }
+    
     // 2. Get or Create the Customer
     const updatedCustomer = await Customer.findOneAndUpdate(
       { phone: cleanPhone },
@@ -165,10 +195,22 @@ export async function POST(req) {
               notes: "Lead record created"
           }]
         }, 
-        $set: { name: resolvedName, city: resolvedCity, address: resolvedAddress, status: resolvedStatus, priority: resolvedPriority } 
+        $set: customerSetPayload
       },
       { upsert: true, returnDocument: "after" } 
     );
+
+    if (global.io && body.branchId !== undefined) {
+      const emitData = {
+        phone: cleanPhone,
+        branchId: resolvedBranchId ? resolvedBranchId.toString() : null,
+        branchName: resolvedBranchName,
+        branchCode: resolvedBranchCode,
+        updatedBy: { id: session.user.id, name: session.user.name }
+      };
+      global.io.emit("customer_branch_updated", emitData);
+      global.io.emit("customer_updated", emitData);
+    }
 
     const rootFields = rootLeadFields(body, resolvedName, resolvedCity, resolvedAddress, currentUser, associateId);
 

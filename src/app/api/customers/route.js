@@ -8,8 +8,13 @@ import User from "@/shared/models/User";
 
 export const dynamic = "force-dynamic";
 
-// --- Formatter Helper to maintain UI consistency ---
-const formatCustomerForUI = (c, branchMap = {}) => ({
+const formatCustomerForUI = (c, branchMap = {}) => {
+  const bId = c.branchId ? (c.branchId._id ? c.branchId._id.toString() : c.branchId.toString()) : null;
+  const bObj = bId && branchMap[bId] ? branchMap[bId] : null;
+  const branchName = bObj ? (typeof bObj === "object" ? bObj.name : bObj) : "Unassigned Branch";
+  const branchCode = bObj && typeof bObj === "object" ? bObj.code || "" : "";
+
+  return {
     phone: c.phone,
     name: c.name || "Unknown",
     city: c.city || "",
@@ -21,28 +26,35 @@ const formatCustomerForUI = (c, branchMap = {}) => ({
     remarks: c.remarks || "",
     saleAmount: c.saleAmount || "0",
     associate: c.assignedTo || "Unassigned",
+    branchId: bId,
+    branchName: branchName,
+    branchCode: branchCode,
     date: c.updatedAt ? new Date(c.updatedAt).toISOString() : new Date().toISOString(),
     isClosed: c.isClosed || false,
     creatorInfo: c.createdBy ? {
         name: c.createdBy.name || "Unknown",
         role: c.createdBy.role || "",
         department: c.createdBy.department || "",
-        branchName: branchMap[c.createdBy.branch?.toString()] || c.createdBy.branch || ""
+        branchName: (branchMap[c.createdBy.branch?.toString()] ? (typeof branchMap[c.createdBy.branch?.toString()] === "object" ? branchMap[c.createdBy.branch?.toString()].name : branchMap[c.createdBy.branch?.toString()]) : "") || c.createdBy.branch || ""
     } : null
-});
+  };
+};
 
 export async function GET(req) {
     try {
         await connectDB();
-        
-        const branches = await Branch.find().lean();
+        const session = await getServerSession(authOptions);
+        const { getBranchFilterForUser } = await import("@/shared/utils/serverAuth");
+        const { branchQuery } = await getBranchFilterForUser(session);
+
+        const branches = await Branch.find().select("name code").lean();
         const branchMap = {};
         branches.forEach(b => {
-          branchMap[b._id.toString()] = b.name;
+          branchMap[b._id.toString()] = { name: b.name, code: b.code || "" };
         });
 
         // Fetch lean records sorted by latest updates
-        const customers = await Customer.find({}).sort({ updatedAt: -1 })
+        const customers = await Customer.find(branchQuery).sort({ updatedAt: -1 })
             .populate({
                 path: 'createdBy',
                 select: 'name role department branch'

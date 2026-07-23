@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/shared/lib/auth";
 import connectDB from "@/shared/lib/db/mongodb";
@@ -26,14 +26,19 @@ export async function GET(request) {
 
     await connectDB();
 
+    const { getBranchFilterForUser } = await import("@/shared/utils/serverAuth");
+    const { branchQuery } = await getBranchFilterForUser(session);
+
     const sixtyDaysAgo = new Date();
     sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
-    const customers = await Customer.find({})
+    const customers = await Customer.find(branchQuery)
       .populate({ path: "chatHistory.performedBy", select: "name role department" })
       .lean();
 
-    // Safe populate â€” fall back if sendBy has old non-ObjectId values
+    const allowedPhones = new Set(customers.map((c) => c.phone));
+
+    // Safe populate — fall back if sendBy has old non-ObjectId values
     let msgs;
     try {
       msgs = await Message.find({ timestamp: { $gte: sixtyDaysAgo } })
@@ -44,6 +49,10 @@ export async function GET(request) {
       msgs = await Message.find({ timestamp: { $gte: sixtyDaysAgo } }).lean();
     }
 
+    if (session?.user?.role !== "superAdmin") {
+      msgs = msgs.filter((m) => allowedPhones.has(m.phone));
+    }
+
     const allMessages = msgs.map((m) => ({
       ...m,
       categoryLabel: null,
@@ -51,6 +60,13 @@ export async function GET(request) {
     }));
 
     allMessages.sort((a, b) => a.time - b.time);
+
+    const Branch = (await import("@/shared/models/Branch")).default;
+    const branches = await Branch.find().select("name code").lean();
+    const branchMap = {};
+    branches.forEach((b) => {
+      branchMap[b._id.toString()] = { name: b.name, code: b.code || "" };
+    });
 
     const contactMap = new Map();
     customers.forEach((c) => {
@@ -65,6 +81,9 @@ export async function GET(request) {
           };
         }
       }
+      const bId = c.branchId ? (c.branchId._id ? c.branchId._id.toString() : c.branchId.toString()) : null;
+      const bObj = bId && branchMap[bId] ? branchMap[bId] : null;
+
       contactMap.set(c.phone, {
         name: c.name,
         status: c.status,
@@ -73,6 +92,9 @@ export async function GET(request) {
         activeRouteCategory: c.activeRouteCategory,
         unreadCount: c.unreadCount || 0,
         priority: c.priority,
+        branchId: bId,
+        branchName: bObj ? bObj.name : "Unassigned Branch",
+        branchCode: bObj ? bObj.code : "",
         lastHandled,
       });
     });
@@ -120,9 +142,6 @@ export async function GET(request) {
 }
 
 export async function POST(req) {
-  // âœ… ROOT CAUSE FIX: isoTimestamp declared at the TOP of the handler so it is
-  // accessible in both the if(!skipSave) block AND the final return statement.
-  // Previously it was declared inside if(!skipSave) but used outside â†’ ReferenceError â†’ 500.
   const isoTimestamp = new Date().toISOString();
 
   try {
@@ -134,37 +153,36 @@ export async function POST(req) {
     try {
       body = await req.json();
     } catch {
-      return NextResponse.json({ success: false, message: "Invalid request body â€” expected JSON" }, { status: 400 });
+      return NextResponse.json({ success: false, message: "Invalid request body — expected JSON" }, { status: 400 });
     }
 
-    const { phone, message, name, role, skipSave } = body;
+    const { phone, message, name, role, skipSave, senderNumber } = body;
     if (!phone || !message)
       return NextResponse.json({ success: false, message: "Required fields missing: phone and message" }, { status: 400 });
 
-    // â”€â”€ Step 1: Send via Twilio (non-fatal â€” fallback SID used on failure) â”€â”€â”€â”€â”€â”€
+    // Step 1: Send via Centralized Twilio Service
     let twilioSid = "sys_msg_" + Date.now();
-    const myTwilioNumber = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER;
-    const callbackUrl = process.env.NEXT_PUBLIC_BASE_URL
-      ? `${process.env.NEXT_PUBLIC_BASE_URL}/api/webhook/status`
-      : "https://nonarsenic-nonparous-clotilde.ngrok-free.dev/api/webhook/status";
+    let actualSenderNumber = senderNumber;
 
     try {
-      const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-      const sent = await client.messages.create({
-        body: message,
-        from: myTwilioNumber,
-        to: phone.startsWith("whatsapp:") ? phone : `whatsapp:${phone}`,
-        statusCallback: callbackUrl,
+      const { sendWhatsAppMessage } = await import("@/features/admin/services/twilioService");
+      const sent = await sendWhatsAppMessage(phone, message, {
+        senderNumber,
+        user: session.user,
       });
       twilioSid = sent.sid;
+      actualSenderNumber = sent.senderNumber;
     } catch (twilioErr) {
       console.error("[POST /api/chats] Twilio error:", twilioErr.message, { phone, userId: session.user.id });
+      return NextResponse.json(
+        { success: false, message: twilioErr.message },
+        { status: twilioErr.message.includes("Forbidden") ? 403 : 400 }
+      );
     }
 
     if (!skipSave) {
       await connectDB();
 
-      // â”€â”€ Step 2a: Ensure Customer record exists (non-fatal) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       try {
         await Customer.findOneAndUpdate(
           { phone },
@@ -188,7 +206,6 @@ export async function POST(req) {
         console.error("[POST /api/chats] Customer upsert error:", customerErr.message, { phone, userId: session.user.id });
       }
 
-      // â”€â”€ Step 2b: Determine correct message collection based on lead type â”€â”€
       let MsgModel = Message;
       try {
         const lead = await Lead.findOne({ phone }).lean();
@@ -204,7 +221,6 @@ export async function POST(req) {
         console.error("[POST /api/chats] Lead lookup error:", leadErr.message, { phone });
       }
 
-      // â”€â”€ Step 2c: Save message â€” FATAL if this fails â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       try {
         await MsgModel.create({
           phone,
@@ -213,12 +229,13 @@ export async function POST(req) {
           status: "SENT",
           twilioSid,
           senderName: name || "Associate",
+          senderNumber: actualSenderNumber,
           role: role || session?.user?.role || "associate",
           sendBy: session.user.id,
           timestamp: new Date(isoTimestamp),
         });
       } catch (saveErr) {
-        console.error("[POST /api/chats] CRITICAL â€” Message save failed:", saveErr.message, {
+        console.error("[POST /api/chats] CRITICAL — Message save failed:", saveErr.message, {
           phone,
           userId: session.user.id,
           twilioSid,

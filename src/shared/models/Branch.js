@@ -7,6 +7,7 @@ const BranchSchema = new mongoose.Schema({
     email: { type: String },
     manager: { type: String },
     status: { type: String, enum: ["active", "inactive"], default: "active" },
+    assignedTwilioNumbers: [{ type: mongoose.Schema.Types.ObjectId, ref: "TwilioNumber" }],
 }, { timestamps: true });
 
 // Prevent model caching issues during development hot-reloads

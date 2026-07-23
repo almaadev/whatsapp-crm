@@ -1,24 +1,13 @@
 import React, { memo } from "react";
-import { Info, Clock, User, Share2, ToggleRight, ShieldAlert, Award } from "lucide-react";
-import { parseMessageDate, getDayHeader } from "@/shared/utils/chatUtils";
+import { Info } from "lucide-react";
+import { parseMessageDate, getDayHeader, formatEventDateTime, getSystemEventDetails } from "@/shared/utils/chatUtils";
 import MessageBubble from "@/features/chat/components/MessageBubble";
 
 const MessageList = memo(function MessageList({ messages, activeChat, userName, scrollRef, onScroll, onMediaClick, endRef }) {
   const isNewHandler = activeChat?.lastClosedBy && activeChat.lastClosedBy !== userName;
 
-  const getAuditIcon = (action) => {
-    switch (action) {
-      case "Started": return <Clock size={12} className="text-emerald-500" />;
-      case "Closed": return <ShieldAlert size={12} className="text-rose-500" />;
-      case "Reopened": return <ToggleRight size={12} className="text-blue-500" />;
-      case "Assigned": return <User size={12} className="text-indigo-500" />;
-      case "Transferred": return <Share2 size={12} className="text-amber-500" />;
-      default: return <Award size={12} className="text-slate-500" />;
-    }
-  };
-
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar relative bg-[#efeae2]" ref={scrollRef} onScroll={onScroll}>
+    <div className="flex-1 h-full min-h-0 w-full overflow-y-auto p-4 space-y-2 custom-scrollbar relative bg-[#efeae2]" ref={scrollRef} onScroll={onScroll}>
       <div
         className="absolute inset-0 opacity-[0.06] pointer-events-none z-0 bg-repeat bg-[size:400px]"
         style={{
@@ -56,41 +45,36 @@ const MessageList = memo(function MessageList({ messages, activeChat, userName, 
 
           if (normalizedItem.type === "audit") {
             const audit = normalizedItem.data;
+            const eventDetails = getSystemEventDetails(audit);
+            const formattedDateTime = formatEventDateTime(audit?.performedAt || audit?.timestamp || normalizedItem.timestamp);
             
             return (
-              <div key={index} className="w-full flex flex-col items-center my-4 select-none">
+              <div key={index} className="w-full flex flex-col items-center my-3 select-none">
                 {showDateHeader && (
-                  <div className="flex justify-center my-4 sticky top-2 z-10">
+                  <div className="flex justify-center mb-3 sticky top-2 z-10">
                     <span className="bg-white/90 backdrop-blur text-slate-500 text-[11px] font-medium px-3 py-1 rounded-lg shadow-sm border border-slate-100">{getDayHeader(currentMsgDate)}</span>
                   </div>
                 )}
                 
-                <div className="w-full flex items-center justify-center gap-4 px-6 opacity-90">
-                  <div className="flex-1 h-px bg-slate-200" />
-                  <div className="flex flex-col items-center gap-1 shrink-0 text-center max-w-[70%]">
-                    <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest flex items-center gap-1 bg-slate-50 border border-slate-200/50 px-2.5 py-0.5 rounded-full shadow-sm">
-                      {getAuditIcon(audit.action)}
-                      Chat {audit.action} {audit.performedBy ? (
-                        <>
-                          by <span className="text-slate-800 font-black">{audit.performedBy.name}</span>
-                        </>
-                      ) : (
-                        "System Automation"
-                      )}
-                      {audit.targetUser && (
-                        <>
-                          {" "}to <span className="text-slate-800 font-black">{audit.targetUser.name}</span>
-                        </>
-                      )}
-                    </span>
-                    <span className="text-[11px] text-slate-450 text-slate-500 font-bold leading-normal mt-0.5">
-                      
-                    </span>
-                    {/* {audit.notes && (
-                      <span className="text-[10px] text-slate-400 font-medium italic mt-0.5">"{audit.notes}"</span>
-                    )} */}
+                <div className="w-full flex items-center justify-center px-4">
+                  <div className=" flex flex-row items-center justify-center gap-1 backdrop-blur-md border border-slate-200/80 shadow-xs px-4 py-2  rounded-xl  text-center transition-all">
+                    {/* First Line: Event Title (bold) with Lucide icon */}
+                    <div className="flex items-center justify-center gap-1.5 font-bold text-slate-800 text-xs sm:text-[13px] leading-tight">
+                      {eventDetails.icon}
+                      <span>{eventDetails.title}</span>
+                    </div>
+
+                    {/* Second Line: "by {User Name} • {Date & Time}" */}
+                    <div className="flex items-center justify-center gap-1 text-[11px] sm:text-xs  leading-tight flex-wrap text-center">
+                      <span className="text-slate-700 font-medium">
+                        by {eventDetails.performedBy}
+                      </span>
+                      <span className="text-slate-400 font-normal mx-0.5">•</span>
+                      <span className="text-slate-500 font-normal">
+                        {formattedDateTime}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex-1 h-px bg-slate-200" />
                 </div>
               </div>
             );

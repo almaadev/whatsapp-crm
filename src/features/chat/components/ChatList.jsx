@@ -435,9 +435,9 @@ export default function ChatList({ role, loading }) {
                     </span>
                   </div>
 
-                  <div className="flex justify-between items-center pr-3">
+                  <div className="flex justify-between items-center pr-3 min-w-0">
                     <p
-                      className={`text-xs truncate pr-3 max-w-[180px] ${isUnread ? "text-slate-900 font-bold" : "text-slate-500"}`}
+                      className={`text-xs truncate flex-1 min-w-0 pr-2 ${isUnread ? "text-slate-900 font-bold" : "text-slate-500"}`}
                     >
                       {getChatMessagePreview(chat, session?.user)}
                     </p>

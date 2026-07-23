@@ -13,6 +13,7 @@ import {
 import { userRepository } from "@/shared/api/repositories/userRepository";
 import { useAuth } from "@/shared/hooks/useAuth";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
+import AssignedNumbersSelector from "@/shared/components/ui/AssignedNumbersSelector";
 
 
 export default function EditAssociatePage() {
@@ -27,13 +28,15 @@ export default function EditAssociatePage() {
 
   const [formData, setFormData] = useState({
     name: "", preferredName: "", email: "", number: "", password: "", branch: "",
-    role: "sales", department: "telecalling", isAdmin: false, active: true, accessModules: []
+    role: "sales", department: "telecalling", isAdmin: false, active: true, accessModules: [],
+    assignedSenderNumbers: []
   });
 
   const modulesList = ["Leads", "Customers", "Reports", "Bulk Messages", "Messages log" ,"Chat Inbox", "Product Lead", "MD Camp", "Therapy"];
 
   const [branches, setBranches] = useState([]);
   const [loadingBranches, setLoadingBranches] = useState(false);
+  const [twilioNumbers, setTwilioNumbers] = useState([]);
 
   useEffect(() => {
     async function loadBranches() {
@@ -49,7 +52,21 @@ export default function EditAssociatePage() {
         setLoadingBranches(false);
       }
     }
+
+    async function loadTwilioNumbers() {
+      try {
+        const res = await fetch("/api/admin/twilio");
+        const data = await res.json();
+        if (data?.numbers && Array.isArray(data.numbers)) {
+          setTwilioNumbers(data.numbers);
+        }
+      } catch (err) {
+        console.error("Failed to load twilio numbers:", err);
+      }
+    }
+
     loadBranches();
+    loadTwilioNumbers();
   }, []);
 
   const isAuthorized = isAdmin;
@@ -67,13 +84,22 @@ export default function EditAssociatePage() {
   const fetchUser = async () => {
     try {
       const { data } = await userRepository.getUserById(id);
+      const existingSenderIds = Array.isArray(data.assignedSenderNumbers) && data.assignedSenderNumbers.length > 0
+        ? data.assignedSenderNumbers.map((n) => (n._id || n).toString())
+        : Array.isArray(data.assignedTwilioNumbers) && data.assignedTwilioNumbers.length > 0
+          ? data.assignedTwilioNumbers.map((n) => (n._id || n).toString())
+          : data.assignedSenderNumber
+            ? [(data.assignedSenderNumber._id || data.assignedSenderNumber).toString()]
+            : [];
+
       setFormData({
         ...data,
         password: "",
         preferredName: data.preferredName || "",
         number: data.number || "",
         branch: data.branch || "",
-        accessModules: data.accessModules || []
+        accessModules: data.accessModules || [],
+        assignedSenderNumbers: existingSenderIds,
       });
     } catch (error) {
       toast.error("Error connecting to server");
@@ -171,7 +197,7 @@ export default function EditAssociatePage() {
             <div className="flex flex-col gap-6 lg:gap-8 h-full">
               
                 {/* Block 1: Personal Information */}
-                <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden shrink-0">
+                <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden shrink-0 flex flex-col">
                     <div className="px-6 md:px-8 py-5 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50">
                         <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl"><User size={20} /></div>
                         <div>
@@ -216,7 +242,7 @@ export default function EditAssociatePage() {
                 </div>
 
                 {/* Block 2: Security & Authentication */}
-                <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden flex flex-col flex-1">
+                <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden flex flex-col ">
                     <div className="px-6 md:px-8 py-5 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50">
                         <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl"><Lock size={20} /></div>
                         <div>
@@ -225,7 +251,7 @@ export default function EditAssociatePage() {
                         </div>
                     </div>
                     
-                    <div className="p-6 md:p-8 flex flex-col gap-6 flex-1 justify-center">
+                    <div className="p-6 md:p-8 flex flex-col gap-6 flex-1 justify-start">
                         <div className="space-y-1.5 w-full">
                             <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center justify-between ml-1">
                                 Reset Password 
@@ -315,6 +341,28 @@ export default function EditAssociatePage() {
                                 </select>
                                 <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                             </div>
+                        </div>
+
+                        {/* Assigned WhatsApp Sender Numbers (Hierarchical Multi-Select) */}
+                        <div className="sm:col-span-2 border-t border-slate-100 pt-4 mt-2">
+                          <AssignedNumbersSelector
+                            availableNumbers={twilioNumbers}
+                            selectedIds={formData.assignedSenderNumbers || []}
+                            onChange={(selectedIds) =>
+                              setFormData({ ...formData, assignedSenderNumbers: selectedIds })
+                            }
+                            label={formData.department === "admin" ? "Assigned WhatsApp Numbers (Admin)" : "Assigned WhatsApp Numbers (Associate)"}
+                            subtitle={
+                              formData.department === "admin"
+                                ? "Assign sender numbers to this Admin directly from system inventory."
+                                : "Select sender numbers already assigned to this Associate's Admin."
+                            }
+                            emptyMessage={
+                              formData.department === "admin"
+                                ? "No active sender numbers found in system."
+                                : "No sender numbers are assigned to this Admin yet."
+                            }
+                          />
                         </div>
                     </div>
                 </div>

@@ -53,19 +53,19 @@ function ChatPageContent() {
     <InboxPage
       listPanel={
         <div
-          className={`flex flex-col bg-white border-r border-slate-200 h-full z-10 ${
-            selectedChat ? "hidden md:flex" : "flex w-full"
-          } md:w-[400px] lg:w-[450px] flex-shrink-0 transition-all`}
+          className={`flex flex-col bg-white border-r border-slate-200 h-full z-10 min-w-0 shrink-0 transition-all ${
+            selectedChat
+              ? "hidden lg:flex lg:w-[320px] xl:w-[340px] 2xl:w-[380px]"
+              : "flex w-full lg:w-[320px] xl:w-[340px] 2xl:w-[380px]"
+          }`}
         >
           <ChatList role={userRole} loading={loading} />
         </div>
       }
       chatPanel={
         <div
-          className={`flex flex-col bg-white h-full transition-all ${
-            selectedChat
-              ? "fixed inset-0 z-50 md:static md:z-auto flex-1 min-w-0"
-              : "hidden md:flex flex-1"
+          className={`flex flex-col bg-white h-full transition-all flex-1 min-w-0 ${
+            selectedChat ? "flex w-full" : "hidden lg:flex"
           }`}
         >
           <ChatArea />

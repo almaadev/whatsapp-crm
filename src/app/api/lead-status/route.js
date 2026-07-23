@@ -37,19 +37,31 @@ export async function POST(req) {
         if (notes) customer.remarks = notes;
         
         if (oldIsClosed !== isClosed) {
+            const now = new Date();
             customer.chatHistory.push({
                 action: isClosed ? "Closed" : "Reopened",
+                eventType: isClosed ? "Chat Closed" : "Chat Reopened",
                 performedBy: session.user.id,
-                timestamp: new Date(),
+                performedById: session.user.id,
+                performedByName: session.user.name || "User",
+                performedByRole: session.user.role || "associate",
+                performedAt: now,
+                timestamp: now,
                 notes: notes || (isClosed ? "Lead closed via status change" : "Lead reopened via status change")
             });
         }
 
         if (oldAssignedTo !== resolvedAssociateName) {
+            const now = new Date();
             customer.chatHistory.push({
                 action: "Assigned",
+                eventType: "Assigned to Associate",
                 performedBy: session.user.id,
-                timestamp: new Date(),
+                performedById: session.user.id,
+                performedByName: session.user.name || "User",
+                performedByRole: session.user.role || "associate",
+                performedAt: now,
+                timestamp: now,
                 targetUser: associateId || null,
                 notes: `Reassigned to ${resolvedAssociateName}`
             });

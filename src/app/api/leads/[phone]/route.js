@@ -26,11 +26,11 @@ export async function GET(req, { params }) {
 
     // Fetch documents strictly using .lean() for performance.
     // Removed .sort() as it has no effect on findOne().
-    const lead = await Lead.findOne({
-      $or: [{ phone: cleanPhone }, { customerPhone: cleanPhone }],
-    }).lean();
+    const { getBranchFilterForUser } = await import("@/shared/utils/serverAuth");
+    const { branchQuery } = await getBranchFilterForUser(session);
 
-    const customer = await Customer.findOne({ phone: cleanPhone })
+    // Fetch customer record with branch filter first
+    const customer = await Customer.findOne({ phone: cleanPhone, ...branchQuery })
       .populate({
         path: 'createdBy',
         select: 'name role department branch'
@@ -44,6 +44,18 @@ export async function GET(req, { params }) {
         select: 'name role department branch'
       })
       .lean();
+
+    // Check if customer exists globally under another branch
+    if (!customer) {
+      const existingCustomerAnyBranch = await Customer.findOne({ phone: cleanPhone }).select("_id branchId").lean();
+      if (existingCustomerAnyBranch && existingCustomerAnyBranch.branchId) {
+        return NextResponse.json({ error: "Access denied: Customer belongs to another branch." }, { status: 403 });
+      }
+    }
+
+    const lead = await Lead.findOne({
+      $or: [{ phone: cleanPhone }, { customerPhone: cleanPhone }],
+    }).lean();
 
     // If neither exists, return an empty object so the frontend doesn't crash
     if (!lead && !customer) {
@@ -95,13 +107,21 @@ export async function GET(req, { params }) {
           branchName: branchName
         };
       }
+      const performedAtVal = entry.performedAt || entry.timestamp || new Date();
+      const performedByIdVal = entry.performedById || (entry.performedBy?._id ? entry.performedBy._id.toString() : (typeof entry.performedBy === "string" ? entry.performedBy : null));
+      const performedByRoleVal = entry.performedByRole || performedByResolved?.role || "";
+
       return {
         _id: entry._id?.toString(),
-        action: entry.action,
-        timestamp: entry.timestamp,
+        action: entry.action || "System Action",
+        eventType: entry.eventType || (entry.action === "Branch Reassigned" ? "Chat Branch Reassigned" : entry.action) || "System Action",
+        timestamp: performedAtVal,
+        performedAt: performedAtVal,
         notes: entry.notes || "",
         isInternal: entry.isInternal || false,
-        performedBy: performedByResolved,
+        performedBy: performedByResolved || entry.performedByName || (typeof entry.performedBy === "string" ? entry.performedBy : "System Admin"),
+        performedByRole: performedByRoleVal,
+        performedById: performedByIdVal,
         targetUser: targetUserResolved
       };
     });

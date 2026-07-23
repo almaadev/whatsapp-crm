@@ -45,10 +45,16 @@ export async function POST(req) {
             );
         }
 
+        const now = new Date();
         const chatHistoryEntry = {
             action: isChatClosed ? "Closed" : "Reopened",
+            eventType: isChatClosed ? "Chat Closed" : "Chat Reopened",
             performedBy: session.user.id,
-            timestamp: new Date(),
+            performedById: session.user.id,
+            performedByName: session.user.name || "User",
+            performedByRole: session.user.role || "associate",
+            performedAt: now,
+            timestamp: now,
             notes: isChatClosed ? "Chat marked as closed" : "Chat reopened"
         };
 

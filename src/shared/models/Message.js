@@ -75,6 +75,24 @@ const MessageSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+    receivedOnNumber: {
+      type: String,
+      index: true,
+    },
+    senderNumber: {
+      type: String,
+      index: true,
+    },
+    branchId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Branch",
+      index: true,
+    },
+    twilioNumberId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "TwilioNumber",
+      index: true,
+    },
     isChatClosed: {
       type: Boolean,
       default: false,

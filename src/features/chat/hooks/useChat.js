@@ -139,6 +139,18 @@ export function useChat(role) {
     }
   }, []);
 
+  const handleCustomerBranchUpdate = useCallback(
+    (data) => {
+      fetchChats();
+      try {
+        queryClient.invalidateQueries({ queryKey: ["chats"] });
+        queryClient.invalidateQueries({ queryKey: ["leads"] });
+        queryClient.invalidateQueries({ queryKey: ["customers"] });
+      } catch (e) {}
+    },
+    [fetchChats, queryClient],
+  );
+
   useEffect(() => {
     if (!role) return;
 
@@ -147,17 +159,19 @@ export function useChat(role) {
     const socket = connectSocket();
 
     socket.on("new_message", handleIncomingMessage);
-
     socket.on("message_status_update", handleStatusUpdate);
+    socket.on("customer_branch_updated", handleCustomerBranchUpdate);
+    socket.on("customer_updated", handleCustomerBranchUpdate);
 
     return () => {
       socket.off("new_message", handleIncomingMessage);
-
       socket.off("message_status_update", handleStatusUpdate);
+      socket.off("customer_branch_updated", handleCustomerBranchUpdate);
+      socket.off("customer_updated", handleCustomerBranchUpdate);
 
       disconnectSocket();
     };
-  }, [role, fetchChats, handleIncomingMessage, handleStatusUpdate]);
+  }, [role, fetchChats, handleIncomingMessage, handleStatusUpdate, handleCustomerBranchUpdate]);
 
   return {
     loading,

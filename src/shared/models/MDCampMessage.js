@@ -17,6 +17,10 @@ const MDCampMessageSchema = new mongoose.Schema({
     senderType: { type: String, default: "" },
     isAutomated: { type: Boolean, default: false },
     sendBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    receivedOnNumber: { type: String, index: true },
+    senderNumber: { type: String, index: true },
+    branchId: { type: mongoose.Schema.Types.ObjectId, ref: "Branch", index: true },
+    twilioNumberId: { type: mongoose.Schema.Types.ObjectId, ref: "TwilioNumber", index: true },
     isChatClosed: { type: Boolean, default: false },
     timestamp: { type: Date, default: Date.now, index: true }
 }, { timestamps: true });

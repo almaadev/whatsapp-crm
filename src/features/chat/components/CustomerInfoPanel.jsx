@@ -10,6 +10,7 @@ import {
 import { useSession } from "next-auth/react";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { toast } from "react-toastify";
+import { formatEventDateTime, getSystemEventDetails } from "@/shared/utils/chatUtils";
 
 const STATUS_CONFIG = {
   "New":            { color: "blue",    icon: <AlertCircle  size={11} /> },
@@ -84,6 +85,19 @@ export default function CustomerInfoPanel({
     return chatHistory.filter((msg) => msg.mediaUrl);
   }, [selectedChat?.history, globalSelectedChat?.history]);
 
+  const [branches, setBranches] = useState([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      api.get("/api/branches")
+        .then(({ data }) => {
+          if (Array.isArray(data)) setBranches(data);
+          else if (data?.branches && Array.isArray(data.branches)) setBranches(data.branches);
+        })
+        .catch(() => {});
+    }
+  }, [isOpen]);
+
   // Fetch lead data directly from Unified API 
   useEffect(() => {
     const phoneToFetch = activeChat?.phone || selectedChat?.phone;
@@ -114,6 +128,7 @@ export default function CustomerInfoPanel({
             saleAmount: latest.saleAmount || "0",
             leadType: latest.leadType || "Direct Lead",
             adType: data.adType || "",
+            branchId: data.branchId || activeChat?.branchId || "",
           };
 
           setFormData(initialFormData);
@@ -152,6 +167,7 @@ export default function CustomerInfoPanel({
       saleAmount: formData.saleAmount,
       leadType: formData.leadType,
       adType: formData.adType,
+      branchId: formData.branchId || null,
       overAllRemarks: formData.remarks, 
       day1Remarks: formData.day1Remarks,
       day2Remarks: formData.day2Remarks,
@@ -159,17 +175,32 @@ export default function CustomerInfoPanel({
       date: new Date().toISOString(), 
     };
 
+    const selectedBranchObj = branches.find((b) => (b.id || b._id)?.toString() === formData.branchId?.toString());
+    const selectedBranchName = selectedBranchObj ? selectedBranchObj.name : "Unassigned Branch";
+
     setLoading(true);
     try {
       const { data } = await api.post("/api/leads", payload);
+
+      if (formData.branchId !== undefined) {
+        await api.put(`/api/customers/${encodeURIComponent(normalizedPhone)}`, { branchId: formData.branchId || null }).catch((e) => {
+          console.error("PUT Customer Branch Error:", e);
+        });
+      }
       
       updateChatDetails(selectedChat.phone, {
         ...formData,
         interest: formData.enquiredFor,
+        branchId: formData.branchId,
+        branchName: selectedBranchName,
       });
 
       if (data.lead) {
-        setLeadData(data.lead);
+        setLeadData({
+          ...data.lead,
+          branchId: formData.branchId,
+          branchName: selectedBranchName,
+        });
         setFollowUps(data.lead.leads || []);
       }
 
@@ -204,11 +235,25 @@ export default function CustomerInfoPanel({
   };
 
   return (
-    <div className={`
-      absolute lg:static inset-y-0 right-0 h-full bg-white border-l border-slate-200 flex flex-col
-      transition-all duration-300 shrink-0 z-50 shadow-2xl lg:shadow-none select-none
-      ${isOpen ? "w-[100vw] sm:w-[400px] translate-x-0 opacity-100" : "w-0 translate-x-full opacity-0 overflow-hidden border-l-0 lg:w-0 lg:translate-x-0"}
-    `}>
+    <div className="contents">
+      {/* Backdrop overlay for small laptop, tablet, and mobile */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[90] xl:hidden transition-opacity"
+          onClick={onClose}
+        />
+      )}
+      <div
+        className={`
+          fixed xl:static inset-y-0 right-0 h-full bg-white border-l border-slate-200 flex flex-col
+          transition-all duration-300 shrink-0 z-[100] xl:z-auto shadow-2xl xl:shadow-none select-none
+          ${
+            isOpen
+              ? "w-[100vw] sm:w-[380px] md:w-[420px] xl:w-[340px] 2xl:w-[380px] translate-x-0 opacity-100"
+              : "w-0 translate-x-full opacity-0 pointer-events-none xl:w-0 xl:translate-x-0"
+          }
+        `}
+      >
       {/* Sidebar Header */}
       <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100 shrink-0 bg-white">
         <h2 className="font-bold text-slate-800 text-lg">Lead Center</h2>
@@ -333,6 +378,25 @@ export default function CustomerInfoPanel({
                 </div>
               </div>
 
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                  <MapPin size={12} /> Assigned Branch
+                </label>
+                <select
+                  name="branchId"
+                  value={formData.branchId || ""}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none bg-slate-50 text-sm font-semibold text-slate-700 cursor-pointer"
+                >
+                  <option value="">Unassigned (Visible to All Branches)</option>
+                  {branches.map((b) => (
+                    <option key={b._id} value={b._id}>
+                      {b.name} ({b.phone || b.code || "Branch"})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <InputGroup label="Amount (₹)" name="saleAmount" value={formData.saleAmount}
                 onChange={handleChange} type="number" placeholder="0" icon={<DollarSign size={12} />} />
             </div>
@@ -347,41 +411,32 @@ export default function CustomerInfoPanel({
             {/* Interactive Timeline resolved from chatHistory */}
             {leadData?.chatHistory && leadData.chatHistory.length > 0 ? (
               <div className="relative pl-5 border-l border-slate-200 space-y-5 py-2">
-                {[...leadData.chatHistory].reverse().map((audit, idx) => (
-                  <div key={idx} className="relative">
-                    {/* Timeline bullet icon wrapper */}
-                    <span className="absolute -left-[27px] top-1 bg-white p-1 rounded-full border border-slate-200 shadow-sm shrink-0">
-                      {getTimelineIcon(audit.action)}
-                    </span>
-                    <div className="flex flex-col text-left">
-                      <span className="text-xs font-bold text-slate-800">
-                        Chat {audit.action}
+                {[...leadData.chatHistory].reverse().map((audit, idx) => {
+                  const evt = getSystemEventDetails(audit);
+                  const formattedDate = formatEventDateTime(audit.performedAt || audit.timestamp);
+                  return (
+                    <div key={idx} className="relative">
+                      {/* Timeline bullet icon wrapper */}
+                      <span className="absolute -left-[27px] top-1 bg-white p-1 rounded-full border border-slate-200 shadow-sm shrink-0">
+                        {evt.icon}
                       </span>
-                      <span className="text-[11px] text-slate-550 text-slate-500 mt-0.5">
-                        {audit.performedBy ? (
-                          <>
-                            by <strong>{audit.performedBy.name}</strong> <span className="text-slate-400 text-[10px]">({audit.performedBy.role})</span>
-                          </>
-                        ) : (
-                          "System Automation"
+                      <div className="flex flex-col text-left">
+                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          {evt.title}
+                        </span>
+                        <span className="text-[11px] text-slate-600 mt-0.5 font-medium">
+                          by <strong className="font-semibold text-slate-700">{evt.performedBy}</strong>
+                        </span>
+                        {audit.notes && (
+                          <span className="text-[10px] text-slate-400 italic mt-0.5">"{audit.notes}"</span>
                         )}
-                        {audit.targetUser && (
-                          <>
-                            {" "}to <strong>{audit.targetUser.name}</strong> <span className="text-slate-400 text-[10px]">({audit.targetUser.role})</span>
-                          </>
-                        )}
-                      </span>
-                      {audit.notes && (
-                        <span className="text-[10px] text-slate-400 italic mt-0.5">"{audit.notes}"</span>
-                      )}
-                      <span className="text-[9px] text-slate-400 font-bold font-mono uppercase tracking-tight mt-1">
-                        {new Date(audit.timestamp).toLocaleString("en-IN", {
-                          day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
-                        })}
-                      </span>
+                        <span className="text-[10px] text-slate-400 font-medium mt-1">
+                          {formattedDate}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-6 text-slate-400 text-xs font-semibold">No timeline history items found.</div>
@@ -472,14 +527,19 @@ export default function CustomerInfoPanel({
                 <RefreshCw size={16} className="animate-spin" /> Syncing Database...
               </span>
             ) : isLockedByOther ? (
-              <><Lock size={18} /> Locked by {handler.name.split(' ')[0]}</>
+              <span className="flex items-center gap-2">
+                <Lock size={18} /> Locked by {handler?.name ? handler.name.split(" ")[0] : "Other"}
+              </span>
             ) : (
-              <><Save size={18} /> Sync Lead Data</>
+              <span className="flex items-center gap-2">
+                <Save size={18} /> Sync Lead Data
+              </span>
             )}
           </button>
         </div>
       )}
     </div>
+  </div>
   );
 }
 

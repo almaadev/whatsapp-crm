@@ -21,6 +21,27 @@ export default function CrmShell({ children }) {
   const { data: session, status } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isDesktopExpanded, setIsDesktopExpanded] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("crm_sidebar_expanded");
+      if (saved !== null) {
+        setIsDesktopExpanded(saved === "true");
+      } else {
+        setIsDesktopExpanded(window.innerWidth >= 1440);
+      }
+    }
+  }, []);
+
+  const toggleDesktopSidebar = () => {
+    setIsDesktopExpanded((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("crm_sidebar_expanded", String(next));
+      }
+      return next;
+    });
+  };
   
   const fetchCurrentUser = useUserStore((state) => state.fetchCurrentUser);
   const isSuspended = useUserStore((state) => state.isSuspended);
@@ -93,16 +114,18 @@ export default function CrmShell({ children }) {
         status,
         role: session?.user?.role,
         setIsDesktopExpanded,
-        isDesktopExpanded
+        isDesktopExpanded,
+        toggleDesktopSidebar,
       }}
     >
-      <div className="flex h-[100dvh] bg-[var(--background)] font-sans overflow-hidden ">
+      <div className="flex h-[100dvh] bg-[var(--background)] font-sans overflow-hidden">
         <Sidebar
           role={session?.user?.role}
           mobileOpen={mobileOpen}
           setMobileOpen={setMobileOpen}
-          setIsDesktopExpanded = {setIsDesktopExpanded}
-          isDesktopExpanded = {isDesktopExpanded}
+          setIsDesktopExpanded={setIsDesktopExpanded}
+          isDesktopExpanded={isDesktopExpanded}
+          toggleDesktopSidebar={toggleDesktopSidebar}
         />
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
           <Topbar />

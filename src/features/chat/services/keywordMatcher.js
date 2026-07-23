@@ -55,7 +55,7 @@ function generateContentVariables(templateBody, customer, profileName) {
 /**
  * Saves the automated reply message (whether sent or failed) to MongoDB and triggers socket notifications.
  */
-async function saveAndEmitMessage({ phone, messageText, status, twilioSid, templateSid, targetCategory }) {
+async function saveAndEmitMessage({ phone, messageText, status, twilioSid, templateSid, targetCategory, senderNumber }) {
   const msgPayload = {
     phone: phone,
     message: messageText,
@@ -69,6 +69,7 @@ async function saveAndEmitMessage({ phone, messageText, status, twilioSid, templ
     templateSid: templateSid,
     source: "Keyword Automation",
     chatType: targetCategory,
+    senderNumber: senderNumber,
     timestamp: new Date(),
     read: "TRUE",
     isChatClosed: false,
@@ -104,7 +105,7 @@ function normalizeText(text) {
     .trim();
 }
 
-export async function processKeywordAutoReply(phone, messageText, profileName = "") {
+export async function processKeywordAutoReply(phone, messageText, profileName = "", senderNumber = null) {
   if (!messageText) return false;
 
   try {
@@ -128,7 +129,7 @@ export async function processKeywordAutoReply(phone, messageText, profileName = 
     });
 
     if (matchedKeyword) {
-      console.log(`🤖 [AUTO-REPLY] Match found for keyword: "${matchedKeyword.key}"`);
+      console.log(`🤖 [AUTO-REPLY] Match found for keyword: "${matchedKeyword.key}" (Sender: ${senderNumber})`);
 
       // 1. Fetch template detail (MongoDB first, then Twilio Content API)
       const template = await getTemplateDetail(matchedKeyword.templateSid);
@@ -158,7 +159,7 @@ export async function processKeywordAutoReply(phone, messageText, profileName = 
       }
 
       // 4. Output detailed log start
-      console.log(`\n[AUTO REPLY]\nKeyword: "${matchedKeyword.key}"\n`);
+      console.log(`\n[AUTO REPLY]\nKeyword: "${matchedKeyword.key}"\nSender: "${senderNumber}"\n`);
       console.log(`Automation:\n- Rule ID: ${matchedKeyword._id}\n- Template Name: ${template?.name || "Unknown"}\n- Content SID: ${matchedKeyword.templateSid}\n`);
       console.log(`Template Analysis:\n- Variables Required: ${isDynamic ? "Yes" : "No"}\n- Variables Found: ${contentVariables && Object.keys(contentVariables).length > 0 ? "Yes" : "No"}\n`);
 
@@ -180,16 +181,17 @@ export async function processKeywordAutoReply(phone, messageText, profileName = 
           status: "failed",
           twilioSid: dummySid,
           templateSid: matchedKeyword.templateSid,
-          targetCategory
+          targetCategory,
+          senderNumber
         });
 
         return false;
       }
 
-      // 6. Send template via Twilio
-      console.log(`Sending Template...`);
+      // 6. Send template via Twilio using customer's incoming sender number
+      console.log(`Sending Template from ${senderNumber}...`);
       try {
-        const sentMessage = await sendTemplateMessage(phone, matchedKeyword.templateSid, validation.contentVariables);
+        const sentMessage = await sendTemplateMessage(phone, matchedKeyword.templateSid, validation.contentVariables, { senderNumber });
         console.log(`Success\n`);
 
         // Save success status to database & notify UI
@@ -199,7 +201,8 @@ export async function processKeywordAutoReply(phone, messageText, profileName = 
           status: sentMessage.status || "queued",
           twilioSid: sentMessage.sid,
           templateSid: matchedKeyword.templateSid,
-          targetCategory
+          targetCategory,
+          senderNumber
         });
 
         return true;
@@ -215,7 +218,8 @@ export async function processKeywordAutoReply(phone, messageText, profileName = 
           status: "failed",
           twilioSid: dummySid,
           templateSid: matchedKeyword.templateSid,
-          targetCategory
+          targetCategory,
+          senderNumber
         });
 
         return false;

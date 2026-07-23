@@ -232,7 +232,7 @@ export default function AssociateManagement() {
                                 </span>
                                 <span className="flex items-center gap-1">
                                   <MapPin size={10} />{" "}
-                                  {associate.branch || "HQ"}
+                                  {associate.branch || "No Branch Assigned"}
                                 </span>
                               </div>
                             </div>

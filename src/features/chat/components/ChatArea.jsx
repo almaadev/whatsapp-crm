@@ -77,6 +77,21 @@ export default function ChatArea({
 
   const [detailedCustomer, setDetailedCustomer] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [availableNumbers, setAvailableNumbers] = useState([]);
+  const [selectedSender, setSelectedSender] = useState("");
+
+  useEffect(() => {
+    api.get("/api/admin/twilio")
+      .then(({ data }) => {
+        if (data?.numbers && Array.isArray(data.numbers)) {
+          setAvailableNumbers(data.numbers);
+          if (data.numbers.length > 0) {
+            setSelectedSender(data.numbers[0].phoneNumber);
+          }
+        }
+      })
+      .catch((err) => console.error("Failed to load twilio senders:", err));
+  }, []);
 
   useEffect(() => {
     if (activeChat?.phone) {
@@ -304,6 +319,7 @@ export default function ChatArea({
       status: "Sending",
       role: userRole,
       tempId: tempId,
+      senderNumber: selectedSender,
       isChatClosed: false,
       sendBy: {
         _id: session?.user?.id || session?.user?._id,
@@ -439,6 +455,9 @@ export default function ChatArea({
           onInfo={() => setIsInfoOpen(!isInfoOpen)}
           onReminder={() => setShowReminderModal(true)}
           onForward={() => setShowForwardModal(true)}
+          availableNumbers={availableNumbers}
+          selectedSender={selectedSender}
+          onSelectSender={setSelectedSender}
         />
 
         <MessageList
@@ -473,7 +492,7 @@ export default function ChatArea({
           onSendMessage={handleSend}
           onSendTemplate={handleSendTemplate}
           sending={sending}
-          disabled={isLockedByOther}
+          disabled={isLockedByOther || (availableNumbers.length === 0 && session?.user?.role !== "superAdmin" && session?.user?.department !== "admin")}
           isChatClosed={isChatClosed}
           onFocus={() => {
             setTimeout(scrollToBottom, 150);

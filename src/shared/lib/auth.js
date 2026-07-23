@@ -41,6 +41,7 @@ export const authOptions = {
           email: user.email,
           role: user.role,
           department: user.department,
+          branch: user.branch,
           accessModules: user.accessModules,
         };
       },
@@ -56,6 +57,7 @@ export const authOptions = {
         token.id = user.id;
         token.role = user.role;
         token.department = user.department;
+        token.branch = user.branch;
         token.accessModules = user.accessModules;
         token.jti = crypto.randomUUID();
       }
@@ -76,6 +78,7 @@ export const authOptions = {
         session.user.id = token.id;
         session.user.role = token.role;
         session.user.department = token.department;
+        session.user.branch = token.branch;
         session.user.accessModules = token.accessModules;
       }
       return session;

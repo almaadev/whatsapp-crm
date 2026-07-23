@@ -13,10 +13,17 @@ export const categoryLeadService = {
    * @param {string} category - The lead category type (e.g., 'Product Lead', 'MD Camp', 'Therapy')
    * @param {string} phone - The phone number of the customer
    */
-  async getCategoryLeadByPhone(category, phone) {
+  async getCategoryLeadByPhone(category, phone, session = null) {
     await connectDB();
     const cleanPhone = normalizePhone(decodeURIComponent(phone));
     console.log(`[categoryLeadService] Fetching details for category: "${category}", phone: "${cleanPhone}"`);
+
+    let branchQuery = {};
+    if (session) {
+      const { getBranchFilterForUser } = await import("@/shared/utils/serverAuth");
+      const filterRes = await getBranchFilterForUser(session);
+      branchQuery = filterRes.branchQuery || {};
+    }
 
     // 1. Fetch the category lead document from the Lead collection
     const lead = await Lead.findOne({
@@ -26,11 +33,11 @@ export const categoryLeadService = {
 
     // 2. Fetch/Populate the linked Customer document
     // If lead document specifies a customerId or customer reference, query using that; otherwise query by phone.
-    let customerQuery = { phone: cleanPhone };
+    let customerQuery = { phone: cleanPhone, ...branchQuery };
     if (lead?.customer && mongoose.Types.ObjectId.isValid(lead.customer)) {
-      customerQuery = { _id: lead.customer };
+      customerQuery = { _id: lead.customer, ...branchQuery };
     } else if (lead?.customerId && mongoose.Types.ObjectId.isValid(lead.customerId)) {
-      customerQuery = { _id: lead.customerId };
+      customerQuery = { _id: lead.customerId, ...branchQuery };
     }
     
     console.log(`[categoryLeadService] Querying Customer collection with:`, customerQuery);
