@@ -18,19 +18,35 @@ export async function GET(req, { params }) {
 
     const resolvedParams = await params;
     
-    // Normalise the phone param – the UI strips "whatsapp:" before encoding
     const rawPhone = decodeURIComponent(resolvedParams.phone || "");
-    const cleanPhone = rawPhone.startsWith("whatsapp:")
-      ? rawPhone
-      : `whatsapp:${rawPhone}`;
+    const cleanDigits = rawPhone.replace(/\D/g, "");
 
-    // Fetch documents strictly using .lean() for performance.
-    // Removed .sort() as it has no effect on findOne().
-    const { getBranchFilterForUser } = await import("@/shared/utils/serverAuth");
-    const { branchQuery } = await getBranchFilterForUser(session);
+    const variations = [
+      rawPhone,
+      `whatsapp:${rawPhone}`,
+      cleanDigits,
+      `whatsapp:${cleanDigits}`,
+      `whatsapp:+${cleanDigits}`,
+      `+${cleanDigits}`,
+    ];
 
-    // Fetch customer record with branch filter first
-    const customer = await Customer.findOne({ phone: cleanPhone, ...branchQuery })
+    if (cleanDigits.startsWith("91") && cleanDigits.length === 12) {
+      const tenDigit = cleanDigits.substring(2);
+      variations.push(tenDigit);
+      variations.push(`whatsapp:${tenDigit}`);
+      variations.push(`whatsapp:+91${tenDigit}`);
+      variations.push(`+91${tenDigit}`);
+    } else if (cleanDigits.length === 10) {
+      variations.push(`91${cleanDigits}`);
+      variations.push(`whatsapp:91${cleanDigits}`);
+      variations.push(`whatsapp:+91${cleanDigits}`);
+      variations.push(`+91${cleanDigits}`);
+    }
+
+    const primaryPhone = variations[0]?.startsWith("whatsapp:") ? variations[0] : `whatsapp:${cleanDigits || rawPhone}`;
+
+    // Fetch customer record across all phone variations
+    const customer = await Customer.findOne({ phone: { $in: variations } })
       .populate({
         path: 'createdBy',
         select: 'name role department branch'
@@ -45,16 +61,11 @@ export async function GET(req, { params }) {
       })
       .lean();
 
-    // Check if customer exists globally under another branch
-    if (!customer) {
-      const existingCustomerAnyBranch = await Customer.findOne({ phone: cleanPhone }).select("_id branchId").lean();
-      if (existingCustomerAnyBranch && existingCustomerAnyBranch.branchId) {
-        return NextResponse.json({ error: "Access denied: Customer belongs to another branch." }, { status: 403 });
-      }
-    }
-
     const lead = await Lead.findOne({
-      $or: [{ phone: cleanPhone }, { customerPhone: cleanPhone }],
+      $or: [
+        { phone: { $in: variations } },
+        { customerPhone: { $in: variations } }
+      ],
     }).lean();
 
     // If neither exists, return an empty object so the frontend doesn't crash
@@ -139,7 +150,7 @@ export async function GET(req, { params }) {
       // --- Static Root Metadata ---
       name: lead?.name || customer?.name || "",
       city: lead?.city || customer?.city || "",
-      phone: lead?.phone || cleanPhone,
+      phone: lead?.phone || customer?.phone || primaryPhone,
       address: lead?.address || customer?.address || "",
       source: lead?.source || customer?.source || "Whatsapp",
       assignedTo: lead?.assignedTo || customer?.assignedTo || "Unassigned",

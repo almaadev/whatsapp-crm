@@ -1,26 +1,20 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Lock, ArrowDown } from "lucide-react";
+import dynamic from "next/dynamic";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import ChatHeader from "@/features/chat/components/ChatHeader";
 import MessageList from "@/features/chat/components/MessageList";
 import ChatInput from "@/features/chat/components/ChatInput";
+import ChatLockBanner from "@/features/chat/components/ChatLockBanner";
+
+const ForwardLeadModal = dynamic(() => import("@/shared/components/modals/ForwardLeadModal"), { ssr: false });
+const ReminderModal = dynamic(() => import("@/shared/components/modals/ReminderModal"), { ssr: false });
+const PriorityModal = dynamic(() => import("@/shared/components/modals/PriorityModal"), { ssr: false });
+const ClosingModal = dynamic(() => import("@/shared/components/modals/ClosingModal"), { ssr: false });
+const MediaViewer = dynamic(() => import("@/features/chat/components/MediaViewer"), { ssr: false });
 
 /**
- * Renders the main chat view panel, including header, message list, and input.
- *
- * @param {Object} props
- * @param {Function} props.useStore - Zustand store hook for the specific category.
- * @param {Object} props.session - NextAuth session object for the current user.
- * @param {boolean} props.isChatClosed - Boolean indicating if the chat is marked as closed.
- * @param {boolean} props.isToggling - Loading state for toggling chat status.
- * @param {Function} props.handleToggleChatStatus - Handler to toggle chat open/closed.
- * @param {Function} props.handleStatusChange - Handler to change chat status (e.g. Lead Status).
- * @param {Function} props.setIsInfoOpen - Function to toggle the customer info side panel.
- * @param {Object} props.config - Configuration object for the category (colors, icons, text).
- * @param {Function} props.handleSend - Handler for sending a text message.
- * @param {Function} props.handleSendTemplate - Handler for sending a WhatsApp template.
- * @param {boolean} props.sending - Loading state for sending messages.
- * @param {Object} props.messagesEndRef - Ref attached to the bottom of the message list for auto-scrolling.
+ * Renders the main chat view panel, including header, message list, input, presence banner, and action modals.
  */
 export default function ChatViewPanel({
   useStore,
@@ -36,15 +30,37 @@ export default function ChatViewPanel({
   sending,
   messagesEndRef,
   onFocus,
+  availableNumbers = [],
+  selectedSender = "",
+  onSelectSender,
+  onReminder,
+  onForward,
+  showForwardModal,
+  setShowForwardModal,
+  showReminderModal,
+  setShowReminderModal,
+  showPriorityModal,
+  setShowPriorityModal,
+  showClosingModal,
+  setShowClosingModal,
+  actionNote,
+  setActionNote,
+  submitStatusChange,
+  handleSetReminder,
+  handleForwardLead,
 }) {
   const { Icon, borderAccent, accentText, emptyTitle } = config;
   const selectedChat = useStore((s) => s.selectedChat);
   const setSelectedChat = useStore((s) => s.setSelectedChat);
   const detailedCustomer = useStore((s) => s.detailedCustomer);
+  const [selectedMedia, setSelectedMedia] = useState(null);
 
   const activeHandlers = usePresenceStore((s) => s.activeHandlers);
   const handler = selectedChat ? activeHandlers[selectedChat.phone] : null;
-  const isLockedByOther = handler && handler.userId !== (session?.user?.id || session?.user?.email) && (!handler.lockedUntil || handler.lockedUntil > Date.now());
+  const isLockedByOther =
+    handler &&
+    handler.userId !== (session?.user?.id || session?.user?.email) &&
+    (!handler.lockedUntil || handler.lockedUntil > Date.now());
 
   // --- Scroll Handling ---
   const scrollContainerRef = useRef(null);
@@ -71,7 +87,7 @@ export default function ChatViewPanel({
   }, []);
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef?.current?.scrollIntoView({ behavior: "smooth" });
     isNearBottomRef.current = true;
     setShowScrollButton(false);
   }, [messagesEndRef]);
@@ -114,76 +130,130 @@ export default function ChatViewPanel({
           : "hidden md:flex flex-1"
       }`}
     >
-        {selectedChat ? (
-          <>
-            <ChatHeader
-              activeChat={selectedChat}
-              detailedCustomer={detailedCustomer}
-              userName={session?.user?.name}
-              isChatClosed={isChatClosed}
-              isToggling={isToggling}
-              onToggle={handleToggleChatStatus}
-              onStatusChange={handleStatusChange}
-              onBack={() => setSelectedChat(null)}
-              onInfo={() => setIsInfoOpen(prev => !prev)}
-              onReminder={() => {}}
-              onForward={() => {}}
-              themeGradient={config.themeGradient}
-              themeBadgeClasses={config.themeBadgeClasses}
-              themeIconHoverClasses={config.themeIconHoverClasses}
+      {/* Action Modals */}
+      {selectedChat && (
+        <>
+          {showForwardModal && (
+            <ForwardLeadModal
+              isOpen={showForwardModal}
+              onClose={() => setShowForwardModal(false)}
+              customer={selectedChat}
+              onConfirm={handleForwardLead}
             />
+          )}
+          {showReminderModal && (
+            <ReminderModal
+              isOpen={showReminderModal}
+              onClose={() => setShowReminderModal(false)}
+              onSet={handleSetReminder}
+              initialPhone={selectedChat.phone}
+            />
+          )}
+          {showPriorityModal && (
+            <PriorityModal
+              note={actionNote}
+              setNote={setActionNote}
+              onClose={() => setShowPriorityModal(false)}
+              onSubmit={submitStatusChange}
+            />
+          )}
+          {showClosingModal && (
+            <ClosingModal
+              note={actionNote}
+              setNote={setActionNote}
+              onClose={() => setShowClosingModal(false)}
+              onSubmit={submitStatusChange}
+            />
+          )}
+          {selectedMedia && (
+            <MediaViewer
+              media={selectedMedia}
+              onClose={() => setSelectedMedia(null)}
+            />
+          )}
+        </>
+      )}
+
+      {selectedChat ? (
+        <>
+          <ChatHeader
+            activeChat={selectedChat}
+            detailedCustomer={detailedCustomer}
+            userName={session?.user?.name}
+            isChatClosed={isChatClosed}
+            isToggling={isToggling}
+            onToggle={handleToggleChatStatus}
+            onStatusChange={(st) => {
+              if (setActionNote) setActionNote("");
+              if (st === "Follow Up") setShowPriorityModal?.(true);
+              else if (st === "Closed") setShowClosingModal?.(true);
+              else if (submitStatusChange) submitStatusChange(st);
+              else handleStatusChange(st);
+            }}
+            onBack={() => setSelectedChat(null)}
+            onInfo={() => setIsInfoOpen((prev) => !prev)}
+            onReminder={() => (onReminder ? onReminder() : setShowReminderModal?.(true))}
+            onForward={() => (onForward ? onForward() : setShowForwardModal?.(true))}
+            availableNumbers={availableNumbers}
+            selectedSender={selectedSender}
+            onSelectSender={onSelectSender}
+            themeGradient={config.themeGradient}
+            themeBadgeClasses={config.themeBadgeClasses}
+            themeIconHoverClasses={config.themeIconHoverClasses}
+          />
+
+          <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden">
             <MessageList
               messages={chatHistory}
               activeChat={selectedChat}
               userName={session?.user?.name}
               scrollRef={scrollContainerRef}
               onScroll={handleScroll}
-              onMediaClick={() => {}}
+              onMediaClick={setSelectedMedia}
               endRef={messagesEndRef}
             />
+
             {showScrollButton && (
               <button
                 onClick={scrollToBottom}
-                className="absolute bottom-24 right-5 bg-slate-700 text-white p-2 rounded-full shadow-lg z-30 animate-bounce"
+                className="absolute bottom-6 right-5 bg-slate-700 text-white p-2 rounded-full shadow-lg z-30 animate-bounce"
               >
                 <ArrowDown size={20} />
               </button>
             )}
-            {isLockedByOther && (
-              <div className="absolute inset-0 top-[65px] z-40 bg-white/30 backdrop-blur-[3px] flex flex-col items-center justify-center">
-                   <div className="bg-red-50 text-red-700 px-6 py-4 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-red-100 flex items-center gap-3">
-                      <Lock size={20} className="text-red-500" />
-                      <span className="font-semibold text-sm">This conversation is locked by {handler.name || handler.userId}</span>
-                   </div>
-              </div>
-            )}
-            <ChatInput
-              onSendMessage={handleSend}
-              onSendTemplate={handleSendTemplate}
-              sending={sending}
-              disabled={isLockedByOther}
-              chatClosed={isChatClosed}
-              onFocus={onFocus}
-            />
-          </>
-        ) : (
-          <div
-            className={`flex-1 flex flex-col items-center justify-center border-b-[6px] ${borderAccent}`}
-          >
-            <div
-              className={`w-24 h-24 bg-white shadow-sm rounded-full flex items-center justify-center mb-6 ${accentText}`}
-            >
-              <Icon size={40} />
-            </div>
-            <h2 className="text-3xl font-light text-slate-700 mb-4">{emptyTitle}</h2>
-            <p className="text-slate-500 text-sm text-center max-w-[400px]">
-              Select a customer from the left to start messaging.
-            </p>
-            <div className="mt-10 flex items-center gap-1.5 text-xs text-slate-400 font-medium bg-white px-4 py-2 rounded-full shadow-sm">
-              <Lock size={12} /> End-to-end encrypted CRM integration
-            </div>
+
+            {isLockedByOther && <ChatLockBanner handler={handler} />}
           </div>
-        )}
+
+          <ChatInput
+            onSendMessage={handleSend}
+            onSendTemplate={handleSendTemplate}
+            sending={sending}
+            disabled={isLockedByOther || (availableNumbers.length === 0 && session?.user?.role !== "superAdmin" && session?.user?.department !== "admin")}
+            isLockedByOther={isLockedByOther}
+            lockHandlerName={handler?.name}
+            isChatClosed={isChatClosed}
+            onFocus={onFocus}
+          />
+        </>
+      ) : (
+        <div
+          className={`flex-1 flex flex-col items-center justify-center border-b-[6px] ${borderAccent}`}
+        >
+          <div
+            className={`w-24 h-24 bg-white shadow-sm rounded-full flex items-center justify-center mb-6 ${accentText}`}
+          >
+            <Icon size={40} />
+          </div>
+          <h2 className="text-3xl font-light text-slate-700 mb-4">{emptyTitle}</h2>
+          <p className="text-slate-500 text-sm text-center max-w-[400px]">
+            Select a customer from the left to start messaging.
+          </p>
+          <div className="mt-10 flex items-center gap-1.5 text-xs text-slate-400 font-medium bg-white px-4 py-2 rounded-full shadow-sm">
+            <Lock size={12} /> End-to-end encrypted CRM integration
+          </div>
+        </div>
+      )}
     </div>
   );
 }

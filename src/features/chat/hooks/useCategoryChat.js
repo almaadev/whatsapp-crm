@@ -140,13 +140,37 @@ export function useCategoryChat(slug) {
       useStore.getState().updateMessageStatus(update.phone, update.sid, update.status);
     };
 
+    const handleChatStatusUpdated = (data) => {
+      if (data?.phone) {
+        const isClosed = Boolean(data.isClosed ?? data.isChatClosed);
+        useStore.getState().updateChatDetails(data.phone, {
+          isClosed,
+          isChatClosed: isClosed,
+        });
+      }
+    };
+
+    const handleCustomerUpdated = (data) => {
+      if (data?.phone) {
+        useStore.getState().updateChatDetails(data.phone, data);
+      }
+    };
+
     const socket = connectSocket();
     socket.on(config.socketEvent, handleNewMessage);
+    socket.on("new_message", handleNewMessage);
     socket.on("message_status_update", handleStatusUpdate);
+    socket.on("chat_status_updated", handleChatStatusUpdated);
+    socket.on("customer_branch_updated", handleCustomerUpdated);
+    socket.on("customer_updated", handleCustomerUpdated);
 
     return () => {
       socket.off(config.socketEvent, handleNewMessage);
+      socket.off("new_message", handleNewMessage);
       socket.off("message_status_update", handleStatusUpdate);
+      socket.off("chat_status_updated", handleChatStatusUpdated);
+      socket.off("customer_branch_updated", handleCustomerUpdated);
+      socket.off("customer_updated", handleCustomerUpdated);
     };
   }, [slug, config.chatType, config.socketEvent, fetchChats, useStore]);
 

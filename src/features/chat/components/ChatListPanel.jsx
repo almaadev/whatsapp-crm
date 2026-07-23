@@ -16,6 +16,9 @@ const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emp
   const handler = activeHandlers[chat.phone];
   const isBeingHandledByOther = handler && handler.userId !== (session?.user?.id || session?.user?.email) && (!handler.lockedUntil || handler.lockedUntil > Date.now());
 
+  const isClosed = Boolean(chat.isClosed || chat.isChatClosed || lastHistoryMsg?.isChatClosed || chat.status === "Closed");
+  const cleanPhone = chat.phone ? chat.phone.replace("whatsapp:", "") : "";
+
   const handleClick = (e) => {
     onClick(chat);
   };
@@ -32,10 +35,15 @@ const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emp
       </div>
       <div className="flex-1 min-w-0 border-b border-slate-100 pb-3 pt-1">
         <div className="flex justify-between items-center mb-0.5">
-          <h3 className="font-semibold text-[#111b21] text-[16px] leading-tight line-clamp-1">
-            {chat.name || chat.phone}
-          </h3>
-          <span className="text-[12px] text-[#667781]">{formatSafeTime(displayTime)}</span>
+          <div className="flex flex-col min-w-0 pr-2">
+            <h3 className="font-semibold text-[#111b21] text-[15px] leading-tight truncate">
+              {chat.name || cleanPhone}
+            </h3>
+            {chat.name && chat.name !== cleanPhone && (
+              <span className="text-[11px] text-slate-500 font-mono truncate">{cleanPhone}</span>
+            )}
+          </div>
+          <span className="text-[12px] text-[#667781] shrink-0">{formatSafeTime(displayTime)}</span>
         </div>
         <div className="flex justify-between items-center">
           <p className="text-[13px] text-[#667781] line-clamp-1 pr-2">{displayMsg}</p>
@@ -46,10 +54,16 @@ const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emp
                 Locked by {handler.name}
               </span>
             )}
-            {chat.status && (
-              <span className="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded-md font-bold shrink-0">
-                {chat.status}
+            {isClosed ? (
+              <span className="bg-rose-50 text-rose-700 text-[10px] px-2 py-0.5 rounded-md font-bold shrink-0 border border-rose-200">
+                Closed
               </span>
+            ) : (
+              chat.status && (
+                <span className="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded-md font-bold shrink-0">
+                  {chat.status}
+                </span>
+              )
             )}
           </div>
         </div>

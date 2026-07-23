@@ -20,20 +20,25 @@ const ChatHeader = memo(function ChatHeader({
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const [senderMenuOpen, setSenderMenuOpen] = useState(false);
 
-  const displayName = activeChat.name || (activeChat.phone ? activeChat.phone.replace("whatsapp:", "") : "Unknown");
-  const location = detailedCustomer?.city || "No City Info";
+  if (!activeChat) return null;
+
+  const displayName = activeChat?.name || (activeChat?.phone ? activeChat.phone.replace("whatsapp:", "") : "Unknown");
+  const location = detailedCustomer?.city || activeChat?.city || "No City Info";
   const branchName = detailedCustomer?.branchName || activeChat?.branchName || "Unassigned Branch";
   
   const receivedOn = detailedCustomer?.lastIncomingNumber || activeChat?.receivedOnNumber;
 
-  const activeSenderDoc = availableNumbers.find(
+  const activeSenderDoc = (availableNumbers || []).find(
     (n) => n.phoneNumber === selectedSender || `whatsapp:${n.phoneNumber}` === selectedSender
-  ) || availableNumbers[0];
+  ) || availableNumbers?.[0];
+
+  const history = activeChat?.history || [];
+  const lastHistoryMsg = history.length > 0 ? history[history.length - 1] : null;
 
   const hasStatusHistory = Boolean(
-    activeChat?.history[activeChat.history.length - 1]?.status === "Follow Up" ||
-    activeChat?.history[activeChat.history.length - 1]?.status === "Closed" ||
-    activeChat?.history[activeChat.history.length - 1]?.status === "Not Interested"
+    lastHistoryMsg?.status === "Follow Up" ||
+    lastHistoryMsg?.status === "Closed" ||
+    lastHistoryMsg?.status === "Not Interested"
   );
 
   const statusOptions = hasStatusHistory

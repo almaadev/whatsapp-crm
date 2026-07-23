@@ -53,7 +53,7 @@ export async function GET(req, { params }) {
     const [customers, leads] = await Promise.all([
       Customer.find(
         { phone: { $in: phones }, ...branchQuery },
-        { phone: 1, name: 1, priority: 1, status: 1, city: 1, branchId: 1 }
+        { phone: 1, name: 1, priority: 1, status: 1, city: 1, branchId: 1, assignedTo: 1, isClosed: 1 }
       ).lean(),
       Lead.find(
         { phone: { $in: phones } },
@@ -92,12 +92,18 @@ export async function GET(req, { params }) {
       const bId = customer?.branchId ? customer.branchId.toString() : null;
       const bObj = bId && branchMap[bId] ? branchMap[bId] : null;
 
+      const lastMsg = history.length > 0 ? history[history.length - 1] : null;
+      const isClosedState = Boolean(customer?.isClosed || (lastMsg ? lastMsg.isChatClosed : false));
+
       return {
         phone,
         name: lead?.name || (customer?.name && customer.name !== "Unknown" ? customer.name : phone),
         priority: customer?.priority ?? null,
         city: mergedCity,
-        status: latestFollowUp?.status || customer?.status || null,
+        status: latestFollowUp?.status || customer?.status || "New",
+        assignedTo: customer?.assignedTo || "unassigned",
+        isClosed: isClosedState,
+        isChatClosed: isClosedState,
         branchId: bId,
         branchName: bObj ? bObj.name : "Unassigned Branch",
         branchCode: bObj ? bObj.code : "",

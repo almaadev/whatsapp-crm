@@ -59,17 +59,23 @@ export async function POST(req) {
         };
 
         const customerUpdate = {
-            $push: { chatHistory: chatHistoryEntry }
+            $push: { chatHistory: chatHistoryEntry },
+            $set: { isClosed: isChatClosed }
         };
 
         if (isChatClosed === true) {
-            customerUpdate.$set = { activeRouteCategory: "Direct Lead" };
+            customerUpdate.$set.activeRouteCategory = "Direct Lead";
         }
 
         await Customer.findOneAndUpdate(
             { phone: phone },
             customerUpdate
         );
+
+        if (global.io) {
+            global.io.emit("chat_status_updated", { phone, isChatClosed, isClosed: isChatClosed, chatType });
+            global.io.emit("customer_updated", { phone, isClosed: isChatClosed });
+        }
 
         return NextResponse.json({
             success: true,

@@ -9,6 +9,8 @@ import AccessDenied from "@/shared/components/ui/AccessDenied";
 import { useAuth } from "@/shared/hooks/useAuth";
 import { toast } from "react-toastify";
 import { chatRepository } from "@/shared/api/repositories/chatRepository";
+import { chatService } from "@/features/chat/services/chatService";
+import api from "@/shared/lib/axios";
 
 import dynamic from "next/dynamic";
 import { useDebounce } from "@/shared/hooks/useDebounce";
@@ -31,6 +33,21 @@ function CategoryInboxContent({ slug }) {
   const debouncedSearch = useDebounce(searchTerm, 300);
   const messagesEndRef = useRef(null);
 
+  // Twilio Senders State
+  const [availableNumbers, setAvailableNumbers] = useState([]);
+  const [selectedSender, setSelectedSender] = useState("");
+
+  // Action Modals State
+  const [showForwardModal, setShowForwardModal] = useState(false);
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [showPriorityModal, setShowPriorityModal] = useState(false);
+  const [showClosingModal, setShowClosingModal] = useState(false);
+  const [actionNote, setActionNote] = useState("");
+
+  const userRole = user?.role || session?.user?.role || "associate";
+  const userName = user?.name || session?.user?.name || "User";
+  const userEmail = user?.email || session?.user?.email;
+
   const { loading, sending, fetchChats, sendMessage, updateStatus, useStore, config } =
     useCategoryChat(slug);
 
@@ -45,6 +62,19 @@ function CategoryInboxContent({ slug }) {
   useChatPresence(selectedChat?.phone);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+
+  useEffect(() => {
+    api.get("/api/admin/twilio")
+      .then(({ data }) => {
+        if (data?.numbers && Array.isArray(data.numbers)) {
+          setAvailableNumbers(data.numbers);
+          if (data.numbers.length > 0) {
+            setSelectedSender(data.numbers[0].phoneNumber);
+          }
+        }
+      })
+      .catch((err) => console.error("Failed to load twilio senders:", err));
+  }, []);
 
   useEffect(() => {
     if (isAuthorized) fetchChats(debouncedSearch);
@@ -68,7 +98,7 @@ function CategoryInboxContent({ slug }) {
           phone: selectedChat.phone,
           templateSid: template.sid,
           chatType,
-          associateName: user?.name,
+          associateName: userName,
           contentVariables: variables,
         });
         fetchChats(debouncedSearch);
@@ -77,26 +107,38 @@ function CategoryInboxContent({ slug }) {
         toast.error("Failed to send template.");
       }
     },
-    [selectedChat, user, fetchChats, debouncedSearch, chatType]
+    [selectedChat, userName, fetchChats, debouncedSearch, chatType]
   );
 
   const lastMessage =
     selectedChat?.history?.length > 0
       ? selectedChat.history[selectedChat.history.length - 1]
       : null;
-  const isChatClosed = lastMessage ? !!lastMessage.isChatClosed : false;
+  const isChatClosed = Boolean(
+    lastMessage?.isChatClosed || selectedChat?.isClosed || selectedChat?.isChatClosed
+  );
 
   const handleToggleChatStatus = async () => {
-    if (!selectedChat || isToggling || !selectedChat.history?.length) return;
+    if (!selectedChat || isToggling) return;
     setIsToggling(true);
     const newClosedState = !isChatClosed;
 
-    const updatedHistory = [...selectedChat.history];
-    updatedHistory[updatedHistory.length - 1] = { ...lastMessage, isChatClosed: newClosedState };
-    updateChatDetails(selectedChat.phone, { history: updatedHistory });
+    const history = selectedChat.history || [];
+    const updatedHistory = [...history];
+    if (updatedHistory.length > 0) {
+      updatedHistory[updatedHistory.length - 1] = {
+        ...updatedHistory[updatedHistory.length - 1],
+        isChatClosed: newClosedState,
+      };
+    }
+    updateChatDetails(selectedChat.phone, {
+      isClosed: newClosedState,
+      isChatClosed: newClosedState,
+      history: updatedHistory,
+    });
 
     try {
-      const res = await chatRepository.updateStatus({
+      await chatRepository.updateStatus({
         phone: selectedChat.phone,
         isChatClosed: newClosedState,
         chatType,
@@ -104,14 +146,88 @@ function CategoryInboxContent({ slug }) {
       toast.success(newClosedState ? "Chat Marked as Closed" : "Chat Marked as Active");
     } catch {
       toast.error("Failed to update Chat Control Status");
-      const revertedHistory = [...selectedChat.history];
-      revertedHistory[revertedHistory.length - 1] = {
-        ...lastMessage,
+      const revertedHistory = [...history];
+      if (revertedHistory.length > 0) {
+        revertedHistory[revertedHistory.length - 1] = {
+          ...revertedHistory[revertedHistory.length - 1],
+          isChatClosed: !newClosedState,
+        };
+      }
+      updateChatDetails(selectedChat.phone, {
+        isClosed: !newClosedState,
         isChatClosed: !newClosedState,
-      };
-      updateChatDetails(selectedChat.phone, { history: revertedHistory });
+        history: revertedHistory,
+      });
     } finally {
       setIsToggling(false);
+    }
+  };
+
+  const submitStatusChange = async (newStatus, priority = null) => {
+    if (!selectedChat) return;
+
+    const targetPriority =
+      newStatus === "Closed" ? "" : priority || selectedChat.priority;
+
+    const optimisticUpdate = {
+      status: newStatus,
+      priority: targetPriority,
+      isClosed: newStatus === "Closed",
+      isChatClosed: newStatus === "Closed",
+      currentHandler: userName,
+    };
+
+    const originalChat = { ...selectedChat };
+
+    updateChatDetails(selectedChat.phone, optimisticUpdate);
+    setShowPriorityModal(false);
+    setShowClosingModal(false);
+    toast.success(`Status updated to ${newStatus}`);
+
+    try {
+      await chatService.updateLeadLifecycle({
+        phone: selectedChat.phone,
+        status: newStatus,
+        associateEmail: userEmail,
+        associateName: userName,
+        notes: actionNote,
+        priority: targetPriority,
+      });
+    } catch (e) {
+      toast.error("Failed to save status. Reverting...");
+      updateChatDetails(selectedChat.phone, originalChat);
+    }
+  };
+
+  const handleSetReminder = async ({ date, time, message }) => {
+    if (!selectedChat) return;
+    try {
+      await chatService.setReminder({
+        action: "SET",
+        phone: selectedChat.phone,
+        message,
+        date,
+        time,
+      });
+      toast.success("Reminder Scheduled!");
+    } catch (e) {
+      toast.error("Error setting reminder");
+    }
+  };
+
+  const handleForwardLead = async (targetPhone, targetName, message) => {
+    if (!selectedChat) return;
+    try {
+      await chatService.forwardLead({
+        customerPhone: selectedChat.phone,
+        targetPhone,
+        message,
+        associateName: targetName,
+        role: userRole,
+      });
+      toast.success(`Lead forwarded to ${targetName}`);
+    } catch (e) {
+      toast.error("Error forwarding lead.");
     }
   };
 
@@ -167,6 +283,24 @@ function CategoryInboxContent({ slug }) {
             onFocus={() => {
               setTimeout(scrollToBottom, 150);
             }}
+            availableNumbers={availableNumbers}
+            selectedSender={selectedSender}
+            onSelectSender={setSelectedSender}
+            onReminder={() => setShowReminderModal(true)}
+            onForward={() => setShowForwardModal(true)}
+            showForwardModal={showForwardModal}
+            setShowForwardModal={setShowForwardModal}
+            showReminderModal={showReminderModal}
+            setShowReminderModal={setShowReminderModal}
+            showPriorityModal={showPriorityModal}
+            setShowPriorityModal={setShowPriorityModal}
+            showClosingModal={showClosingModal}
+            setShowClosingModal={setShowClosingModal}
+            actionNote={actionNote}
+            setActionNote={setActionNote}
+            submitStatusChange={submitStatusChange}
+            handleSetReminder={handleSetReminder}
+            handleForwardLead={handleForwardLead}
           />
           {selectedChat && (
             <CustomerInfoPanel

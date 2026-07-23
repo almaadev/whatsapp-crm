@@ -192,6 +192,13 @@ export async function PUT(req, { params }) {
             const tenDigit = cleanPhone.substring(2);
             variations.push(tenDigit);
             variations.push(`whatsapp:${tenDigit}`);
+            variations.push(`whatsapp:+91${tenDigit}`);
+            variations.push(`+91${tenDigit}`);
+        } else if (cleanPhone.length === 10) {
+            variations.push(`91${cleanPhone}`);
+            variations.push(`whatsapp:91${cleanPhone}`);
+            variations.push(`whatsapp:+91${cleanPhone}`);
+            variations.push(`+91${cleanPhone}`);
         }
 
         const body = await req.json();
@@ -210,16 +217,16 @@ export async function PUT(req, { params }) {
 
         // Dynamically build the update payload safely
         const setPayload = {
-            name: body.name?.trim(),
-            city: body.city?.trim(),
-            address: body.address?.trim(),
-            source: body.source?.trim(),
-            enquiredFor: body.enquiredFor?.trim(),
-            status: body.status?.trim(),
-            saleAmount: body.saleAmount?.toString(),
-            remarks: body.remarks?.trim(),
             updatedAt: new Date()
         };
+        if (body.name?.trim()) setPayload.name = body.name.trim();
+        if (body.city?.trim()) setPayload.city = body.city.trim();
+        if (body.address?.trim()) setPayload.address = body.address.trim();
+        if (body.source?.trim()) setPayload.source = body.source.trim();
+        if (body.enquiredFor?.trim()) setPayload.enquiredFor = body.enquiredFor.trim();
+        if (body.status?.trim()) setPayload.status = body.status.trim();
+        if (body.saleAmount !== undefined) setPayload.saleAmount = body.saleAmount.toString();
+        if (body.remarks?.trim()) setPayload.remarks = body.remarks.trim();
 
         if (body.branchId !== undefined) {
             setPayload.branchId = body.branchId || null;
@@ -228,13 +235,13 @@ export async function PUT(req, { params }) {
             setPayload.assignedTwilioNumber = body.assignedTwilioNumber || null;
         }
 
-        const updateData = { $set: setPayload };
-
-        Object.keys(updateData.$set).forEach(key => {
-            if (updateData.$set[key] === undefined) {
-                delete updateData.$set[key];
+        const updateData = { 
+            $set: setPayload,
+            $setOnInsert: {
+                phone: variations[0]?.startsWith("whatsapp:") ? variations[0] : `whatsapp:${cleanPhone}`,
+                createdBy: session.user.id
             }
-        });
+        };
 
         if (body.branchId !== undefined) {
             const now = new Date();
@@ -256,10 +263,20 @@ export async function PUT(req, { params }) {
         const { getBranchFilterForUser } = await import("@/shared/utils/serverAuth");
         const { branchQuery } = await getBranchFilterForUser(session);
 
+        // Allow updating customer if branchQuery matches OR if customer's branch is currently null/unassigned
+        const findQuery = { phone: { $in: variations } };
+        if (session?.user?.role !== "superAdmin" && branchQuery?.branchId) {
+            findQuery.$or = [
+                branchQuery,
+                { branchId: null },
+                { branchId: { $exists: false } }
+            ];
+        }
+
         const updatedCustomer = await Customer.findOneAndUpdate(
-            { phone: { $in: variations }, ...branchQuery },
+            findQuery,
             updateData,
-            { returnDocument: "after", runValidators: true }
+            { upsert: true, returnDocument: "after", runValidators: true }
         );
 
         if (!updatedCustomer) {

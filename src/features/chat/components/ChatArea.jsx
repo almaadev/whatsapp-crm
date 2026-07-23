@@ -23,6 +23,7 @@ import {
   Lock,
 } from "lucide-react";
 
+import ChatLockOverlay from "@/features/chat/components/ChatLockOverlay";
 import ChatInput from "@/features/chat/components/ChatInput";
 import ChatHeader from "@/features/chat/components/ChatHeader";
 import MessageList from "@/features/chat/components/MessageList";
@@ -460,39 +461,36 @@ export default function ChatArea({
           onSelectSender={setSelectedSender}
         />
 
-        <MessageList
-          messages={chronologicalTimeline}
-          activeChat={activeChat}
-          userName={userName}
-          scrollRef={scrollContainerRef}
-          onScroll={handleScroll}
-          onMediaClick={setSelectedMedia}
-          endRef={messagesEndRef}
-        />
+        <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden">
+          <MessageList
+            messages={chronologicalTimeline}
+            activeChat={activeChat}
+            userName={userName}
+            scrollRef={scrollContainerRef}
+            onScroll={handleScroll}
+            onMediaClick={setSelectedMedia}
+            endRef={messagesEndRef}
+          />
 
-        {showScrollButton && (
-          <button
-            onClick={scrollToBottom}
-            className="fixed bottom-24 right-5 bg-slate-700 text-white p-2 rounded-full shadow-lg z-30 animate-bounce"
-          >
-            <ArrowDown size={20} />
-          </button>
-        )}
+          {showScrollButton && (
+            <button
+              onClick={scrollToBottom}
+              className="absolute bottom-6 right-5 bg-slate-700 text-white p-2 rounded-full shadow-lg z-30 animate-bounce"
+            >
+              <ArrowDown size={20} />
+            </button>
+          )}
 
-        {isLockedByOther && (
-          <div className="absolute inset-0 top-[65px] z-40 bg-white/30 backdrop-blur-[3px] flex flex-col items-center justify-center">
-             <div className="bg-red-50 text-red-700 px-6 py-4 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-red-100 flex items-center gap-3">
-                <Lock size={20} className="text-red-500" />
-                <span className="font-semibold text-sm">This conversation is locked by {handler.name}</span>
-             </div>
-          </div>
-        )}
+          {isLockedByOther && <ChatLockOverlay handler={handler} />}
+        </div>
 
         <ChatInput
           onSendMessage={handleSend}
           onSendTemplate={handleSendTemplate}
           sending={sending}
           disabled={isLockedByOther || (availableNumbers.length === 0 && session?.user?.role !== "superAdmin" && session?.user?.department !== "admin")}
+          isLockedByOther={isLockedByOther}
+          lockHandlerName={handler?.name}
           isChatClosed={isChatClosed}
           onFocus={() => {
             setTimeout(scrollToBottom, 150);
