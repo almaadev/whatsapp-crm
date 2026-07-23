@@ -83,15 +83,55 @@ export async function GET(req, { params }) {
       branchMap[b._id.toString()] = b.name;
     });
 
-    let creatorInfo = null;
+    let creatorUser = null;
     if (customer?.createdBy) {
-      const branchVal = customer.createdBy.branch?.toString() || "";
-      const branchName = branchMap[branchVal] || customer.createdBy.branch || "";
+      if (typeof customer.createdBy === "object" && customer.createdBy.name) {
+        creatorUser = customer.createdBy;
+      } else {
+        creatorUser = await User.findById(customer.createdBy).select("name role department branch branchId").lean();
+      }
+    }
+
+    if (!creatorUser && lead?.createdBy) {
+      if (typeof lead.createdBy === "object" && lead.createdBy.name) {
+        creatorUser = lead.createdBy;
+      } else {
+        creatorUser = await User.findById(lead.createdBy).select("name role department branch branchId").lean();
+      }
+    }
+
+    let creatorInfo = null;
+    if (creatorUser) {
+      const rawBranch = creatorUser.branch?._id?.toString()
+        || creatorUser.branch?.toString()
+        || creatorUser.branchId?.toString()
+        || (typeof creatorUser.branch === "string" ? creatorUser.branch : "");
+
+      let resolvedBranchName = branchMap[rawBranch] || (creatorUser.branch?.name ? creatorUser.branch.name : "");
+
+      if (!resolvedBranchName && rawBranch && mongoose.Types.ObjectId.isValid(rawBranch)) {
+        const bDoc = await Branch.findById(rawBranch).lean();
+        if (bDoc) resolvedBranchName = bDoc.name;
+      }
+
+      if (!resolvedBranchName && rawBranch && !mongoose.Types.ObjectId.isValid(rawBranch)) {
+        resolvedBranchName = rawBranch;
+      }
+
       creatorInfo = {
-        name: customer.createdBy.name || "Unknown",
-        role: customer.createdBy.role || "",
-        department: customer.createdBy.department || "",
-        branchName: branchName || ""
+        name: creatorUser.name || "Unknown",
+        role: creatorUser.role || "associate",
+        department: creatorUser.department || "sales",
+        branchId: rawBranch || null,
+        branchName: resolvedBranchName || "Unassigned Branch"
+      };
+    } else {
+      creatorInfo = {
+        name: "System Admin",
+        role: "superAdmin",
+        department: "admin",
+        branchId: null,
+        branchName: "Unassigned Branch"
       };
     }
 

@@ -12,8 +12,6 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req) {
   try {
-    const auth = await authorizeBranchRequest(false);
-    if (auth.error) return auth.error;
 
     await connectDB();
 

@@ -75,7 +75,7 @@ export default function ChatArea({
   const lastMessage =
     messages.length > 0 ? messages[messages.length - 1] : null;
   const isChatClosed = lastMessage?.isChatClosed || false;
-
+  
   const [detailedCustomer, setDetailedCustomer] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [availableNumbers, setAvailableNumbers] = useState([]);
