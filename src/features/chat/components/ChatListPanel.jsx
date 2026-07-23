@@ -101,9 +101,11 @@ export default function ChatListPanel({
 
   return (
     <div
-      className={`flex flex-col bg-white border-r border-slate-200 h-full z-10 ${
-        selectedChat ? "hidden md:flex" : "flex w-full"
-      } md:w-[400px] lg:w-[450px] flex-shrink-0 transition-all`}
+      className={`flex flex-col bg-white border-r border-slate-200 h-full z-10 min-w-0 shrink-0 transition-all ${
+        selectedChat
+          ? "hidden lg:flex lg:w-[320px] xl:w-[340px] 2xl:w-[380px]"
+          : "flex w-full lg:w-[320px] xl:w-[340px] 2xl:w-[380px]"
+      }`}
     >
       {/* Header */}
       <div className="bg-[#f0f2f5] px-4 py-3 flex items-center justify-between border-b border-slate-200 h-[60px] shrink-0">

@@ -22,6 +22,18 @@ export async function POST(req) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
         }
 
+        // Determine isBeingHandled using the active presence/lock system
+        const activeChatHandlers = global.activeChatHandlers;
+        const handler = activeChatHandlers ? activeChatHandlers.get(phone) : null;
+        const isHandledActive = handler && (!handler.lockedUntil || handler.lockedUntil > Date.now());
+
+        if (isHandledActive) {
+            const currentUserId = session.user.id || session.user.email;
+            if (handler.userId !== currentUserId) {
+                return NextResponse.json({ error: `Access denied: Chat is currently locked and handled by ${handler.name || 'another user'}.` }, { status: 403 });
+            }
+        }
+
         // Determine which model to update based on chatType
         let ModelToUpdate;
         switch (chatType) {

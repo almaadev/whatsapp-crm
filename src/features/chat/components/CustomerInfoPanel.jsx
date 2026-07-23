@@ -255,63 +255,62 @@ export default function CustomerInfoPanel({
 
   const [branches, setBranches] = useState([]);
 
-  useEffect(() => {
-    if (isOpen) {
-      api
-        .get("/api/branches")
-        .then(({ data }) => {
-          if (Array.isArray(data)) setBranches(data);
-          else if (data?.branches && Array.isArray(data.branches))
-            setBranches(data.branches);
-        })
-        .catch(() => {});
-    }
-  }, [isOpen]);
-
-  // Fetch lead data directly from Unified API
+  // Fetch branches list and lead details in a unified flow to prevent race conditions
   useEffect(() => {
     const phoneToFetch = activeChat?.phone || selectedChat?.phone;
 
     if (isOpen && phoneToFetch) {
       setLoading(true);
-      api
-        .get(`/api/leads/${encodeURIComponent(phoneToFetch)}`)
-        .then(({ data }) => {
-          if (!data || Object.keys(data).length === 0) return;
+      Promise.all([
+        api.get("/api/branches")
+          .then(({ data }) => {
+            if (Array.isArray(data)) return data;
+            if (data?.branches && Array.isArray(data.branches)) return data.branches;
+            return [];
+          })
+          .catch(() => []),
+        api.get(`/api/leads/${encodeURIComponent(phoneToFetch)}`)
+          .then(({ data }) => data)
+          .catch((err) => {
+            console.error("Info Panel Fetch Error:", err);
+            return null;
+          })
+      ]).then(([branchList, data]) => {
+        setBranches(branchList);
+        if (!data || Object.keys(data).length === 0) return;
 
-          setLeadData(data);
-          const fetchedLeads = data.history || [];
-          setFollowUps(fetchedLeads);
-          const latest =
-            fetchedLeads.length > 0
-              ? fetchedLeads[fetchedLeads.length - 1]
-              : {};
+        setLeadData(data);
+        const fetchedLeads = data.history || [];
+        setFollowUps(fetchedLeads);
+        const latest = fetchedLeads.length > 0 ? fetchedLeads[fetchedLeads.length - 1] : {};
 
-          const initialFormData = {
-            name: data.name || activeChat?.name || "",
-            city: data.city || activeChat?.city || "",
-            address: data.address || activeChat?.address || "",
-            source: data.source || "Whatsapp",
-            enquiredFor: latest.enquiredFor ?? "",
-            status: latest.status?.trim() || "",
-            priority: latest.priority || "Medium",
-            remarks: latest.overAllRemarks || data.remarks || "",
-            day1Remarks: latest.day1Remarks ?? "",
-            day2Remarks: latest.day2Remarks ?? "",
-            day3Remarks: latest.day3Remarks ?? "",
-            saleAmount: latest.saleAmount || "0",
-            leadType: latest.leadType || "Direct Lead",
-            adType: data.adType || "",
-            branchId: data.branchId || activeChat?.branchId || "",
-          };
+        const initialFormData = {
+          name: data.name || activeChat?.name || "",
+          city: data.city || activeChat?.city || "",
+          address: data.address || activeChat?.address || "",
+          source: data.source || "Whatsapp",
+          enquiredFor: latest.enquiredFor ?? "",
+          status: latest.status?.trim() || "",
+          priority: latest.priority || "Medium",
+          remarks: latest.overAllRemarks || data.remarks || "",
+          day1Remarks: latest.day1Remarks ?? "",
+          day2Remarks: latest.day2Remarks ?? "",
+          day3Remarks: latest.day3Remarks ?? "",
+          saleAmount: latest.saleAmount || "0",
+          leadType: latest.leadType || "Direct Lead",
+          adType: data.adType || "",
+          branchId: data.branchId || activeChat?.branchId || "",
+        };
 
-          setFormData(initialFormData);
-          setTimeout(() => {
-            setFormData((prev) => ({ ...prev }));
-          }, 0);
-        })
-        .catch((err) => console.error("Info Panel Fetch Error:", err))
-        .finally(() => setLoading(false));
+        setFormData(initialFormData);
+        setTimeout(() => {
+          setFormData((prev) => ({ ...prev }));
+        }, 0);
+      }).catch((err) => {
+        console.error("Info Panel Initial Load Error:", err);
+      }).finally(() => {
+        setLoading(false);
+      });
     }
   }, [isOpen, activeChat, selectedChat]);
 
@@ -440,20 +439,39 @@ export default function CustomerInfoPanel({
           transition-all duration-300 shrink-0 z-[100] xl:z-auto shadow-2xl xl:shadow-none select-none
           ${
             isOpen
-              ? "w-[100vw] sm:w-[380px] md:w-[420px] xl:w-[340px] 2xl:w-[380px] translate-x-0 opacity-100"
+              ? "w-[100vw] sm:w-[360px] xl:w-[clamp(340px,22vw,360px)] 2xl:w-[380px] translate-x-0 opacity-100"
               : "w-0 translate-x-full opacity-0 pointer-events-none xl:w-0 xl:translate-x-0"
           }
         `}
       >
         {/* Sidebar Header */}
-        <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100 shrink-0 bg-white">
-          <h2 className="font-bold text-slate-800 text-lg">Customer Info</h2>
-          <button
-            onClick={onClose}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-650 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 rounded-lg transition-colors border border-transparent"
-          >
-            <X size={16} /> Hide
-          </button>
+        <div className="border-b border-slate-100 px-5 py-4 bg-white shrink-0 flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <h2 className="font-extrabold text-slate-500 text-[10px] tracking-wider uppercase">Customer Info</h2>
+            <button
+              onClick={onClose}
+              className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-800 rounded-lg transition-colors border border-transparent"
+            >
+              <X size={14} /> Hide
+            </button>
+          </div>
+          <div className="flex items-center justify-between mt-1 min-w-0">
+            <h3 className="font-black text-slate-850 text-sm truncate pr-2">
+              {formData.name || selectedChat?.name || selectedChat?.phone?.replace("whatsapp:", "") || "Unknown Customer"}
+            </h3>
+            <div className="flex gap-1 shrink-0 select-none">
+              {formData.status && (
+                <span className="text-[9px] font-black px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-150 uppercase tracking-tight">
+                  {formData.status}
+                </span>
+              )}
+              {formData.priority && (
+                <span className="text-[9px] font-black px-2 py-0.5 rounded bg-indigo-50 text-indigo-705 border border-indigo-150 uppercase tracking-tight">
+                  {formData.priority}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Tabs Row */}
@@ -479,27 +497,10 @@ export default function CustomerInfoPanel({
         </div>
 
         {/* Scrollable Body */}
-        <div className="flex-1 p-6 overflow-y-auto space-y-5 custom-scrollbar bg-slate-50/40">
+        <div className="flex-1 p-5 overflow-y-auto space-y-4 custom-scrollbar bg-slate-50/40">
           {/* DETAILS TAB */}
           {activeTab === "details" && (
-            <div className="space-y-5">
-              {/* Avatar + name */}
-              <div className="flex flex-col items-center pb-2">
-                <div className="w-16 h-16 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-full flex items-center justify-center text-2xl font-bold text-emerald-700 shadow-sm border-4 border-white">
-                  {formData.name ? formData.name.charAt(0).toUpperCase() : "#"}
-                </div>
-                <p className="text-slate-900 font-bold text-base mt-2.5">
-                  {formData.name || selectedChat?.phone}
-                </p>
-
-                {closedCycleCount > 0 && (
-                  <span className="mt-1.5 flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200/55">
-                    <History size={10} />
-                    {closedCycleCount} Closed{" "}
-                    {closedCycleCount === 1 ? "Cycle" : "Cycles"}
-                  </span>
-                )}
-              </div>
+            <div className="space-y-4">
 
               {/* Form Fields Card */}
               <div className="space-y-4 bg-white p-5 rounded-xl shadow-sm border border-slate-200/60">
@@ -630,46 +631,6 @@ export default function CustomerInfoPanel({
                 />
               </div>
 
-              {/* Customer Owner Information Card */}
-              <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200/60 space-y-3">
-                <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-100 pb-2">
-                  <User size={13} className="text-[#00a884]" /> Creator Details
-                </h3>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs">
-                  <div>
-                    <p className="font-bold text-slate-400 text-[10px] uppercase">
-                      Associate
-                    </p>
-                    <p className="font-bold text-slate-700 mt-0.5">
-                      {leadData?.creatorInfo?.name || "System Admin"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-bold text-slate-400 text-[10px] uppercase">
-                      Role
-                    </p>
-                    <p className="font-bold text-slate-700 mt-0.5 capitalize">
-                      {leadData?.creatorInfo?.role || "Associate"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-bold text-slate-400 text-[10px] uppercase">
-                      Department
-                    </p>
-                    <p className="font-bold text-slate-700 mt-0.5 capitalize">
-                      {leadData?.creatorInfo?.department || "Sales"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-bold text-slate-400 text-[10px] uppercase">
-                      Branch
-                    </p>
-                    <p className="font-bold text-slate-700 mt-0.5">
-                      {leadData?.creatorInfo?.branchName || "Unassigned Branch"}
-                    </p>
-                  </div>
-                </div>
-              </div>
 
               {/* Lead History / Lead Cycles Widget (Last 3 Cycles) */}
               <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200/60 space-y-3">

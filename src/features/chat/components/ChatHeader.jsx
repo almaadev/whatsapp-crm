@@ -1,5 +1,7 @@
 import React, { useState, memo } from "react";
 import { ChevronLeft,ChevronDown, Bell, Share2, Info, Tag, MapPin, MoreVertical, Smartphone, Building2 } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 
 const ChatHeader = memo(function ChatHeader({
   activeChat,
@@ -19,6 +21,14 @@ const ChatHeader = memo(function ChatHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const [senderMenuOpen, setSenderMenuOpen] = useState(false);
+
+  const { data: session } = useSession();
+  const activeHandlers = usePresenceStore((s) => s.activeHandlers);
+  const handler = activeChat ? activeHandlers[activeChat.phone] : null;
+  const isHandledActive = handler && (!handler.lockedUntil || handler.lockedUntil > Date.now());
+  const currentUserIdentifier = session?.user?.id || session?.user?.email;
+  const handledBySelf = isHandledActive && handler.userId === currentUserIdentifier;
+  const isCloseDisabled = isHandledActive && !handledBySelf;
 
   if (!activeChat) return null;
 
@@ -183,24 +193,38 @@ const ChatHeader = memo(function ChatHeader({
         })()}
 
         {/* Toggle Status Controls */}
-        <button
-          onClick={onToggle}
-          disabled={isToggling}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-sm
-            ${isChatClosed
-              ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600"
-              : "bg-white text-slate-650 hover:text-slate-800 border-slate-200 hover:bg-slate-50"
-            }
-          `}
-        >
-          {isToggling ? (
-            <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-          ) : isChatClosed ? (
-            "Reopen Chat"
-          ) : (
-            "Close Chat"
+        <div className="relative group">
+          <button
+            onClick={onToggle}
+            disabled={isToggling || (!isChatClosed && isCloseDisabled)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-sm
+              ${isChatClosed
+                ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600"
+                : (!isChatClosed && isCloseDisabled)
+                  ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-75"
+                  : "bg-white text-slate-650 hover:text-slate-800 border-slate-200 hover:bg-slate-50"
+              }
+            `}
+            title={(!isChatClosed && isCloseDisabled) ? `${handler?.name || "Another user"} is currently handling this chat.` : ""}
+          >
+            {isToggling ? (
+              <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            ) : isChatClosed ? (
+              "Reopen Chat"
+            ) : (!isChatClosed && isCloseDisabled) ? (
+              <span className="flex items-center gap-1 select-none">
+                🔒 Close Chat
+              </span>
+            ) : (
+              "Close Chat"
+            )}
+          </button>
+          {!isChatClosed && isCloseDisabled && (
+            <span className="absolute hidden group-hover:block whitespace-nowrap bg-slate-800 text-white text-[10px] px-2.5 py-1 rounded-md -bottom-8 right-0 z-30 font-semibold shadow-md">
+              🔒 {handler?.name || "Another user"} is currently handling this chat.
+            </span>
           )}
-        </button>
+        </div>
 
         {/* Lifecycle Status Select */}
         <div className="relative">
@@ -273,12 +297,21 @@ const ChatHeader = memo(function ChatHeader({
           <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-2xl border border-slate-100 py-1.5 z-[70] animate-in fade-in zoom-in-95 font-semibold text-xs text-slate-700 flex flex-col">
             <button
               onClick={() => {
-                onToggle();
+                if (isChatClosed || !isCloseDisabled) {
+                  onToggle();
+                }
                 setActionsMenuOpen(false);
               }}
-              className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors flex items-center gap-2"
+              disabled={!isChatClosed && isCloseDisabled}
+              className={`w-full text-left px-4 py-2.5 transition-colors flex items-center gap-2
+                ${(!isChatClosed && isCloseDisabled)
+                  ? "text-slate-400 cursor-not-allowed bg-slate-50/50"
+                  : "hover:bg-slate-50 text-slate-700"
+                }
+              `}
+              title={(!isChatClosed && isCloseDisabled) ? `${handler?.name || "Another user"} is currently handling this chat.` : ""}
             >
-              {isChatClosed ? "Reopen Chat" : "Close Chat"}
+              {isChatClosed ? "Reopen Chat" : (!isChatClosed && isCloseDisabled) ? "🔒 Close Chat (Locked)" : "Close Chat"}
             </button>
 
             <div className="border-t border-slate-100 my-1" />

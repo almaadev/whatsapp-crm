@@ -126,7 +126,7 @@ export default function ChatViewPanel({
     <div
       className={`flex flex-col bg-white h-full transition-all relative ${
         selectedChat
-          ? "fixed inset-0 z-50 md:static md:z-auto flex-1 min-w-0"
+          ? "fixed inset-0 z-50 md:static md:z-auto flex-1 min-w-[65%] lg:min-w-[70%]"
           : "hidden md:flex flex-1"
       }`}
     >

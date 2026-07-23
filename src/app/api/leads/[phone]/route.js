@@ -194,6 +194,7 @@ export async function GET(req, { params }) {
       address: lead?.address || customer?.address || "",
       source: lead?.source || customer?.source || "Whatsapp",
       assignedTo: lead?.assignedTo || customer?.assignedTo || "Unassigned",
+      branchId: customer?.branchId?._id?.toString() || customer?.branchId?.toString() || lead?.branchId?._id?.toString() || lead?.branchId?.toString() || null,
 
       // --- Dynamic Follow-up Data (Derived purely from latest entry) ---
       enquiredFor: latest?.enquiredFor || customer?.enquiredFor || "",

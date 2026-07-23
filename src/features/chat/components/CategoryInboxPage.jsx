@@ -266,51 +266,93 @@ function CategoryInboxContent({ slug }) {
         />
       }
       chatPanel={
-        <>
-          <ChatViewPanel
-            useStore={useStore}
-            session={user ? { user } : session}
-            isChatClosed={isChatClosed}
-            isToggling={isToggling}
-            handleToggleChatStatus={handleToggleChatStatus}
-            handleStatusChange={handleStatusChange}
-            setIsInfoOpen={setIsInfoOpen}
-            config={config}
-            handleSend={handleSend}
-            handleSendTemplate={handleSendTemplate}
-            sending={sending}
-            messagesEndRef={messagesEndRef}
-            onFocus={() => {
-              setTimeout(scrollToBottom, 150);
-            }}
-            availableNumbers={availableNumbers}
-            selectedSender={selectedSender}
-            onSelectSender={setSelectedSender}
-            onReminder={() => setShowReminderModal(true)}
-            onForward={() => setShowForwardModal(true)}
-            showForwardModal={showForwardModal}
-            setShowForwardModal={setShowForwardModal}
-            showReminderModal={showReminderModal}
-            setShowReminderModal={setShowReminderModal}
-            showPriorityModal={showPriorityModal}
-            setShowPriorityModal={setShowPriorityModal}
-            showClosingModal={showClosingModal}
-            setShowClosingModal={setShowClosingModal}
-            actionNote={actionNote}
-            setActionNote={setActionNote}
-            submitStatusChange={submitStatusChange}
-            handleSetReminder={handleSetReminder}
-            handleForwardLead={handleForwardLead}
-          />
-          {selectedChat && (
-            <CustomerInfoPanel
-              isOpen={isInfoOpen}
-              onClose={() => setIsInfoOpen(false)}
-              leadCategory={leadCategory}
-              activeChat={selectedChat}
+        <div
+          className={`flex flex-col bg-white h-full transition-all flex-1 min-w-0 ${
+            selectedChat ? "flex w-full" : "hidden lg:flex"
+          }`}
+        >
+          {selectedChat ? (
+            <div className="flex flex-row h-full w-full relative overflow-hidden bg-slate-50">
+              <ChatViewPanel
+                useStore={useStore}
+                session={user ? { user } : session}
+                isChatClosed={isChatClosed}
+                isToggling={isToggling}
+                handleToggleChatStatus={handleToggleChatStatus}
+                handleStatusChange={handleStatusChange}
+                setIsInfoOpen={setIsInfoOpen}
+                config={config}
+                handleSend={handleSend}
+                handleSendTemplate={handleSendTemplate}
+                sending={sending}
+                messagesEndRef={messagesEndRef}
+                onFocus={() => {
+                  setTimeout(scrollToBottom, 150);
+                }}
+                availableNumbers={availableNumbers}
+                selectedSender={selectedSender}
+                onSelectSender={setSelectedSender}
+                onReminder={() => setShowReminderModal(true)}
+                onForward={() => setShowForwardModal(true)}
+                showForwardModal={showForwardModal}
+                setShowForwardModal={setShowForwardModal}
+                showReminderModal={showReminderModal}
+                setShowReminderModal={setShowReminderModal}
+                showPriorityModal={showPriorityModal}
+                setShowPriorityModal={setShowPriorityModal}
+                showClosingModal={showClosingModal}
+                setShowClosingModal={setShowClosingModal}
+                actionNote={actionNote}
+                setActionNote={setActionNote}
+                submitStatusChange={submitStatusChange}
+                handleSetReminder={handleSetReminder}
+                handleForwardLead={handleForwardLead}
+              />
+              <CustomerInfoPanel
+                isOpen={isInfoOpen}
+                onClose={() => setIsInfoOpen(false)}
+                leadCategory={leadCategory}
+                activeChat={selectedChat}
+              />
+            </div>
+          ) : (
+            <ChatViewPanel
+              useStore={useStore}
+              session={user ? { user } : session}
+              isChatClosed={isChatClosed}
+              isToggling={isToggling}
+              handleToggleChatStatus={handleToggleChatStatus}
+              handleStatusChange={handleStatusChange}
+              setIsInfoOpen={setIsInfoOpen}
+              config={config}
+              handleSend={handleSend}
+              handleSendTemplate={handleSendTemplate}
+              sending={sending}
+              messagesEndRef={messagesEndRef}
+              onFocus={() => {
+                setTimeout(scrollToBottom, 150);
+              }}
+              availableNumbers={availableNumbers}
+              selectedSender={selectedSender}
+              onSelectSender={setSelectedSender}
+              onReminder={() => setShowReminderModal(true)}
+              onForward={() => setShowForwardModal(true)}
+              showForwardModal={showForwardModal}
+              setShowForwardModal={setShowForwardModal}
+              showReminderModal={showReminderModal}
+              setShowReminderModal={setShowReminderModal}
+              showPriorityModal={showPriorityModal}
+              setShowPriorityModal={setShowPriorityModal}
+              showClosingModal={showClosingModal}
+              setShowClosingModal={setShowClosingModal}
+              actionNote={actionNote}
+              setActionNote={setActionNote}
+              submitStatusChange={submitStatusChange}
+              handleSetReminder={handleSetReminder}
+              handleForwardLead={handleForwardLead}
             />
           )}
-        </>
+        </div>
       }
     />
   );

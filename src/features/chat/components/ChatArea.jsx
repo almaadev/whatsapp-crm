@@ -438,7 +438,7 @@ export default function ChatArea({
       )}
 
       {/* Main Messaging View Column */}
-      <div className="flex-1 flex flex-col h-full min-w-0 relative">
+      <div className="flex-1 flex flex-col h-full min-w-[65%] lg:min-w-[70%] relative">
         <ChatHeader
           activeChat={activeChat}
           detailedCustomer={detailedCustomer}
