@@ -341,6 +341,7 @@ export default function ChatList({ role, loading }) {
               chat.direction === "INBOUND" &&
               chat.read === "FALSE";
             const handler = activeHandlers[chat.phone];
+            console.log(handler, "handler");
             const isBeingHandledByOther =
               handler &&
               handler.userId !== (session?.user?.id || session?.user?.email) &&

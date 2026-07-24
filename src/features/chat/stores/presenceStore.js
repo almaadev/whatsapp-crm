@@ -2,8 +2,10 @@ import { create } from "zustand";
 
 export const usePresenceStore = create((set) => ({
   activeHandlers: {}, // phone -> { userId, name, socketId, timestamp, lockedUntil }
+  
   setHandler: (phone, handler) => set((state) => ({
     activeHandlers: { ...state.activeHandlers, [phone]: { ...state.activeHandlers[phone], ...handler } }
+    
   })),
   removeHandler: (phone) => set((state) => {
     const newHandlers = { ...state.activeHandlers };

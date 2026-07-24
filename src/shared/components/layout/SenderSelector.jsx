@@ -109,12 +109,12 @@ export default function SenderSelector({ layout = "default", className = "", onC
     <div className={`relative ${className}`} ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2  hover:bg-slate-100 border border-slate-200/80 hover:border-slate-300 px-3 py-1.5 rounded-xl cursor-pointer select-none transition-all shadow-sm focus:outline-none focus:ring-1 focus:ring-[#00a884]"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 shadow-sm select-none ${className}"
       >
         <Smartphone className="w-4 h-4 text-[#00a884] shrink-0" />
         <div className="flex flex-col text-left leading-tight">
           
-          <span className="font-bold text-slate-800 truncate max-w-[100px] sm:max-w-[120px] lg:max-w-[180px]">
+          <span className=" font-bold text-slate-800 truncate max-w-[100px] sm:max-w-[120px] lg:max-w-[180px]">
             {activeSenderDoc.friendlyName}
           </span>
           <span className="text-[10px] text-slate-500 font-mono">{activeSenderDoc.phoneNumber}</span>
