@@ -22,6 +22,7 @@ import { useChatPresence } from "@/features/chat/hooks/useChatPresence";
 
 import ChatListPanel from "@/features/chat/components/ChatListPanel";
 import ChatViewPanel from "@/features/chat/components/ChatViewPanel";
+import { useChatStore } from "@/features/chat/stores/chatStore";
 
 function CategoryInboxContent({ slug }) {
   const { data: session, status } = useSession();
@@ -33,16 +34,17 @@ function CategoryInboxContent({ slug }) {
   const debouncedSearch = useDebounce(searchTerm, 300);
   const messagesEndRef = useRef(null);
 
-  // Twilio Senders State
-  const [availableNumbers, setAvailableNumbers] = useState([]);
-  const [selectedSender, setSelectedSender] = useState("");
-
   // Action Modals State
   const [showForwardModal, setShowForwardModal] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showClosingModal, setShowClosingModal] = useState(false);
   const [actionNote, setActionNote] = useState("");
+
+  // Senders State from Global Store
+  const availableNumbers = useChatStore((s) => s.availableNumbers);
+  const selectedSender = useChatStore((s) => s.selectedSender);
+  const setSelectedSender = useChatStore((s) => s.setSelectedSender);
 
   const userRole = user?.role || session?.user?.role || "associate";
   const userName = user?.name || session?.user?.name || "User";
@@ -62,19 +64,6 @@ function CategoryInboxContent({ slug }) {
   useChatPresence(selectedChat?.phone);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-
-  useEffect(() => {
-    api.get("/api/admin/twilio")
-      .then(({ data }) => {
-        if (data?.numbers && Array.isArray(data.numbers)) {
-          setAvailableNumbers(data.numbers);
-          if (data.numbers.length > 0) {
-            setSelectedSender(data.numbers[0].phoneNumber);
-          }
-        }
-      })
-      .catch((err) => console.error("Failed to load twilio senders:", err));
-  }, []);
 
   useEffect(() => {
     if (isAuthorized) fetchChats(debouncedSearch);
@@ -100,6 +89,7 @@ function CategoryInboxContent({ slug }) {
           chatType,
           associateName: userName,
           contentVariables: variables,
+          senderNumber: selectedSender,
         });
         fetchChats(debouncedSearch);
         setTimeout(scrollToBottom, 50);
@@ -107,7 +97,7 @@ function CategoryInboxContent({ slug }) {
         toast.error("Failed to send template.");
       }
     },
-    [selectedChat, userName, fetchChats, debouncedSearch, chatType]
+    [selectedChat, userName, fetchChats, debouncedSearch, chatType, selectedSender]
   );
 
   const lastMessage =
@@ -289,9 +279,7 @@ function CategoryInboxContent({ slug }) {
                 onFocus={() => {
                   setTimeout(scrollToBottom, 150);
                 }}
-                availableNumbers={availableNumbers}
-                selectedSender={selectedSender}
-                onSelectSender={setSelectedSender}
+
                 onReminder={() => setShowReminderModal(true)}
                 onForward={() => setShowForwardModal(true)}
                 showForwardModal={showForwardModal}

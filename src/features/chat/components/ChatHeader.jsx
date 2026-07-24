@@ -14,13 +14,9 @@ const ChatHeader = memo(function ChatHeader({
   onInfo,
   onReminder,
   onForward,
-  availableNumbers = [],
-  selectedSender = "",
-  onSelectSender,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
-  const [senderMenuOpen, setSenderMenuOpen] = useState(false);
 
   const { data: session } = useSession();
   const activeHandlers = usePresenceStore((s) => s.activeHandlers);
@@ -38,9 +34,7 @@ const ChatHeader = memo(function ChatHeader({
   
   const receivedOn = detailedCustomer?.lastIncomingNumber || activeChat?.receivedOnNumber;
 
-  const activeSenderDoc = (availableNumbers || []).find(
-    (n) => n.phoneNumber === selectedSender || `whatsapp:${n.phoneNumber}` === selectedSender
-  ) || availableNumbers?.[0];
+
 
   const history = activeChat?.history || [];
   const lastHistoryMsg = history.length > 0 ? history[history.length - 1] : null;
@@ -110,88 +104,6 @@ const ChatHeader = memo(function ChatHeader({
 
       {/* Desktop/Tablet Actions */}
       <div className="hidden sm:flex items-center gap-2 shrink-0">
-        {/* Outgoing Sender Number Component (Super Admin / Admin / Associate) */}
-        {(() => {
-          const { useSession } = require("next-auth/react");
-          const { data: session } = useSession();
-          const isSuperAdmin = session?.user?.role === "superAdmin";
-          const isAdmin = session?.user?.department === "admin" || session?.user?.role === "admin";
-          const isAssociate = !isSuperAdmin && !isAdmin;
-
-          if (availableNumbers.length === 0) {
-            return (
-              <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 text-rose-700 px-3 py-1.5 rounded-xl text-xs font-extrabold shadow-sm select-none">
-                <span>No WhatsApp sender assigned. Contact administrator.</span>
-              </div>
-            );
-          }
-
-          // Associate with ONLY 1 assigned sender -> Hide dropdown, show static badge
-          if (isAssociate && availableNumbers.length === 1) {
-            const singleSender = activeSenderDoc || availableNumbers[0];
-            return (
-              <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 text-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm select-none">
-                <Smartphone size={13} className="text-emerald-600 shrink-0" />
-                <span className="truncate">
-                   <strong className="text-slate-900">{singleSender.friendlyName}</strong> ({singleSender.phoneNumber})
-                </span>
-              </div>
-            );
-          }
-
-          // Multi-number dropdown (Super Admin, Admin, or Associate with multiple senders)
-          return (
-            <div className="relative">
-              <button
-                onClick={() => setSenderMenuOpen(!senderMenuOpen)}
-                className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-                title="Select Outgoing WhatsApp Sender Number"
-              >
-                <Smartphone size={13} className="text-emerald-600" />
-                <span>
-                  {activeSenderDoc ? `${activeSenderDoc.friendlyName} (${activeSenderDoc.phoneNumber})` : "Select Sender"}
-                </span>
-                <ChevronDown size={14} className="text-emerald-600" />
-              </button>
-              {senderMenuOpen && (
-                <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95 font-semibold text-xs text-slate-700">
-                  <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                    {isSuperAdmin
-                      ? "All System Senders (Super Admin)"
-                      : isAdmin
-                      ? "Assigned Senders (Admin)"
-                      : "Your Assigned Senders"}
-                  </div>
-                  {availableNumbers.map((num) => {
-                    const isSelected =
-                      selectedSender === num.phoneNumber || selectedSender === `whatsapp:${num.phoneNumber}`;
-                    return (
-                      <button
-                        key={num._id || num.phoneNumber}
-                        onClick={() => {
-                          if (onSelectSender) onSelectSender(num.phoneNumber);
-                          setSenderMenuOpen(false);
-                        }}
-                        className={`w-full text-left px-3 py-2 hover:bg-slate-50 transition-colors flex flex-col gap-0.5 cursor-pointer ${
-                          isSelected ? "bg-emerald-50/70 border-l-4 border-emerald-500" : ""
-                        }`}
-                      >
-                        <span className="font-bold text-slate-800 flex items-center justify-between">
-                          {num.friendlyName}
-                          {isSelected && <span className="text-[10px] text-emerald-600 font-extrabold">Active</span>}
-                        </span>
-                        <span className="text-[11px] text-slate-500 font-mono">
-                          {num.phoneNumber}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })()}
-
         {/* Toggle Status Controls */}
         <div className="relative group">
           <button

@@ -58,6 +58,7 @@ export const CATEGORY_CONFIG = {
     themeIconHoverClasses: "hover:text-purple-700 hover:bg-purple-50",
     borderAccent: "border-purple-500",
   },
+
 };
 
 export function getCategoryConfig(slug) {

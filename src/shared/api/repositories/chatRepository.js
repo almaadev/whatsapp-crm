@@ -7,5 +7,6 @@ export const chatRepository = {
   updateStatus: (payload, options = {}) => api.post("/api/chats/status", payload, options),
   markRead: (payload, options = {}) => api.post("/api/chats/mark-read", payload, options),
   updateCategoryLeadStatus: (category, payload, options = {}) => api.post(`/api/category-leads-update/${category}`, payload, options),
-  sendCategoryMessage: (category, payload, options = {}) => api.post(`/api/category-chats/${category}`, payload, options)
+  sendCategoryMessage: (category, payload, options = {}) => api.post(`/api/category-chats/${category}`, payload, options),
+  sendTemplate: (payload, options = {}) => api.post("/api/send-template", payload, options)
 };

@@ -27,6 +27,7 @@ import AccessDenied from "@/shared/components/ui/AccessDenied";
 import { bulkMessageRepository } from "@/shared/api/repositories/bulkMessageRepository";
 import TemplateManagerPanel from "@/features/templates/components/TemplateManagerPanel";
 import { useTemplateStore } from "@/features/templates/stores/templateStore";
+import { useChatStore } from "@/features/chat/stores/chatStore";
 
 export default function BulkTemplatePage() {
   const { setMobileOpen } = useCrmLayout();
@@ -55,25 +56,13 @@ export default function BulkTemplatePage() {
   const [isDeleting, setIsDeleting] = useState(null);
   const formRef = useRef(null);
 
-  const [availableNumbers, setAvailableNumbers] = useState([]);
-  const [selectedSender, setSelectedSender] = useState("");
+  const availableNumbers = useChatStore((s) => s.availableNumbers);
+  const selectedSender = useChatStore((s) => s.selectedSender);
+  const setSelectedSender = useChatStore((s) => s.setSelectedSender);
 
   useEffect(() => {
     fetchTemplates();
     fetchCampaigns();
-
-    // Fetch Twilio Numbers available to the user
-    fetch("/api/admin/twilio")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.numbers && Array.isArray(data.numbers)) {
-          setAvailableNumbers(data.numbers);
-          if (data.numbers.length > 0) {
-            setSelectedSender(data.numbers[0].phoneNumber);
-          }
-        }
-      })
-      .catch((err) => console.error("Failed to load Twilio senders:", err));
   }, [fetchTemplates]);
 
   const fetchCampaigns = async () => {
@@ -321,7 +310,7 @@ export default function BulkTemplatePage() {
                             value={campaignName}
                             onChange={(e) => setCampaignName(e.target.value)}
                             placeholder="e.g. Summer Sale 2026"
-                            className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl px-4 py-3 outline-none focus:border-[#00a884] focus:ring-4 focus:ring-[#00a884]/10 text-sm font-bold transition-all shadow-inner"
+                            className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:border-[#00a884] focus:ring-4 focus:ring-[#00a884]/10 text-sm font-bold transition-all shadow-inner"
                           />
                         </div>
 
@@ -369,7 +358,7 @@ export default function BulkTemplatePage() {
                               <select
                                 value={selectedSender}
                                 onChange={(e) => setSelectedSender(e.target.value)}
-                                className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl px-4 py-3 outline-none focus:border-[#00a884] focus:ring-4 focus:ring-[#00a884]/10 text-xs font-bold transition-all cursor-pointer"
+                                className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:border-[#00a884] focus:ring-4 focus:ring-[#00a884]/10 text-xs font-bold transition-all cursor-pointer font-sans appearance-none"
                               >
                                 {availableNumbers.map((num) => (
                                   <option key={num._id || num.phoneNumber} value={num.phoneNumber}>
@@ -390,7 +379,7 @@ export default function BulkTemplatePage() {
                       </div>
                       <div className="p-4 sm:p-5 flex flex-col gap-4">
                         <div
-                          className={`w-full flex items-center gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer ${templateId ? "bg-emerald-50/50 border-emerald-200 hover:bg-emerald-100/50 hover:border-emerald-300" : "bg-slate-50/50 border-dashed border-slate-300 hover:bg-slate-100"}`}
+                          className={`w-full flex items-center gap-3 p-3.5 rounded-lg border transition-all cursor-pointer ${templateId ? "bg-emerald-50/50 border-emerald-200 hover:bg-emerald-100/50 hover:border-emerald-300" : "bg-slate-50/50 border-dashed border-slate-300 hover:bg-slate-100"}`}
                           onClick={() => setPanelOpen(true)}
                         >
                           {templateId ? (
@@ -678,6 +667,7 @@ export default function BulkTemplatePage() {
                               <div className="text-slate-400 pl-1.5">
                                 <ChevronDown 
                                   size={16} 
+                                  onClick={() => setExpandedCampaign(isExpanded ? null : camp._id)}
                                   className={`transition-transform duration-300 ${isExpanded ? "rotate-180 text-[#00a884]" : ""}`} 
                                 />
                               </div>

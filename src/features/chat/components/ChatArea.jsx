@@ -78,21 +78,8 @@ export default function ChatArea({
   
   const [detailedCustomer, setDetailedCustomer] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
-  const [availableNumbers, setAvailableNumbers] = useState([]);
-  const [selectedSender, setSelectedSender] = useState("");
-
-  useEffect(() => {
-    api.get("/api/admin/twilio")
-      .then(({ data }) => {
-        if (data?.numbers && Array.isArray(data.numbers)) {
-          setAvailableNumbers(data.numbers);
-          if (data.numbers.length > 0) {
-            setSelectedSender(data.numbers[0].phoneNumber);
-          }
-        }
-      })
-      .catch((err) => console.error("Failed to load twilio senders:", err));
-  }, []);
+  const availableNumbers = useChatStore((s) => s.availableNumbers);
+  const selectedSender = useChatStore((s) => s.selectedSender);
 
   useEffect(() => {
     if (activeChat?.phone) {
@@ -378,7 +365,8 @@ export default function ChatArea({
           templateSid: template.sid,
           chatType: activeChat.leadType || "Direct Lead",
           associateName: userName,
-          contentVariables: variables, // 🚨 Send variables to API
+          contentVariables: variables,
+          senderNumber: selectedSender,
         });
         updateMessageStatus(activeChat.phone, tempId, "SENT", res?.messageSid);
       } catch (error) {
@@ -386,7 +374,7 @@ export default function ChatArea({
         toast.error("Template failed to send.");
       }
     },
-    [activeChat, userName, userRole, addMessage, updateMessageStatus],
+    [activeChat, userName, userRole, addMessage, updateMessageStatus, selectedSender],
   );
 
   if (!activeChat) {
@@ -456,9 +444,6 @@ export default function ChatArea({
           onInfo={() => setIsInfoOpen(!isInfoOpen)}
           onReminder={() => setShowReminderModal(true)}
           onForward={() => setShowForwardModal(true)}
-          availableNumbers={availableNumbers}
-          selectedSender={selectedSender}
-          onSelectSender={setSelectedSender}
         />
 
         <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden">

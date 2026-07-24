@@ -6,6 +6,7 @@ import ChatHeader from "@/features/chat/components/ChatHeader";
 import MessageList from "@/features/chat/components/MessageList";
 import ChatInput from "@/features/chat/components/ChatInput";
 import ChatLockBanner from "@/features/chat/components/ChatLockBanner";
+import { useChatStore } from "@/features/chat/stores/chatStore";
 
 const ForwardLeadModal = dynamic(() => import("@/shared/components/modals/ForwardLeadModal"), { ssr: false });
 const ReminderModal = dynamic(() => import("@/shared/components/modals/ReminderModal"), { ssr: false });
@@ -30,9 +31,6 @@ export default function ChatViewPanel({
   sending,
   messagesEndRef,
   onFocus,
-  availableNumbers = [],
-  selectedSender = "",
-  onSelectSender,
   onReminder,
   onForward,
   showForwardModal,
@@ -49,6 +47,7 @@ export default function ChatViewPanel({
   handleSetReminder,
   handleForwardLead,
 }) {
+  const availableNumbers = useChatStore((s) => s.availableNumbers);
   const { Icon, borderAccent, accentText, emptyTitle } = config;
   const selectedChat = useStore((s) => s.selectedChat);
   const setSelectedChat = useStore((s) => s.setSelectedChat);
@@ -194,9 +193,6 @@ export default function ChatViewPanel({
             onInfo={() => setIsInfoOpen((prev) => !prev)}
             onReminder={() => (onReminder ? onReminder() : setShowReminderModal?.(true))}
             onForward={() => (onForward ? onForward() : setShowForwardModal?.(true))}
-            availableNumbers={availableNumbers}
-            selectedSender={selectedSender}
-            onSelectSender={onSelectSender}
             themeGradient={config.themeGradient}
             themeBadgeClasses={config.themeBadgeClasses}
             themeIconHoverClasses={config.themeIconHoverClasses}

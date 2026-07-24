@@ -89,8 +89,8 @@ export const chatService = {
     return data;
   },
   
-  sendTemplateMessage: async ({ phone, templateSid, chatType, associateName, contentVariables }) => {
-    const { data } = await templateRepository.sendTemplate({ phone, templateSid, chatType, associateName, contentVariables });
+  sendTemplateMessage: async ({ phone, templateSid, chatType, associateName, contentVariables, senderNumber }) => {
+    const { data } = await templateRepository.sendTemplate({ phone, templateSid, chatType, associateName, contentVariables, senderNumber });
     return data;
   }
 };

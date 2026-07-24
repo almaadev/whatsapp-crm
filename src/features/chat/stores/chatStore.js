@@ -52,6 +52,15 @@ export const useChatStore = create((set, get) => ({
   selectedChat: null,
   messages: [],
   notifications: [],
+  selectedSender: typeof window !== "undefined" ? localStorage.getItem("selected_whatsapp_sender") || "" : "",
+  availableNumbers: [],
+  setSelectedSender: (sender) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("selected_whatsapp_sender", sender);
+    }
+    set({ selectedSender: sender });
+  },
+  setAvailableNumbers: (numbers) => set({ availableNumbers: numbers }),
 
   setMessages: (incomingChats) =>
     set((state) => {

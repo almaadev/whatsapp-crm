@@ -50,7 +50,7 @@ export default function NotificationPanel({ isOpen, onClose }) {
   };
 
   return (
-    <div className="absolute top-16 left-20 z-50 w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 origin-top-left ring-1 ring-black/5">
+    <div className="absolute top-12 -left-5 z-50 w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 origin-top-left ring-1 ring-black/5">
       
       {/* Header */}
       <div className="bg-slate-900 p-4 flex justify-between items-center text-white">
