@@ -95,6 +95,8 @@ app.prepare().then(() => {
         socketId: socket.id,
         timestamp: Date.now(),
         lockedUntil: null, // Infinite lock until inbound message
+        role: data.user.role || "",
+        department: data.user.department || "",
       });
 
       io.emit("chat_handled", { phone: data.phone, handler: activeChatHandlers.get(data.phone) });

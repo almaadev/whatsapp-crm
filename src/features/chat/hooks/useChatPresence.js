@@ -62,7 +62,13 @@ export function useChatPresence(selectedChatPhone) {
     if (selectedChatPhone) {
       socket.emit("join_chat", { 
         phone: selectedChatPhone, 
-        user: { name: session.user.name, email: session.user.email, id: session.user.id || session.user.email } 
+        user: { 
+          name: session.user.name, 
+          email: session.user.email, 
+          id: session.user.id || session.user.email,
+          role: session.user.role,
+          department: session.user.department
+        } 
       });
 
       // Start pinging to keep alive

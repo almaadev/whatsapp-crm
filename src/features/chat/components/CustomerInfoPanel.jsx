@@ -904,8 +904,7 @@ export default function CustomerInfoPanel({
                 </span>
               ) : isLockedByOther ? (
                 <span className="flex items-center gap-2">
-                  <Lock size={18} /> Locked by{" "}
-                  {handler?.name ? handler.name.split(" ")[0] : "Other"}
+                  <Lock size={18} /> {session?.user?.role === "superAdmin" ? `Locked by ${handler?.name ? handler.name.split(" ")[0] : "Other"}` : "Currently Active"}
                 </span>
               ) : (
                 <span className="flex items-center gap-2">

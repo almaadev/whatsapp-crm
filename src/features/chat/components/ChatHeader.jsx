@@ -25,6 +25,7 @@ const ChatHeader = memo(function ChatHeader({
   const currentUserIdentifier = session?.user?.id || session?.user?.email;
   const handledBySelf = isHandledActive && handler.userId === currentUserIdentifier;
   const isCloseDisabled = isHandledActive && !handledBySelf;
+  const displayLockHandlerName = session?.user?.role === "superAdmin" ? (handler?.name || "Another user") : "another team member";
 
   if (!activeChat) return null;
 
@@ -117,7 +118,7 @@ const ChatHeader = memo(function ChatHeader({
                   : "bg-white text-slate-650 hover:text-slate-800 border-slate-200 hover:bg-slate-50"
               }
             `}
-            title={(!isChatClosed && isCloseDisabled) ? `${handler?.name || "Another user"} is currently handling this chat.` : ""}
+            title={(!isChatClosed && isCloseDisabled) ? `${displayLockHandlerName} is currently handling this chat.` : ""}
           >
             {isToggling ? (
               <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -133,7 +134,7 @@ const ChatHeader = memo(function ChatHeader({
           </button>
           {!isChatClosed && isCloseDisabled && (
             <span className="absolute hidden group-hover:block whitespace-nowrap bg-slate-800 text-white text-[10px] px-2.5 py-1 rounded-md -bottom-8 right-0 z-30 font-semibold shadow-md">
-              🔒 {handler?.name || "Another user"} is currently handling this chat.
+              🔒 {displayLockHandlerName} is currently handling this chat.
             </span>
           )}
         </div>

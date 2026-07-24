@@ -51,7 +51,7 @@ const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emp
             {isBeingHandledByOther && (
               <span className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-red-50 text-red-600 border border-red-100">
                 <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
-                Locked by {handler.name}
+                {session?.user?.role === "superAdmin" ? `Locked by ${handler.name}` : "Currently Active"}
               </span>
             )}
             {isClosed ? (

@@ -1,5 +1,6 @@
 import React from "react";
 import { Lock } from "lucide-react";
+import { useSession } from "next-auth/react";
 
 /**
  * ChatLockOverlay component displayed strictly inside the message area container when a conversation is locked by another user.
@@ -11,9 +12,20 @@ import { Lock } from "lucide-react";
  * - Keeps messages underneath visible while disabling actions in ChatInput.
  */
 export default function ChatLockOverlay({ handler }) {
+  const { data: session } = useSession();
+
   if (!handler) return null;
 
-  const lockName = handler.name || handler.userId || "Another user";
+  const isSuperAdmin = session?.user?.role === "superAdmin";
+  const handlerName = handler.name || handler.userId || "Another user";
+
+  const titleText = isSuperAdmin 
+    ? `Locked by ${handlerName}`
+    : "Conversation Currently In Use";
+
+  const descriptionText = isSuperAdmin
+    ? `${handlerName}${handler.role ? ` (${handler.role})` : ""} is currently handling this conversation.`
+    : "Another team member is currently handling this conversation.";
 
   return (
     <div className="absolute inset-0 z-30 bg-slate-900/10 flex items-center justify-center pointer-events-none select-none animate-in fade-in duration-150 p-4">
@@ -23,10 +35,10 @@ export default function ChatLockOverlay({ handler }) {
         </div>
         <div className="flex flex-col min-w-0">
           <span className="font-bold text-sm text-slate-900 truncate">
-            Locked by {lockName}
+            {titleText}
           </span>
           <span className="text-xs text-slate-500 font-medium mt-0.5 leading-snug">
-            {lockName} is currently handling this conversation.
+            {descriptionText}
           </span>
         </div>
       </div>

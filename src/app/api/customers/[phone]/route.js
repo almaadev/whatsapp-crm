@@ -6,6 +6,7 @@ import Customer from "@/shared/models/Customer";
 import mongoose from "mongoose";
 import Branch from "@/shared/models/Branch";
 import User from "@/shared/models/User";
+import { sanitizeCustomerOrLeadData } from "@/shared/utils/privacy";
 
 export const dynamic = "force-dynamic";
 
@@ -78,7 +79,8 @@ export async function GET(req, { params }) {
                 name: customer.createdBy.name || "Unknown",
                 role: customer.createdBy.role || "",
                 department: customer.createdBy.department || "",
-                branchName: branchName || ""
+                branchName: branchName || "",
+                userId: customer.createdBy._id ? customer.createdBy._id.toString() : ""
             };
         }
 
@@ -161,7 +163,8 @@ export async function GET(req, { params }) {
             chatHistory: filteredChatHistory
         };
 
-        return NextResponse.json(formattedData, { status: 200 });
+        const sanitizedData = sanitizeCustomerOrLeadData(formattedData, session.user);
+        return NextResponse.json(sanitizedData, { status: 200 });
 
     } catch (error) {
         console.error("Fetch Single Customer Error:", error);
@@ -295,15 +298,18 @@ export async function PUT(req, { params }) {
             global.io.emit("customer_updated", emitData);
         }
 
+        const rawCustomer = {
+            ...updatedCustomer.toObject(),
+            branchId: updatedCustomer.branchId ? updatedCustomer.branchId.toString() : null,
+            branchName: resolvedBranchName,
+            branchCode: resolvedBranchCode
+        };
+        const sanitizedCustomer = sanitizeCustomerOrLeadData(rawCustomer, session.user);
+ 
         return NextResponse.json({
             success: true,
             message: "Profile updated securely.",
-            customer: {
-                ...updatedCustomer.toObject(),
-                branchId: updatedCustomer.branchId ? updatedCustomer.branchId.toString() : null,
-                branchName: resolvedBranchName,
-                branchCode: resolvedBranchCode
-            }
+            customer: sanitizedCustomer
         }, { status: 200 });
 
     } catch (error) {

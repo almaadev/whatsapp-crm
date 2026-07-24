@@ -6,6 +6,7 @@ import { requireSession } from "@/shared/lib/session";
 import mongoose from "mongoose";
 import Branch from "@/shared/models/Branch";
 import User from "@/shared/models/User";
+import { sanitizeCustomerOrLeadData } from "@/shared/utils/privacy";
 
 export const dynamic = "force-dynamic";
 
@@ -123,7 +124,8 @@ export async function GET(req, { params }) {
         role: creatorUser.role || "associate",
         department: creatorUser.department || "sales",
         branchId: rawBranch || null,
-        branchName: resolvedBranchName || "Unassigned Branch"
+        branchName: resolvedBranchName || "Unassigned Branch",
+        userId: creatorUser._id ? creatorUser._id.toString() : ""
       };
     } else {
       creatorInfo = {
@@ -212,7 +214,8 @@ export async function GET(req, { params }) {
       chatHistory: filteredChatHistory
     };
 
-    return NextResponse.json(data, { status: 200 });
+    const sanitizedData = sanitizeCustomerOrLeadData(data, session.user);
+    return NextResponse.json(sanitizedData, { status: 200 });
   } catch (error) {
     console.error("Fetch Lead Error:", error);
     return NextResponse.json(

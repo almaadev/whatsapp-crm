@@ -475,7 +475,7 @@ export default function ChatArea({
           sending={sending}
           disabled={isLockedByOther || (availableNumbers.length === 0 && session?.user?.role !== "superAdmin" && session?.user?.department !== "admin")}
           isLockedByOther={isLockedByOther}
-          lockHandlerName={handler?.name}
+          lockHandlerName={session?.user?.role === "superAdmin" ? handler?.name : "another team member"}
           isChatClosed={isChatClosed}
           onFocus={() => {
             setTimeout(scrollToBottom, 150);

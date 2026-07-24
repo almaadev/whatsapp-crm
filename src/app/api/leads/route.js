@@ -7,6 +7,7 @@ import Lead from "@/shared/models/Lead";
 import User from "@/shared/models/User";
 import redis from "@/shared/lib/db/redis";
 import { getUserNameById } from "@/shared/utils/userUtils";
+import { sanitizeCustomerOrLeadData } from "@/shared/utils/privacy";
 
 export const dynamic = "force-dynamic";
 
@@ -244,7 +245,8 @@ export async function POST(req) {
       await updatedCustomer.save();
 
       await invalidateCache();
-      return NextResponse.json({ success: true, lead: newLead, action: "created" });
+      const sanitizedLead = sanitizeCustomerOrLeadData(newLead.toObject ? newLead.toObject() : newLead, session.user);
+      return NextResponse.json({ success: true, lead: sanitizedLead, action: "created" });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -303,7 +305,8 @@ export async function POST(req) {
 
       await existingLead.save();
       await invalidateCache();
-      return NextResponse.json({ success: true, lead: existingLead, action: "updated_existing_entry" });
+      const sanitizedLead = sanitizeCustomerOrLeadData(existingLead.toObject ? existingLead.toObject() : existingLead, session.user);
+      return NextResponse.json({ success: true, lead: sanitizedLead, action: "updated_existing_entry" });
     } else {
       // 👉 CREATE NEW (PUSH)
       Object.assign(existingLead, rootFields);
@@ -313,7 +316,8 @@ export async function POST(req) {
 
       await existingLead.save();
       await invalidateCache();
-      return NextResponse.json({ success: true, lead: existingLead, action: "pushed_new_entry" });
+      const sanitizedLead = sanitizeCustomerOrLeadData(existingLead.toObject ? existingLead.toObject() : existingLead, session.user);
+      return NextResponse.json({ success: true, lead: sanitizedLead, action: "pushed_new_entry" });
     }
 
   } catch (error) {

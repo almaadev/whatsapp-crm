@@ -8,6 +8,7 @@ import Lead from "@/shared/models/Lead";
 import redis from "@/shared/lib/db/redis";
 import twilio from "twilio";
 import User from "@/shared/models/User";
+import { sanitizeChatList } from "@/shared/utils/privacy";
 
 const REDIS_CACHE_TTL = 30;
 
@@ -20,7 +21,11 @@ export async function GET(request) {
     if (redis && redis.status === "ready") {
       try {
         const cachedData = await redis.get("chats:main_inbox_data");
-        if (cachedData) return NextResponse.json(JSON.parse(cachedData));
+        if (cachedData) {
+          const rawChats = JSON.parse(cachedData);
+          const sanitizedChats = sanitizeChatList(rawChats, session.user);
+          return NextResponse.json(sanitizedChats);
+        }
       } catch (e) {}
     }
 
@@ -78,6 +83,7 @@ export async function GET(request) {
             name: latest.performedBy.name || "Unknown",
             role: latest.performedBy.role || "",
             department: latest.performedBy.department || "",
+            userId: latest.performedBy._id ? latest.performedBy._id.toString() : "",
           };
         }
       }
@@ -134,7 +140,8 @@ export async function GET(request) {
     if (redis && redis.status === "ready")
       await redis.set("chats:main_inbox_data", JSON.stringify(chats), "EX", REDIS_CACHE_TTL);
 
-    return NextResponse.json(chats);
+    const sanitizedChats = sanitizeChatList(chats, session.user);
+    return NextResponse.json(sanitizedChats);
   } catch (error) {
     console.error("[GET /api/chats] Unhandled error:", error.message, "\n", error.stack);
     return NextResponse.json({ success: false, message: "Failed to load chats" }, { status: 500 });
