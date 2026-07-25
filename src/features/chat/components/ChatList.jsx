@@ -341,7 +341,7 @@ export default function ChatList({ role, loading }) {
               chat.direction === "INBOUND" &&
               chat.read === "FALSE";
             const handler = activeHandlers[chat.phone];
-            
+
             const isBeingHandledByOther =
               handler &&
               handler.userId !== (session?.user?.id || session?.user?.email) &&
@@ -401,9 +401,12 @@ export default function ChatList({ role, loading }) {
                     {displayName.charAt(0)}
                   </div>
                   {/* Status Indicator Dot */}
-                  <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white shadow-sm flex items-center justify-center
+                  <span
+                    className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white shadow-sm flex items-center justify-center
                     ${isClosed ? "bg-slate-300" : "bg-emerald-500"}
-                  `} title={isClosed ? "Closed" : "Active"} />
+                  `}
+                    title={isClosed ? "Closed" : "Active"}
+                  />
                 </div>
 
                 <div className="flex-1 min-w-0 pt-0.5">
@@ -456,12 +459,19 @@ export default function ChatList({ role, loading }) {
                             chat.messageStatus || ""
                           ).toUpperCase();
                           if (msgStat === "SENDING")
-                            return <Clock size={12} className="text-slate-400" />;
+                            return (
+                              <Clock size={12} className="text-slate-400" />
+                            );
                           if (msgStat === "SENT")
-                            return <Check size={14} className="text-slate-400" />;
+                            return (
+                              <Check size={14} className="text-slate-400" />
+                            );
                           if (msgStat === "DELIVERED")
                             return (
-                              <CheckCheck size={14} className="text-slate-400" />
+                              <CheckCheck
+                                size={14}
+                                className="text-slate-400"
+                              />
                             );
                           if (msgStat === "READ")
                             return (
@@ -479,33 +489,40 @@ export default function ChatList({ role, loading }) {
                   {/* Handles dynamically displayed creator / timeline details */}
                   {chat.lastHandled && (
                     <div className="mt-2 flex items-center justify-between gap-1 select-none leading-none">
-                     <div className="flex items-center gap-1">
-                       <span className="text-slate-400 text-[10px] font-medium">Last Handled:</span>
-                       <span className="text-slate-650 bg-slate-100 border border-slate-200/60 px-1.5 py-0.5 rounded-md text-[9px] font-bold">
-                         {(() => {
-                           const isSuperAdmin = session?.user?.role === "superAdmin";
-                           const isMe = chat.lastHandled.isCurrentHandler || chat.lastHandled.name === session?.user?.name;
-                           if (isSuperAdmin) {
-                             const name = isMe ? "You" : chat.lastHandled.name;
-                             return chat.lastHandled.role ? `${name} | ${chat.lastHandled.role}` : name;
-                           }
-                           if (isMe) return "You";
-                           return "Team Member";
-                         })()}
-                       </span>
-                     </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-slate-400 text-[10px] font-medium">
+                          Last Handled:
+                        </span>
+                        <span className="text-slate-650 bg-slate-100 border border-slate-200/60 px-1.5 py-0.5 rounded-md text-[9px] font-bold">
+                          {(() => {
+                            const isSuperAdmin =
+                              session?.user?.role === "superAdmin";
+                            const isMe =
+                              chat.lastHandled.isCurrentHandler ||
+                              chat.lastHandled.name === session?.user?.name;
+                            if (isSuperAdmin) {
+                              const name = isMe ? "You" : chat.lastHandled.name;
+                              return chat.lastHandled.role
+                                ? `${name} | ${chat.lastHandled.role}`
+                                : name;
+                            }
+                            if (isMe) return "You";
+                            return "Team Member";
+                          })()}
+                        </span>
+                      </div>
                       <div className="text-slate-400 text-[10px] font-medium">
-                                                                {isBeingHandledByOther && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-red-50 text-red-600 border border-red-100">
-                      <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
-                      {session?.user?.role === "superAdmin" ? handler.name : ""}
-                    </span>
-                  )}
+                        {isBeingHandledByOther && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-red-50 text-red-600 border border-red-100">
+                            <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
+                            {session?.user?.role === "superAdmin"
+                              ? handler.name
+                              : ""}
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}
-
-
                 </div>
 
                 {!isSelectionMode && (
@@ -704,7 +721,10 @@ export default function ChatList({ role, loading }) {
         })}
       </div>
 
-      <div ref={listContainerRef} className="overflow-y-auto flex-1 custom-scrollbar">
+      <div
+        ref={listContainerRef}
+        className="overflow-y-auto flex-1 custom-scrollbar"
+      >
         {searchTerm ? (
           <>
             {renderChatGroup("Recent Chats", [

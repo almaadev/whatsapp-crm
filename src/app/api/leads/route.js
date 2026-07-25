@@ -177,29 +177,131 @@ export async function POST(req) {
       address: resolvedAddress,
       status: resolvedStatus,
       priority: resolvedPriority,
+      assignedTo: currentUser,
     };
     if (body.branchId !== undefined) {
       customerSetPayload.branchId = resolvedBranchId;
     }
     
+    const customerUpdate = {
+      $set: customerSetPayload
+    };
+
+    if (existingCustomer) {
+      const historyEntries = [];
+
+      // 1. Status Changed
+      if (existingCustomer.status !== resolvedStatus) {
+        let leadEventType = "lead_new";
+        if (resolvedStatus === "Follow Up") leadEventType = "lead_followup";
+        else if (resolvedStatus === "Closed") leadEventType = "lead_closed";
+        else if (resolvedStatus === "Not Interested") leadEventType = "lead_not_interested";
+
+        historyEntries.push({
+          action: resolvedStatus,
+          eventType: leadEventType,
+          performedBy: session.user.id,
+          performedById: session.user.id,
+          performedByName: session.user.name || "User",
+          performedByRole: session.user.role || "associate",
+          performedAt: new Date(),
+          timestamp: new Date(),
+          notes: body.overAllRemarks || `Status changed to ${resolvedStatus}`
+        });
+      }
+
+      // 2. Priority Changed
+      if (existingCustomer.priority !== resolvedPriority) {
+        historyEntries.push({
+          action: "Priority Changed",
+          eventType: "lead_priority_changed",
+          performedBy: session.user.id,
+          performedById: session.user.id,
+          performedByName: session.user.name || "User",
+          performedByRole: session.user.role || "associate",
+          performedAt: new Date(),
+          timestamp: new Date(),
+          notes: `${existingCustomer.priority || "Medium"} → ${resolvedPriority}`
+        });
+      }
+
+      // 3. Branch Changed
+      if (body.branchId !== undefined && existingCustomer.branchId?.toString() !== resolvedBranchId?.toString()) {
+        historyEntries.push({
+          action: "Assigned Branch Changed",
+          eventType: "lead_branch_changed",
+          performedBy: session.user.id,
+          performedById: session.user.id,
+          performedByName: session.user.name || "User",
+          performedByRole: session.user.role || "associate",
+          performedAt: new Date(),
+          timestamp: new Date(),
+          notes: resolvedBranchId ? `Branch updated to ${resolvedBranchName}` : "Branch unassigned"
+        });
+      }
+
+      // 4. Assigned Associate Changed
+      if (existingCustomer.assignedTo && existingCustomer.assignedTo !== currentUser) {
+        historyEntries.push({
+          action: "Assigned Associate Changed",
+          eventType: "lead_assigned",
+          performedBy: session.user.id,
+          performedById: session.user.id,
+          performedByName: session.user.name || "User",
+          performedByRole: session.user.role || "associate",
+          performedAt: new Date(),
+          timestamp: new Date(),
+          notes: `Reassigned to ${currentUser}`
+        });
+      }
+
+      // 5. Lead Type Changed
+      if (existingLead) {
+        const oldLeadType = (existingLead.leads && existingLead.leads.length > 0)
+          ? existingLead.leads[existingLead.leads.length - 1].leadType
+          : "Direct Lead";
+        const newLeadType = body.leadType || "Direct Lead";
+        if (oldLeadType !== newLeadType) {
+          historyEntries.push({
+            action: "Lead Type Changed",
+            eventType: "lead_type_changed",
+            performedBy: session.user.id,
+            performedById: session.user.id,
+            performedByName: session.user.name || "User",
+            performedByRole: session.user.role || "associate",
+            performedAt: new Date(),
+            timestamp: new Date(),
+            notes: `${oldLeadType} → ${newLeadType}`
+          });
+        }
+      }
+
+      if (historyEntries.length > 0) {
+        customerUpdate.$push = { chatHistory: { $each: historyEntries } };
+      }
+    }
+
     // 2. Get or Create the Customer
-    const updatedCustomer = await Customer.findOneAndUpdate(
-      { phone: cleanPhone },
-      { 
-        $setOnInsert: { 
-          phone: cleanPhone, 
-          createdBy: session.user.id,
-          chatHistory: [{
-              action: "Started",
-              performedBy: session.user.id,
-              timestamp: new Date(),
-              notes: "Lead record created"
-          }]
-        }, 
-        $set: customerSetPayload
-      },
-      { upsert: true, returnDocument: "after" } 
-    );
+    let updatedCustomer;
+    if (!existingCustomer) {
+      updatedCustomer = await Customer.create({
+        phone: cleanPhone,
+        createdBy: session.user.id,
+        chatHistory: [{
+          action: "Started",
+          performedBy: session.user.id,
+          timestamp: new Date(),
+          notes: "Lead record created"
+        }],
+        ...customerSetPayload
+      });
+    } else {
+      updatedCustomer = await Customer.findOneAndUpdate(
+        { phone: cleanPhone },
+        customerUpdate,
+        { returnDocument: "after" }
+      );
+    }
 
     if (global.io && body.branchId !== undefined) {
       const emitData = {

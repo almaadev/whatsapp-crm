@@ -238,6 +238,23 @@ export async function PUT(req, { params }) {
             setPayload.assignedTwilioNumber = body.assignedTwilioNumber || null;
         }
 
+        const { getBranchFilterForUser } = await import("@/shared/utils/serverAuth");
+        const { branchQuery } = await getBranchFilterForUser(session);
+ 
+        // Allow updating customer if branchQuery matches OR if customer's branch is currently null/unassigned
+        const findQuery = { phone: { $in: variations } };
+        if (session?.user?.role !== "superAdmin" && branchQuery?.branchId) {
+            findQuery.$or = [
+                branchQuery,
+                { branchId: null },
+                { branchId: { $exists: false } }
+            ];
+        }
+
+        const existingCustomer = await Customer.findOne(findQuery).lean();
+        const oldBranchId = existingCustomer?.branchId ? existingCustomer.branchId.toString() : null;
+        const newBranchId = body.branchId ? body.branchId.toString() : null;
+
         const updateData = { 
             $set: setPayload,
             $setOnInsert: {
@@ -245,8 +262,8 @@ export async function PUT(req, { params }) {
                 createdBy: session.user.id
             }
         };
-
-        if (body.branchId !== undefined) {
+ 
+        if (body.branchId !== undefined && oldBranchId !== newBranchId) {
             const now = new Date();
             updateData.$push = {
                 chatHistory: {
@@ -262,20 +279,7 @@ export async function PUT(req, { params }) {
                 }
             };
         }
-
-        const { getBranchFilterForUser } = await import("@/shared/utils/serverAuth");
-        const { branchQuery } = await getBranchFilterForUser(session);
-
-        // Allow updating customer if branchQuery matches OR if customer's branch is currently null/unassigned
-        const findQuery = { phone: { $in: variations } };
-        if (session?.user?.role !== "superAdmin" && branchQuery?.branchId) {
-            findQuery.$or = [
-                branchQuery,
-                { branchId: null },
-                { branchId: { $exists: false } }
-            ];
-        }
-
+ 
         const updatedCustomer = await Customer.findOneAndUpdate(
             findQuery,
             updateData,

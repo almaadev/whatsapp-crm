@@ -27,7 +27,7 @@ export async function POST(req) {
     // 1. Update Customer Record (If exists)
     let customer = await Customer.findOne({ phone: cleanPhone });
     if (customer) {
-        const oldIsClosed = customer.isClosed;
+        const oldStatus = customer.status;
         const oldAssignedTo = customer.assignedTo;
 
         customer.status = status;
@@ -36,18 +36,23 @@ export async function POST(req) {
         if (priority) customer.priority = priority;
         if (notes) customer.remarks = notes;
         
-        if (oldIsClosed !== isClosed) {
+        if (oldStatus !== status) {
+            let leadEventType = "lead_new";
+            if (status === "Follow Up") leadEventType = "lead_followup";
+            else if (status === "Closed") leadEventType = "lead_closed";
+            else if (status === "Not Interested") leadEventType = "lead_not_interested";
+
             const now = new Date();
             customer.chatHistory.push({
-                action: isClosed ? "Closed" : "Reopened",
-                eventType: isClosed ? "Chat Closed" : "Chat Reopened",
+                action: status,
+                eventType: leadEventType,
                 performedBy: session.user.id,
                 performedById: session.user.id,
                 performedByName: session.user.name || "User",
                 performedByRole: session.user.role || "associate",
                 performedAt: now,
                 timestamp: now,
-                notes: notes || (isClosed ? "Lead closed via status change" : "Lead reopened via status change")
+                notes: notes || `Status changed to ${status}`
             });
         }
 
@@ -55,7 +60,7 @@ export async function POST(req) {
             const now = new Date();
             customer.chatHistory.push({
                 action: "Assigned",
-                eventType: "Assigned to Associate",
+                eventType: "lead_assigned",
                 performedBy: session.user.id,
                 performedById: session.user.id,
                 performedByName: session.user.name || "User",

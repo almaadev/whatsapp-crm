@@ -126,11 +126,37 @@ export const getSystemEventDetails = (audit) => {
     }
 
     const actionLower = action.toLowerCase();
+    const eventType = audit.eventType ? audit.eventType.toLowerCase() : "";
 
     let title = action;
     let icon = <Cog size={14} className="text-slate-500 shrink-0" />;
 
-    if (actionLower.includes("closed")) {
+    if (eventType === "lead_followup") {
+        title = "Follow Up";
+        icon = <Clock size={14} className="text-amber-500 shrink-0" />;
+    } else if (eventType === "lead_closed") {
+        title = "Closed";
+        icon = <Check size={14} className="text-rose-500 shrink-0" />;
+    } else if (eventType === "lead_not_interested") {
+        title = "Status changed to Not Interested";
+        icon = <AlertCircle size={14} className="text-slate-500 shrink-0" />;
+    } else if (eventType === "lead_new") {
+        title = "Status changed to New";
+        icon = <RefreshCw size={14} className="text-blue-500 shrink-0" />;
+    } else if (eventType === "lead_priority_changed") {
+        title = "Priority changed";
+        icon = <AlertCircle size={14} className="text-orange-500 shrink-0" />;
+    } else if (eventType === "lead_branch_changed" || eventType === "chat branch reassigned") {
+        title = "Chat Branch Reassigned";
+        icon = <MapPin size={14} className="text-teal-500 shrink-0" />;
+    } else if (eventType === "lead_type_changed") {
+        title = "Lead Type changed";
+        icon = <Tag size={14} className="text-violet-500 shrink-0" />;
+    } else if (eventType === "lead_assigned") {
+        const targetName = audit.targetUser?.name || audit.targetUserName;
+        title = targetName ? `Assigned to ${targetName}` : "👤 Assigned Associate Changed";
+        icon = <UserCheck size={14} className="text-indigo-500 shrink-0" />;
+    } else if (actionLower.includes("closed")) {
         title = "Chat Closed";
         icon = <Lock size={14} className="text-rose-500 shrink-0" />;
     } else if (actionLower.includes("reopened")) {

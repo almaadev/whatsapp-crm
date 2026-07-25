@@ -37,7 +37,7 @@ export async function POST(req) {
     const now = new Date();
     const chatHistoryEntry = {
       action: "Transferred",
-      eventType: "Assigned to Associate",
+      eventType: "lead_assigned",
       performedBy: session.user.id,
       performedById: session.user.id,
       performedByName: forwardedBy || "User",
