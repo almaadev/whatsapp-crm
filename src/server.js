@@ -14,6 +14,8 @@ app.prepare().then(() => {
   
   const activeChatHandlers = new Map();
   global.activeChatHandlers = activeChatHandlers;
+  const onlineUsers = new Map();
+  global.onlineUsers = onlineUsers;
 
   // Cleanup inactive handlers every 30 seconds
   setInterval(() => {
@@ -31,6 +33,23 @@ app.prepare().then(() => {
       }
     }
   }, 30000);
+
+  // Presence cleanup interval for missed heartbeats (every 15 seconds)
+  setInterval(() => {
+    const now = Date.now();
+    let changed = false;
+    for (const [socketId, user] of onlineUsers.entries()) {
+      // Offline if no heartbeat for 30 seconds
+      if (now - user.timestamp > 30000) {
+        console.log(`👤 User offline due to missed heartbeat: ${user.name}`);
+        onlineUsers.delete(socketId);
+        changed = true;
+      }
+    }
+    if (changed && global.io) {
+      global.io.emit("presence_change", Array.from(onlineUsers.values()));
+    }
+  }, 15000);
 
   const upgradeHandler = app.getUpgradeHandler(); 
 
@@ -61,11 +80,37 @@ app.prepare().then(() => {
   io.on("connection", (socket) => {
     console.log("🟢 Client Connected:", socket.id);
 
-    // Sync current active handlers on connection
+    // Sync current active handlers and online users on connection
     socket.emit("sync_active_handlers", Array.from(activeChatHandlers.entries()));
+    socket.emit("presence_change", Array.from(onlineUsers.values()));
+
+    socket.on("register_user", (userData) => {
+      if (userData && userData.userId) {
+        socket.userData = userData;
+        onlineUsers.set(socket.id, {
+          ...userData,
+          socketId: socket.id,
+          timestamp: Date.now()
+        });
+        io.emit("presence_change", Array.from(onlineUsers.values()));
+        console.log(`👤 User registered: ${userData.name} (${userData.role})`);
+      }
+    });
+
+    socket.on("heartbeat", () => {
+      if (onlineUsers.has(socket.id)) {
+        const u = onlineUsers.get(socket.id);
+        u.timestamp = Date.now();
+        onlineUsers.set(socket.id, u);
+      }
+    });
 
     socket.on("request_active_handlers", () => {
       socket.emit("sync_active_handlers", Array.from(activeChatHandlers.entries()));
+    });
+
+    socket.on("request_presence", () => {
+      socket.emit("presence_change", Array.from(onlineUsers.values()));
     });
 
     socket.on("join_chat", (data) => {
@@ -119,6 +164,12 @@ app.prepare().then(() => {
 
     socket.on("disconnect", () => {
       console.log("🔴 Client Disconnected", socket.id);
+      if (onlineUsers.has(socket.id)) {
+        const u = onlineUsers.get(socket.id);
+        onlineUsers.delete(socket.id);
+        io.emit("presence_change", Array.from(onlineUsers.values()));
+        console.log(`👤 User deregistered: ${u?.name}`);
+      }
       for (const [phone, handler] of activeChatHandlers.entries()) {
         if (handler.socketId === socket.id) {
           activeChatHandlers.delete(phone);

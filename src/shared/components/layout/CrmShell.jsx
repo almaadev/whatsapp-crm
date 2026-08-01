@@ -6,6 +6,7 @@ import Sidebar from "@/shared/components/layout/Sidebar";
 import Topbar from "@/shared/components/layout/Topbar";
 import { useUserStore } from "@/features/user/stores/userStore";
 import { authRepository } from "@/shared/api/repositories/authRepository";
+import { connectSocket } from "@/features/chat/services/socketService";
 
 const CrmLayoutContext = createContext(null);
 
@@ -45,6 +46,21 @@ export default function CrmShell({ children }) {
   
   const fetchCurrentUser = useUserStore((state) => state.fetchCurrentUser);
   const isSuspended = useUserStore((state) => state.isSuspended);
+  const user = useUserStore((state) => state.user);
+
+  useEffect(() => {
+    if (user && status === "authenticated") {
+      const socket = connectSocket();
+      socket.emit("register_user", {
+        userId: user.id || user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        department: user.department,
+        branch: user.branch
+      });
+    }
+  }, [user, status]);
 
   useEffect(() => {
     if (session && status === "authenticated") {

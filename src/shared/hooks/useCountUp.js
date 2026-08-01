@@ -3,18 +3,33 @@
 import { useState, useEffect } from "react";
 
 export function useCountUp(end, duration = 1000) {
-  const [count, setCount] = useState(0);
+  // Check if end is numeric or can be parsed as a number.
+  const isNumeric =
+    typeof end === "number" ||
+    (typeof end === "string" && !isNaN(Number(end)) && end.trim() !== "");
+  const numericEnd = isNumeric ? Number(end) : 0;
+  const [count, setCount] = useState(isNumeric ? 0 : end);
 
   useEffect(() => {
+    if (!isNumeric) {
+      setCount(end);
+      return;
+    }
     let startTime = null;
+    let animationFrameId;
     const animate = (currentTime) => {
       if (!startTime) startTime = currentTime;
       const progress = Math.min((currentTime - startTime) / duration, 1);
-      setCount(Math.floor(progress * end));
-      if (progress < 1) requestAnimationFrame(animate);
+      setCount(Math.floor(progress * numericEnd));
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(animate);
+      }
     };
-    requestAnimationFrame(animate);
-  }, [end, duration]);
+    animationFrameId = requestAnimationFrame(animate);
+    return () => {
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    };
+  }, [end, numericEnd, isNumeric, duration]);
 
   return count;
 }

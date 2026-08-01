@@ -48,53 +48,40 @@ export async function GET() {
         }]);
     }
 
-    let associates = [];
-    if (redis && redis.status === 'ready') {
-        const cachedUsers = await redis.get(USER_CACHE_KEY);
-        if (cachedUsers) associates = JSON.parse(cachedUsers);
+    const loggedInUser = await User.findById(session.user.id).lean();
+    if (!loggedInUser) return NextResponse.json([]);
+
+    const query = { active: true };
+    if (session.user.role !== 'superAdmin') {
+      query.branch = loggedInUser.branch;
     }
 
-    if (associates.length === 0) {
-      const userBranch = await User.findById(session.user.id).select('branch').lean();
-      console.log("User Branch:", userBranch);
-      
-      const users = session.user.role === 'superAdmin' 
-        ? await User.find({ role: { $ne: 'superAdmin' } }).lean()
-        : await User.find({ role: { $ne: 'superAdmin' }, branch: { $eq: userBranch.branch } }).lean();
+    const users = await User.find(query).lean();
 
-        associates = users.map(u => {
-          const branchVal = u.branch?.toString() || "";
-          const branchName = branchMap[branchVal] || u.branch || "";
-          return {
-            id: u._id.toString(), 
-            name: u.name,
-            preferredName: u.preferredName || "",
-            email: u.email,
-            number: u.number || "",
-            role: u.role,
-            department: u.department,
-            branch: branchName,
-            active: u.active,
-            leads: u.leads || 0,
-            target: u.target || 0,
-            achieved: u.achieved || 0,
-          };
-        });
+    const associates = users.map(u => {
+      const branchVal = u.branch?.toString() || "";
+      const branchName = branchMap[branchVal] || u.branch || "";
+      return {
+        id: u._id.toString(), 
+        name: u.name,
+        preferredName: u.preferredName || "",
+        email: u.email,
+        number: u.number || "",
+        role: u.role,
+        department: u.department,
+        branch: branchName,
+        active: u.active,
+        leads: u.leads || 0,
+        target: u.target || 0,
+        achieved: u.achieved || 0,
+      };
+    });
 
-        if (redis && redis.status === 'ready') {
-            await redis.set(USER_CACHE_KEY, JSON.stringify(associates), "EX", 3600);
-        }
-    }
-
-    if (session.user.role === 'superAdmin') {
-        return NextResponse.json(associates);
-    } else {
-        const filteredAssociates = associates.filter(u => u.department !== 'admin');
-        return NextResponse.json(filteredAssociates);
-    }
+    return NextResponse.json(associates);
 
   } catch (error) {
-    return NextResponse.json([], { status: 200 });
+    console.error("GET users error:", error);
+    return NextResponse.json([]);
   }
 }
 

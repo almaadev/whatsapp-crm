@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import DashboardPage from "@/shared/components/layout/DashboardPage";
 import LoadingScreen from "@/shared/components/ui/LoadingScreen";
@@ -8,6 +9,8 @@ import KPICard from "@/shared/components/ui/KpiCard";
 import { AnimatedCount } from "@/shared/hooks/useCountUp";
 import { useAuth } from "@/shared/hooks/useAuth";
 import { useDashboardState } from "@/features/admin/hooks/useDashboardState";
+import DashboardTabs from "@/shared/components/ui/DashboardTabs";
+import { connectSocket } from "@/features/chat/services/socketService";
 
 import {
   Users,
@@ -27,11 +30,15 @@ import {
   Building,
 } from "lucide-react";
 
+import { usePresenceStore } from "@/features/presence/stores/presenceStore";
+
 export default function AdminDashboard() {
   const { data: session, status } = useSession();
   const { user, isLoading, isAdmin, isSuperAdmin: isSuperAdminUser } = useAuth();
 
   const isAuthorized = isAdmin;
+
+  const onlineUserIds = usePresenceStore((state) => state.onlineUserIds);
 
   const { state, setters, derived, actions } = useDashboardState(
     user ? { user } : session,
@@ -173,6 +180,8 @@ export default function AdminDashboard() {
         </>
       }
     >
+      <DashboardTabs activeTab="overview" />
+
       {/* Mobile Filter Pill */}
       {isSuperAdminUser && (
         <div className="lg:hidden flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner w-full">
@@ -390,6 +399,7 @@ export default function AdminDashboard() {
                   const isTopPerformer =
                     associate.progress >= 100 && associate.target > 0;
                   const isCritical = associate.pendingCount > 10;
+                  const isOnline = onlineUserIds.has(associate.id?.toString());
 
                   return (
                     <tr
@@ -398,10 +408,15 @@ export default function AdminDashboard() {
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm shrink-0 border ${isTopPerformer ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600 border-slate-200"}`}
-                          >
-                            {associate.name.charAt(0).toUpperCase()}
+                          <div className="relative shrink-0">
+                            <div
+                              className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm border ${isTopPerformer ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600 border-slate-200"}`}
+                            >
+                              {associate.name.charAt(0).toUpperCase()}
+                            </div>
+                            {isOnline && (
+                              <span className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white bg-emerald-500"></span>
+                            )}
                           </div>
                           <div>
                             <div className="font-extrabold text-slate-800 flex items-center gap-1.5">
