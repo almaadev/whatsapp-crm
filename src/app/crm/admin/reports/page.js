@@ -446,7 +446,7 @@ export default function ReportsPage() {
 
   const activeFilters = activeTab === "customer" ? customerReportFilters : associateReportFilters;
   const setActiveFilters = activeTab === "customer" ? setCustomerReportFilters : setAssociateReportFilters;
-  const isFilteredExport = activeFilters.associateId !== "all" || (activeTab === "associate" && includeMe);
+  const isFilteredExport = activeFilters.associateId !== "all";
 
   return (
     <DashboardPage
