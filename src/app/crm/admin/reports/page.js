@@ -321,8 +321,22 @@ export default function ReportsPage() {
         return;
       }
 
+      let assocSuffix = "";
+      if (associateId !== "all") {
+        const selectedAssoc = allAssociatesList.find(a => (a.id === associateId || a._id === associateId));
+        if (selectedAssoc && selectedAssoc.name) {
+          const sanitized = selectedAssoc.name
+            .toLowerCase()
+            .replace(/\s+/g, "-")
+            .replace(/[^a-z0-9-_]/g, "");
+          if (sanitized) {
+            assocSuffix = `-${sanitized}`;
+          }
+        }
+      }
+
       const dateStr = new Date().toISOString().split("T")[0];
-      const filename = `${reportType}_report_${exportMode}_${dateStr}`;
+      const filename = `${reportType}-report${assocSuffix}-${dateStr}`;
 
       if (isCustomer) {
         const headers = [
@@ -432,6 +446,7 @@ export default function ReportsPage() {
 
   const activeFilters = activeTab === "customer" ? customerReportFilters : associateReportFilters;
   const setActiveFilters = activeTab === "customer" ? setCustomerReportFilters : setAssociateReportFilters;
+  const isFilteredExport = activeFilters.associateId !== "all" || (activeTab === "associate" && includeMe);
 
   return (
     <DashboardPage
@@ -481,30 +496,37 @@ export default function ReportsPage() {
               <div className="h-6 w-px bg-slate-800 mx-1"></div>
 
               {/* Exports */}
-              <button
-                onClick={() => reportExportService(activeTab, "filter", "csv")}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#00a884] hover:bg-[#008f70] text-white font-bold text-xs rounded-lg transition-all shadow-sm cursor-pointer"
-              >
-                <Download size={12} /> Filtered (CSV)
-              </button>
-              <button
-                onClick={() => reportExportService(activeTab, "filter", "excel")}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 font-bold text-xs rounded-lg transition-all shadow-sm cursor-pointer"
-              >
-                <Download size={12} /> Filtered (Excel)
-              </button>
-              <button
-                onClick={() => reportExportService(activeTab, "all", "csv")}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 font-black text-xs rounded-lg transition-all shadow-sm cursor-pointer"
-              >
-                Export All (CSV)
-              </button>
-              <button
-                onClick={() => reportExportService(activeTab, "all", "excel")}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 font-black text-xs rounded-lg transition-all shadow-sm cursor-pointer"
-              >
-                Export All (Excel)
-              </button>
+              {isFilteredExport ? (
+                <>
+                  <button
+                    onClick={() => reportExportService(activeTab, "filter", "csv")}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#00a884] hover:bg-[#008f70] text-white font-bold text-xs rounded-lg transition-all shadow-sm cursor-pointer"
+                  >
+                    <Download size={12} /> Filtered (CSV)
+                  </button>
+                  <button
+                    onClick={() => reportExportService(activeTab, "filter", "excel")}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 font-bold text-xs rounded-lg transition-all shadow-sm cursor-pointer"
+                  >
+                    <Download size={12} /> Filtered (Excel)
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => reportExportService(activeTab, "all", "csv")}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 font-black text-xs rounded-lg transition-all shadow-sm cursor-pointer"
+                  >
+                    Export All (CSV)
+                  </button>
+                  <button
+                    onClick={() => reportExportService(activeTab, "all", "excel")}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 font-black text-xs rounded-lg transition-all shadow-sm cursor-pointer"
+                  >
+                    Export All (Excel)
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
