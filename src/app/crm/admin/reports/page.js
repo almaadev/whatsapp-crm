@@ -116,7 +116,16 @@ export default function ReportsPage() {
   const filteredAssociatesDropdown = useMemo(() => {
     if (!Array.isArray(allAssociatesList)) return [];
     const activeFilters = activeTab === "customer" ? customerReportFilters : associateReportFilters;
+    
+    // Get logged-in user ID
+    const loggedInUserId = user?._id?.toString() || user?.id?.toString() || session?.user?.id?.toString();
+
     return allAssociatesList.filter((assoc) => {
+      // Exclude the current logged-in user if Include Me is OFF (only applies when Include Me is available on Associate tab)
+      if (activeTab === "associate" && !includeMe && loggedInUserId && (assoc.id?.toString() === loggedInUserId || assoc._id?.toString() === loggedInUserId)) {
+        return false;
+      }
+
       if (activeFilters.branchId !== "all") {
         const matchedBranch = availableBranches.find(b => b._id === activeFilters.branchId);
         const branchName = matchedBranch ? matchedBranch.name : activeFilters.branchId;
@@ -124,7 +133,7 @@ export default function ReportsPage() {
       }
       return true;
     });
-  }, [allAssociatesList, customerReportFilters, associateReportFilters, activeTab, availableBranches]);
+  }, [allAssociatesList, customerReportFilters, associateReportFilters, activeTab, availableBranches, user, session, includeMe]);
 
   // Fetch Customer Report Rows
   const fetchCustomerReportRows = useCallback(async () => {
