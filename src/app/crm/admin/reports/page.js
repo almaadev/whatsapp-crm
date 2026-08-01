@@ -886,9 +886,6 @@ export default function ReportsPage() {
                             <th className="py-2.5 px-3 select-none cursor-pointer hover:bg-slate-100" onClick={() => handleAssociateSort("associateName")}>
                               Associate Name {associateSortBy === "associateName" ? (associateSortOrder === "asc" ? "▲" : "▼") : ""}
                             </th>
-                            <th className="py-2.5 px-3 select-none cursor-pointer hover:bg-slate-100" onClick={() => handleAssociateSort("employeeId")}>
-                              Employee ID {associateSortBy === "employeeId" ? (associateSortOrder === "asc" ? "▲" : "▼") : ""}
-                            </th>
                             <th className="py-2.5 px-3 select-none">Branch</th>
                             <th className="py-2.5 px-3 select-none">Role</th>
                             <th className="py-2.5 px-3 select-none">Department</th>
@@ -920,7 +917,6 @@ export default function ReportsPage() {
                                     </button>
                                   </td>
                                   <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">{row.associateName}</td>
-                                  <td className="py-2.5 px-3 font-mono text-slate-500 whitespace-nowrap">{row.employeeId}</td>
                                   <td className="py-2.5 px-3 whitespace-nowrap">{row.branch}</td>
                                   <td className="py-2.5 px-3 uppercase text-[10px] text-slate-500 whitespace-nowrap">{row.role}</td>
                                   <td className="py-2.5 px-3 uppercase text-[10px] text-slate-500 whitespace-nowrap">{row.department}</td>

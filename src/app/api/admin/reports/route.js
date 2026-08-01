@@ -351,7 +351,7 @@ export async function GET(req) {
         baseFilters._id = new mongoose.Types.ObjectId(associateFilter);
       }
 
-      // Search (Associate Name, Employee ID, Phone, Customer Name)
+      // Search (Associate Name, Phone, Customer Name)
       let searchUserIds = [];
       if (search) {
         const searchRegex = { $regex: search, $options: "i" };
@@ -542,7 +542,6 @@ export async function GET(req) {
 
         return {
           associateId: uid,
-          employeeId: `EMP-${uid.slice(-6).toUpperCase()}`,
           associateName: name,
           branch: branchMap[user.branch?.toString()] || user.branch || "-",
           role: user.role || "-",
