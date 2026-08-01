@@ -245,9 +245,7 @@ export default function ChatViewPanel({
           <p className="text-slate-500 text-sm text-center max-w-[400px]">
             Select a customer from the left to start messaging.
           </p>
-          <div className="mt-10 flex items-center gap-1.5 text-xs text-slate-400 font-medium bg-white px-4 py-2 rounded-full shadow-sm">
-            <Lock size={12} /> End-to-end encrypted CRM integration
-          </div>
+
         </div>
       )}
     </div>
