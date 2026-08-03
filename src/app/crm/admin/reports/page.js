@@ -7,6 +7,7 @@ import DashboardPage from "@/shared/components/layout/DashboardPage";
 import LoadingScreen from "@/shared/components/ui/LoadingScreen";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
 import DashboardTabs from "@/shared/components/ui/DashboardTabs";
+import Pagination from "@/shared/components/ui/Pagination";
 import { branchService } from "@/features/branches/services/branchService";
 import { userRepository } from "@/shared/api/repositories/userRepository";
 import { toast } from "react-toastify";
@@ -848,49 +849,17 @@ export default function ReportsPage() {
                         </tbody>
                       </table>
                     </div>
-
-                    {/* PAGINATION PANEL */}
-                    <div className="border-t border-slate-200 p-3 flex flex-col sm:flex-row justify-between items-center gap-3.5 bg-slate-50">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold text-slate-500">Rows per page:</span>
-                        <select
-                          value={customerLimit}
-                          onChange={(e) => {
-                            setCustomerLimit(e.target.value);
-                            setCustomerPage(1);
-                          }}
-                          className="bg-white border border-slate-200 rounded py-1 px-2 text-xs font-bold text-slate-700 outline-none cursor-pointer focus:border-[#00a884]"
-                        >
-                          <option value="10">10</option>
-                          <option value="25">25</option>
-                          <option value="50">50</option>
-                          <option value="100">100</option>
-                        </select>
-                        <span className="text-xs text-slate-500 font-bold ml-2">
-                          Total: {customerPagination.total} Customers
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          disabled={customerPage === 1}
-                          onClick={() => setCustomerPage(prev => Math.max(1, prev - 1))}
-                          className="p-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
-                        >
-                          <ChevronLeft size={14} />
-                        </button>
-                        <span className="text-xs font-bold text-slate-700 px-2">
-                          Page {customerPage} of {customerPagination.pages}
-                        </span>
-                        <button
-                          disabled={customerPage === customerPagination.pages}
-                          onClick={() => setCustomerPage(prev => Math.min(customerPagination.pages, prev + 1))}
-                          className="p-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
-                        >
-                          <ChevronRight size={14} />
-                        </button>
-                      </div>
-                    </div>
+                    <Pagination
+                      currentPage={customerPage}
+                      totalPages={customerPagination.pages}
+                      totalRecords={customerPagination.total}
+                      pageSize={Number(customerLimit)}
+                      onPageChange={setCustomerPage}
+                      onPageSizeChange={(val) => {
+                        setCustomerLimit(val);
+                        setCustomerPage(1);
+                      }}
+                    />
                   </>
                 )}
               </div>
@@ -1048,49 +1017,17 @@ export default function ReportsPage() {
                         </tbody>
                       </table>
                     </div>
-
-                    {/* PAGINATION PANEL */}
-                    <div className="border-t border-slate-200 p-3 flex flex-col sm:flex-row justify-between items-center gap-3.5 bg-slate-50">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold text-slate-500">Rows per page:</span>
-                        <select
-                          value={associateLimit}
-                          onChange={(e) => {
-                            setAssociateLimit(e.target.value);
-                            setAssociatePage(1);
-                          }}
-                          className="bg-white border border-slate-200 rounded py-1 px-2 text-xs font-bold text-slate-700 outline-none cursor-pointer focus:border-[#00a884]"
-                        >
-                          <option value="10">10</option>
-                          <option value="25">25</option>
-                          <option value="50">50</option>
-                          <option value="100">100</option>
-                        </select>
-                        <span className="text-xs text-slate-500 font-bold ml-2">
-                          Total: {associatePagination.total} Associates
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          disabled={associatePage === 1}
-                          onClick={() => setAssociatePage(prev => Math.max(1, prev - 1))}
-                          className="p-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
-                        >
-                          <ChevronLeft size={14} />
-                        </button>
-                        <span className="text-xs font-bold text-slate-700 px-2">
-                          Page {associatePage} of {associatePagination.pages}
-                        </span>
-                        <button
-                          disabled={associatePage === associatePagination.pages}
-                          onClick={() => setAssociatePage(prev => Math.min(associatePagination.pages, prev + 1))}
-                          className="p-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
-                        >
-                          <ChevronRight size={14} />
-                        </button>
-                      </div>
-                    </div>
+                    <Pagination
+                      currentPage={associatePage}
+                      totalPages={associatePagination.pages}
+                      totalRecords={associatePagination.total}
+                      pageSize={Number(associateLimit)}
+                      onPageChange={setAssociatePage}
+                      onPageSizeChange={(val) => {
+                        setAssociateLimit(val);
+                        setAssociatePage(1);
+                      }}
+                    />
                   </>
                 )}
               </div>

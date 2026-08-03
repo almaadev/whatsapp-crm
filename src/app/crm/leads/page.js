@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { usePathStore } from "@/features/chat/stores/pathStore";
@@ -11,8 +11,9 @@ import LoadingScreen from "@/shared/components/ui/LoadingScreen";
 import SearchInput from "@/shared/components/ui/SearchInput";
 import Pagination from "@/shared/components/ui/Pagination";
 import Button from "@/shared/components/ui/Button";
-import StatusBadge from "@/shared/components/ui/StatusBadge";
 import EmptyState from "@/shared/components/ui/EmptyState";
+import { branchService } from "@/features/branches/services/branchService";
+import { userRepository } from "@/shared/api/repositories/userRepository";
 import {
   Save,
   User,
@@ -36,14 +37,22 @@ import {
   CornerDownRight,
   Copy,
   Check,
-  ChevronRight,
+  MoreVertical,
+  Paperclip,
+  Calendar,
+  Building,
+  Activity,
+  Layers,
+  FileSpreadsheet,
+  Settings,
+  ChevronRight
 } from "lucide-react";
 import { toast } from "react-toastify";
 
 export default function LeadsPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const { user, isLoading, hasModuleAccess } = useAuth();
+  const { user, isLoading, isAdmin, hasModuleAccess } = useAuth();
   const role = user?.role || session?.user?.role;
   const { setPath } = usePathStore();
   const pathname = usePathname();
@@ -51,13 +60,27 @@ export default function LeadsPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetchingLeads, setFetchingLeads] = useState(true);
-  const [rawLeads, setRawLeads] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [copiedPhone, setCopiedPhone] = useState(null);
 
   // --- Pagination State ---
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  // --- Filter states ---
+  const [filterLeadType, setFilterLeadType] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterAssociate, setFilterAssociate] = useState("all");
+
+  const [availableBranches, setAvailableBranches] = useState([]);
+  const [allAssociatesList, setAllAssociatesList] = useState([]);
+
+  // --- Sorting State ---
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState("desc");
+
+  // --- Expanded Row State (Only one expanded at a time) ---
+  const [expandedLeadId, setExpandedLeadId] = useState(null);
 
   const [formData, setFormData] = useState({
     phone: "",
@@ -97,6 +120,29 @@ export default function LeadsPage() {
     fetchRecentLeads();
   }, [currentPage, pageSize, searchTerm]);
 
+  // Load configuration for branch and associate filter dropdowns
+  useEffect(() => {
+    async function loadConfig() {
+      try {
+        const branchRes = await branchService.getBranches({ limit: 1000 });
+        if (branchRes && branchRes.success) {
+          setAvailableBranches(branchRes.branches || []);
+        }
+        if (isAdmin) {
+          const userRes = await userRepository.getUsers();
+          if (userRes && userRes.data) {
+            setAllAssociatesList(userRes.data || []);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load filter setup config:", err);
+      }
+    }
+    if (hasModuleAccess("Leads")) {
+      loadConfig();
+    }
+  }, [isLoading, isAdmin]);
+
   // Reset pagination when search query or page size changes
   useEffect(() => {
     setCurrentPage(1);
@@ -106,8 +152,6 @@ export default function LeadsPage() {
     setPath(pathname);
     router.push(`/crm/leads/${phone.replace("whatsapp:", "")}`);
   };
-
-  // Pagination and search resets handled effectively by useEffect deps.
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -161,6 +205,53 @@ export default function LeadsPage() {
     }
   };
 
+  // Client-side filtering of results loaded on current page
+  const filteredLeads = useMemo(() => {
+    return paginatedLeads.filter((lead) => {
+      if (filterStatus !== "all" && (lead.status || "New") !== filterStatus) return false;
+      if (filterLeadType !== "all" && (lead.leadType || "Direct Lead") !== filterLeadType) return false;
+      if (filterAssociate !== "all" && lead.assignedTo !== filterAssociate) return false;
+      return true;
+    });
+  }, [paginatedLeads, filterStatus, filterLeadType, filterAssociate]);
+
+  // Client-side sorting
+  const sortedLeads = useMemo(() => {
+    const list = [...filteredLeads];
+    list.sort((a, b) => {
+      let valA = a[sortBy];
+      let valB = b[sortBy];
+
+      if (sortBy === "customerName") {
+        valA = a.name || a.phone || "";
+        valB = b.name || b.phone || "";
+      } else if (sortBy === "closures") {
+        valA = a.leads?.filter(l => l.status === "Closed").length || 0;
+        valB = b.leads?.filter(l => l.status === "Closed").length || 0;
+      } else if (sortBy === "followups") {
+        valA = a.leads?.filter(l => l.status === "Follow Up").length || 0;
+        valB = b.leads?.filter(l => l.status === "Follow Up").length || 0;
+      } else if (sortBy === "lastActivity") {
+        valA = a.lastActivityDate || a.updatedAt || a.createdAt || "";
+        valB = b.lastActivityDate || b.updatedAt || b.createdAt || "";
+      }
+
+      if (valA < valB) return sortOrder === "asc" ? -1 : 1;
+      if (valA > valB) return sortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
+    return list;
+  }, [filteredLeads, sortBy, sortOrder]);
+
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(column);
+      setSortOrder("asc");
+    }
+  };
+
   const isAuthorized = hasModuleAccess("Leads");
 
   if (status === "loading" || isLoading) {
@@ -179,67 +270,279 @@ export default function LeadsPage() {
     <DashboardPage
       title="Customer Leads"
       subtitle="Manage and track customer leads, their interactions, and sales progress."
-      maxWidth="1700px"
-      actions={
-        <>
+      maxWidth="1800px"
+    >
+      {/* ENTERPRISE CRM TOOLBAR */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 mb-4 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-3 select-none">
+        <div className="flex flex-wrap items-center gap-3">
           <SearchInput
-            placeholder="Search Leads..."
+            placeholder="Search leads..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full md:w-64"
+            className="w-full md:w-56"
           />
+
+          <div className="h-6 w-px bg-slate-800 hidden md:block"></div>
+
+          <select
+            value={filterLeadType}
+            onChange={(e) => setFilterLeadType(e.target.value)}
+            className="bg-slate-800 border border-slate-700 rounded-lg py-1.5 px-2.5 text-xs font-semibold text-slate-200 outline-none cursor-pointer focus:border-[#00a884]"
+          >
+            <option value="all">All Lead Types</option>
+            <option value="Direct Lead">Direct Lead</option>
+            <option value="MD Camp">MD Camp</option>
+            <option value="Product Lead">Product Lead</option>
+            <option value="Therapy">Therapy</option>
+          </select>
+
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="bg-slate-800 border border-slate-700 rounded-lg py-1.5 px-2.5 text-xs font-semibold text-slate-200 outline-none cursor-pointer focus:border-[#00a884]"
+          >
+            <option value="all">All Statuses</option>
+            <option value="New">New</option>
+            <option value="Follow Up">Follow Up</option>
+            <option value="Closed">Closed</option>
+            <option value="Not Interested">Not Interested</option>
+          </select>
+
+          {isAdmin && (
+            <select
+              value={filterAssociate}
+              onChange={(e) => setFilterAssociate(e.target.value)}
+              className="bg-slate-800 border border-slate-700 rounded-lg py-1.5 px-2.5 text-xs font-semibold text-slate-200 outline-none cursor-pointer focus:border-[#00a884] max-w-[150px]"
+            >
+              <option value="all">All Associates</option>
+              {allAssociatesList.map((assoc) => (
+                <option key={assoc._id} value={assoc.name}>{assoc.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
           <Button
             variant="icon"
             onClick={fetchRecentLeads}
             disabled={fetchingLeads}
             title="Refresh Pipeline"
+            className="bg-slate-800 border-slate-750 hover:bg-slate-750 text-slate-350"
           >
             <RefreshCcw
-              size={18}
+              size={15}
               className={fetchingLeads ? "animate-spin" : ""}
             />
           </Button>
-          <Button onClick={() => setShowCreateForm(true)}>
-            <Plus size={18} />{" "}
-            <span className="hidden sm:inline">New Lead</span>
+          <Button onClick={() => setShowCreateForm(true)} className="bg-[#00a884] hover:bg-[#008f70] text-white">
+            <Plus size={16} /> <span className="hidden sm:inline">New Lead</span>
           </Button>
-        </>
-      }
-    >
-      {fetchingLeads && paginatedLeads.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+        </div>
+      </div>
+
+      {fetchingLeads && sortedLeads.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-28 bg-white border border-slate-200 rounded-xl shadow-sm">
           <Loader2 size={32} className="animate-spin mb-3 text-[#00a884]" />
-          <span className="text-sm font-bold uppercase tracking-wider">
-            Syncing Leads Data...
+          <span className="text-xs font-black uppercase tracking-widest text-slate-400">
+            Syncing Leads Database...
           </span>
         </div>
-      ) : paginatedLeads.length === 0 ? (
+      ) : sortedLeads.length === 0 ? (
         <EmptyState icon={History} title="No leads found in the pipeline." />
       ) : (
-        <>
-          <div className="flex flex-col flex-1">
-            {paginatedLeads.map((lead, idx) => (
-              <LeadIntelligenceRecord
-                key={lead._id || idx}
-                lead={lead}
-                handleCustomerRedirect={handleCustomerRedirect}
-                handleCopyPhone={handleCopyPhone}
-                copiedPhone={copiedPhone}
-              />
-            ))}
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
+          
+          {/* DESKTOP TABLE VIEW */}
+          <div className="overflow-x-auto overflow-y-auto max-h-[680px] hidden md:block">
+            <table className="w-full text-left border-collapse min-w-[1550px]">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-widest sticky top-0 bg-slate-50 z-10 shadow-[inset_0_-1px_0_rgba(229,231,235,1)] select-none">
+                  <th className="py-3 px-3.5 w-10"></th>
+                  <th className="py-3 px-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort("customerName")}>
+                    Customer {sortBy === "customerName" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+                  </th>
+                  <th className="py-3 px-3">Phone</th>
+                  <th className="py-3 px-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort("city")}>
+                    City {sortBy === "city" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+                  </th>
+                  <th className="py-3 px-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort("leadType")}>
+                    Lead Type {sortBy === "leadType" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+                  </th>
+                  <th className="py-3 px-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort("status")}>
+                    Current Status {sortBy === "status" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+                  </th>
+                  <th className="py-3 px-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort("assignedTo")}>
+                    Assigned To {sortBy === "assignedTo" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+                  </th>
+                  <th className="py-3 px-3">Last Handler</th>
+                  <th className="py-3 px-3 text-center cursor-pointer hover:bg-slate-100" onClick={() => handleSort("followups")}>
+                    Follow Ups {sortBy === "followups" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+                  </th>
+                  <th className="py-3 px-3 text-center cursor-pointer hover:bg-slate-100" onClick={() => handleSort("closures")}>
+                    Closures {sortBy === "closures" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+                  </th>
+                  <th className="py-3 px-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort("lastActivity")}>
+                    Last Activity {sortBy === "lastActivity" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+                  </th>
+                  <th className="py-3 px-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort("createdAt")}>
+                    Created {sortBy === "createdAt" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+                  </th>
+                  <th className="py-3 px-4 text-center w-20">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-150 text-xs font-semibold text-slate-700">
+                {sortedLeads.map((lead) => {
+                  const leadId = lead._id;
+                  const isExpanded = expandedLeadId === leadId;
+                  const displayName = lead.name || "Unknown";
+                  const cleanPhone = lead.phone?.replace("whatsapp:", "") || "";
+                  const displayCity = lead.city || "-";
+                  const leadType = lead.leadType || "Direct Lead";
+                  const leadStatus = lead.status || "New";
+                  const assignedTo = lead.assignedTo || "unassigned";
+                  const lastHandler = lead.leads && lead.leads.length > 0 ? lead.leads[lead.leads.length - 1].associateName : (lead.assignedTo || "unassigned");
+                  const followUpCount = lead.leads?.filter(l => l.status === "Follow Up").length || 0;
+                  const closureCount = lead.leads?.filter(l => l.status === "Closed").length || 0;
+                  const lastActivity = lead.lastActivityDate || lead.updatedAt || lead.createdAt;
+                  const createdDate = lead.createdAt;
+
+                  return (
+                    <Fragment key={leadId}>
+                      <tr className={`h-12 border-b border-slate-100 hover:bg-slate-50/50 transition-colors cursor-pointer ${isExpanded ? "bg-slate-50/30" : ""}`} onClick={() => setExpandedLeadId(isExpanded ? null : leadId)}>
+                        <td className="py-3 px-3.5 text-center">
+                          <span className={`inline-block text-slate-400 p-0.5 rounded transition-transform duration-200 ${isExpanded ? "rotate-90 text-[#00a884]" : ""}`}>
+                            <ChevronRight size={13} />
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 font-bold text-slate-900 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6.5 h-6.5 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-[10px] border border-emerald-100 uppercase">
+                              {displayName.charAt(0)}
+                            </div>
+                            <span>{displayName}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 font-mono text-slate-550 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-1.5">
+                            <span>{cleanPhone}</span>
+                            <button
+                              onClick={(e) => handleCopyPhone(e, cleanPhone)}
+                              className="text-slate-400 hover:text-[#00a884] transition-colors p-0.5"
+                              title="Copy Phone"
+                            >
+                              {copiedPhone === cleanPhone ? (
+                                <Check size={11} className="text-[#00a884]" />
+                              ) : (
+                                <Copy size={11} />
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 whitespace-nowrap text-slate-600">{displayCity}</td>
+                        <td className="py-3 px-3 whitespace-nowrap">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 border border-slate-200 text-slate-600">
+                            {leadType}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 whitespace-nowrap">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getStatusBadgeStyles(leadStatus)}`}>
+                            {leadStatus}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 font-bold text-[#00a884] whitespace-nowrap">{assignedTo}</td>
+                        <td className="py-3 px-3 text-slate-600 whitespace-nowrap">{lastHandler}</td>
+                        <td className="py-3 px-3 text-center font-bold whitespace-nowrap text-slate-650">{followUpCount}</td>
+                        <td className="py-3 px-3 text-center font-bold whitespace-nowrap text-slate-650">{closureCount}</td>
+                        <td className="py-3 px-3 text-slate-500 whitespace-nowrap">
+                          {lastActivity ? new Date(lastActivity).toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "-"}
+                        </td>
+                        <td className="py-3 px-3 text-slate-500 whitespace-nowrap">
+                          {createdDate ? new Date(createdDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "-"}
+                        </td>
+                        <td className="py-3 px-4 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <div className="inline-flex gap-1.5">
+                            <button
+                              onClick={() => handleCustomerRedirect(lead.phone)}
+                              className="inline-flex items-center gap-0.5 bg-[#00a884] hover:bg-[#008f70] text-white font-bold py-0.5 px-2 rounded text-[10px] transition-colors shadow-sm cursor-pointer"
+                            >
+                              See More
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* DETAILED COLLAPSIBLE DRAWER */}
+                      {isExpanded && (
+                        <tr className="bg-slate-50/40">
+                          <td colSpan="13" className="p-0">
+                            <ExpandedDetailsArea lead={lead} handleCustomerRedirect={handleCustomerRedirect} />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* MOBILE RESPONSIVE CARDS VIEW */}
+          <div className="grid grid-cols-1 gap-3.5 p-4 md:hidden">
+            {sortedLeads.map((lead) => {
+              const leadId = lead._id;
+              const isExpanded = expandedLeadId === leadId;
+              const displayName = lead.name || "Unknown";
+              const cleanPhone = lead.phone?.replace("whatsapp:", "") || "";
+              const leadStatus = lead.status || "New";
+
+              return (
+                <div key={leadId} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                  <div className="p-4 flex items-center justify-between cursor-pointer" onClick={() => setExpandedLeadId(isExpanded ? null : leadId)}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-sm border border-emerald-100 uppercase">
+                        {displayName.charAt(0)}
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-slate-800 text-sm leading-tight">{displayName}</h4>
+                        <span className="font-mono text-slate-550 text-xs mt-0.5 block">{cleanPhone}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${getStatusBadgeStyles(leadStatus)}`}>
+                        {leadStatus}
+                      </span>
+                      <span className={`text-slate-400 p-1 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}>
+                        <ChevronRight size={14} />
+                      </span>
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="border-t border-slate-100 bg-slate-50/50">
+                      <ExpandedDetailsArea lead={lead} handleCustomerRedirect={handleCustomerRedirect} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Pagination Footer */}
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalRecords={totalRecords}
-            pageSize={pageSize}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={setPageSize}
-          />
-        </>
+          <div className="border-t border-slate-200">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalRecords={totalRecords}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
+          </div>
+        </div>
       )}
+
       {showCreateForm && (
         <CreateLeadModal
           formData={formData}
@@ -253,6 +556,241 @@ export default function LeadsPage() {
   );
 }
 
+// Sub-component for expanded detail drawer tabs
+function ExpandedDetailsArea({ lead, handleCustomerRedirect }) {
+  const [activeTab, setActiveTab] = useState("timeline");
+
+  const timeline = useMemo(() => {
+    return [...(lead.leads || [])].reverse();
+  }, [lead.leads]);
+
+  const historyProgression = useMemo(() => {
+    // Construct progression chronologically
+    return [...(lead.leads || [])].sort((a, b) => new Date(a.date) - new Date(b.date));
+  }, [lead.leads]);
+
+  const remarks = useMemo(() => {
+    return lead.leads?.filter(l => l.overAllRemarks || l.note) || [];
+  }, [lead.leads]);
+
+  const followUpCount = lead.leads?.filter(l => l.status === "Follow Up").length || 0;
+  const closureCount = lead.leads?.filter(l => l.status === "Closed").length || 0;
+
+  return (
+    <div className="border-l-4 border-[#00a884] bg-white p-4 md:p-6 shadow-inner text-slate-800">
+      
+      {/* Tabs navigation */}
+      <div className="flex border-b border-slate-200 pb-2 mb-4 gap-2 overflow-x-auto select-none">
+        {["timeline", "details", "remarks", "history", "attachments"].map((tab) => {
+          const labels = {
+            timeline: "Interaction Timeline",
+            details: "Customer Details",
+            remarks: "Remarks & Notes",
+            history: "Handling History",
+            attachments: "Attachments"
+          };
+          const isActive = activeTab === tab;
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`py-1.5 px-3.5 text-xs font-bold rounded-lg cursor-pointer whitespace-nowrap transition-all uppercase tracking-wider ${
+                isActive
+                  ? "bg-[#00a884]/10 text-[#00a884] border border-[#00a884]/20"
+                  : "text-slate-400 hover:text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              {labels[tab]}
+            </button>
+          );
+        })}
+        
+        <button
+          onClick={() => handleCustomerRedirect(lead.phone)}
+          className="ml-auto py-1 px-3 bg-[#00a884] hover:bg-[#008f70] text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap"
+        >
+          See More Profile <Plus size={11} />
+        </button>
+      </div>
+
+      {/* Tab content area */}
+      <div className="mt-4">
+        
+        {/* TIMELINE TAB */}
+        {activeTab === "timeline" && (
+          <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+            {timeline.length === 0 ? (
+              <p className="text-xs text-slate-400 italic py-4">No interaction timeline recorded for this lead.</p>
+            ) : (
+              timeline.map((item, idx) => (
+                <div key={item._id || idx} className="flex gap-3 items-start bg-slate-50 border border-slate-200/80 rounded-xl p-3 shadow-sm hover:border-[#00a884]/20 transition-all">
+                  <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-650 flex items-center justify-center font-bold text-xs shrink-0 border border-slate-300 uppercase">
+                    {(item.associateName || "S").charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-xs text-slate-800">{item.associateName || "System Admin"}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${getStatusBadgeStyles(item.status)}`}>
+                          {item.status}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-450 font-semibold">
+                        {new Date(item.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+
+                    {item.enquiredFor && (
+                      <p className="text-[11px] text-slate-500 font-bold mt-1">
+                        Enquiry: <span className="text-slate-700">{item.enquiredFor}</span>
+                      </p>
+                    )}
+
+                    {item.overAllRemarks && (
+                      <div className="mt-2 text-xs text-slate-600 font-medium italic border-l-2 border-slate-300 pl-2 bg-white/40 py-1.5 pr-2 rounded-r">
+                        "{item.overAllRemarks}"
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* CUSTOMER DETAILS TAB */}
+        {activeTab === "details" && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-2 select-text">
+            {[
+              { label: "Name", value: lead.name || "Unknown" },
+              { label: "Phone", value: lead.phone?.replace("whatsapp:", "") || "-" },
+              { label: "City", value: lead.city || "Unknown Location" },
+              { label: "Address", value: lead.address || "-" },
+              { label: "Lead Type", value: lead.leadType || "Direct Lead" },
+              { label: "Enquired For", value: lead.enquiredFor || "-" },
+              { label: "Current Status", value: lead.status || "New" },
+              { label: "Assigned Associate", value: lead.assignedTo || "unassigned" },
+              { label: "Total Follow Ups", value: followUpCount },
+              { label: "Total Closures", value: closureCount },
+              { label: "Created Date", value: lead.createdAt ? new Date(lead.createdAt).toLocaleString("en-IN") : "-" },
+              { label: "Last Updated", value: lead.updatedAt ? new Date(lead.updatedAt).toLocaleString("en-IN") : "-" }
+            ].map((field, idx) => (
+              <div key={idx} className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 shadow-sm">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-0.5">{field.label}</span>
+                <span className="text-xs font-bold text-slate-800 break-words">{field.value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* REMARKS TAB */}
+        {activeTab === "remarks" && (
+          <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+            {remarks.length === 0 && !lead.remarks ? (
+              <p className="text-xs text-slate-400 italic py-4">No remarks or progression notes logged for this customer.</p>
+            ) : (
+              <>
+                {lead.remarks && (
+                  <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3.5 shadow-sm">
+                    <span className="text-[10px] font-extrabold text-[#00a884] uppercase tracking-wider block mb-1">Initial Lead Remarks</span>
+                    <p className="text-xs text-slate-700 font-medium italic">"{lead.remarks}"</p>
+                  </div>
+                )}
+                {remarks.map((item, idx) => (
+                  <div key={idx} className="bg-slate-50 border border-slate-250 rounded-xl p-3.5 shadow-sm">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">
+                        Handled by <span className="text-slate-800">{item.associateName}</span>
+                      </span>
+                      <span className="text-[10px] text-slate-450 font-bold">
+                        {new Date(item.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-700 font-medium leading-relaxed italic">"{item.overAllRemarks || item.note}"</p>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* HANDLING HISTORY TAB */}
+        {activeTab === "history" && (
+          <div className="p-4 flex flex-col items-start gap-4 max-h-[350px] overflow-y-auto custom-scrollbar select-none">
+            {historyProgression.length === 0 ? (
+              <p className="text-xs text-slate-400 italic py-4">No handling history available.</p>
+            ) : (
+              historyProgression.map((item, idx) => (
+                <div key={item._id || idx} className="flex items-center gap-4 w-full">
+                  <div className="flex flex-col items-center shrink-0 w-8">
+                    <div className="w-8 h-8 rounded-full bg-[#00a884]/10 text-[#00a884] flex items-center justify-center font-bold text-[10px] border border-[#00a884]/20 uppercase">
+                      {(item.associateName || "S").charAt(0)}
+                    </div>
+                    {idx < historyProgression.length - 1 && (
+                      <div className="h-6 w-0.5 bg-slate-200 mt-2"></div>
+                    )}
+                  </div>
+                  <div className="bg-slate-50 border border-slate-150 rounded-xl p-2.5 flex-1 shadow-sm flex items-center justify-between gap-4">
+                    <div>
+                      <h5 className="font-extrabold text-xs text-slate-800">{item.associateName || "System Admin"}</h5>
+                      <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">
+                        {new Date(item.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                    <div>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${getStatusBadgeStyles(item.status)}`}>
+                        {item.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* ATTACHMENTS (FUTURE READY) */}
+        {activeTab === "attachments" && (
+          <div className="border border-dashed border-slate-300 bg-slate-50/50 rounded-xl p-8 flex flex-col items-center justify-center text-center">
+            <Paperclip className="text-slate-350 mb-2.5" size={28} />
+            <h5 className="font-extrabold text-xs text-slate-800 uppercase tracking-widest">Leads Document Vault</h5>
+            <p className="text-[10px] text-slate-450 mt-1 max-w-xs leading-normal">Drag and drop therapy prescription sheets, MD camp intake files, or Excel records here. Supporting PDF, JPG, PNG formats up to 10MB.</p>
+            <div className="mt-4 flex gap-2">
+              <button disabled className="px-3.5 py-1.5 bg-slate-200 text-slate-455 font-black text-[10px] rounded-lg uppercase tracking-wider cursor-not-allowed border border-slate-300">
+                Choose File
+              </button>
+              <button disabled className="px-3.5 py-1.5 bg-slate-200 text-slate-455 font-black text-[10px] rounded-lg uppercase tracking-wider cursor-not-allowed border border-slate-300">
+                Upload
+              </button>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+// Styles mapping function for lead statuses
+function getStatusBadgeStyles(status) {
+  switch (status) {
+    case "New":
+      return "bg-blue-50 text-blue-700 border-blue-100";
+    case "Follow Up":
+      return "bg-orange-50 text-orange-700 border-orange-100";
+    case "Closed":
+      return "bg-emerald-50 text-emerald-700 border-emerald-100";
+    case "Not Interested":
+      return "bg-rose-50 text-rose-700 border-rose-100";
+    case "Pending":
+      return "bg-amber-50 text-amber-700 border-amber-100";
+    case "Reopened":
+      return "bg-purple-50 text-purple-700 border-purple-100";
+    default:
+      return "bg-slate-50 text-slate-700 border-slate-200";
+  }
+}
+
 function LifecycleBadge({ state }) {
   const icons = {
     New: <AlertCircle size={12} />,
@@ -261,264 +799,6 @@ function LifecycleBadge({ state }) {
     "Not Interested": <X size={12} />,
   };
   return <StatusBadge state={state} icon={icons[state]} />;
-}
-
-function LeadIntelligenceRecord({
-  lead,
-  handleCustomerRedirect,
-  handleCopyPhone,
-  copiedPhone,
-}) {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  // All fields are perfectly computed and provided directly by the backend API
-  const interactionTimeline = lead.leads || [];
-  const interactionCount = lead.interactionCount || 0;
-  const currentHandler = lead.currentHandler || "Admin";
-  const leadLifecycleState = lead.status || "New";
-  const leadType = lead.leadType || "Direct Lead";
-  const revenueAttribution = lead.revenueAttribution || 0;
-  const isClosed = lead.isClosed || false;
-  const ownershipTransitionText = lead.ownershipTransitionText;
-  const lastActivityDate = lead.lastActivityDate
-    ? new Date(lead.lastActivityDate)
-    : new Date();
-  const displayName = lead.displayName || lead.phone.replace("whatsapp:", "");
-  const displayCity = lead.displayCity || "Unknown Location";
-
-  return (
-    <div
-      className={`bg-white  shadow-sm border border-slate-200 overflow-hidden transition-all hover:shadow-md`}
-    >
-      {/* --- SUMMARY LAYER (Always Visible) --- */}
-      <div
-        className="flex flex-col lg:flex-row lg:items-center justify-between p-5 cursor-pointer hover:bg-slate-50 transition-colors gap-4 lg:gap-6 relative"
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        {/* 1. Identity Section */}
-        <div className="flex items-center gap-4 flex-1 min-w-0">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-100 to-teal-50 text-emerald-700 flex items-center justify-center font-extrabold text-lg shrink-0 border border-emerald-200">
-            {displayName.charAt(0).toUpperCase()}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h3 className="font-extrabold text-slate-800 text-base truncate">
-                {displayName}
-              </h3>
-              <button
-                onClick={(e) =>
-                  handleCopyPhone(e, lead.phone.replace("whatsapp:", ""))
-                }
-                className="text-slate-400 hover:text-[#00a884] transition-colors"
-                title="Copy Phone"
-              >
-                {copiedPhone === lead.phone.replace("whatsapp:", "") ? (
-                  <Check size={14} className="text-[#00a884]" />
-                ) : (
-                  <Copy size={14} />
-                )}
-              </button>
-            </div>
-            <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-1">
-              <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">
-                {lead.phone.replace("whatsapp:", "")}
-              </span>
-              <span className="flex items-center gap-1 truncate">
-                <MapPin size={12} className="shrink-0" /> {displayCity}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* 2. Lifecycle & Ownership Section */}
-        <div className="flex flex-col lg:items-start gap-1.5 flex-1 min-w-0 border-l-2 border-transparent lg:border-slate-100 lg:pl-6">
-          <div className="flex items-center gap-2">
-            <LifecycleBadge state={leadLifecycleState} />
-            {isClosed && ownershipTransitionText && (
-              <span className="text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1 whitespace-nowrap">
-                {ownershipTransitionText}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 mt-0.5 bg-slate-50 px-2 py-1 rounded border border-slate-100 w-max">
-            <UserCircle size={12} className="text-slate-400" />
-            Handler: <span className="text-[#00a884]">{currentHandler}</span>
-          </div>
-        </div>
-
-        {/* 3. Activity & Context Section */}
-        <div className="flex flex-col lg:items-end gap-1.5 shrink-0 border-l-2 border-transparent lg:border-slate-100 lg:pl-6">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-            <History size={14} className="text-blue-500" />
-            {interactionCount} Closure{interactionCount !== 1 ? "s" : ""}
-          </div>
-          <div className="text-[11px] font-medium text-slate-500">
-            Last Active:{" "}
-            {lastActivityDate.toLocaleDateString("en-IN", {
-              day: "numeric",
-              month: "short",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </div>
-          <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">
-            <Tag size={10} /> {leadType}
-          </div>
-          {/* Sales Attribution Snippet (If Deal Closed) */}
-          {isClosed && revenueAttribution > 0 && (
-            <div className="absolute top-4 right-4 lg:relative lg:top-0 lg:right-0 bg-gradient-to-r from-emerald-500 to-[#00a884] text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm">
-              <TrendingUp size={14} />
-              <span className="text-xs font-bold">
-                ₹{revenueAttribution.toLocaleString()}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Expansion Chevron */}
-        <div className="absolute bottom-4 right-4 lg:relative lg:bottom-0 lg:right-0 text-slate-400 p-1.5 hover:bg-slate-100 rounded-full transition-colors">
-          {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-        </div>
-      </div>
-
-      {/* --- DETAIL LAYER (Interaction Timeline) --- */}
-      {isExpanded && (
-        <div className="bg-slate-50 border-t border-slate-200 p-5 lg:p-8 crm-slide-in-top">
-          <div className="flex items-center justify-between mb-6">
-            <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-              <Clock size={16} className="text-[#00a884]" /> Interaction
-              Timeline
-            </h4>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => handleCustomerRedirect(lead.phone)}
-                className="text-[11px] font-bold bg-[#00a884] text-white px-3 py-1.5 rounded-lg hover:bg-emerald-600 transition-colors flex items-center gap-1.5 shadow-sm shadow-emerald-200"
-              >
-                <User size={12} /> See More
-              </button>
-            </div>
-          </div>
-
-          <div className="ml-2 border-l-2 border-slate-200 pl-6 space-y-8 relative">
-            {interactionTimeline.length === 0 ? (
-              <div className="text-sm text-slate-500 font-medium pb-2">
-                No timeline data available.
-              </div>
-            ) : (
-              [...interactionTimeline]
-                .reverse()
-                .slice(0, 2)
-                .map((interaction, index, interactionList) => {
-                  const previousInteraction = interactionList[index + 1];
-                  const leadTransferred =
-                    previousInteraction &&
-                    previousInteraction.associateName !== interaction.associateName;
-
-                  return (
-                    <div key={interaction._id || index} className="relative">
-                      <div className="absolute -left-[31px] top-1 w-4 h-4 rounded-full bg-slate-100 border-2 border-[#00a884] shadow-sm"></div>
-
-                      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm relative hover:border-[#00a884]/30 transition-colors">
-                        {leadTransferred && (
-                          <div className="absolute -top-3 left-4 bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
-                            <RefreshCcw size={10} /> Lead Transition
-                          </div>
-                        )}
-
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                          <div className="flex items-center gap-3">
-                            <LifecycleBadge state={interaction.status} />
-                            <span className="text-[11px] font-mono text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
-                              {new Date(interaction.date).toLocaleString("en-IN", {
-                                day: "numeric",
-                                month: "short",
-                                year: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                          </div>
-                          <div className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 w-max">
-                            <UserCircle
-                              size={12}
-                              className={
-                                leadTransferred
-                                  ? "text-blue-500"
-                                  : "text-slate-400"
-                              }
-                            />
-                            Handled by:{" "}
-                            <span
-                              className={
-                                leadTransferred
-                                  ? "text-blue-700"
-                                  : "text-slate-700"
-                              }
-                            >
-                              {interaction.associateName || "Unknown"}
-                            </span>
-                          </div>
-                        </div>
-
-                        {interaction.enquiredFor && (
-                          <div className="mb-2 text-sm text-slate-800">
-                            <span className="font-bold text-slate-500 mr-2 text-xs">
-                              Enquiry:
-                            </span>
-                            <span className="font-semibold">
-                              {interaction.enquiredFor}
-                            </span>
-                          </div>
-                        )}
-
-                        {interaction.overAllRemarks && (
-                          <div className="bg-[#f8fafc] border border-slate-100 rounded-lg p-3 text-sm text-slate-600 font-medium italic mt-2">
-                            <CornerDownRight
-                              size={14}
-                              className="inline mr-2 text-slate-400"
-                            />
-                            "{interaction.overAllRemarks}"
-                          </div>
-                        )}
-
-                        {(interaction.day1Remarks ||
-                          interaction.day2Remarks ||
-                          interaction.day3Remarks) && (
-                          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 border-t border-slate-100 pt-3">
-                            {interaction.day1Remarks && (
-                              <DayNote day={1} text={interaction.day1Remarks} />
-                            )}
-                            {interaction.day2Remarks && (
-                              <DayNote day={2} text={interaction.day2Remarks} />
-                            )}
-                            {interaction.day3Remarks && (
-                              <DayNote day={3} text={interaction.day3Remarks} />
-                            )}
-                          </div>
-                        )}
-
-                        {interaction.status === "Closed" &&
-                          parseInt(interaction.saleAmount) > 0 && (
-                            <div className="mt-3 flex items-center gap-2 bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs font-bold px-3 py-2 rounded-lg w-max">
-                              <TrendingUp
-                                size={14}
-                                className="text-emerald-500"
-                              />
-                              Revenue Attribution: ₹
-                              {parseInt(interaction.saleAmount).toLocaleString()}
-                            </div>
-                          )}
-                      </div>
-                    </div>
-                  );
-                })
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 const DayNote = ({ day, text }) => (
@@ -557,7 +837,7 @@ const CreateLeadModal = ({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar select-none">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-5">
             <div>
