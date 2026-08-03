@@ -354,7 +354,7 @@ export default function ChatList({ role, loading }) {
             const displayName = resolveCustomerDisplayName(chat);
             const dateObj = parseDate(chat.lastSeenAt || chat.timestamp);
 
-            const isClosed = chat.isChatClosed || chat.status === "Closed";
+            const isClosed = chat.status === "Closed";
 
             return (
               <div
@@ -399,7 +399,7 @@ export default function ChatList({ role, loading }) {
                       ${getAvatarGradient(displayName)}
                     `}
                   >
-                    {displayName.charAt(0)}
+                    {displayName.charAt(0) ==="+" ? displayName.charAt(3) : displayName.charAt(0)}
                   </div>
                   {/* Status Indicator Dot */}
                   <span

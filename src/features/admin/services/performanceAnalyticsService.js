@@ -411,11 +411,43 @@ export async function getPerformanceAnalytics({
     .sort((a, b) => b.score - a.score)
     .slice(0, 5);
 
+  // Retrieve recent chronological activity logs for Live Activity Feed
+  const customerQuery = {};
+  if (branchFilter !== "all" && branchFilter !== "none") {
+    customerQuery.branchId = branchFilter;
+  }
+  const recentCustomers = await Customer.find(customerQuery)
+    .sort({ "chatHistory.timestamp": -1 })
+    .limit(40)
+    .lean();
+
+  const liveActivity = [];
+  recentCustomers.forEach(customer => {
+    const history = customer.chatHistory || [];
+    history.forEach(item => {
+      liveActivity.push({
+        id: item._id?.toString() || `${customer.phone}-${item.timestamp ? new Date(item.timestamp).getTime() : Date.now()}-${Math.random()}`,
+        customerName: resolveCustomerDisplayName(customer),
+        phone: customer.phone,
+        enquiredFor: customer.enquiredFor || "-",
+        currentStatus: customer.status || "New",
+        activityType: item.action || item.eventType || "-",
+        timestamp: item.timestamp || item.performedAt || new Date(),
+        performedBy: item.performedByName || "System",
+        notes: item.notes || "-"
+      });
+    });
+  });
+
+  liveActivity.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  const initialLiveActivity = liveActivity.slice(0, 20);
+
   return {
     associateAnalytics,
     branchAnalytics,
     leadAnalytics,
-    topPerformers
+    topPerformers,
+    liveActivity: initialLiveActivity
   };
 }
 

@@ -173,7 +173,8 @@ export async function GET(req, { params }) {
     }
 }
 
-// --- PUT: Update Single Customer Profile ---
+import { serverCustomerService } from "@/server/services/serverCustomerService";
+
 export async function PUT(req, { params }) {
     try {
         const session = await getServerSession(authOptions);
@@ -183,131 +184,15 @@ export async function PUT(req, { params }) {
         
         const resolvedParams = await params;
         const rawPhone = decodeURIComponent(resolvedParams.phone || "");
-        const cleanPhone = rawPhone.replace(/\D/g, '');
-        
-        const variations = [
-            cleanPhone, 
-            `whatsapp:${cleanPhone}`, 
-            `whatsapp:+${cleanPhone}`,
-            `+${cleanPhone}`
-        ];
-
-        if (cleanPhone.startsWith('91') && cleanPhone.length === 12) {
-            const tenDigit = cleanPhone.substring(2);
-            variations.push(tenDigit);
-            variations.push(`whatsapp:${tenDigit}`);
-            variations.push(`whatsapp:+91${tenDigit}`);
-            variations.push(`+91${tenDigit}`);
-        } else if (cleanPhone.length === 10) {
-            variations.push(`91${cleanPhone}`);
-            variations.push(`whatsapp:91${cleanPhone}`);
-            variations.push(`whatsapp:+91${cleanPhone}`);
-            variations.push(`+91${cleanPhone}`);
-        }
-
         const body = await req.json();
 
-        // Validate branchId if supplied
-        let resolvedBranchName = "Unassigned Branch";
-        let resolvedBranchCode = "";
-        if (body.branchId) {
-            const branchDoc = await Branch.findOne({ _id: body.branchId, status: "active" }).lean();
-            if (!branchDoc) {
-                return NextResponse.json({ error: "Invalid or inactive branch selected." }, { status: 400 });
-            }
-            resolvedBranchName = branchDoc.name;
-            resolvedBranchCode = branchDoc.code || "";
-        }
-
-        // Dynamically build the update payload safely
-        const setPayload = {
-            updatedAt: new Date()
-        };
-        if (body.name?.trim()) setPayload.name = body.name.trim();
-        if (body.city?.trim()) setPayload.city = body.city.trim();
-        if (body.address?.trim()) setPayload.address = body.address.trim();
-        if (body.source?.trim()) setPayload.source = body.source.trim();
-        if (body.enquiredFor?.trim()) setPayload.enquiredFor = body.enquiredFor.trim();
-        if (body.status?.trim()) setPayload.status = body.status.trim();
-        if (body.saleAmount !== undefined) setPayload.saleAmount = body.saleAmount.toString();
-        if (body.remarks?.trim()) setPayload.remarks = body.remarks.trim();
-
-        if (body.branchId !== undefined) {
-            setPayload.branchId = body.branchId || null;
-        }
-        if (body.assignedTwilioNumber !== undefined) {
-            setPayload.assignedTwilioNumber = body.assignedTwilioNumber || null;
-        }
-
-        const { getBranchFilterForUser } = await import("@/shared/utils/serverAuth");
-        const { branchQuery } = await getBranchFilterForUser(session);
- 
-        // Allow updating customer if branchQuery matches OR if customer's branch is currently null/unassigned
-        const findQuery = { phone: { $in: variations } };
-        if (session?.user?.role !== "superAdmin" && branchQuery?.branchId) {
-            findQuery.$or = [
-                branchQuery,
-                { branchId: null },
-                { branchId: { $exists: false } }
-            ];
-        }
-
-        const existingCustomer = await Customer.findOne(findQuery).lean();
-        const oldBranchId = existingCustomer?.branchId ? existingCustomer.branchId.toString() : null;
-        const newBranchId = body.branchId ? body.branchId.toString() : null;
-
-        const updateData = { 
-            $set: setPayload,
-            $setOnInsert: {
-                phone: variations[0]?.startsWith("whatsapp:") ? variations[0] : `whatsapp:${cleanPhone}`,
-                createdBy: session.user.id
-            }
-        };
- 
-        if (body.branchId !== undefined && oldBranchId !== newBranchId) {
-            const now = new Date();
-            updateData.$push = {
-                chatHistory: {
-                    action: "Branch Reassigned",
-                    eventType: "Chat Branch Reassigned",
-                    performedBy: session.user.id,
-                    performedById: session.user.id,
-                    performedByName: session.user.name || "User",
-                    performedByRole: session.user.role || "associate",
-                    performedAt: now,
-                    timestamp: now,
-                    notes: `Branch updated to ${resolvedBranchName} by ${session.user.name}`
-                }
-            };
-        }
- 
-        const updatedCustomer = await Customer.findOneAndUpdate(
-            findQuery,
-            updateData,
-            { upsert: true, returnDocument: "after", runValidators: true }
-        );
-
-        if (!updatedCustomer) {
-            return NextResponse.json({ error: "Customer not found for update" }, { status: 404 });
-        }
-
-        // Emit Socket.IO Event for Real-Time Branch Visibility & UI Updates
-        if (global.io) {
-            const emitData = {
-                phone: updatedCustomer.phone,
-                branchId: updatedCustomer.branchId ? updatedCustomer.branchId.toString() : null,
-                branchName: resolvedBranchName,
-                updatedBy: { id: session.user.id, name: session.user.name }
-            };
-            global.io.emit("customer_branch_updated", emitData);
-            global.io.emit("customer_updated", emitData);
-        }
+        const { customer, branchName, branchCode } = await serverCustomerService.updateCustomer(rawPhone, body, session);
 
         const rawCustomer = {
-            ...updatedCustomer.toObject(),
-            branchId: updatedCustomer.branchId ? updatedCustomer.branchId.toString() : null,
-            branchName: resolvedBranchName,
-            branchCode: resolvedBranchCode
+            ...customer.toObject(),
+            branchId: customer.branchId ? customer.branchId.toString() : null,
+            branchName,
+            branchCode
         };
         const sanitizedCustomer = sanitizeCustomerOrLeadData(rawCustomer, session.user);
  
@@ -319,6 +204,6 @@ export async function PUT(req, { params }) {
 
     } catch (error) {
         console.error("Update Customer Error:", error);
-        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+        return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
     }
 }

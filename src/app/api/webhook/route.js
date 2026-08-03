@@ -6,6 +6,7 @@ import redis from "@/shared/lib/db/redis";
 import twilio from "twilio";
 import { processKeywordAutoReply } from "@/features/chat/services/keywordMatcher";
 import { isValidDisplayName } from "@/shared/utils/customerResolver";
+import { emitNewMessage, emitCategoryMessage, emitChatLockUpdated } from "@/shared/utils/socketPublisher";
 
 import {
   determineConversationRoute,
@@ -305,56 +306,51 @@ export async function POST(req) {
       console.log("💾 [WEBHOOK] Mirror saved to Global Inbox.");
     }
 
-    if (global.io) {
-      const lastSaved = savedMessages[savedMessages.length - 1];
-      const categoryEmit = {
-        phone,
-        name: profileName,
-        message: messageText || (numMedia > 0 ? "📷 Media" : ""),
-        direction: "INBOUND",
-        timestamp: lastSaved.timestamp || new Date(),
-        chatType: targetCategory,
-        mediaUrl: inboundMessages[0]?.mediaUrl || "",
-        mediaType: inboundMessages[0]?.mediaType || "",
-        isChatClosed: false,
-        read: "FALSE",
-        receivedOnNumber,
-        branchId,
-        friendlyName: twilioNumberDoc?.friendlyName || "",
-      };
+    const lastSaved = savedMessages[savedMessages.length - 1];
+    const categoryEmit = {
+      phone,
+      name: profileName,
+      message: messageText || (numMedia > 0 ? "📷 Media" : ""),
+      direction: "INBOUND",
+      timestamp: lastSaved.timestamp || new Date(),
+      chatType: targetCategory,
+      mediaUrl: inboundMessages[0]?.mediaUrl || "",
+      mediaType: inboundMessages[0]?.mediaType || "",
+      isChatClosed: false,
+      read: "FALSE",
+      receivedOnNumber,
+      branchId,
+      friendlyName: twilioNumberDoc?.friendlyName || "",
+    };
 
-      const catLabel =
-        targetCategory === "Product Lead"
-          ? "Product Inquiry"
-          : targetCategory === "MD Camp"
-            ? "MD Camp"
-            : targetCategory === "Therapy"
-              ? "Therapy"
-              : null;
+    const catLabel =
+      targetCategory === "Product Lead"
+        ? "Product Inquiry"
+        : targetCategory === "MD Camp"
+          ? "MD Camp"
+          : targetCategory === "Therapy"
+            ? "Therapy"
+            : null;
 
-      if (targetCategory === "Product Lead")
-        global.io.emit("new_product_message", categoryEmit);
-      else if (targetCategory === "MD Camp")
-        global.io.emit("new_mdcamp_message", categoryEmit);
-      else if (targetCategory === "Therapy")
-        global.io.emit("new_therapy_message", categoryEmit);
-
-      global.io.emit("new_message", {
-        ...categoryEmit,
-        message: indicationText || categoryEmit.message,
-        categoryLabel: catLabel,
-      });
-
-      // Update lock if chat is being handled
-      if (global.activeChatHandlers && global.activeChatHandlers.has(phone)) {
-        const handler = global.activeChatHandlers.get(phone);
-        handler.lockedUntil = Date.now() + 5 * 60 * 1000; // 5 minutes timeout
-        global.io.emit("chat_lock_updated", { phone, handler });
-        console.log(`🔒 [WEBHOOK] Lock timeout started for ${phone}`);
-      }
-
-      console.log("⚡ [WEBHOOK] Socket events emitted.");
+    if (targetCategory !== "Direct Lead") {
+      emitCategoryMessage(targetCategory, categoryEmit, branchId);
     }
+
+    emitNewMessage({
+      ...categoryEmit,
+      message: indicationText || categoryEmit.message,
+      categoryLabel: catLabel,
+    }, branchId);
+
+    // Update lock if chat is being handled
+    if (global.activeChatHandlers && global.activeChatHandlers.has(phone)) {
+      const handler = global.activeChatHandlers.get(phone);
+      handler.lockedUntil = Date.now() + 5 * 60 * 1000; // 5 minutes timeout
+      emitChatLockUpdated({ phone, handler }, branchId);
+      console.log(`🔒 [WEBHOOK] Lock timeout started for ${phone}`);
+    }
+
+    console.log("⚡ [WEBHOOK] Socket events emitted.");
 
     // 🚀 KEYWORD AUTO-REPLY MIDDLEWARE (Uses incoming business number)
     try {

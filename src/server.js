@@ -2,6 +2,7 @@ import { createServer } from "http";
 import { parse } from "url"; 
 import next from "next";
 import { Server } from "socket.io";
+import { publishPerformanceEvent } from "./shared/utils/socketPublisher.js";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOST || "localhost";
@@ -94,6 +95,26 @@ app.prepare().then(() => {
         });
         io.emit("presence_change", Array.from(onlineUsers.values()));
         console.log(`👤 User registered: ${userData.name} (${userData.role})`);
+
+        // Scope performance monitor events by role & branch
+        if (userData.role === "superAdmin") {
+          socket.join("performance-monitor:all");
+          console.log(`🔌 Super Admin socket ${socket.id} joined performance-monitor:all`);
+        } else if (userData.role === "admin") {
+          const branchId = userData.branchId || userData.branch;
+          if (branchId) {
+            socket.join(`performance-monitor:branch:${branchId}`);
+            console.log(`🔌 Admin socket ${socket.id} joined performance-monitor:branch:${branchId}`);
+          }
+        }
+
+        // Publish presence online event
+        const branchId = userData.branchId || userData.branch;
+        publishPerformanceEvent("associate_online", {
+          associateId: userData.userId,
+          name: userData.name,
+          branchId
+        }, branchId);
       }
     });
 
@@ -114,7 +135,7 @@ app.prepare().then(() => {
     });
 
     socket.on("join_chat", (data) => {
-      // data: { phone, user: { name, email, id } }
+      // data: { phone, user: { name, email, id, role, department, branch, branchId } }
       const incomingUserId = data.user.id || data.user.email;
       const existingHandler = activeChatHandlers.get(data.phone);
       
@@ -131,8 +152,16 @@ app.prepare().then(() => {
         if (handler.socketId === socket.id && phone !== data.phone) {
           activeChatHandlers.delete(phone);
           io.emit("chat_unhandled", { phone });
+
+          const userBranch = handler.branchId || handler.branch || null;
+          publishPerformanceEvent("active_chat_closed", {
+            phone,
+            branchId: userBranch
+          }, userBranch);
         }
       }
+
+      const userBranch = data.user.branchId || data.user.branch || null;
 
       activeChatHandlers.set(data.phone, {
         userId: incomingUserId,
@@ -142,9 +171,18 @@ app.prepare().then(() => {
         lockedUntil: null, // Infinite lock until inbound message
         role: data.user.role || "",
         department: data.user.department || "",
+        branch: userBranch,
+        branchId: userBranch
       });
 
-      io.emit("chat_handled", { phone: data.phone, handler: activeChatHandlers.get(data.phone) });
+      const handlerInfo = activeChatHandlers.get(data.phone);
+      io.emit("chat_handled", { phone: data.phone, handler: handlerInfo });
+
+      publishPerformanceEvent("active_chat_started", {
+        phone: data.phone,
+        handler: handlerInfo,
+        branchId: userBranch
+      }, userBranch);
     });
 
     socket.on("leave_chat", (data) => {
@@ -152,6 +190,12 @@ app.prepare().then(() => {
       if (handler && handler.socketId === socket.id) {
         activeChatHandlers.delete(data.phone);
         io.emit("chat_unhandled", { phone: data.phone });
+
+        const userBranch = handler.branchId || handler.branch || null;
+        publishPerformanceEvent("active_chat_closed", {
+          phone: data.phone,
+          branchId: userBranch
+        }, userBranch);
       }
     });
 
@@ -169,11 +213,24 @@ app.prepare().then(() => {
         onlineUsers.delete(socket.id);
         io.emit("presence_change", Array.from(onlineUsers.values()));
         console.log(`👤 User deregistered: ${u?.name}`);
+
+        const branchId = u?.branchId || u?.branch;
+        publishPerformanceEvent("associate_offline", {
+          associateId: u?.userId,
+          name: u?.name,
+          branchId
+        }, branchId);
       }
       for (const [phone, handler] of activeChatHandlers.entries()) {
         if (handler.socketId === socket.id) {
           activeChatHandlers.delete(phone);
           io.emit("chat_unhandled", { phone });
+
+          const userBranch = handler.branchId || handler.branch || null;
+          publishPerformanceEvent("active_chat_closed", {
+            phone,
+            branchId: userBranch
+          }, userBranch);
         }
       }
     });

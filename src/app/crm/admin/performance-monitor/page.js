@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, Fragment } from "react";
 import { useSession } from "next-auth/react";
 import { useAuth } from "@/shared/hooks/useAuth";
+import { useQueryClient } from "@tanstack/react-query";
 import DashboardPage from "@/shared/components/layout/DashboardPage";
 import LoadingScreen from "@/shared/components/ui/LoadingScreen";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
@@ -41,6 +42,7 @@ export default function PerformanceMonitor() {
   const { data: session, status } = useSession();
   const { user, isLoading, isAdmin, isSuperAdmin: isSuperAdminUser } = useAuth();
   const isAuthorized = isAdmin;
+  const queryClient = useQueryClient();
 
   const {
     filters,
@@ -48,7 +50,8 @@ export default function PerformanceMonitor() {
     isLoading: isStoreLoading,
     setFilter,
     fetchAnalytics,
-    refresh
+    refresh,
+    mergeSocketEvent
   } = usePerformanceMonitorStore();
 
   const onlineUserIds = usePresenceStore((state) => state.onlineUserIds);
