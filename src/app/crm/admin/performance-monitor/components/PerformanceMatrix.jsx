@@ -159,7 +159,7 @@ export default function PerformanceMatrix({
                           <Eye size={12} />
                         </button>
                         <a
-                          href={`/crm/associate-management/${associate.id}`}
+                          href={`/crm/admin/associate-management/${associate.id}`}
                           className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                           title="Open Profile Page"
                         >

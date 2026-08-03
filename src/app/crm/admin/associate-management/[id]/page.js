@@ -103,7 +103,7 @@ export default function EditAssociatePage() {
       });
     } catch (error) {
       toast.error("Error connecting to server");
-      router.push("/crm/associate-management");
+      router.push("/crm/admin/associate-management");
     } finally {
       setLoading(false);
     }
@@ -134,7 +134,7 @@ export default function EditAssociatePage() {
     try {
       await userRepository.updateUser(id, formData);
       toast.success("Profile updated successfully!");
-      router.push("/crm/associate-management");
+      router.push("/crm/admin/associate-management");
     } catch (err) {
       const errorMessage = err.response?.data?.error || "An unexpected error occurred.";
       toast.error(errorMessage);

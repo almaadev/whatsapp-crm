@@ -56,7 +56,7 @@ export function checkPermissions(userOrSession, config) {
 const ROUTE_RULES = [
   { path: "/branches", superAdminAndAdminDeptOnly: true },
   { path: "/crm/admin", adminOnly: true },
-  { path: "/crm/associate-management", adminOnly: true },
+  { path: "/crm/admin/associate-management", adminOnly: true },
   { path: "/crm/associate", hideForAdmin: true },
   { path: "/crm/chat/new-customer", moduleName: "Chat Inbox" },
   { path: "/crm/chat", moduleName: "Chat Inbox" },

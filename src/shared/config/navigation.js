@@ -19,7 +19,7 @@ export const NAVIGATION_CONFIG = [
       "/crm/admin",
       "/crm/admin/performance-monitor",
       "/crm/admin/reports",
-      "/crm/associate-management",
+      "/crm/admin/associate-management",
       "/crm/admin/template-manager",
       "/crm/admin/twilio",
       "/crm/admin/keyword-automation",
@@ -28,7 +28,7 @@ export const NAVIGATION_CONFIG = [
     items: [
       { label: "Dashboard", href: "/crm/admin" },
       { label: "Reports & Export", href: "/crm/admin/reports" },
-      { label: "Manage Associates", href: "/crm/associate-management" },
+      { label: "Manage Associates", href: "/crm/admin/associate-management" },
       { label: "Manage Branches", href: "/crm/admin/branches", superAdminAndAdminDeptOnly: true },
       { label: "Template Manager", href: "/crm/admin/template-manager" },
       { label: "Automatic Reply", href: "/crm/admin/keyword-automation" },
