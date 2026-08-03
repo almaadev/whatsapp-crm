@@ -51,6 +51,8 @@ export async function GET(req, { params }) {
     const { getBranchFilterForUser } = await import("@/shared/utils/serverAuth");
     const { branchQuery } = await getBranchFilterForUser(session);
 
+    const targetType = resolved.chatType;
+
     const [customers, leads] = await Promise.all([
       Customer.find(
         { phone: { $in: phones }, ...branchQuery },
@@ -63,9 +65,7 @@ export async function GET(req, { params }) {
     ]);
 
     const allowedPhonesSet = new Set(customers.map((c) => c.phone));
-    if (session?.user?.role !== "superAdmin") {
-      phones = phones.filter((p) => allowedPhonesSet.has(p));
-    }
+    phones = phones.filter((p) => allowedPhonesSet.has(p));
 
     const messagesByPhone = new Map();
     for (const msg of allMessages) {
@@ -188,19 +188,6 @@ export async function POST(req, { params }) {
       sendBy: session.user.id,
     });
 
-    const messageRecord = await Message.create({
-      phone: formattedTo,
-      message: `${message}\nFrom ${chatType} chat by ${session?.user?.name || session?.user?.email}`,
-      direction: "OUTBOUND",
-      status: twilioStatus,
-      twilioSid,
-      timestamp: new Date(),
-      chatType,
-      senderName: session?.user?.name || "Associate",
-      role: session?.user?.role || "associate",
-      sendBy: session.user.id,
-    });
-
     await Customer.findOneAndUpdate(
       { phone: formattedTo },
       {
@@ -235,10 +222,6 @@ export async function POST(req, { params }) {
         senderRole: session?.user?.role || "associate",
       };
       global.io.emit(socketEvent, emitPayload);
-      global.io.emit("new_message", {
-        ...emitPayload,
-        timestamp: messageRecord.timestamp ?? messageRecord.createdAt ?? new Date(),
-      });
       
       if (global.activeChatHandlers && global.activeChatHandlers.has(formattedTo)) {
         const handler = global.activeChatHandlers.get(formattedTo);

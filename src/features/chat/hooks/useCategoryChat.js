@@ -153,14 +153,18 @@ export function useCategoryChat(slug) {
     };
 
     const handleCustomerUpdated = (data) => {
+      fetchChats();
       if (data?.phone) {
         useStore.getState().updateChatDetails(data.phone, data);
       }
+      try {
+        queryClient.invalidateQueries({ queryKey: ["category-chats", slug] });
+      } catch (qErr) {}
     };
 
     const socket = connectSocket();
     socket.on(config.socketEvent, handleNewMessage);
-    socket.on("new_message", handleNewMessage);
+    socket.on("incoming-message", handleNewMessage);
     socket.on("message_status_update", handleStatusUpdate);
     socket.on("chat_status_updated", handleChatStatusUpdated);
     socket.on("customer_branch_updated", handleCustomerUpdated);
@@ -168,13 +172,13 @@ export function useCategoryChat(slug) {
 
     return () => {
       socket.off(config.socketEvent, handleNewMessage);
-      socket.off("new_message", handleNewMessage);
+      socket.off("incoming-message", handleNewMessage);
       socket.off("message_status_update", handleStatusUpdate);
       socket.off("chat_status_updated", handleChatStatusUpdated);
       socket.off("customer_branch_updated", handleCustomerUpdated);
       socket.off("customer_updated", handleCustomerUpdated);
     };
-  }, [slug, config.chatType, config.socketEvent, fetchChats, useStore]);
+  }, [slug, config.chatType, config.socketEvent, fetchChats, useStore, queryClient]);
 
   return { loading, sending, fetchChats, sendMessage, updateStatus, useStore, config };
 }

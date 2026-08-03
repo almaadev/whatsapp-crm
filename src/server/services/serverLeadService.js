@@ -132,6 +132,9 @@ export const serverLeadService = {
       priority: resolvedPriority,
       assignedTo: currentUser,
     };
+    if (body.leadType) {
+      customerSetPayload.activeRouteCategory = body.leadType;
+    }
     if (body.branchId !== undefined) {
       customerSetPayload.branchId = resolvedBranchId;
     }
@@ -459,6 +462,14 @@ export const serverLeadService = {
         performedBy: session.user.name
       }, resolvedBranchId);
     }
+
+    emitCustomerUpdated({
+      phone: cleanPhone,
+      assignedTo: currentUser,
+      status: resolvedStatus,
+      name: resolvedName,
+      activeRouteCategory: body.leadType || (existingCustomer?.activeRouteCategory || "Direct Lead"),
+    }, resolvedBranchId);
 
     return { customer: updatedCustomer, lead: updatedLead, action };
   }

@@ -291,21 +291,6 @@ export async function POST(req) {
       `💾 [WEBHOOK] ${savedMessages.length} message(s) saved to ${targetCategory}.`,
     );
 
-    const indicationText =
-      targetCategory !== "Direct Lead"
-        ? `🔄 [ROUTED TO ${targetCategory.toUpperCase()}]\n\nCustomer said: ${messageText || "(media)"}`
-        : messageText;
-
-    if (targetCategory !== "Direct Lead") {
-      const mirrorMessages = inboundMessages.map((msg, i) => ({
-        ...msg,
-        message: indicationText,
-        twilioSid: `${msg.twilioSid}_mirror`,
-      }));
-      await Message.insertMany(mirrorMessages);
-      console.log("💾 [WEBHOOK] Mirror saved to Global Inbox.");
-    }
-
     const lastSaved = savedMessages[savedMessages.length - 1];
     const categoryEmit = {
       phone,
@@ -332,15 +317,11 @@ export async function POST(req) {
             ? "Therapy"
             : null;
 
-    if (targetCategory !== "Direct Lead") {
-      emitCategoryMessage(targetCategory, categoryEmit, branchId);
+    if (targetCategory === "Direct Lead") {
+      emitNewMessage(categoryEmit, branchId);
+    } else {
+      emitCategoryMessage(targetCategory, { ...categoryEmit, categoryLabel: catLabel }, branchId);
     }
-
-    emitNewMessage({
-      ...categoryEmit,
-      message: indicationText || categoryEmit.message,
-      categoryLabel: catLabel,
-    }, branchId);
 
     // Update lock if chat is being handled
     if (global.activeChatHandlers && global.activeChatHandlers.has(phone)) {

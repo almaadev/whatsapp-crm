@@ -42,22 +42,29 @@ export async function GET(request) {
       .populate({ path: "chatHistory.performedBy", select: "name role department" })
       .lean();
 
-    const allowedPhones = new Set(customers.map((c) => c.phone));
+    const inboxCustomers = customers.filter(
+      (c) => !c.activeRouteCategory || c.activeRouteCategory === "Direct Lead"
+    );
+    const allowedPhones = new Set(inboxCustomers.map((c) => c.phone));
 
     // Safe populate — fall back if sendBy has old non-ObjectId values
     let msgs;
     try {
-      msgs = await Message.find({ timestamp: { $gte: sixtyDaysAgo } })
+      msgs = await Message.find({ 
+        timestamp: { $gte: sixtyDaysAgo },
+        chatType: { $in: ["Direct Lead", null, undefined] }
+      })
         .populate({ path: "sendBy", select: "name" })
         .lean();
     } catch (populateErr) {
       console.error("[GET /api/chats] sendBy populate failed, using fallback:", populateErr.message);
-      msgs = await Message.find({ timestamp: { $gte: sixtyDaysAgo } }).lean();
+      msgs = await Message.find({ 
+        timestamp: { $gte: sixtyDaysAgo },
+        chatType: { $in: ["Direct Lead", null, undefined] }
+      }).lean();
     }
 
-    if (session?.user?.role !== "superAdmin") {
-      msgs = msgs.filter((m) => allowedPhones.has(m.phone));
-    }
+    msgs = msgs.filter((m) => allowedPhones.has(m.phone));
 
     const allMessages = msgs.map((m) => ({
       ...m,
@@ -215,15 +222,20 @@ export async function POST(req) {
       }
 
       let MsgModel = Message;
+      let socketEvent = "new_message";
       try {
         const lead = await Lead.findOne({ phone }).lean();
         if (lead) {
-          if (lead.leadType === "Product Lead")
+          if (lead.leadType === "Product Lead") {
             MsgModel = (await import("@/shared/models/ProductMessage")).default;
-          else if (lead.leadType === "MD Camp")
+            socketEvent = "new_product_message";
+          } else if (lead.leadType === "MD Camp") {
             MsgModel = (await import("@/shared/models/MDCampMessage")).default;
-          else if (lead.leadType === "Therapy")
+            socketEvent = "new_mdcamp_message";
+          } else if (lead.leadType === "Therapy") {
             MsgModel = (await import("@/shared/models/TherapyMessage")).default;
+            socketEvent = "new_therapy_message";
+          }
         }
       } catch (leadErr) {
         console.error("[POST /api/chats] Lead lookup error:", leadErr.message, { phone });
@@ -259,7 +271,7 @@ export async function POST(req) {
       // â”€â”€ Step 3: Emit real-time socket event (non-fatal) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       try {
         if (global.io) {
-          global.io.emit("new_message", {
+          global.io.emit(socketEvent, {
             phone,
             message,
             direction: "OUTBOUND",

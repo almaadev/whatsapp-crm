@@ -5,6 +5,7 @@ import connectDB from "@/shared/lib/db/mongodb";
 import Lead from "@/shared/models/Lead"; // 👈 ONLY unified Lead Model
 import User from "@/shared/models/User";
 import Customer from "@/shared/models/Customer"; // Main Customer DB
+import { emitCustomerUpdated } from "@/shared/utils/socketPublisher";
 
 // Match category from URL to the unified leadType
 const getCategoryConfig = (category) => {
@@ -74,17 +75,24 @@ export async function POST(req, { params }) {
         if (updateData.city) customerUpdate.city = updateData.city;
         if (updateData.address) customerUpdate.address = updateData.address;
         if (updateData.source) customerUpdate.source = updateData.source;
+        customerUpdate.activeRouteCategory = targetType;
 
         const customerUpdateOperation = { $set: customerUpdate };
         if (Object.keys(customerInsert).length > 0) {
             customerUpdateOperation.$setOnInsert = customerInsert;
         }
 
-        await Customer.findOneAndUpdate(
+        const updatedCustomer = await Customer.findOneAndUpdate(
             { phone: mobile },
             customerUpdateOperation,
             { returnDocument: 'after', upsert: true } 
         );
+
+        emitCustomerUpdated({
+            phone: mobile,
+            name: updatedCustomer.name || "Unknown",
+            activeRouteCategory: targetType
+        });
 
         return NextResponse.json({ success: true, lead: updatedLead });
     } catch (error) {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { chatService } from "@/features/chat/services/chatService";
-import { connectSocket, disconnectSocket } from "@/features/chat/services/socketService";
+import { connectSocket } from "@/features/chat/services/socketService";
 
 import { useChatStore } from "@/features/chat/stores/chatStore";
 
@@ -159,17 +159,17 @@ export function useChat(role) {
     const socket = connectSocket();
 
     socket.on("new_message", handleIncomingMessage);
+    socket.on("incoming-message", handleIncomingMessage);
     socket.on("message_status_update", handleStatusUpdate);
     socket.on("customer_branch_updated", handleCustomerBranchUpdate);
     socket.on("customer_updated", handleCustomerBranchUpdate);
 
     return () => {
       socket.off("new_message", handleIncomingMessage);
+      socket.off("incoming-message", handleIncomingMessage);
       socket.off("message_status_update", handleStatusUpdate);
       socket.off("customer_branch_updated", handleCustomerBranchUpdate);
       socket.off("customer_updated", handleCustomerBranchUpdate);
-
-      disconnectSocket();
     };
   }, [role, fetchChats, handleIncomingMessage, handleStatusUpdate, handleCustomerBranchUpdate]);
 

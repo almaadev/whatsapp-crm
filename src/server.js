@@ -176,6 +176,7 @@ app.prepare().then(() => {
       });
 
       const handlerInfo = activeChatHandlers.get(data.phone);
+      socket.join(data.phone);
       io.emit("chat_handled", { phone: data.phone, handler: handlerInfo });
 
       publishPerformanceEvent("active_chat_started", {
@@ -189,6 +190,7 @@ app.prepare().then(() => {
       const handler = activeChatHandlers.get(data.phone);
       if (handler && handler.socketId === socket.id) {
         activeChatHandlers.delete(data.phone);
+        socket.leave(data.phone);
         io.emit("chat_unhandled", { phone: data.phone });
 
         const userBranch = handler.branchId || handler.branch || null;

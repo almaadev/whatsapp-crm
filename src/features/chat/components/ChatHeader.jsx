@@ -61,7 +61,7 @@ const ChatHeader = memo(function ChatHeader({
         <div className="flex items-center gap-3 cursor-pointer min-w-0" onClick={onInfo}>
           {/* Avatar */}
           <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-500 flex items-center justify-center text-white font-extrabold text-base shrink-0 shadow-sm uppercase">
-            {displayName.charAt(0) ==="9" ? displayName.charAt(3) : displayName.charAt(0)}
+            {displayName.charAt(0) ==="9" ? displayName.charAt(2) : displayName.charAt(0)}
           </div>
 
           <div className="min-w-0">

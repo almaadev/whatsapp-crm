@@ -24,6 +24,11 @@ export function publishPerformanceEvent(eventType, payload, branchId) {
 
 export function emitNewMessage(payload, branchId = null) {
   if (!global.io) return;
+  const phone = payload.phone;
+  if (phone) {
+    global.io.to(phone).emit("incoming-message", payload);
+  }
+  global.io.emit("incoming-message", payload);
   global.io.emit("new_message", payload);
 
   // Send telemetry
@@ -40,6 +45,12 @@ export function emitNewMessage(payload, branchId = null) {
 
 export function emitCategoryMessage(category, payload, branchId = null) {
   if (!global.io) return;
+  const phone = payload.phone;
+  if (phone) {
+    global.io.to(phone).emit("incoming-message", payload);
+  }
+  global.io.emit("incoming-message", payload);
+
   if (category === "Product Lead") {
     global.io.emit("new_product_message", payload);
   } else if (category === "MD Camp") {
