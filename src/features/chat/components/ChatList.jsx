@@ -348,9 +348,7 @@ export default function ChatList({ role, loading }) {
               handler.userId !== (session?.user?.id || session?.user?.email) &&
               (!handler.lockedUntil || handler.lockedUntil > Date.now());
 
-            const cleanPhone = chat.phone
-              ? chat.phone.replace("whatsapp:", "")
-              : "";
+
             const displayName = resolveCustomerDisplayName(chat);
             const dateObj = parseDate(chat.lastSeenAt || chat.timestamp);
 
