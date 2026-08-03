@@ -316,7 +316,7 @@ export default function LeadsPage() {
             >
               <option value="all">All Associates</option>
               {allAssociatesList.map((assoc) => (
-                <option key={assoc._id} value={assoc.name}>{assoc.name}</option>
+                <option key={assoc.id || assoc._id} value={assoc.name}>{assoc.name}</option>
               ))}
             </select>
           )}

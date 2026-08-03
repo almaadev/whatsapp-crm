@@ -34,6 +34,9 @@ export function checkPermissions(userOrSession, config) {
   if (config.adminOnly && !isAdmin) return false;
   if (config.hideForAdmin && isAdmin) return false;
 
+  // Admins automatically have access to all modules and requirements
+  if (isAdmin) return true;
+
   // 2. Module verification
   if (config.moduleName && !accessModules.includes(config.moduleName)) {
     return false;
