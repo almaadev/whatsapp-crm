@@ -6,6 +6,7 @@ import { X, Send, User, Phone, MessageSquare, Share2, CheckCircle2, RotateCcw } 
 import { useChatStore } from "@/features/chat/stores/chatStore";
 import { toast } from "react-toastify";
 import { leadRepository } from "@/shared/api/repositories/leadRepository";
+import { resolveCustomerDisplayName, cleanPhoneNumber } from "@/shared/utils/customerResolver";
 
 export default function ForwardLeadModal({ isOpen, onClose, customer, onConfirm }) {
     const [targetPhone, setTargetPhone] = useState("+91");
@@ -25,7 +26,8 @@ export default function ForwardLeadModal({ isOpen, onClose, customer, onConfirm 
     // FIX: Only update message when the CUSTOMER changes, not on every poll
     useEffect(() => {
         if (customer) {
-            const defaultMsg = `*Forwarding Lead*\nName: ${customer.name || "Unknown"}\nPhone: ${customer.phone}\n\nPlease take over this inquiry.`;
+            const customerDisplayName = resolveCustomerDisplayName(customer);
+            const defaultMsg = `*Forwarding Lead*\nName: ${customerDisplayName}\nPhone: ${cleanPhoneNumber(customer.phone)}\n\nPlease take over this inquiry.`;
             setMessage(defaultMsg);
         }
     }, [customer?.phone]);
@@ -83,13 +85,20 @@ export default function ForwardLeadModal({ isOpen, onClose, customer, onConfirm 
                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-3 tracking-widest">Active Lead</p>
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold">
-                            {customer?.name ? customer.name.charAt(0).toUpperCase() : <User size={18} />}
-                        </div>
-                        <div>
-                            <p className="text-sm font-bold text-slate-800">{customer?.name || "Unknown"}</p>
-                            <p className="text-xs text-slate-500 font-mono">{customer?.phone}</p>
-                        </div>
+                        {(() => {
+                          const displayName = resolveCustomerDisplayName(customer);
+                          return (
+                            <>
+                              <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold uppercase">
+                                  {displayName.charAt(0)}
+                              </div>
+                              <div>
+                                  <p className="text-sm font-bold text-slate-800">{displayName}</p>
+                                  <p className="text-xs text-slate-500 font-mono">{cleanPhoneNumber(customer?.phone)}</p>
+                              </div>
+                            </>
+                          );
+                        })()}
                     </div>
                 </div>
 

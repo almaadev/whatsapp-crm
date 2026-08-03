@@ -1,5 +1,7 @@
 "use client";
 
+import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
+
 import {
   Users,
   AlertCircle,
@@ -257,7 +259,7 @@ export default function ExecutiveOverview({
                               : act.action}
                           </span>{" "}
                           <span className="font-black text-slate-800">
-                            {act.customerName || act.phone}
+                            {resolveCustomerDisplayName({ customerName: act.customerName, phone: act.phone })}
                           </span>
                         </p>
                         <span className="text-[9px] font-black text-slate-400 shrink-0 uppercase">

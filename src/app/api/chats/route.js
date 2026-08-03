@@ -9,6 +9,7 @@ import redis from "@/shared/lib/db/redis";
 import twilio from "twilio";
 import User from "@/shared/models/User";
 import { sanitizeChatList } from "@/shared/utils/privacy";
+import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 
 const REDIS_CACHE_TTL = 30;
 
@@ -110,7 +111,7 @@ export async function GET(request) {
         const customerInfo = contactMap.get(msg.phone) || {};
         return {
           phone: msg.phone,
-          name: customerInfo.name || msg.senderName || msg.phone,
+          name: resolveCustomerDisplayName({ phone: msg.phone, customerName: customerInfo.name, senderName: msg.senderName }),
           message: msg.message || "",
           direction: msg.direction,
           city: customerInfo.city || "",

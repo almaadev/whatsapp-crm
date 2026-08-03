@@ -7,6 +7,7 @@ import mongoose from "mongoose";
 import Branch from "@/shared/models/Branch";
 import User from "@/shared/models/User";
 import { sanitizeCustomerOrLeadData } from "@/shared/utils/privacy";
+import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 
 export const dynamic = "force-dynamic";
 
@@ -190,7 +191,7 @@ export async function GET(req, { params }) {
     // Construct the schema-aligned response
     const data = {
       // --- Static Root Metadata ---
-      name: lead?.name || customer?.name || "",
+      name: resolveCustomerDisplayName({ lead, customer, phone: primaryPhone }),
       city: lead?.city || customer?.city || "",
       phone: lead?.phone || customer?.phone || primaryPhone,
       address: lead?.address || customer?.address || "",

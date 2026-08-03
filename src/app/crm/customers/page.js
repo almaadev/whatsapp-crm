@@ -27,6 +27,7 @@ import {
   Building2,
 } from "lucide-react";
 import { getStatusColor } from "@/shared/utils/colorUtils";
+import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 import { toast } from "react-toastify";
 
 // --- Custom Debounce Hook ---
@@ -242,20 +243,25 @@ const CustomerTable = ({ customers, onClick }) => (
         >
           <td className="px-6 py-4">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-100 to-teal-50 flex items-center justify-center text-emerald-700 font-extrabold shadow-sm border border-emerald-200 shrink-0">
-                {c.name && c.name !== "Unknown"
-                  ? c.name.charAt(0).toUpperCase()
-                  : "#"}
-              </div>
-              <div>
-                <div className="font-extrabold text-slate-800 truncate max-w-[180px]">
-                  {c.name || "Unknown"}
-                </div>
-                <div className="text-[11px] font-semibold text-slate-500 flex items-center gap-1 mt-0.5">
-                  <MapPin size={10} className="text-slate-400" />{" "}
-                  {c.city || "No City Specified"}
-                </div>
-              </div>
+              {(() => {
+                const displayName = resolveCustomerDisplayName(c);
+                return (
+                  <>
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-100 to-teal-50 flex items-center justify-center text-emerald-700 font-extrabold shadow-sm border border-emerald-200 shrink-0 uppercase">
+                      {displayName.charAt(0)}
+                    </div>
+                    <div>
+                      <div className="font-extrabold text-slate-800 truncate max-w-[180px]">
+                        {displayName}
+                      </div>
+                      <div className="text-[11px] font-semibold text-slate-500 flex items-center gap-1 mt-0.5">
+                        <MapPin size={10} className="text-slate-400" />{" "}
+                        {c.city || "No City Specified"}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </td>
           <td className="px-6 py-4">
@@ -314,19 +320,24 @@ const CustomerMobileList = ({ customers, onClick }) => (
         className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-3 active:scale-[0.98] transition-transform"
       >
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-100 to-teal-50 flex items-center justify-center text-emerald-700 font-extrabold text-lg shadow-sm border border-emerald-200 shrink-0">
-            {c.name && c.name !== "Unknown"
-              ? c.name.charAt(0).toUpperCase()
-              : "#"}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="font-extrabold text-slate-800 text-base truncate">
-              {c.name || "Unknown"}
-            </div>
-            <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-              <MapPin size={12} /> {c.city || "No City"}
-            </div>
-          </div>
+          {(() => {
+            const displayName = resolveCustomerDisplayName(c);
+            return (
+              <>
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-100 to-teal-50 flex items-center justify-center text-emerald-700 font-extrabold text-lg shadow-sm border border-emerald-200 shrink-0 uppercase">
+                  {displayName.charAt(0)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-extrabold text-slate-800 text-base truncate">
+                    {displayName}
+                  </div>
+                  <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                    <MapPin size={12} /> {c.city || "No City"}
+                  </div>
+                </div>
+              </>
+            );
+          })()}
           <span
             className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase border shrink-0 ${getStatusColor(c.status)}`}
           >

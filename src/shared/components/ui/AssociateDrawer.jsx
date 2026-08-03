@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { X, User, Phone, Mail, Building, Briefcase, Activity, ExternalLink, Calendar, ShieldCheck, DollarSign, MessageSquare, Clock, Users } from "lucide-react";
 import { getSystemEventDetails, formatEventDateTime } from "@/shared/utils/chatUtils";
+import { resolveCustomerDisplayName, cleanPhoneNumber } from "@/shared/utils/customerResolver";
 
 const formatCurrency = (val) => {
   return new Intl.NumberFormat("en-IN", {
@@ -202,7 +203,7 @@ export default function AssociateDrawer({ isOpen, onClose, associate }) {
                           </span>
                         </div>
                         <p className="text-[10px] font-semibold text-slate-400 mt-0.5 leading-none">
-                          Customer: <span className="font-bold text-slate-500">{act.customerName}</span> ({act.phone.replace("whatsapp:", "")})
+                          Customer: <span className="font-bold text-slate-500">{resolveCustomerDisplayName({ customerName: act.customerName, phone: act.phone })}</span> ({cleanPhoneNumber(act.phone)})
                         </p>
                         {act.notes && (
                           <p className="text-[10px] font-medium text-slate-500 mt-1.5 p-2 rounded-xl bg-slate-50 border border-slate-100">

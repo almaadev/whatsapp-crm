@@ -1,6 +1,7 @@
 import { chatRepository } from "@/shared/api/repositories/chatRepository";
 import { leadRepository } from "@/shared/api/repositories/leadRepository";
 import { templateRepository } from "@/shared/api/repositories/templateRepository";
+import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 
 /**
  * Service for handling chat-related API calls (inbox, sending, updating status).
@@ -61,7 +62,12 @@ export const chatService = {
         }
       });
 
-      return Object.values(uniqueConversations);
+      const result = Object.values(uniqueConversations);
+      result.forEach((conv) => {
+        conv.name = resolveCustomerDisplayName(conv);
+      });
+
+      return result;
 
     } catch (error) {
       console.error("Chat Service Error:", error);

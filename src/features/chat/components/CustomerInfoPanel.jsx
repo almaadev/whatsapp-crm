@@ -34,6 +34,7 @@ import {
   formatEventDateTime,
   getSystemEventDetails,
 } from "@/shared/utils/chatUtils";
+import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 
 function BranchSearchableSelect({ value, onChange, branches, disabled }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -457,7 +458,7 @@ export default function CustomerInfoPanel({
           </div>
           <div className="flex items-center justify-between mt-1 min-w-0">
             <h3 className="font-black text-slate-850 text-sm truncate pr-2">
-              {formData.name || selectedChat?.name || selectedChat?.phone?.replace("whatsapp:", "") || "Unknown Customer"}
+              {resolveCustomerDisplayName({ name: formData.name, customer: selectedChat, history: selectedChat?.history, phone: selectedChat?.phone })}
             </h3>
             <div className="flex gap-1 shrink-0 select-none">
               {formData.status && (

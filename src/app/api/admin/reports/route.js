@@ -9,6 +9,7 @@ import Message from "@/shared/models/Message";
 import Branch from "@/shared/models/Branch";
 import mongoose from "mongoose";
 import { isAdminAuthorized, isSuperAdmin as checkSuperAdmin } from "@/shared/utils/auth";
+import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 
 export const dynamic = "force-dynamic";
 
@@ -270,7 +271,7 @@ export async function GET(req) {
 
         return {
           id: cust._id.toString(),
-          customerName: cust.name || "Unknown",
+          customerName: resolveCustomerDisplayName(cust),
           phone: cust.phone,
           firstEnquiryDate: cust.createdAt ? new Date(cust.createdAt).toLocaleDateString() : "-",
           enquiredFor: latestFollowUp?.enquiredFor || cust.enquiredFor || "-",
@@ -527,7 +528,7 @@ export async function GET(req) {
             const isHandler = fu.associateId === uid || fu.associateName === name;
             if (isHandler) {
               associateCustomerHistory.push({
-                customerName: lead.name || "Unknown",
+                customerName: resolveCustomerDisplayName(lead),
                 phone: lead.phone,
                 enquiredFor: fu.enquiredFor || lead.enquiredFor || "-",
                 leadStatus: fu.status || "New",

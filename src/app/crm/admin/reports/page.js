@@ -10,6 +10,7 @@ import DashboardTabs from "@/shared/components/ui/DashboardTabs";
 import Pagination from "@/shared/components/ui/Pagination";
 import { branchService } from "@/features/branches/services/branchService";
 import { userRepository } from "@/shared/api/repositories/userRepository";
+import { resolveCustomerDisplayName, cleanPhoneNumber } from "@/shared/utils/customerResolver";
 import { toast } from "react-toastify";
 import Link from "next/link";
 import {
@@ -767,8 +768,8 @@ export default function ReportsPage() {
                                       {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                                     </button>
                                   </td>
-                                  <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">{row.customerName}</td>
-                                  <td className="py-2.5 px-3 font-mono text-slate-500 whitespace-nowrap">{row.phone}</td>
+                                  <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">{resolveCustomerDisplayName({ customerName: row.customerName, phone: row.phone })}</td>
+                                  <td className="py-2.5 px-3 font-mono text-slate-500 whitespace-nowrap">{cleanPhoneNumber(row.phone)}</td>
                                   <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap">{row.firstEnquiryDate}</td>
                                   <td className="py-2.5 px-3 whitespace-nowrap">{row.enquiredFor}</td>
                                   <td className="py-2.5 px-3 whitespace-nowrap">{row.city}</td>

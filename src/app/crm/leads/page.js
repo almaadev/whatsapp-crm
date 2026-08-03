@@ -14,6 +14,7 @@ import Button from "@/shared/components/ui/Button";
 import EmptyState from "@/shared/components/ui/EmptyState";
 import { branchService } from "@/features/branches/services/branchService";
 import { userRepository } from "@/shared/api/repositories/userRepository";
+import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 import {
   Save,
   User,
@@ -395,7 +396,7 @@ export default function LeadsPage() {
                 {sortedLeads.map((lead) => {
                   const leadId = lead._id;
                   const isExpanded = expandedLeadId === leadId;
-                  const displayName = lead.name || "Unknown";
+                  const displayName = resolveCustomerDisplayName(lead);
                   const cleanPhone = lead.phone?.replace("whatsapp:", "") || "";
                   const displayCity = lead.city || "-";
                   const leadType = lead.leadType || "Direct Lead";
@@ -492,7 +493,7 @@ export default function LeadsPage() {
             {sortedLeads.map((lead) => {
               const leadId = lead._id;
               const isExpanded = expandedLeadId === leadId;
-              const displayName = lead.name || "Unknown";
+              const displayName = resolveCustomerDisplayName(lead);
               const cleanPhone = lead.phone?.replace("whatsapp:", "") || "";
               const leadStatus = lead.status || "New";
 

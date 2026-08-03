@@ -3,6 +3,7 @@ import { Search, User } from "lucide-react";
 import { formatSafeTime, getDisplayMessage, getChatMessagePreview } from "@/shared/utils/chatDisplay";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { useSession } from "next-auth/react";
+import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 
 
 const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emptyFallback }) {
@@ -18,6 +19,7 @@ const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emp
 
   const isClosed = Boolean(chat.isClosed || chat.isChatClosed || lastHistoryMsg?.isChatClosed || chat.status === "Closed");
   const cleanPhone = chat.phone ? chat.phone.replace("whatsapp:", "") : "";
+  const resolvedName = resolveCustomerDisplayName(chat);
 
   const handleClick = (e) => {
     onClick(chat);
@@ -37,9 +39,9 @@ const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emp
         <div className="flex justify-between items-center mb-0.5">
           <div className="flex flex-col min-w-0 pr-2">
             <h3 className="font-semibold text-[#111b21] text-[15px] leading-tight truncate">
-              {chat.name || cleanPhone}
+              {resolvedName}
             </h3>
-            {chat.name && chat.name !== cleanPhone && (
+            {resolvedName !== cleanPhone && (
               <span className="text-[11px] text-slate-500 font-mono truncate">{cleanPhone}</span>
             )}
           </div>

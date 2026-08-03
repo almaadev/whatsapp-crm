@@ -2,6 +2,7 @@ import React, { useState, memo } from "react";
 import { ChevronLeft,ChevronDown, Bell, Share2, Info, Tag, MapPin, MoreVertical, Smartphone, Building2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
+import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 
 const ChatHeader = memo(function ChatHeader({
   activeChat,
@@ -29,7 +30,7 @@ const ChatHeader = memo(function ChatHeader({
 
   if (!activeChat) return null;
 
-  const displayName = activeChat?.name || (activeChat?.phone ? activeChat.phone.replace("whatsapp:", "") : "Unknown");
+  const displayName = resolveCustomerDisplayName({ customer: detailedCustomer, lead: activeChat, history: activeChat?.history, phone: activeChat?.phone });
   const location = detailedCustomer?.city || activeChat?.city || "No City Info";
   const branchName = detailedCustomer?.branchName || activeChat?.branchName || "Unassigned Branch";
   

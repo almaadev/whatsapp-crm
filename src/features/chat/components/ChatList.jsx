@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { useChatStore } from "@/features/chat/stores/chatStore";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { useSession } from "next-auth/react";
+import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 
 import Link from "next/link";
 import {
@@ -350,7 +351,7 @@ export default function ChatList({ role, loading }) {
             const cleanPhone = chat.phone
               ? chat.phone.replace("whatsapp:", "")
               : "";
-            const displayName = chat.name || cleanPhone;
+            const displayName = resolveCustomerDisplayName(chat);
             const dateObj = parseDate(chat.lastSeenAt || chat.timestamp);
 
             const isClosed = chat.isChatClosed || chat.status === "Closed";

@@ -5,6 +5,7 @@ import Message from "@/shared/models/Message";
 import redis from "@/shared/lib/db/redis";
 import twilio from "twilio";
 import { processKeywordAutoReply } from "@/features/chat/services/keywordMatcher";
+import { isValidDisplayName } from "@/shared/utils/customerResolver";
 
 import {
   determineConversationRoute,
@@ -248,7 +249,7 @@ export async function POST(req) {
     if (!customer) {
       customer = await Customer.create({
         phone,
-        name: profileName,
+        name: isValidDisplayName(profileName, phone) ? profileName : "Unknown",
         status: "New",
         activeRouteCategory: targetCategory,
         lastInteractionAt: new Date(),
@@ -261,10 +262,7 @@ export async function POST(req) {
       customer.lastInteractionAt = new Date();
       customer.unreadCount = (customer.unreadCount || 0) + 1;
       customer.lastIncomingNumber = receivedOnNumber;
-      if (
-        customer.name === "Unknown" ||
-        customer.name === phone.replace("whatsapp:", "")
-      ) {
+      if (!isValidDisplayName(customer.name, phone) && isValidDisplayName(profileName, phone)) {
         customer.name = profileName;
       }
       await customer.save();

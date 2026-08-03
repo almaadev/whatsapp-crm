@@ -5,6 +5,7 @@ import connectDB from "@/shared/lib/db/mongodb";
 import Customer from "@/shared/models/Customer";
 import Branch from "@/shared/models/Branch";
 import User from "@/shared/models/User";
+import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ const formatCustomerForUI = (c, branchMap = {}) => {
 
   return {
     phone: c.phone,
-    name: c.name || "Unknown",
+    name: resolveCustomerDisplayName(c),
     city: c.city || "",
     address: c.address || "",
     source: c.source || "Manual Entry",

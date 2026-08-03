@@ -4,6 +4,7 @@ import Lead from "@/shared/models/Lead";
 import Customer from "@/shared/models/Customer";
 import Message from "@/shared/models/Message";
 import Branch from "@/shared/models/Branch";
+import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 
 /**
  * Calculates start and end Date objects based on preset values or custom inputs.
@@ -446,7 +447,7 @@ export async function getAssociateCustomers(associateId) {
       
       if (matchId || matchName) {
         timelineEntries.push({
-          customerName: customer.name || "Unknown",
+          customerName: resolveCustomerDisplayName(customer),
           phone: customer.phone,
           enquiredFor: customer.enquiredFor || "-",
           currentStatus: customer.status || "New",

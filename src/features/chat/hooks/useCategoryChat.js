@@ -5,6 +5,7 @@ import { getCategoryConfig } from "@/shared/constants/categories";
 import { getCategoryChatStore } from "@/features/chat/stores/categoryChatStore";
 import { categoryChatService } from "@/features/chat/services/categoryChatService";
 import { connectSocket } from "@/features/chat/services/socketService";
+import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 import { toast } from "react-toastify";
 
 
@@ -68,6 +69,7 @@ export function useCategoryChat(slug) {
 
       const formattedData = data.map((chat) => ({
         ...chat,
+        name: resolveCustomerDisplayName(chat),
         history: (chat.history || []).map((msg) => ({
           ...msg,
           timestamp: msg.timestamp || msg.createdAt || new Date().toISOString(),

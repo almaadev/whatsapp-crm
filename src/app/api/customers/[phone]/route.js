@@ -6,6 +6,7 @@ import Customer from "@/shared/models/Customer";
 import mongoose from "mongoose";
 import Branch from "@/shared/models/Branch";
 import User from "@/shared/models/User";
+import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 import { sanitizeCustomerOrLeadData } from "@/shared/utils/privacy";
 
 export const dynamic = "force-dynamic";
@@ -141,7 +142,7 @@ export async function GET(req, { params }) {
 
         const formattedData = {
             phone: customer.phone,
-            name: customer.name || "Unknown",
+            name: resolveCustomerDisplayName(customer),
             city: customer.city || "",
             address: customer.address || "",
             source: customer.source || "Manual Entry",

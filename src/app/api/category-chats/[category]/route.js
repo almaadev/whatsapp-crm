@@ -6,6 +6,7 @@ import Customer from "@/shared/models/Customer";
 import Message from "@/shared/models/Message";
 import Lead from "@/shared/models/Lead";
 import { resolveCategoryChat } from "@/shared/api/utils/categoryChats";
+import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 import twilio from "twilio";
 
 export async function GET(req, { params }) {
@@ -97,7 +98,7 @@ export async function GET(req, { params }) {
 
       return {
         phone,
-        name: lead?.name || (customer?.name && customer.name !== "Unknown" ? customer.name : phone),
+        name: resolveCustomerDisplayName({ phone, customer, lead, history }),
         priority: customer?.priority ?? null,
         city: mergedCity,
         status: latestFollowUp?.status || customer?.status || "New",
@@ -205,7 +206,7 @@ export async function POST(req, { params }) {
       {
         $set: { activeRouteCategory: chatType, lastInteractionAt: new Date() },
         $setOnInsert: { 
-          name: formattedTo, 
+          name: "Unknown", 
           status: "New", 
           createdBy: session?.user?.id,
           chatHistory: [{
