@@ -222,24 +222,6 @@ export async function POST(req) {
       }
 
       let MsgModel = Message;
-      let socketEvent = "new_message";
-      try {
-        const lead = await Lead.findOne({ phone }).lean();
-        if (lead) {
-          if (lead.leadType === "Product Lead") {
-            MsgModel = (await import("@/shared/models/ProductMessage")).default;
-            socketEvent = "new_product_message";
-          } else if (lead.leadType === "MD Camp") {
-            MsgModel = (await import("@/shared/models/MDCampMessage")).default;
-            socketEvent = "new_mdcamp_message";
-          } else if (lead.leadType === "Therapy") {
-            MsgModel = (await import("@/shared/models/TherapyMessage")).default;
-            socketEvent = "new_therapy_message";
-          }
-        }
-      } catch (leadErr) {
-        console.error("[POST /api/chats] Lead lookup error:", leadErr.message, { phone });
-      }
 
       try {
         await MsgModel.create({
@@ -270,7 +252,7 @@ export async function POST(req) {
 
       // ── Step 3: Emit real-time socket event via socketPublisher ──────────
       try {
-        const { emitNewMessage, emitCategoryMessage, emitChatLockUpdated } = await import("@/shared/utils/socketPublisher");
+        const { emitNewMessage, emitChatLockUpdated } = await import("@/shared/utils/socketPublisher");
         const customerDoc = await Customer.findOne({ phone }).lean();
         const branchId = customerDoc?.branchId ? customerDoc.branchId.toString() : null;
 
@@ -287,12 +269,7 @@ export async function POST(req) {
           branchId,
         };
 
-        if (socketEvent === "new_message") {
-          emitNewMessage(outPayload, branchId);
-        } else {
-          const categoryName = socketEvent === "new_product_message" ? "Product Lead" : (socketEvent === "new_mdcamp_message" ? "MD Camp" : "Therapy");
-          emitCategoryMessage(categoryName, outPayload, branchId);
-        }
+        emitNewMessage(outPayload, branchId);
 
         // ── Step 4: Release chat lock & emit lock update ─────────────────────
         if (global.activeChatHandlers && global.activeChatHandlers.has(phone)) {

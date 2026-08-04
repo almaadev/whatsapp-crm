@@ -7,7 +7,7 @@ import {
   getTemplateDetail, 
   validateTemplatePayload 
 } from "@/features/admin/services/twilioService";
-import { emitNewMessage, emitCategoryMessage } from "@/features/chat/services/socketEmitter";
+import { emitNewMessage } from "@/features/chat/services/socketEmitter";
 import Message from "@/shared/models/Message";
 
 /**
@@ -68,7 +68,7 @@ async function saveAndEmitMessage({ phone, messageText, status, twilioSid, templ
     sendBy: null,
     templateSid: templateSid,
     source: "Keyword Automation",
-    chatType: targetCategory,
+    chatType: "Direct Lead",
     senderNumber: senderNumber,
     timestamp: new Date(),
     read: "TRUE",
@@ -77,20 +77,10 @@ async function saveAndEmitMessage({ phone, messageText, status, twilioSid, templ
     mediaType: ""
   };
 
-  const TargetModel = getModelByCategory(targetCategory);
-  const savedMsg = await createMessage(msgPayload, TargetModel);
-
-  if (targetCategory !== "Direct Lead") {
-    await createMessage({ ...msgPayload, twilioSid: `${twilioSid}_mirror` }, Message);
-  }
-
+  const savedMsg = await createMessage(msgPayload, Message);
   const socketEmitObj = { ...msgPayload, _id: savedMsg._id };
 
-  if (targetCategory !== "Direct Lead") {
-    emitCategoryMessage(targetCategory, socketEmitObj);
-  }
-
-  emitNewMessage({ ...socketEmitObj, categoryLabel: targetCategory !== "Direct Lead" ? targetCategory : null });
+  emitNewMessage(socketEmitObj);
 
   return savedMsg;
 }

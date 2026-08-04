@@ -538,9 +538,6 @@ export default function PerformanceMonitor() {
               >
                 <option value="all">All Lead Types</option>
                 <option value="direct lead">Direct Lead</option>
-                <option value="product">Product Lead</option>
-                <option value="therapy">Therapy Lead</option>
-                <option value="md camp">MD Camp Lead</option>
               </select>
             </div>
           </div>

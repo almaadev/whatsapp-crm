@@ -60,9 +60,6 @@ const ROUTE_RULES = [
   { path: "/crm/associate", hideForAdmin: true },
   { path: "/crm/chat/new-customer", moduleName: "Chat Inbox" },
   { path: "/crm/chat", moduleName: "Chat Inbox" },
-  { path: "/crm/product-lead", moduleName: "Product Lead" },
-  { path: "/crm/md-camp", moduleName: "MD Camp" },
-  { path: "/crm/therapy", moduleName: "Therapy" },
   { path: "/crm/bulk-message", moduleName: "Bulk Messages" },
   { path: "/crm/message-logs", moduleName: "Messages log" },
   { path: "/crm/leads", moduleName: "Leads" },
@@ -94,28 +91,13 @@ const API_RULES = [
   { prefix: "/api/forward-lead", moduleName: "Leads" },
   { prefix: "/api/customers", moduleName: "Customers" },
   { prefix: "/api/chats", moduleName: "Chat Inbox" },
-  { prefix: "/api/category-chats", moduleName: "Chat Inbox" },
   { prefix: "/api/send-template", moduleName: "Chat Inbox" },
-  { prefix: "/api/category-leads-update", moduleName: "Chat Inbox" },
   { prefix: "/api/keyword-automation", adminOnly: true },
   { prefix: "/api/templates", moduleName: "Chat Inbox" },
   { prefix: "/api/branches", accessRequirements: ["Chat Inbox", "Customers", "Leads"] },
 ];
 
 export function getAPIRule(pathname) {
-  if (pathname.startsWith("/api/category-chats/")) {
-    const slug = pathname.split("/")[3];
-    if (slug === "product") return { moduleName: "Product Lead" };
-    if (slug === "mdcamp") return { moduleName: "MD Camp" };
-    if (slug === "therapy") return { moduleName: "Therapy" };
-  }
-  if (pathname.startsWith("/api/category-leads-update/")) {
-    const slug = pathname.split("/")[3];
-    if (slug === "product") return { moduleName: "Product Lead" };
-    if (slug === "mdcamp") return { moduleName: "MD Camp" };
-    if (slug === "therapy") return { moduleName: "Therapy" };
-  }
-
   const sortedRules = [...API_RULES].sort((a, b) => b.prefix.length - a.prefix.length);
   return sortedRules.find(
     (rule) => pathname === rule.prefix || pathname.startsWith(rule.prefix + "/")

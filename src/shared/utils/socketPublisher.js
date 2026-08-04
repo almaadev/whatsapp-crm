@@ -49,35 +49,7 @@ export function emitNewMessage(payload, branchId = null) {
 }
 
 export function emitCategoryMessage(category, payload, branchId = null) {
-  if (!global.io) return;
-  const phone = payload.phone;
-  
-  let catEvent = "new_message";
-  if (category === "Product Lead") {
-    catEvent = "new_product_message";
-  } else if (category === "MD Camp") {
-    catEvent = "new_mdcamp_message";
-  } else if (category === "Therapy") {
-    catEvent = "new_therapy_message";
-  }
-
-  if (phone) {
-    global.io.to(phone).emit(catEvent, payload);
-  }
-  global.io.emit(catEvent, payload);
-
-  const targetBranch = branchId || payload.branchId;
-
-  // Also emit as a standard incoming or outgoing chat message
-  const direction = payload.direction || "INBOUND";
-  const eventType = direction === "INBOUND" ? "incoming_whatsapp_message" : "outgoing_message";
-  publishPerformanceEvent(eventType, {
-    phone: payload.phone,
-    message: payload.message || "",
-    direction,
-    branchId: targetBranch,
-    timestamp: payload.timestamp || new Date()
-  }, targetBranch);
+  emitNewMessage(payload, branchId);
 }
 
 export function emitMessageStatusUpdate(payload, branchId = null) {

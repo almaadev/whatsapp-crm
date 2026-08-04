@@ -43,22 +43,12 @@ export const NAVIGATION_CONFIG = [
     hideForAdmin: true,
   },
   {
-    type: "dropdown",
-    label: "Communications",
+    type: "link",
+    label: "Chat Inbox",
     icon: MessagesSquare,
-    stateKey: "chatDropdownOpen",
-    paths: ["/crm/chat", "/crm/product-lead", "/crm/md-camp", "/crm/therapy"],
-    accessRequirements: ["Chat Inbox", "Product Lead", "MD Camp", "Therapy"],
-    items: [
-      { label: "Chat Inbox", href: "/crm/chat", moduleName: "Chat Inbox" },
-      {
-        label: "Product Lead",
-        href: "/crm/product-lead",
-        moduleName: "Product Lead",
-      },
-      { label: "MD Camp", href: "/crm/md-camp", moduleName: "MD Camp" },
-      { label: "Therapy", href: "/crm/therapy", moduleName: "Therapy" },
-    ],
+    href: "/crm/chat",
+    moduleName: "Chat Inbox",
+    matchStartsWith: true,
   },
   {
     type: "link",

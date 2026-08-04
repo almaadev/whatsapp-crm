@@ -567,9 +567,6 @@ export default function CustomerInfoPanel({
                   icon={<Tag size={12} />}
                   options={[
                     "Direct Lead",
-                    "Product Lead",
-                    "MD Camp",
-                    "Therapy",
                   ]}
                 />
 

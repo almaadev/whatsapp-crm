@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/shared/lib/db/mongodb";
 import Message from "@/shared/models/Message";
-import ProductMessage from "@/shared/models/ProductMessage";
-import MDCampMessage from "@/shared/models/MDCampMessage";
-import TherapyMessage from "@/shared/models/TherapyMessage";
 import redis from "@/shared/lib/db/redis";
 
 // All Twilio Outbound Statuses
@@ -36,25 +33,16 @@ export async function POST(req) {
     const twilioSID = body.MessageSid || body.SmsSid || body.sid || "";
     const messageStatus = body.MessageStatus || body.SmsStatus || body.status || "";
 
-
-
     if (messageStatus && TWILIO_STATUSES.includes(messageStatus.toLowerCase())) {
       const formattedStatus = messageStatus.toUpperCase();
       let targetPhone = body.To || body.to || null; 
       let updatedDoc = null;
 
-      // A. Retry Mechanism (Database delay-ai fix panna 4 seconds varai kaathirukkum)
+      // A. Retry Mechanism
       if (twilioSID) {
         let retries = 8; 
         while (retries > 0 && !updatedDoc) {
-          const [m1, m2, m3, m4] = await Promise.all([
-            Message.findOneAndUpdate({ twilioSid: twilioSID }, { $set: { status: formattedStatus } }, { returnDocument: "after" }),
-            ProductMessage.findOneAndUpdate({ twilioSid: twilioSID }, { $set: { status: formattedStatus } }, { returnDocument: "after" }),
-            MDCampMessage.findOneAndUpdate({ twilioSid: twilioSID }, { $set: { status: formattedStatus } }, { returnDocument: "after" }),
-            TherapyMessage.findOneAndUpdate({ twilioSid: twilioSID }, { $set: { status: formattedStatus } }, { returnDocument: "after" }),
-          ]);
-
-          updatedDoc = m1 || m2 || m3 || m4;
+          updatedDoc = await Message.findOneAndUpdate({ twilioSid: twilioSID }, { $set: { status: formattedStatus } }, { returnDocument: "after" });
 
           if (updatedDoc) {
             targetPhone = updatedDoc.phone;
@@ -66,22 +54,16 @@ export async function POST(req) {
         }
       }
 
-      // B. Extreme Fallback: Twilio SID thappa irunthalum kadaisi message-ai update pannidum
+      // B. Extreme Fallback
       if (!updatedDoc && targetPhone) {
          if (!targetPhone.startsWith("whatsapp:")) targetPhone = `whatsapp:${targetPhone}`;
-         
-         const fallbackUpdate = async (Model) => {
-             const latest = await Model.findOne({ phone: targetPhone, direction: "OUTBOUND" }).sort({ createdAt: -1 });
-             if (latest) {
-                 latest.status = formattedStatus;
-                 if(!latest.twilioSid) latest.twilioSid = twilioSID; 
-                 await latest.save();
-                 return latest;
-             }
-             return null;
-         };
-         
-         updatedDoc = await fallbackUpdate(Message) || await fallbackUpdate(ProductMessage) || await fallbackUpdate(MDCampMessage) || await fallbackUpdate(TherapyMessage);
+         const latest = await Message.findOne({ phone: targetPhone, direction: "OUTBOUND" }).sort({ createdAt: -1 });
+         if (latest) {
+             latest.status = formattedStatus;
+             if (!latest.twilioSid) latest.twilioSid = twilioSID; 
+             await latest.save();
+             updatedDoc = latest;
+         }
       }
 
       // C. Push instant UI update via Socket

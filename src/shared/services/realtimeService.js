@@ -69,17 +69,10 @@ class RealtimeServiceManager {
       // 3. Invalidate React Query Caches
       if (this.queryClient) {
         this.queryClient.invalidateQueries({ queryKey: ["chats"] });
-        if (msg.chatType && msg.chatType !== "Direct Lead") {
-          const slug = msg.chatType.toLowerCase().replace(/\s+/g, "-");
-          this.queryClient.invalidateQueries({ queryKey: ["category-chats", slug] });
-        }
       }
     };
 
     this.socket.on("new_message", handleMessage);
-    this.socket.on("new_product_message", handleMessage);
-    this.socket.on("new_mdcamp_message", handleMessage);
-    this.socket.on("new_therapy_message", handleMessage);
 
     // --- 2. MESSAGE STATUS UPDATES ---
     this.socket.on("message_status_update", (update) => {

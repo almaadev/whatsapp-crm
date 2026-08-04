@@ -22,7 +22,7 @@ const FollowUpSchema = new mongoose.Schema(
     saleAmount:    { type: String, default: "0" },
     leadType: {
       type: String,
-      enum: ["Direct Lead", "MD Camp", "Product Lead", "Therapy"],
+      enum: ["Direct Lead"],
       default: "Direct Lead",
     },
     note:          { type: String, trim: true, default: "" },

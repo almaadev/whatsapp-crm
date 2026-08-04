@@ -63,7 +63,7 @@ function buildInboundMessages({
     direction: "INBOUND",
     status: "RECEIVED",
     read: "FALSE",
-    isChatClosed: false,
+    isChatClosed: true,
     senderName: profileName,
     timestamp: new Date(),
   };
@@ -305,28 +305,15 @@ export async function POST(req) {
       chatType: targetCategory,
       mediaUrl: inboundMessages[0]?.mediaUrl || "",
       mediaType: inboundMessages[0]?.mediaType || "",
-      isChatClosed: false,
+      isChatClosed: true,
       read: "FALSE",
       receivedOnNumber,
       branchId,
       friendlyName: twilioNumberDoc?.friendlyName || "",
     };
 
-    const catLabel =
-      targetCategory === "Product Lead"
-        ? "Product Inquiry"
-        : targetCategory === "MD Camp"
-          ? "MD Camp"
-          : targetCategory === "Therapy"
-            ? "Therapy"
-            : null;
-
-    if (targetCategory === "Direct Lead") {
-      emitNewMessage(categoryEmit, branchId);
-    } else {
-      emitCategoryMessage(targetCategory, { ...categoryEmit, categoryLabel: catLabel }, branchId);
-    }
-    console.log(`⚡ [Socket] Event Emitted | Event: ${targetCategory === "Direct Lead" ? "new_message" : targetCategory} | Phone: ${phone}`);
+    emitNewMessage(categoryEmit, branchId);
+    console.log(`⚡ [Socket] Event Emitted | Event: new_message | Phone: ${phone}`);
 
     const { emitCustomerUpdated } = await import("@/shared/utils/socketPublisher");
     emitCustomerUpdated({

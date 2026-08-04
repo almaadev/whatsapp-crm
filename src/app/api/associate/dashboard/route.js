@@ -41,9 +41,6 @@ export async function GET(req) {
     let allowedTypes = [];
     if (!isSuperAdmin && !isAdminDepartment) {
       allowedTypes.push("Direct Lead");
-      if (accessModules.includes("Product Lead")) allowedTypes.push("Product Lead");
-      if (accessModules.includes("MD Camp")) allowedTypes.push("MD Camp");
-      if (accessModules.includes("Therapy")) allowedTypes.push("Therapy");
     }
 
     const baseMatch = {
@@ -202,9 +199,6 @@ export async function GET(req) {
       }
 
       let categoryParam = null;
-      if (latest.leadType === "Product Lead") categoryParam = "product";
-      else if (latest.leadType === "MD Camp") categoryParam = "mdcamp";
-      else if (latest.leadType === "Therapy") categoryParam = "therapy";
 
       return {
         phone: lead.phone,

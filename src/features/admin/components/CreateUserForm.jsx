@@ -17,7 +17,7 @@ export default function CreateUserForm({ onSuccess }) {
   const [loading, setLoading] = useState(false);
 
 
-  const modulesList = ["Leads", "Customers", "Reports", "Bulk Messages", "Messages log" ,"Chat Inbox", "Product Lead", "MD Camp", "Therapy"];
+  const modulesList = ["Leads", "Customers", "Reports", "Bulk Messages", "Messages log", "Chat Inbox"];
 
   const [branches, setBranches] = useState([]);
   const [loadingBranches, setLoadingBranches] = useState(false);

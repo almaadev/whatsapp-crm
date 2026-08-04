@@ -1,15 +1,7 @@
 import Message from "@/shared/models/Message";
-import ProductMessage from "@/shared/models/ProductMessage";
-import MDCampMessage from "@/shared/models/MDCampMessage";
-import TherapyMessage from "@/shared/models/TherapyMessage";
 
 export function getModelByCategory(category) {
-  switch (category) {
-    case "Product Lead": return ProductMessage;
-    case "MD Camp": return MDCampMessage;
-    case "Therapy": return TherapyMessage;
-    default: return Message;
-  }
+  return Message;
 }
 
 export async function findMessagesByDateRange(startDate, Model = Message) {
@@ -29,16 +21,7 @@ export async function deleteMessagesByPhones(phones) {
 }
 
 export async function markMessagesAsRead(phone) {
-  // Mark across all possible models just to be safe, or specify the model?
-  // Usually this is done via updating the last message or emitting to UI, but in DB:
-  // Actually, chatStore sets read=TRUE on UI, backend maybe doesn't do it?
-  // Let's implement it generic
-  await Promise.all([
-    Message.updateMany({ phone }, { $set: { read: "TRUE" } }),
-    ProductMessage.updateMany({ phone }, { $set: { read: "TRUE" } }),
-    MDCampMessage.updateMany({ phone }, { $set: { read: "TRUE" } }),
-    TherapyMessage.updateMany({ phone }, { $set: { read: "TRUE" } })
-  ]);
+  await Message.updateMany({ phone }, { $set: { read: "TRUE" } });
 }
 
 export async function updateMessageStatus(filter, update, Model = Message) {

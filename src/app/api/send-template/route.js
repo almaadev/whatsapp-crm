@@ -37,15 +37,7 @@ export async function POST(req) {
     });
     console.log(message);
 
-    // Dynamically select the correct MongoDB Collection based on chatType
     let MsgModel = Message;
-
-    if (chatType === "Product Lead")
-      MsgModel = (await import("@/shared/models/ProductMessage")).default;
-    else if (chatType === "MD Camp")
-      MsgModel = (await import("@/shared/models/MDCampMessage")).default;
-    else if (chatType === "Therapy")
-      MsgModel = (await import("@/shared/models/TherapyMessage")).default;
 
     // Store in DB for UI history
     await MsgModel.create({

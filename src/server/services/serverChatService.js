@@ -1,7 +1,4 @@
 import Message from "@/shared/models/Message";
-import ProductMessage from "@/shared/models/ProductMessage";
-import MDCampMessage from "@/shared/models/MDCampMessage";
-import TherapyMessage from "@/shared/models/TherapyMessage";
 import Customer from "@/shared/models/Customer";
 import Lead from "@/shared/models/Lead";
 import { 
@@ -27,28 +24,10 @@ export const serverChatService = {
       }
     }
 
-    // Determine which model to update based on chatType
-    let ModelToUpdate;
-    switch (chatType) {
-      case "Product Lead": ModelToUpdate = ProductMessage; break;
-      case "MD Camp": ModelToUpdate = MDCampMessage; break;
-      case "Therapy": ModelToUpdate = TherapyMessage; break;
-      default: ModelToUpdate = Message; break;
-    }
-
-    // Update specific category message history
-    const result = await ModelToUpdate.updateMany(
+    const result = await Message.updateMany(
       { phone },
       { $set: { isChatClosed } }
     );
-
-    // Keep central Message collection in sync
-    if (ModelToUpdate !== Message) {
-      await Message.updateMany(
-        { phone },
-        { $set: { isChatClosed } }
-      );
-    }
 
     const now = new Date();
     const chatHistoryEntry = {

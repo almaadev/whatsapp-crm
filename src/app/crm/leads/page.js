@@ -319,9 +319,6 @@ export default function LeadsPage() {
           >
             <option value="all">All Lead Types</option>
             <option value="Direct Lead">Direct Lead</option>
-            <option value="MD Camp">MD Camp</option>
-            <option value="Product Lead">Product Lead</option>
-            <option value="Therapy">Therapy</option>
           </select>
 
           <select
@@ -782,7 +779,7 @@ function ExpandedDetailsArea({ lead, handleCustomerRedirect }) {
           <div className="border border-dashed border-slate-300 bg-slate-50/50 rounded-xl p-8 flex flex-col items-center justify-center text-center">
             <Paperclip className="text-slate-350 mb-2.5" size={28} />
             <h5 className="font-extrabold text-xs text-slate-800 uppercase tracking-widest">Leads Document Vault</h5>
-            <p className="text-[10px] text-slate-450 mt-1 max-w-xs leading-normal">Drag and drop therapy prescription sheets, MD camp intake files, or Excel records here. Supporting PDF, JPG, PNG formats up to 10MB.</p>
+            <p className="text-[10px] text-slate-450 mt-1 max-w-xs leading-normal">Drag and drop lead documents or Excel records here. Supporting PDF, JPG, PNG formats up to 10MB.</p>
             <div className="mt-4 flex gap-2">
               <button disabled className="px-3.5 py-1.5 bg-slate-200 text-slate-455 font-black text-[10px] rounded-lg uppercase tracking-wider cursor-not-allowed border border-slate-300">
                 Choose File
