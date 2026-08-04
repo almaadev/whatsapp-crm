@@ -1,4 +1,4 @@
-import { Check, CheckCheck, Clock, AlertCircle, Lock, Unlock, MapPin, UserCheck, Stethoscope, RefreshCw, Cog, Share2 } from "lucide-react";
+import { Check, CheckCheck, Clock, AlertCircle, Lock, Unlock, MapPin, UserCheck, Stethoscope, RefreshCw, Cog, Share2, Tag } from "lucide-react";
 
 /**
  * Parses a date string into a Date object.
@@ -101,20 +101,20 @@ export const formatEventDateTime = (dateInput) => {
 /**
  * Maps system event audit data to standard title, Lucide icon, and formatted username.
  * Supports events: Chat Closed, Chat Reopened, Branch Reassigned, Assigned to Associate,
- * Assigned to Doctor, Status Changed, Transferred, System Action.
+ * Assigned to Doctor, Status Changed, Transferred, Super Admin Action.
  */
 export const getSystemEventDetails = (audit) => {
     if (!audit) {
         return {
-            title: "System Action",
+            title: "Admin Action",
             icon: <Cog size={14} className="text-slate-500 shrink-0" />,
-            performedBy: "System Admin"
+            performedBy: "Super Admin"
         };
     }
 
-    const action = audit.eventType || audit.action || "System Action";
+    const action = audit.eventType || audit.action || "Super Admin Action";
 
-    let performedBy = "System Admin";
+    let performedBy = "Super Admin";
     if (audit.performedBy) {
         if (typeof audit.performedBy === "object" && audit.performedBy.name) {
             performedBy = audit.performedBy.name;
@@ -154,7 +154,7 @@ export const getSystemEventDetails = (audit) => {
         icon = <Tag size={14} className="text-violet-500 shrink-0" />;
     } else if (eventType === "lead_assigned") {
         const targetName = audit.targetUser?.name || audit.targetUserName;
-        title = targetName ? `Assigned to ${targetName}` : "👤 Assigned Associate Changed";
+        title = targetName ? `Assigned to ${targetName}` : "Assigned Associate Changed";
         icon = <UserCheck size={14} className="text-indigo-500 shrink-0" />;
     } else if (actionLower.includes("closed")) {
         title = "Chat Closed";
@@ -181,7 +181,7 @@ export const getSystemEventDetails = (audit) => {
         title = "Status Changed";
         icon = <RefreshCw size={14} className="text-violet-500 shrink-0" />;
     } else {
-        if (!title.startsWith("Chat ") && !title.startsWith("Status ") && !title.startsWith("System ")) {
+        if (!title.startsWith("Chat ") && !title.startsWith("Status") && !title.startsWith("Super Admin ")) {
             title = `Chat ${title}`;
         }
     }
@@ -193,13 +193,7 @@ export const getSystemEventDetails = (audit) => {
     };
 };
 
-/**
- * Mutates the last message in a chat history array with the provided updates.
- *
- * @param {Array} history - The chat history array.
- * @param {Object} updates - The fields to update on the last message.
- * @returns {Array} A new array with the mutated last message.
- */
+
 export const mutateLastMessage = (history, updates) => {
     if (!history || history.length === 0) return history;
     const newHistory = [...history];
@@ -210,13 +204,7 @@ export const mutateLastMessage = (history, updates) => {
     return newHistory;
 };
 
-/**
- * Renders an icon corresponding to the message delivery status (e.g., Sent, Delivered, Read).
- *
- * @param {Object} props
- * @param {string} props.status - The delivery status string.
- * @returns {JSX.Element|null} The status icon component.
- */
+
 export const MessageStatusIcon = ({ status }) => {
     const msgStat = (status || "").toUpperCase();
     switch (msgStat) {

@@ -32,7 +32,6 @@ import {
   ChevronUp,
   History,
   UserCircle,
-  BadgeCheck,
   Clock,
   TrendingUp,
   CornerDownRight,
@@ -790,16 +789,6 @@ function getStatusBadgeStyles(status) {
     default:
       return "bg-slate-50 text-slate-700 border-slate-200";
   }
-}
-
-function LifecycleBadge({ state }) {
-  const icons = {
-    New: <AlertCircle size={12} />,
-    "Follow Up": <Clock size={12} />,
-    Closed: <BadgeCheck size={12} />,
-    "Not Interested": <X size={12} />,
-  };
-  return <StatusBadge state={state} icon={icons[state]} />;
 }
 
 const DayNote = ({ day, text }) => (
