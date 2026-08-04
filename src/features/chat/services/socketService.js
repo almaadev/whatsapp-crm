@@ -1,20 +1,64 @@
 import { io } from "socket.io-client";
 
-let socket;
+let socket = null;
 
+/**
+ * Enterprise Singleton Socket Manager
+ * Guarantees exactly ONE persistent socket connection for the entire CRM app session.
+ */
 export const connectSocket = () => {
-if (socket) return socket;
+  if (socket) {
+    if (!socket.connected && !socket.connecting) {
+      socket.connect();
+    }
+    return socket;
+  }
 
-socket = io(process.env.NEXT_PUBLIC_SOCKET_URL, {
-transports: ["websocket"],
-});
+  const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
 
-return socket;
+  console.log(`[SocketService] Initializing single socket connection to: ${socketUrl}`);
+
+  socket = io(socketUrl, {
+    path: "/socket.io/",
+    transports: ["websocket", "polling"],
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 20000,
+    autoConnect: true,
+  });
+
+  socket.on("connect", () => {
+    console.log(`🟢 [SocketService] Connected | ID: ${socket.id}`);
+  });
+
+  socket.on("disconnect", (reason) => {
+    console.warn(`🔴 [SocketService] Disconnected | Reason: ${reason}`);
+  });
+
+  socket.on("connect_error", (err) => {
+    console.error(`🚨 [SocketService] Connection Error:`, err.message);
+  });
+
+  socket.on("reconnect", (attemptNumber) => {
+    console.log(`🔄 [SocketService] Reconnected on attempt #${attemptNumber}`);
+  });
+
+  return socket;
 };
 
-export const disconnectSocket = () => {
-if (socket) {
-socket.disconnect();
-socket = null;
-}
+export const getSocket = () => {
+  if (!socket) {
+    return connectSocket();
+  }
+  return socket;
+};
+
+export const disconnectSocket = (force = false) => {
+  if (socket && force) {
+    console.log(`[SocketService] Force disconnecting socket: ${socket.id}`);
+    socket.disconnect();
+    socket = null;
+  }
 };

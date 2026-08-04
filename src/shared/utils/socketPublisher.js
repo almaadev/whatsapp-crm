@@ -1,6 +1,7 @@
 /**
- * Central Socket Event Publisher for the CRM.
- * Handles performance monitoring events (role & branch scoped) as well as legacy events.
+ * Central Enterprise Socket Event Publisher for the CRM.
+ * Handles performance monitoring events (role & branch scoped), room-targeted broadcasts,
+ * and unified real-time event dispatching across all CRM business actions.
  */
 
 export function publishPerformanceEvent(eventType, payload, branchId) {
@@ -26,10 +27,14 @@ export function emitNewMessage(payload, branchId = null) {
   if (!global.io) return;
   const phone = payload.phone;
   if (phone) {
-    global.io.to(phone).emit("incoming-message", payload);
+    global.io.to(phone).emit("new_message", payload);
   }
-  global.io.emit("incoming-message", payload);
   global.io.emit("new_message", payload);
+
+  const targetBranch = branchId || payload.branchId;
+  if (targetBranch) {
+    global.io.to(`branch:${targetBranch.toString()}`).emit("new_message", payload);
+  }
 
   // Send telemetry
   const direction = payload.direction || "INBOUND";
@@ -38,26 +43,30 @@ export function emitNewMessage(payload, branchId = null) {
     phone: payload.phone,
     message: payload.message || "",
     direction,
-    branchId,
+    branchId: targetBranch,
     timestamp: payload.timestamp || new Date()
-  }, branchId || payload.branchId);
+  }, targetBranch);
 }
 
 export function emitCategoryMessage(category, payload, branchId = null) {
   if (!global.io) return;
   const phone = payload.phone;
-  if (phone) {
-    global.io.to(phone).emit("incoming-message", payload);
-  }
-  global.io.emit("incoming-message", payload);
-
+  
+  let catEvent = "new_message";
   if (category === "Product Lead") {
-    global.io.emit("new_product_message", payload);
+    catEvent = "new_product_message";
   } else if (category === "MD Camp") {
-    global.io.emit("new_mdcamp_message", payload);
+    catEvent = "new_mdcamp_message";
   } else if (category === "Therapy") {
-    global.io.emit("new_therapy_message", payload);
+    catEvent = "new_therapy_message";
   }
+
+  if (phone) {
+    global.io.to(phone).emit(catEvent, payload);
+  }
+  global.io.emit(catEvent, payload);
+
+  const targetBranch = branchId || payload.branchId;
 
   // Also emit as a standard incoming or outgoing chat message
   const direction = payload.direction || "INBOUND";
@@ -66,9 +75,9 @@ export function emitCategoryMessage(category, payload, branchId = null) {
     phone: payload.phone,
     message: payload.message || "",
     direction,
-    branchId,
+    branchId: targetBranch,
     timestamp: payload.timestamp || new Date()
-  }, branchId || payload.branchId);
+  }, targetBranch);
 }
 
 export function emitMessageStatusUpdate(payload, branchId = null) {
@@ -79,6 +88,21 @@ export function emitMessageStatusUpdate(payload, branchId = null) {
 export function emitLeadStatusUpdate(payload, branchId = null) {
   if (!global.io) return;
   global.io.emit("lead_status_update", payload);
+  global.io.emit("lead_status_changed", payload);
+
+  const targetBranch = branchId || payload.branchId;
+  if (targetBranch) {
+    global.io.to(`branch:${targetBranch.toString()}`).emit("lead_status_changed", payload);
+  }
+}
+
+export function emitFollowUpAdded(payload, branchId = null) {
+  if (!global.io) return;
+  global.io.emit("followup_added", payload);
+  global.io.emit("lead_status_update", payload);
+
+  const targetBranch = branchId || payload.branchId;
+  publishPerformanceEvent("followup_added", payload, targetBranch);
 }
 
 export function emitChatLockUpdated(payload, branchId = null) {
@@ -131,12 +155,12 @@ export function emitCustomerUpdated(payload, branchId = null) {
   if (!global.io) return;
   global.io.emit("customer_updated", payload);
 
-  // General customer performance update
+  const targetBranch = branchId || payload.branchId;
   publishPerformanceEvent("customer_assigned", {
     phone: payload.phone,
     assignedTo: payload.assignedTo || payload.associate,
-    branchId
-  }, branchId);
+    branchId: targetBranch
+  }, targetBranch);
 }
 
 export function emitChatStatusUpdated(payload, branchId = null) {
@@ -150,4 +174,25 @@ export function emitChatStatusUpdated(payload, branchId = null) {
     isClosed: payload.isChatClosed,
     branchId
   }, branchId);
+}
+
+export function emitTemplateSent(payload, branchId = null) {
+  if (!global.io) return;
+  global.io.emit("template_sent", payload);
+
+  const targetBranch = branchId || payload.branchId;
+  publishPerformanceEvent("template_sent", payload, targetBranch);
+}
+
+export function emitBulkMessageStatus(payload, branchId = null) {
+  if (!global.io) return;
+  global.io.emit("bulk_message_status", payload);
+
+  const targetBranch = branchId || payload.branchId;
+  publishPerformanceEvent("bulk_message_status", payload, targetBranch);
+}
+
+export function emitDashboardStatsUpdated(payload, branchId = null) {
+  if (!global.io) return;
+  global.io.emit("dashboard_stats_updated", payload);
 }

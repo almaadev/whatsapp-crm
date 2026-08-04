@@ -292,12 +292,16 @@ export async function POST(req) {
     );
 
     const lastSaved = savedMessages[savedMessages.length - 1];
+    console.log(`💾 [Webhook] Message Saved | SID: ${lastSaved?.twilioSid || twilioSid}`);
+
     const categoryEmit = {
       phone,
       name: profileName,
       message: messageText || (numMedia > 0 ? "📷 Media" : ""),
       direction: "INBOUND",
-      timestamp: lastSaved.timestamp || new Date(),
+      timestamp: lastSaved?.timestamp || new Date(),
+      twilioSid: lastSaved?.twilioSid || twilioSid,
+      _id: lastSaved?._id ? lastSaved._id.toString() : undefined,
       chatType: targetCategory,
       mediaUrl: inboundMessages[0]?.mediaUrl || "",
       mediaType: inboundMessages[0]?.mediaType || "",
@@ -322,6 +326,16 @@ export async function POST(req) {
     } else {
       emitCategoryMessage(targetCategory, { ...categoryEmit, categoryLabel: catLabel }, branchId);
     }
+    console.log(`⚡ [Socket] Event Emitted | Event: ${targetCategory === "Direct Lead" ? "new_message" : targetCategory} | Phone: ${phone}`);
+
+    const { emitCustomerUpdated } = await import("@/shared/utils/socketPublisher");
+    emitCustomerUpdated({
+      phone,
+      name: profileName,
+      unreadCount: customer?.unreadCount || 1,
+      lastInteractionAt: customer?.lastInteractionAt || new Date(),
+      activeRouteCategory: targetCategory
+    }, branchId);
 
     // Update lock if chat is being handled
     if (global.activeChatHandlers && global.activeChatHandlers.has(phone)) {

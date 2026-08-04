@@ -79,7 +79,6 @@ export const presenceService = {
       document.removeEventListener("visibilitychange", this._visibilityHandler);
       this._visibilityHandler = null;
     }
-    disconnectSocket();
     usePresenceStore.getState().setOnlineUsers([]);
   }
 };

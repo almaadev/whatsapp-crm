@@ -86,22 +86,33 @@ app.prepare().then(() => {
     socket.emit("presence_change", Array.from(onlineUsers.values()));
 
     socket.on("register_user", (userData) => {
-      if (userData && userData.userId) {
-        socket.userData = userData;
+      if (userData && (userData.userId || userData.id)) {
+        const uId = userData.userId || userData.id;
+        const branchId = userData.branchId || userData.branch || null;
+        
+        socket.userData = { ...userData, userId: uId, branchId };
         onlineUsers.set(socket.id, {
           ...userData,
+          userId: uId,
+          branchId,
           socketId: socket.id,
           timestamp: Date.now()
         });
+
+        // 🎯 Join Authoritative Scoped Rooms
+        socket.join(`user:${uId}`);
+        if (branchId) socket.join(`branch:${branchId.toString()}`);
+        if (userData.role) socket.join(`role:${userData.role}`);
+        if (userData.department) socket.join(`dept:${userData.department}`);
+
         io.emit("presence_change", Array.from(onlineUsers.values()));
-        console.log(`👤 User registered: ${userData.name} (${userData.role})`);
+        console.log(`👤 User registered: ${userData.name} (${userData.role}) | Joined rooms: user:${uId}, branch:${branchId}, role:${userData.role}`);
 
         // Scope performance monitor events by role & branch
         if (userData.role === "superAdmin") {
           socket.join("performance-monitor:all");
           console.log(`🔌 Super Admin socket ${socket.id} joined performance-monitor:all`);
         } else if (userData.role === "admin") {
-          const branchId = userData.branchId || userData.branch;
           if (branchId) {
             socket.join(`performance-monitor:branch:${branchId}`);
             console.log(`🔌 Admin socket ${socket.id} joined performance-monitor:branch:${branchId}`);
@@ -109,12 +120,25 @@ app.prepare().then(() => {
         }
 
         // Publish presence online event
-        const branchId = userData.branchId || userData.branch;
         publishPerformanceEvent("associate_online", {
-          associateId: userData.userId,
+          associateId: uId,
           name: userData.name,
           branchId
         }, branchId);
+      }
+    });
+
+    socket.on("join_room", (roomName) => {
+      if (roomName) {
+        socket.join(roomName);
+        console.log(`🔌 Socket ${socket.id} joined room: ${roomName}`);
+      }
+    });
+
+    socket.on("leave_room", (roomName) => {
+      if (roomName) {
+        socket.leave(roomName);
+        console.log(`🔌 Socket ${socket.id} left room: ${roomName}`);
       }
     });
 

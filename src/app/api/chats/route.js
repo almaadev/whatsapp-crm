@@ -268,36 +268,42 @@ export async function POST(req) {
         );
       }
 
-      // â”€â”€ Step 3: Emit real-time socket event (non-fatal) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Step 3: Emit real-time socket event via socketPublisher ──────────
       try {
-        if (global.io) {
-          global.io.emit(socketEvent, {
-            phone,
-            message,
-            direction: "OUTBOUND",
-            timestamp: isoTimestamp,
-            status: "SENT",
-            role: role || "sales",
-            name: name || phone,
-            sendBy: { _id: session.user.id, name: session.user.name },
-            twilioSid,
-          });
-        }
-      } catch (socketErr) {
-        console.error("[POST /api/chats] Socket emit error:", socketErr.message);
-      }
+        const { emitNewMessage, emitCategoryMessage, emitChatLockUpdated } = await import("@/shared/utils/socketPublisher");
+        const customerDoc = await Customer.findOne({ phone }).lean();
+        const branchId = customerDoc?.branchId ? customerDoc.branchId.toString() : null;
 
-      // â”€â”€ Step 4: Release chat lock (non-fatal) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-      try {
+        const outPayload = {
+          phone,
+          message,
+          direction: "OUTBOUND",
+          timestamp: isoTimestamp,
+          status: "SENT",
+          role: role || session?.user?.role || "sales",
+          name: name || phone,
+          sendBy: { _id: session.user.id, name: session.user.name },
+          twilioSid,
+          branchId,
+        };
+
+        if (socketEvent === "new_message") {
+          emitNewMessage(outPayload, branchId);
+        } else {
+          const categoryName = socketEvent === "new_product_message" ? "Product Lead" : (socketEvent === "new_mdcamp_message" ? "MD Camp" : "Therapy");
+          emitCategoryMessage(categoryName, outPayload, branchId);
+        }
+
+        // ── Step 4: Release chat lock & emit lock update ─────────────────────
         if (global.activeChatHandlers && global.activeChatHandlers.has(phone)) {
           const handler = global.activeChatHandlers.get(phone);
           if (handler.userId === (session?.user?.id || session?.user?.email) || !handler.userId) {
             handler.lockedUntil = null;
-            if (global.io) global.io.emit("chat_lock_updated", { phone, handler });
+            emitChatLockUpdated({ phone, handler }, branchId);
           }
         }
-      } catch (lockErr) {
-        console.error("[POST /api/chats] Chat lock release error:", lockErr.message);
+      } catch (socketErr) {
+        console.error("[POST /api/chats] Socket emit error:", socketErr.message);
       }
 
       // â”€â”€ Step 5: Invalidate Redis cache (non-fatal) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

@@ -123,62 +123,7 @@ export function useCategoryChat(slug) {
 
   useEffect(() => {
     fetchChats();
-
-    const handleNewMessage = (msg) => {
-      const newMsg = {
-        ...msg,
-        timestamp: msg.timestamp || new Date().toISOString(),
-        chatType: config.chatType,
-      };
-
-      const currentState = useStore.getState();
-      currentState.addMessage(newMsg);
-      try {
-        queryClient.invalidateQueries({ queryKey: ["category-chats", slug] });
-      } catch (qErr) {}
-    };
-
-    const handleStatusUpdate = (update) => {
-      useStore.getState().updateMessageStatus(update.phone, update.sid, update.status);
-    };
-
-    const handleChatStatusUpdated = (data) => {
-      if (data?.phone) {
-        const isClosed = Boolean(data.isClosed ?? data.isChatClosed);
-        useStore.getState().updateChatDetails(data.phone, {
-          isClosed,
-          isChatClosed: isClosed,
-        });
-      }
-    };
-
-    const handleCustomerUpdated = (data) => {
-      fetchChats();
-      if (data?.phone) {
-        useStore.getState().updateChatDetails(data.phone, data);
-      }
-      try {
-        queryClient.invalidateQueries({ queryKey: ["category-chats", slug] });
-      } catch (qErr) {}
-    };
-
-    const socket = connectSocket();
-    socket.on(config.socketEvent, handleNewMessage);
-    socket.on("incoming-message", handleNewMessage);
-    socket.on("message_status_update", handleStatusUpdate);
-    socket.on("chat_status_updated", handleChatStatusUpdated);
-    socket.on("customer_branch_updated", handleCustomerUpdated);
-    socket.on("customer_updated", handleCustomerUpdated);
-
-    return () => {
-      socket.off(config.socketEvent, handleNewMessage);
-      socket.off("incoming-message", handleNewMessage);
-      socket.off("message_status_update", handleStatusUpdate);
-      socket.off("chat_status_updated", handleChatStatusUpdated);
-      socket.off("customer_branch_updated", handleCustomerUpdated);
-      socket.off("customer_updated", handleCustomerUpdated);
-    };
-  }, [slug, config.chatType, config.socketEvent, fetchChats, useStore, queryClient]);
+  }, [fetchChats]);
 
   return { loading, sending, fetchChats, sendMessage, updateStatus, useStore, config };
 }

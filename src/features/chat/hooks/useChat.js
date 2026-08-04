@@ -2,13 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { chatService } from "@/features/chat/services/chatService";
-import { connectSocket } from "@/features/chat/services/socketService";
-
 import { useChatStore } from "@/features/chat/stores/chatStore";
-
-import { playSafeAudio } from "@/shared/utils/audio";
-import { getDisplayName } from "@/shared/utils/chatHelpers";
-import { showChatNotification } from "@/shared/utils/notification";
 
 /**
  * Custom hook for managing the main chat interface logic.
@@ -53,52 +47,6 @@ export function useChat(role) {
       setLoading(false);
     }
   }, [role, setMessages]);
-
-  const handleIncomingMessage = useCallback(
-    (newMessage) => {
-      addMessage(newMessage);
-      try {
-        queryClient.invalidateQueries({ queryKey: ["chats"] });
-      } catch (qErr) {}
-
-      if (newMessage.direction !== "INBOUND") {
-        return;
-      }
-
-      try {
-        const state = useChatStore.getState();
-
-        const currentChat = selectedChatRef.current?.phone === newMessage.phone;
-
-        const contact = state.messages.find(
-          (item) => item.phone === newMessage.phone,
-        );
-
-        const displayName = getDisplayName(
-          newMessage.phone,
-          newMessage.name,
-          contact,
-        );
-
-        if (currentChat) {
-          playSafeAudio("/audio/incoming_message.mp3");
-          return;
-        }
-
-        playSafeAudio("/audio/notification.wav");
-
-        showChatNotification({
-          displayName,
-          phone: newMessage.phone,
-          message: newMessage.message,
-          addNotification,
-        });
-      } catch (error) {
-        console.error("Notification Processing Error:", error);
-      }
-    },
-    [addMessage, addNotification],
-  );
 
   const handleStatusUpdate = useCallback(({ sid, status, phone }) => {
     const state = useChatStore.getState();
@@ -153,25 +101,8 @@ export function useChat(role) {
 
   useEffect(() => {
     if (!role) return;
-
     fetchChats();
-
-    const socket = connectSocket();
-
-    socket.on("new_message", handleIncomingMessage);
-    socket.on("incoming-message", handleIncomingMessage);
-    socket.on("message_status_update", handleStatusUpdate);
-    socket.on("customer_branch_updated", handleCustomerBranchUpdate);
-    socket.on("customer_updated", handleCustomerBranchUpdate);
-
-    return () => {
-      socket.off("new_message", handleIncomingMessage);
-      socket.off("incoming-message", handleIncomingMessage);
-      socket.off("message_status_update", handleStatusUpdate);
-      socket.off("customer_branch_updated", handleCustomerBranchUpdate);
-      socket.off("customer_updated", handleCustomerBranchUpdate);
-    };
-  }, [role, fetchChats, handleIncomingMessage, handleStatusUpdate, handleCustomerBranchUpdate]);
+  }, [role, fetchChats]);
 
   return {
     loading,

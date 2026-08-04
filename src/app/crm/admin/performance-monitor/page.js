@@ -141,12 +141,22 @@ export default function PerformanceMonitor() {
     socket.on("customer_updated", handleRealTimeUpdate);
     socket.on("chat_lock_updated", handleRealTimeUpdate);
     socket.on("customer_branch_updated", handleRealTimeUpdate);
+    socket.on("lead_status_changed", handleRealTimeUpdate);
+    socket.on("lead_status_update", handleRealTimeUpdate);
+    socket.on("followup_added", handleRealTimeUpdate);
+    socket.on("performance_monitor_event", handleRealTimeUpdate);
+    socket.on("presence_change", handleRealTimeUpdate);
 
     return () => {
       socket.off("new_message", handleRealTimeUpdate);
       socket.off("customer_updated", handleRealTimeUpdate);
       socket.off("chat_lock_updated", handleRealTimeUpdate);
       socket.off("customer_branch_updated", handleRealTimeUpdate);
+      socket.off("lead_status_changed", handleRealTimeUpdate);
+      socket.off("lead_status_update", handleRealTimeUpdate);
+      socket.off("followup_added", handleRealTimeUpdate);
+      socket.off("performance_monitor_event", handleRealTimeUpdate);
+      socket.off("presence_change", handleRealTimeUpdate);
     };
   }, [isAuthorized, refresh]);
 

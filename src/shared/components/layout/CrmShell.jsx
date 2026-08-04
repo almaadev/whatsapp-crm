@@ -8,6 +8,9 @@ import { useUserStore } from "@/features/user/stores/userStore";
 import { authRepository } from "@/shared/api/repositories/authRepository";
 import { connectSocket } from "@/features/chat/services/socketService";
 
+import { useQueryClient } from "@tanstack/react-query";
+import { realtimeService } from "@/shared/services/realtimeService";
+
 const CrmLayoutContext = createContext(null);
 
 export function useCrmLayout() {
@@ -20,6 +23,7 @@ export function useCrmLayout() {
 
 export default function CrmShell({ children }) {
   const { data: session, status } = useSession();
+  const queryClient = useQueryClient();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isDesktopExpanded, setIsDesktopExpanded] = useState(false);
 
@@ -50,17 +54,9 @@ export default function CrmShell({ children }) {
 
   useEffect(() => {
     if (user && status === "authenticated") {
-      const socket = connectSocket();
-      socket.emit("register_user", {
-        userId: user.id || user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        department: user.department,
-        branch: user.branch
-      });
+      realtimeService.init(queryClient, user);
     }
-  }, [user, status]);
+  }, [user, status, queryClient]);
 
   useEffect(() => {
     if (session && status === "authenticated") {

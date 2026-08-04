@@ -6,7 +6,9 @@ import { getUserNameById } from "@/shared/utils/userUtils";
 import { 
   publishPerformanceEvent,
   emitCustomerUpdated,
-  emitCustomerBranchUpdated
+  emitCustomerBranchUpdated,
+  emitLeadStatusUpdate,
+  emitFollowUpAdded
 } from "@/shared/utils/socketPublisher";
 
 function normalisePhone(raw = "") {
@@ -460,6 +462,27 @@ export const serverLeadService = {
         status: resolvedStatus,
         previousStatus,
         performedBy: session.user.name
+      }, resolvedBranchId);
+
+      emitLeadStatusUpdate({
+        phone: cleanPhone,
+        name: resolvedName,
+        status: resolvedStatus,
+        previousStatus,
+        assignedTo: currentUser,
+        leadType: body.leadType || "Direct Lead",
+        updatedAt: new Date()
+      }, resolvedBranchId);
+    }
+
+    if (resolvedStatus === "Follow Up") {
+      emitFollowUpAdded({
+        phone: cleanPhone,
+        name: resolvedName,
+        status: resolvedStatus,
+        assignedTo: currentUser,
+        followUp: newLeadEntry,
+        updatedAt: new Date()
       }, resolvedBranchId);
     }
 

@@ -15,6 +15,7 @@ import EmptyState from "@/shared/components/ui/EmptyState";
 import { branchService } from "@/features/branches/services/branchService";
 import { userRepository } from "@/shared/api/repositories/userRepository";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
+import { connectSocket } from "@/features/chat/services/socketService";
 import {
   Save,
   User,
@@ -98,8 +99,8 @@ export default function LeadsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
 
-  const fetchRecentLeads = async () => {
-    setFetchingLeads(true);
+  const fetchRecentLeads = async (silent = false) => {
+    if (!silent) setFetchingLeads(true);
     try {
       const query = new URLSearchParams({ page: currentPage, limit: pageSize });
       if (searchTerm) query.append("search", searchTerm);
@@ -110,15 +111,42 @@ export default function LeadsPage() {
       setTotalRecords(data.total || 0);
     } catch (err) {
       console.error("Error fetching leads:", err);
-      toast.error("Failed to sync leads database.");
+      if (!silent) toast.error("Failed to sync leads database.");
     } finally {
-      setFetchingLeads(false);
+      if (!silent) setFetchingLeads(false);
     }
   };
 
   useEffect(() => {
     fetchRecentLeads();
   }, [currentPage, pageSize, searchTerm]);
+
+  // Real-time socket updates for leads pipeline
+  useEffect(() => {
+    if (!hasModuleAccess("Leads")) return;
+    const socket = connectSocket();
+
+    const handleRealtimeLeadUpdate = () => {
+      console.log("⚡ [LeadsPage] Real-time lead update received. Refreshing list silently...");
+      fetchRecentLeads(true);
+    };
+
+    socket.on("lead_status_update", handleRealtimeLeadUpdate);
+    socket.on("lead_status_changed", handleRealtimeLeadUpdate);
+    socket.on("followup_added", handleRealtimeLeadUpdate);
+    socket.on("customer_updated", handleRealtimeLeadUpdate);
+    socket.on("customer_branch_updated", handleRealtimeLeadUpdate);
+    socket.on("new_message", handleRealtimeLeadUpdate);
+
+    return () => {
+      socket.off("lead_status_update", handleRealtimeLeadUpdate);
+      socket.off("lead_status_changed", handleRealtimeLeadUpdate);
+      socket.off("followup_added", handleRealtimeLeadUpdate);
+      socket.off("customer_updated", handleRealtimeLeadUpdate);
+      socket.off("customer_branch_updated", handleRealtimeLeadUpdate);
+      socket.off("new_message", handleRealtimeLeadUpdate);
+    };
+  }, [hasModuleAccess, currentPage, pageSize, searchTerm]);
 
   // Load configuration for branch and associate filter dropdowns
   useEffect(() => {

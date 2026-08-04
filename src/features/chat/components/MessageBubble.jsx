@@ -59,6 +59,9 @@ const MessageBubble = memo(function MessageBubble({
               <video
                 src={msg.mediaUrl}
                 className="w-full h-auto rounded-xl pointer-events-none"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
               />
             ) : msg.mediaType?.includes("audio") ? (
               <audio
@@ -66,6 +69,9 @@ const MessageBubble = memo(function MessageBubble({
                 controls
                 className="w-full h-10 mt-1 scale-95"
                 onClick={(e) => e.stopPropagation()}
+                onError={(e) => {
+                  console.warn("Audio element media load error:", e);
+                }}
               />
             ) : msg.mediaType?.includes("pdf") ||
               msg.mediaType?.includes("document") ? (

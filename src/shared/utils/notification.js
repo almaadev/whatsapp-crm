@@ -6,6 +6,8 @@ export const showChatNotification = ({
   message,
   addNotification,
 }) => {
+  console.log(`[Notification] Created | For: ${displayName}`);
+
   toast.info(`Message from ${displayName}`);
 
   if (!addNotification) return;

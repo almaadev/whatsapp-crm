@@ -133,7 +133,13 @@ export default function Topbar() {
           {/* NOTIFICATION PANEL */}
           <div className="relative">
             <button
-              onClick={() => setShowNotifications(!showNotifications)}
+              onClick={() => {
+                const nextState = !showNotifications;
+                if (nextState) {
+                  console.log("[Bell] Notification opened");
+                }
+                setShowNotifications(nextState);
+              }}
               className="p-2 text-slate-500 hover:text-[#00a884] hover:bg-slate-50 rounded-xl relative transition-all cursor-pointer focus:outline-none"
             >
               <Bell size={20} />
