@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import connectDB from "@/shared/lib/db/mongodb";
 import Lead from "@/shared/models/Lead";
 import Customer from "@/shared/models/Customer";
+import CustomerAddress from "@/shared/models/CustomerAddress";
+import Activity from "@/shared/models/Activity";
 import { requireSession } from "@/shared/lib/session";
 import mongoose from "mongoose";
 import Branch from "@/shared/models/Branch";
@@ -19,7 +21,6 @@ export async function GET(req, { params }) {
     await connectDB();
 
     const resolvedParams = await params;
-    
     const rawPhone = decodeURIComponent(resolvedParams.phone || "");
     const cleanDigits = rawPhone.replace(/\D/g, "");
 
@@ -47,35 +48,24 @@ export async function GET(req, { params }) {
 
     const primaryPhone = variations[0]?.startsWith("whatsapp:") ? variations[0] : `whatsapp:${cleanDigits || rawPhone}`;
 
-    // Fetch customer record across all phone variations
+    // Fetch customer record across all phone variations and populate address
     const customer = await Customer.findOne({ phone: { $in: variations } })
+      .populate("currentAddressId")
       .populate({
         path: 'createdBy',
         select: 'name role department branch'
       })
-      .populate({
-        path: 'chatHistory.performedBy',
-        select: 'name role department branch'
-      })
-      .populate({
-        path: 'chatHistory.targetUser',
-        select: 'name role department branch'
-      })
       .lean();
 
-    const lead = await Lead.findOne({
-      $or: [
-        { phone: { $in: variations } },
-        { customerPhone: { $in: variations } }
-      ],
-    }).lean();
+    // Fetch all leads for this customer to retrieve historical activities
+    const leads = customer ? await Lead.find({ customerId: customer._id }).lean() : [];
+    const leadIds = leads.map(l => l._id);
+    const lead = leads.find(l => !l.isClosed) || leads[leads.length - 1] || null;
 
-    // If neither exists, return an empty object so the frontend doesn't crash
     if (!lead && !customer) {
       return NextResponse.json({}, { status: 200 }); 
     }
     
-    // Extract the follow-up history and determine the latest entry
     const history = lead?.leads || [];
     const latest = history.length > 0 ? history[history.length - 1] : null;
 
@@ -94,14 +84,6 @@ export async function GET(req, { params }) {
       }
     }
 
-    if (!creatorUser && lead?.createdBy) {
-      if (typeof lead.createdBy === "object" && lead.createdBy.name) {
-        creatorUser = lead.createdBy;
-      } else {
-        creatorUser = await User.findById(lead.createdBy).select("name role department branch branchId").lean();
-      }
-    }
-
     let creatorInfo = null;
     if (creatorUser) {
       const rawBranch = creatorUser.branch?._id?.toString()
@@ -114,10 +96,6 @@ export async function GET(req, { params }) {
       if (!resolvedBranchName && rawBranch && mongoose.Types.ObjectId.isValid(rawBranch)) {
         const bDoc = await Branch.findById(rawBranch).lean();
         if (bDoc) resolvedBranchName = bDoc.name;
-      }
-
-      if (!resolvedBranchName && rawBranch && !mongoose.Types.ObjectId.isValid(rawBranch)) {
-        resolvedBranchName = rawBranch;
       }
 
       creatorInfo = {
@@ -137,48 +115,104 @@ export async function GET(req, { params }) {
         branchName: "Unassigned Branch"
       };
     }
+    // Load timeline activities dynamically from Activity collection
+    let resolvedChatHistory = [];
+    if (customer) {
+      const TIMELINE_EVENTS = [
+        "CUSTOMER_CREATED",
+        "LEAD_CREATED",
+        "CHAT_STARTED",
+        "CHAT_CLOSED",
+        "CHAT_REOPENED",
+        "LEAD_ASSIGNED",
+        "CUSTOMER_ASSIGNED",
+        "FOLLOWUP_CREATED",
+        "FOLLOWUP_COMPLETED",
+        "LEAD_STATUS_CHANGED",
+        "CUSTOMER_UPDATED",
+        "PROFILE_UPDATED",
+        "ADDRESS_UPDATED",
+        "ADDRESS_CHANGED",
+        "TEMPLATE_SENT"
+      ];
 
-    const resolvedChatHistory = (customer?.chatHistory || []).map(entry => {
-      let performedByResolved = null;
-      if (entry.performedBy) {
-        const branchVal = entry.performedBy.branch?.toString() || "";
-        const branchName = branchMap[branchVal] || entry.performedBy.branch || "";
-        performedByResolved = {
-          name: entry.performedBy.name || "Unknown",
-          role: entry.performedBy.role || "",
-          department: entry.performedBy.department || "",
-          branchName: branchName
-        };
-      }
-      let targetUserResolved = null;
-      if (entry.targetUser) {
-        const branchVal = entry.targetUser.branch?.toString() || "";
-        const branchName = branchMap[branchVal] || entry.targetUser.branch || "";
-        targetUserResolved = {
-          name: entry.targetUser.name || "Unknown",
-          role: entry.targetUser.role || "",
-          department: entry.targetUser.department || "",
-          branchName: branchName
-        };
-      }
-      const performedAtVal = entry.performedAt || entry.timestamp || new Date();
-      const performedByIdVal = entry.performedById || (entry.performedBy?._id ? entry.performedBy._id.toString() : (typeof entry.performedBy === "string" ? entry.performedBy : null));
-      const performedByRoleVal = entry.performedByRole || performedByResolved?.role || "";
-
-      return {
-        _id: entry._id?.toString(),
-        action: entry.action || "System Action",
-        eventType: entry.eventType || (entry.action === "Branch Reassigned" ? "Chat Branch Reassigned" : entry.action) || "System Action",
-        timestamp: performedAtVal,
-        performedAt: performedAtVal,
-        notes: entry.notes || "",
-        isInternal: entry.isInternal || false,
-        performedBy: performedByResolved || entry.performedByName || (typeof entry.performedBy === "string" ? entry.performedBy : "System Admin"),
-        performedByRole: performedByRoleVal,
-        performedById: performedByIdVal,
-        targetUser: targetUserResolved
+      const query = {
+        $or: [
+          { customerId: customer._id },
+          { leadId: { $in: leadIds } }
+        ],
+        eventType: { $in: TIMELINE_EVENTS }
       };
-    });
+
+      const rawActivities = await Activity.find(query)
+        .populate({
+          path: 'actorId',
+          select: 'name role department branch'
+        })
+        .populate({
+          path: 'metadata.targetUser',
+          select: 'name role department branch'
+        })
+        .sort({ createdAt: 1 })
+        .lean();
+
+      // Deduplicate activities by _id
+      const uniqueActivities = Array.from(
+        new Map(
+          rawActivities.map(activity => [activity._id.toString(), activity])
+        ).values()
+      );
+
+      resolvedChatHistory = uniqueActivities.map(entry => {
+        let performedByResolved = null;
+        if (entry.actorId) {
+          const branchVal = entry.actorId.branch?.toString() || "";
+          const branchName = branchMap[branchVal] || entry.actorId.branch || "";
+          performedByResolved = {
+            name: entry.actorId.name || "Unknown",
+            role: entry.actorId.role || "",
+            department: entry.actorId.department || "",
+            branchName: branchName
+          };
+        }
+        let targetUserResolved = null;
+        if (entry.metadata?.targetUser) {
+          const branchVal = entry.metadata.targetUser.branch?.toString() || "";
+          const branchName = branchMap[branchVal] || entry.metadata.targetUser.branch || "";
+          targetUserResolved = {
+            name: entry.metadata.targetUser.name || "Unknown",
+            role: entry.metadata.targetUser.role || "",
+            department: entry.metadata.targetUser.department || "",
+            branchName: branchName
+          };
+        }
+        const performedAtVal = entry.createdAt;
+        const performedByIdVal = entry.actorId?._id?.toString() || entry.actorId || null;
+        const performedByRoleVal = entry.metadata?.performedByRole || performedByResolved?.role || "";
+        const actionName = entry.metadata?.action || (entry.eventType === "ADDRESS_CHANGED" ? "Address Changed" : entry.eventType === "ASSIGNED" ? "Assigned" : "System Action");
+
+        return {
+          ...entry,
+          _id: entry._id?.toString(),
+          action: actionName,
+          eventType: entry.eventType,
+          entityType: entry.entityType || "General",
+          entityId: entry.entityId?.toString() || null,
+          customerId: entry.customerId?.toString() || null,
+          leadId: entry.leadId?.toString() || null,
+          conversationId: entry.conversationId || entry.leadId?.toString() || null,
+          actorId: performedByIdVal,
+          performedBy: performedByResolved || entry.metadata?.performedByName || "System Admin",
+          performedByRole: performedByRoleVal,
+          performedById: performedByIdVal,
+          targetUser: targetUserResolved,
+          metadata: entry.metadata || {},
+          timestamp: performedAtVal,
+          performedAt: performedAtVal,
+          createdAt: entry.createdAt
+        };
+      });
+    }
 
     const userRole = session?.user?.role || "associate";
     const filteredChatHistory = resolvedChatHistory.filter(entry => {
@@ -188,27 +222,23 @@ export async function GET(req, { params }) {
       return true;
     });
 
-    // Construct the schema-aligned response
     const data = {
-      // --- Static Root Metadata ---
       name: resolveCustomerDisplayName({ lead, customer, phone: primaryPhone }),
-      city: lead?.city || customer?.city || "",
-      phone: lead?.phone || customer?.phone || primaryPhone,
-      address: lead?.address || customer?.address || "",
-      source: lead?.source || customer?.source || "Whatsapp",
-      assignedTo: lead?.assignedTo || customer?.assignedTo || "Unassigned",
-      branchId: customer?.branchId?._id?.toString() || customer?.branchId?.toString() || lead?.branchId?._id?.toString() || lead?.branchId?.toString() || null,
-
-      // --- Dynamic Follow-up Data (Derived purely from latest entry) ---
+      city: customer?.currentAddressId?.city || customer?.city || "",
+      phone: customer?.phone || primaryPhone,
+      address: customer?.currentAddressId?.address || customer?.address || "",
+      source: customer?.source || "Whatsapp",
+      assignedTo: customer?.assignedTo || "Unassigned",
+      branchId: customer?.branchId?._id?.toString() || customer?.branchId?.toString() || null,
       enquiredFor: latest?.enquiredFor || customer?.enquiredFor || "",
-      status: latest?.status || "",
-      priority: latest?.priority || "Medium",
-      remarks: latest?.overAllRemarks || "",
+      status: latest?.status || customer?.status || "New",
+      priority: latest?.priority || customer?.priority || "Medium",
+      remarks: latest?.overAllRemarks || customer?.remarks || "",
       day1Remarks: latest?.day1Remarks || "",
       day2Remarks: latest?.day2Remarks || "",
       day3Remarks: latest?.day3Remarks || "",
-      saleAmount: latest?.saleAmount || "0",
-      leadType: latest?.leadType || "Direct Lead",
+      saleAmount: latest?.saleAmount || customer?.saleAmount || "0",
+      leadType: latest?.leadType || customer?.activeRouteCategory || "Direct Lead",
       history: history,
       latestFollowUp: latest || {},
       creatorInfo,

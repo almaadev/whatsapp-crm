@@ -8,7 +8,7 @@ export default function DashboardPage({
   icon,
   actions,
   children,
-  maxWidth = "1400px",
+  maxWidth = "1800px",
   headerChildren,
   noPadding = false,
 }) {

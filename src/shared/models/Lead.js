@@ -1,15 +1,11 @@
 import mongoose from "mongoose";
 
-/**
- * Schema for tracking individual follow-up interactions on a Lead.
- */
 const FollowUpSchema = new mongoose.Schema(
   {
     date:          { type: Date, required: true },
     year:          { type: Number },
-    month:         { type: Number }, // 1-12
-    day:           { type: Number }, // 1-31
-    
+    month:         { type: Number },
+    day:           { type: Number },
     enquiredFor:   { type: String, default: "" },
     associateId:   { type: String, default: "" },
     associateName: { type: String, default: "" }, 
@@ -22,7 +18,6 @@ const FollowUpSchema = new mongoose.Schema(
     saleAmount:    { type: String, default: "0" },
     leadType: {
       type: String,
-      enum: ["Direct Lead"],
       default: "Direct Lead",
     },
     note:          { type: String, trim: true, default: "" },
@@ -40,32 +35,17 @@ const HandoffSchema = new mongoose.Schema(
   { _id: false }
 );
 
-/**
- * Schema representing a Customer Lead and its entire lifecycle.
- * Tracks ownership, handoffs, and an array of follow-up interactions.
- */
 const LeadSchema = new mongoose.Schema(
   {
-    phone:       { type: String, required: true, unique: true, index: true },
-    name:        { type: String, default: "Unknown" },
-    city:        { type: String, default: "" },
-    address:     { type: String, default: "" },
-    source:      { type: String, default: "Whatsapp" },
-    
-    // Current Ownership
+    customerId:  { type: mongoose.Schema.Types.ObjectId, ref: "Customer", required: true, unique: true, index: true },
     assignedTo:  { type: String, default: null },
     associateId: { type: String, default: "" },
-    
-    // Lifecycle Auditing
     handledByHistory: [HandoffSchema], 
-    
-    // Closure Tracking
     isClosed:    { type: Boolean, default: false },
     closedBy:    { type: String, default: null }, 
     closedById:  { type: String, default: null }, 
     closedAt:    { type: Date, default: null },
-    
-    leads:       [FollowUpSchema],                      
+    leads:       { type: [FollowUpSchema], alias: "followups" }
   },
   { 
     timestamps: true, 
@@ -74,14 +54,11 @@ const LeadSchema = new mongoose.Schema(
   }
 );
 
-// --- Advanced Indexing for Analytics & Performance ---
 LeadSchema.index({ createdAt: 1 });
 LeadSchema.index({ "leads.date": 1 });
 LeadSchema.index({ associateId: 1, isClosed: 1 });
 LeadSchema.index({ closedById: 1, closedAt: 1 });
-LeadSchema.index({ "leads.year": 1, "leads.month": 1, "leads.associateId": 1 });
 
-// --- Virtuals ---
 LeadSchema.virtual("latestFollowUp").get(function () {
   return this.leads && this.leads.length > 0 ? this.leads[this.leads.length - 1] : null;
 });
@@ -90,6 +67,13 @@ LeadSchema.virtual("status").get(function () {
   return this.latestFollowUp?.status ?? "New";
 });
 
-// Safe model registration
+LeadSchema.virtual("pipelineStatus").get(function () {
+  return this.status;
+});
+
+LeadSchema.virtual("saleAmount").get(function () {
+  return this.latestFollowUp?.saleAmount ?? "0";
+});
+
 delete mongoose.models.Lead;
 export default mongoose.models.Lead || mongoose.model("Lead", LeadSchema);

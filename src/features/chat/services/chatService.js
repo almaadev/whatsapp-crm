@@ -19,6 +19,14 @@ export const chatService = {
 
       if (!Array.isArray(data)) return [];
 
+      // If backend already grouped conversations (e.g. has history field)
+      if (data.length > 0 && data[0].history !== undefined) {
+        return data.map((conv) => ({
+          ...conv,
+          name: resolveCustomerDisplayName(conv)
+        }));
+      }
+
       const uniqueConversations = {};
 
       data.forEach((msg) => {

@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { usePathStore } from "@/features/chat/stores/pathStore";
 import { customerRepository } from "@/shared/api/repositories/customerRepository";
 import { useAuth } from "@/shared/hooks/useAuth";
+import { useDebounce } from "@/shared/hooks/useDebounce";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
 
 import DashboardPage from "@/shared/components/layout/DashboardPage";
@@ -29,16 +30,6 @@ import {
 import { getStatusColor } from "@/shared/utils/colorUtils";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 import { toast } from "react-toastify";
-
-// --- Custom Debounce Hook ---
-function useDebounce(value, delay) {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(() => {
-    const handler = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(handler);
-  }, [value, delay]);
-  return debouncedValue;
-}
 
 export default function CustomersPage() {
   const { data: session, status } = useSession();

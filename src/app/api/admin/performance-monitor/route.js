@@ -3,10 +3,13 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/shared/lib/auth";
 import connectDB from "@/shared/lib/db/mongodb";
 import User from "@/shared/models/User";
-import { isAdminAuthorized, isSuperAdmin as checkSuperAdmin } from "@/shared/utils/auth";
-import { 
-  getPerformanceAnalytics, 
-  getAssociateCustomers 
+import {
+  isAdminAuthorized,
+  isSuperAdmin as checkSuperAdmin,
+} from "@/shared/utils/auth";
+import {
+  getPerformanceAnalytics,
+  getAssociateCustomers,
 } from "@/features/admin/services/performanceAnalyticsService";
 
 export const dynamic = "force-dynamic";
@@ -23,10 +26,16 @@ export async function GET(req) {
 
     // 2. Strict Authorization Check
     const isSuperAdmin = checkSuperAdmin(session.user.role);
-    const isAdmin = isAdminAuthorized(session.user.role, session.user.department);
+    const isAdmin = isAdminAuthorized(
+      session.user.role,
+      session.user.department,
+    );
 
     if (!isSuperAdmin && !isAdmin) {
-      return NextResponse.json({ error: "Forbidden: Admin access required." }, { status: 403 });
+      return NextResponse.json(
+        { error: "Forbidden: Admin access required." },
+        { status: 403 },
+      );
     }
 
     // 3. Extract filters
@@ -37,12 +46,15 @@ export async function GET(req) {
     if (action === "associateCustomers") {
       const associateId = searchParams.get("associateId");
       if (!associateId) {
-        return NextResponse.json({ success: false, error: "Associate ID required" }, { status: 400 });
+        return NextResponse.json(
+          { success: false, error: "Associate ID required" },
+          { status: 400 },
+        );
       }
       const customers = await getAssociateCustomers(associateId);
       return NextResponse.json({
         success: true,
-        customers
+        customers,
       });
     }
 
@@ -56,6 +68,22 @@ export async function GET(req) {
     const leadTypeFilter = searchParams.get("leadType") || "all";
     const associateFilter = searchParams.get("associateId") || "all";
     const leadStatus = searchParams.get("leadStatus") || "all";
+
+    // Prevent regular Admin from explicitly requesting SuperAdmin
+    if (!isSuperAdmin) {
+      const normalizedRoleFilter = roleFilter.toLowerCase();
+
+      // Regular Admin must never request SuperAdmin analytics
+      if (normalizedRoleFilter === "superadmin") {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "You are not authorized to view SuperAdmin analytics.",
+          },
+          { status: 403 },
+        );
+      }
+    }
 
     // 4. Force inject regular Admin's own branch reference (watertight RBAC)
     let adminBranch = null;
@@ -78,15 +106,18 @@ export async function GET(req) {
       leadStatus,
       isSuperAdmin,
       adminBranch,
-      sessionUserId: session.user.id
+      sessionUserId: session.user.id,
     });
 
     return NextResponse.json({
       success: true,
-      ...analytics
+      ...analytics,
     });
   } catch (error) {
     console.error("Performance Monitor API Error:", error);
-    return NextResponse.json({ success: false, error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: "Internal Server Error" },
+      { status: 500 },
+    );
   }
 }

@@ -4,6 +4,7 @@ import Message from "@/shared/models/Message";
 import Customer from "@/shared/models/Customer";
 import redis from "@/shared/lib/db/redis";
 import { verifyStudioLogSecret } from "@/shared/lib/session";
+import { normalizePhone } from "@/shared/utils/phoneUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -18,28 +19,43 @@ export async function POST(req) {
     // 2. Read JSON Body
     const body = await req.json();
 
-    let phone = body.phone || body.To || body.From || "";
+    const phone = normalizePhone(body.phone || body.To || body.From || "");
     const message = body.message || body.Body || "Automated Message";
     const twilioSID = body.twilioSid || body.MessageSid || "auto_" + Date.now();
 
-    // WhatsApp prefix check
-    if (phone && !phone.startsWith("whatsapp:")) {
-        phone = `whatsapp:${phone}`;
-    }
-
     if (!phone) {
-      
       return NextResponse.json({ error: "Missing phone" }, { status: 400 });
     }
 
     const isoTimestamp = new Date().toISOString();
 
-    // 3. Ensure Customer exists in DB (Upsert)
-    await Customer.findOneAndUpdate(
-      { phone: phone },
-      { $setOnInsert: { name: "Unknown", status: "New", assignedTo: "unassigned" } },
-      { upsert: true, returnDocument: "after" }
-    );
+    // 3. Ensure Customer exists in DB (Safe Legacy Lookup & Insert)
+    let customerDoc = await Customer.findOne({ phone });
+    if (!customerDoc) {
+      const cleanDigits = phone.replace("whatsapp:", "").replace("+", "");
+      const tenDigit = cleanDigits.substring(cleanDigits.length - 10);
+      const variations = [
+        `whatsapp:${cleanDigits}`,
+        `whatsapp:+${cleanDigits}`,
+        `+${cleanDigits}`,
+        cleanDigits,
+        `whatsapp:${tenDigit}`,
+        `whatsapp:+${tenDigit}`,
+        `+${tenDigit}`,
+        tenDigit
+      ];
+      customerDoc = await Customer.findOne({ phone: { $in: variations } });
+    }
+
+    if (!customerDoc) {
+      customerDoc = await Customer.create({
+        phone: phone,
+        name: "Unknown",
+        status: "New",
+        assignedTo: "unassigned",
+        isClosed: true
+      });
+    }
 
     // 4. Save the automated message directly to MongoDB
     await Message.create({

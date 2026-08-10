@@ -41,6 +41,9 @@ const ChatHeader = memo(function ChatHeader({
   const history = activeChat?.history || [];
   const lastHistoryMsg = history.length > 0 ? history[history.length - 1] : null;
 
+  const chatHistory = detailedCustomer?.chatHistory || [];
+  const hasChatHistory = chatHistory.some(act => ["CHAT_STARTED", "CHAT_CLOSED", "CHAT_REOPENED"].includes(act.eventType)) || (history.length > 0);
+
   const hasStatusHistory = Boolean(
     lastHistoryMsg?.status === "Follow Up" ||
     lastHistoryMsg?.status === "Closed" ||
@@ -124,7 +127,7 @@ const ChatHeader = memo(function ChatHeader({
             {isToggling ? (
               <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
             ) : isChatClosed ? (
-              "Reopen Chat"
+              hasChatHistory ? "Reopen Chat" : "Open Chat"
             ) : (!isChatClosed && isCloseDisabled) ? (
               <span className="flex items-center gap-1 select-none">
                 🔒 Close Chat
@@ -225,7 +228,7 @@ const ChatHeader = memo(function ChatHeader({
               `}
               title={(!isChatClosed && isCloseDisabled) ? `${handler?.name || "Another user"} is currently handling this chat.` : ""}
             >
-              {isChatClosed ? "Reopen Chat" : (!isChatClosed && isCloseDisabled) ? "🔒 Close Chat (Locked)" : "Close Chat"}
+              {isChatClosed ? (hasChatHistory ? "Reopen Chat" : "Open Chat") : (!isChatClosed && isCloseDisabled) ? "🔒 Close Chat (Locked)" : "Close Chat"}
             </button>
 
             <div className="border-t border-slate-100 my-1" />

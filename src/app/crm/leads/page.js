@@ -413,7 +413,7 @@ export default function LeadsPage() {
                   <th className="py-3 px-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort("createdAt")}>
                     Created {sortBy === "createdAt" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
                   </th>
-                  <th className="py-3 px-4 text-center w-20">Actions</th>
+                  
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-150 text-xs font-semibold text-slate-700">
@@ -485,16 +485,7 @@ export default function LeadsPage() {
                         <td className="py-3 px-3 text-slate-500 whitespace-nowrap">
                           {createdDate ? new Date(createdDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "-"}
                         </td>
-                        <td className="py-3 px-4 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                          <div className="inline-flex gap-1.5">
-                            <button
-                              onClick={() => handleCustomerRedirect(lead.phone)}
-                              className="inline-flex items-center gap-0.5 bg-[#00a884] hover:bg-[#008f70] text-white font-bold py-0.5 px-2 rounded text-[10px] transition-colors shadow-sm cursor-pointer"
-                            >
-                              See More
-                            </button>
-                          </div>
-                        </td>
+
                       </tr>
 
                       {/* DETAILED COLLAPSIBLE DRAWER */}
@@ -655,7 +646,7 @@ function ExpandedDetailsArea({ lead, handleCustomerRedirect }) {
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="font-extrabold text-xs text-slate-800">{item.associateName || "System Admin"}</span>
+                        <span className="font-extrabold text-xs text-slate-800">{item.associateName }</span>
                         <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${getStatusBadgeStyles(item.status)}`}>
                           {item.status}
                         </span>
@@ -757,7 +748,7 @@ function ExpandedDetailsArea({ lead, handleCustomerRedirect }) {
                   </div>
                   <div className="bg-slate-50 border border-slate-150 rounded-xl p-2.5 flex-1 shadow-sm flex items-center justify-between gap-4">
                     <div>
-                      <h5 className="font-extrabold text-xs text-slate-800">{item.associateName || "System Admin"}</h5>
+                      <h5 className="font-extrabold text-xs text-slate-800">{item.associateName }</h5>
                       <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">
                         {new Date(item.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                       </span>

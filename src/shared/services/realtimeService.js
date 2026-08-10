@@ -1,6 +1,7 @@
 import { connectSocket } from "@/features/chat/services/socketService";
 import { useChatStore } from "@/features/chat/stores/chatStore";
-import { usePresenceStore } from "@/features/presence/stores/presenceStore";
+import { usePresenceStore as useOnlineUsersStore } from "@/features/presence/stores/presenceStore";
+import { usePresenceStore as useChatPresenceStore } from "@/features/chat/stores/presenceStore";
 import { usePerformanceMonitorStore } from "@/features/admin/stores/performanceMonitorStore";
 import { notificationAudioService } from "@/shared/services/notificationAudioService";
 
@@ -97,6 +98,7 @@ class RealtimeServiceManager {
         this.queryClient.invalidateQueries({ queryKey: ["customers"] });
         this.queryClient.invalidateQueries({ queryKey: ["chats"] });
         this.queryClient.invalidateQueries({ queryKey: ["category-chats"] });
+        this.queryClient.invalidateQueries({ queryKey: ["detailed-customer"] });
       }
       try {
         usePerformanceMonitorStore.getState().refresh();
@@ -114,31 +116,31 @@ class RealtimeServiceManager {
     this.socket.on("presence_change", (onlineUsers) => {
       console.log(`[RealtimeService] Presence update: ${onlineUsers.length} online users`);
       try {
-        usePresenceStore.getState().setOnlineUsers(onlineUsers);
+        useOnlineUsersStore.getState().setOnlineUsers(onlineUsers);
       } catch (e) {}
     });
 
     this.socket.on("sync_active_handlers", (handlersArray) => {
       try {
-        usePresenceStore.getState().syncHandlers(handlersArray);
+        useChatPresenceStore.getState().syncHandlers(handlersArray);
       } catch (e) {}
     });
 
     this.socket.on("chat_handled", ({ phone, handler }) => {
       try {
-        usePresenceStore.getState().setHandler(phone, handler);
+        useChatPresenceStore.getState().setHandler(phone, handler);
       } catch (e) {}
     });
 
     this.socket.on("chat_unhandled", ({ phone }) => {
       try {
-        usePresenceStore.getState().removeHandler(phone);
+        useChatPresenceStore.getState().removeHandler(phone);
       } catch (e) {}
     });
 
     this.socket.on("chat_lock_updated", ({ phone, handler }) => {
       try {
-        usePresenceStore.getState().setHandler(phone, handler);
+        useChatPresenceStore.getState().setHandler(phone, handler);
       } catch (e) {}
       if (this.queryClient) {
         this.queryClient.invalidateQueries({ queryKey: ["chats"] });

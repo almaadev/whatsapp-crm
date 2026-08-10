@@ -1,6 +1,9 @@
 import Message from "@/shared/models/Message";
 import Customer from "@/shared/models/Customer";
 import Lead from "@/shared/models/Lead";
+import Activity from "@/shared/models/Activity";
+import { activityService } from "@/server/services/activityService";
+import { ActivityEvents, ActivitySources } from "@/shared/constants/activityConstants";
 import { 
   emitChatStatusUpdated, 
   publishPerformanceEvent 
@@ -10,7 +13,10 @@ export const serverChatService = {
   async updateChatControlStatus(phone, isChatClosed, chatType, session) {
     // 1. Fetch customer to resolve branchId
     const customerDoc = await Customer.findOne({ phone }).lean();
-    const branchId = customerDoc ? customerDoc.branchId : null;
+    if (!customerDoc) {
+      throw new Error(`Customer with phone ${phone} not found.`);
+    }
+    const branchId = customerDoc.branchId;
 
     // 2. Check if chat is locked by someone else
     const activeChatHandlers = global.activeChatHandlers;
@@ -30,31 +36,63 @@ export const serverChatService = {
     );
 
     const now = new Date();
-    const chatHistoryEntry = {
-      action: isChatClosed ? "Closed" : "Reopened",
-      eventType: isChatClosed ? "Chat Closed" : "Chat Reopened",
-      performedBy: session.user.id,
-      performedById: session.user.id,
-      performedByName: session.user.name || "User",
-      performedByRole: session.user.role || "associate",
-      performedAt: now,
-      timestamp: now,
-      notes: isChatClosed ? "Chat marked as closed" : "Chat reopened"
-    };
+    let chatAction = "Reopened";
+    let chatEventType = "Chat Reopened";
+    let loggedEventType = ActivityEvents.CHAT_REOPENED;
+
+    if (isChatClosed) {
+      chatAction = "Closed";
+      chatEventType = "Chat Closed";
+      loggedEventType = ActivityEvents.CHAT_CLOSED;
+    } else {
+      const hasPreviousChat = await Activity.exists({
+        customerId: customerDoc._id,
+        eventType: { $in: [ActivityEvents.CHAT_STARTED, ActivityEvents.CHAT_CLOSED, ActivityEvents.CHAT_REOPENED] }
+      });
+      if (!hasPreviousChat) {
+        chatAction = "Started";
+        chatEventType = "Chat Started";
+        loggedEventType = ActivityEvents.CHAT_STARTED;
+      }
+    }
 
     const customerUpdate = {
-      $push: { chatHistory: chatHistoryEntry },
       $set: { isClosed: isChatClosed }
     };
 
-    if (isChatClosed === true) {
-      customerUpdate.$set.activeRouteCategory = "Direct Lead";
+    if (isChatClosed) {
+      customerUpdate.$set.closedById = session.user.id;
+      customerUpdate.$set.closedAt = now;
+    } else {
+      if (loggedEventType === ActivityEvents.CHAT_REOPENED) {
+        customerUpdate.$set.reopenedById = session.user.id;
+        customerUpdate.$set.reopenedAt = now;
+      }
     }
 
     await Customer.findOneAndUpdate(
       { phone },
       customerUpdate
     );
+
+    // Find lead to pass its ID to activity logger (if it exists)
+    const lead = await Lead.findOne({ customerId: customerDoc._id }).lean();
+
+    // Log the Chat Activity through centralized service
+    await activityService.log({
+      eventType: loggedEventType,
+      entityType: "Chat",
+      entityId: customerDoc._id,
+      customerId: customerDoc._id,
+      leadId: lead?._id || null,
+      actorId: session.user.id,
+      source: ActivitySources.WEB,
+      metadata: {
+        notes: isChatClosed ? "Chat marked as closed" : (chatAction === "Started" ? "Chat started" : "Chat reopened"),
+        previousState: isChatClosed ? "OPEN" : "CLOSED",
+        newState: isChatClosed ? "CLOSED" : "OPEN"
+      }
+    });
 
     // Call publisher to emit socket events
     emitChatStatusUpdated({
@@ -64,16 +102,8 @@ export const serverChatService = {
       chatType
     }, branchId);
 
-    // Telemetry specific for lead reopened if chat reopened
+    // Telemetry specific for chat reopen/close
     if (!isChatClosed) {
-      // Reopened events
-      publishPerformanceEvent("lead_reopened", {
-        phone,
-        name: customerDoc?.name || "Unknown",
-        branchId,
-        performedBy: session.user.name
-      }, branchId);
-      
       publishPerformanceEvent("chat_reopened", {
         phone,
         branchId

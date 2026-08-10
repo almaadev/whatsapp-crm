@@ -20,7 +20,7 @@ export const connectSocket = () => {
 
   socket = io(socketUrl, {
     path: "/socket.io/",
-    transports: ["websocket", "polling"],
+    transports: ["polling", "websocket"],
     reconnection: true,
     reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,

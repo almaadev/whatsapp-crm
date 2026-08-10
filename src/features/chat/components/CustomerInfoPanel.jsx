@@ -270,7 +270,7 @@ export default function CustomerInfoPanel({
             return [];
           })
           .catch(() => []),
-        api.get(`/api/leads/${encodeURIComponent(phoneToFetch)}`)
+        api.get(`/api/leads/${encodeURIComponent(phoneToFetch)}?scope=chat`)
           .then(({ data }) => data)
           .catch((err) => {
             console.error("Info Panel Fetch Error:", err);

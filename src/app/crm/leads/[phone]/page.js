@@ -19,7 +19,7 @@ import { useSession } from "next-auth/react";
 import { leadRepository } from "@/shared/api/repositories/leadRepository";
 import { useAuth } from "@/shared/hooks/useAuth";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
-
+import { getActivityTitle } from "@/shared/utils/activityFormatter";
 // ─────────────────────────────────────────────────────────────────────────────
 //  MODERN ENTERPRISE STATUS BADGES
 // ─────────────────────────────────────────────────────────────────────────────
@@ -95,12 +95,46 @@ export default function LeadDetailsPage({ params }) {
   const intelligence = useMemo(() => {
       if (!lead) return null;
 
-      const timeline = lead.history || [];
+      const followups = lead.history || [];
+      const activities = (lead.chatHistory || [])
+        .map((act, index) => {
+          let performerName = "System Admin";
+          if (act.performedBy) {
+            if (typeof act.performedBy === "object" && act.performedBy.name) {
+              performerName = act.performedBy.name;
+            } else if (typeof act.performedBy === "string") {
+              performerName = act.performedBy;
+            }
+          }
+          const formattedTitle = getActivityTitle(act.eventType, performerName, act.metadata || act);
+          let mappedStatus = "Active";
+          if (act.eventType === "LEAD_STATUS_CHANGED") {
+            mappedStatus = act.metadata?.newStatus || "Follow Up";
+          } else if (act.eventType === "LEAD_CREATED") {
+            mappedStatus = "New";
+          } else if (act.eventType === "FOLLOWUP_CREATED") {
+            mappedStatus = "Follow Up";
+          } else if (act.eventType === "FOLLOWUP_COMPLETED") {
+            mappedStatus = "Closed";
+          }
+          return {
+            _id: act._id || `act-${index}`,
+            date: act.timestamp || act.createdAt,
+            status: mappedStatus,
+            associateName: performerName,
+            overAllRemarks: formattedTitle,
+            enquiredFor: "",
+            isActivity: true,
+            eventType: act.eventType
+          };
+        });
+
+      const timeline = [...followups, ...activities].sort((a, b) => new Date(a.date) - new Date(b.date));
       
-      const interactionCount = timeline.filter(interaction => interaction.status === "Closed").length;
+      const interactionCount = followups.filter(interaction => interaction.status === "Closed").length;
       
-      const firstFollowUp = timeline.length > 0 ? timeline[0] : {};
-      const latestFollowUp = timeline.length > 0 ? timeline[timeline.length - 1] : {};
+      const firstFollowUp = followups.length > 0 ? followups[0] : {};
+      const latestFollowUp = followups.length > 0 ? followups[followups.length - 1] : {};
 
       const originHandler = firstFollowUp.associateName || lead.assignedTo || "Unassigned";
       const currentHandler = latestFollowUp.associateName || lead.assignedTo || "Unassigned";
@@ -396,7 +430,7 @@ export default function LeadDetailsPage({ params }) {
                                       >
                                           <div className="flex flex-wrap sm:flex-nowrap justify-between items-start sm:items-center gap-2">
                                               <div className="flex flex-wrap items-center gap-3">
-                                                  <StatusBadge status={fu.status} />
+                                                  <StatusBadge status={fu.status} labelOverride={fu.isActivity ? fu.overAllRemarks : null} />
                                                   <span className="text-[12px] font-semibold text-slate-500 flex items-center gap-1.5">
                                                       <Clock size={12} className="text-slate-400"/> {new Date(fu.date).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute:"2-digit" })}
                                                   </span>

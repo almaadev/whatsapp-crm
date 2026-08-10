@@ -8,6 +8,8 @@ import Lead from "@/shared/models/Lead";
 import redis from "@/shared/lib/db/redis";
 import twilio from "twilio";
 import User from "@/shared/models/User";
+import Activity from "@/shared/models/Activity";
+import { serverCustomerService } from "@/server/services/serverCustomerService";
 import { sanitizeChatList } from "@/shared/utils/privacy";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 
@@ -39,18 +41,19 @@ export async function GET(request) {
     sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
     const customers = await Customer.find(branchQuery)
-      .populate({ path: "chatHistory.performedBy", select: "name role department" })
+      .populate("currentAddressId")
       .lean();
 
     const inboxCustomers = customers.filter(
       (c) => !c.activeRouteCategory || c.activeRouteCategory === "Direct Lead"
     );
-    const allowedPhones = new Set(inboxCustomers.map((c) => c.phone));
+    const allowedPhones = inboxCustomers.map((c) => c.phone);
 
-    // Safe populate — fall back if sendBy has old non-ObjectId values
+    // Fetch messages for allowed inbox customers in the last 60 days
     let msgs;
     try {
       msgs = await Message.find({ 
+        phone: { $in: allowedPhones },
         timestamp: { $gte: sixtyDaysAgo },
         chatType: { $in: ["Direct Lead", null, undefined] }
       })
@@ -59,20 +62,20 @@ export async function GET(request) {
     } catch (populateErr) {
       console.error("[GET /api/chats] sendBy populate failed, using fallback:", populateErr.message);
       msgs = await Message.find({ 
+        phone: { $in: allowedPhones },
         timestamp: { $gte: sixtyDaysAgo },
         chatType: { $in: ["Direct Lead", null, undefined] }
       }).lean();
     }
 
-    msgs = msgs.filter((m) => allowedPhones.has(m.phone));
-
-    const allMessages = msgs.map((m) => ({
-      ...m,
-      categoryLabel: null,
-      time: new Date(m.timestamp || m.createdAt || 0).getTime(),
-    }));
-
-    allMessages.sort((a, b) => a.time - b.time);
+    // Group messages by phone
+    const msgsByPhone = {};
+    msgs.forEach((m) => {
+      if (!msgsByPhone[m.phone]) {
+        msgsByPhone[m.phone] = [];
+      }
+      msgsByPhone[m.phone].push(m);
+    });
 
     const Branch = (await import("@/shared/models/Branch")).default;
     const branches = await Branch.find().select("name code").lean();
@@ -81,69 +84,83 @@ export async function GET(request) {
       branchMap[b._id.toString()] = { name: b.name, code: b.code || "" };
     });
 
-    const contactMap = new Map();
-    customers.forEach((c) => {
-      let lastHandled = null;
-      if (c.chatHistory && c.chatHistory.length > 0) {
-        const latest = c.chatHistory[c.chatHistory.length - 1];
-        if (latest.performedBy) {
-          lastHandled = {
-            name: latest.performedBy.name || "Unknown",
-            role: latest.performedBy.role || "",
-            department: latest.performedBy.department || "",
-            userId: latest.performedBy._id ? latest.performedBy._id.toString() : "",
-          };
+    // Fetch latest activities to resolve lastHandled info
+    const latestActivities = await Activity.aggregate([
+      { $sort: { createdAt: -1 } },
+      { $group: { _id: "$customerId", latest: { $first: "$$ROOT" } } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "latest.actorId",
+          foreignField: "_id",
+          as: "actor"
         }
+      },
+      { $unwind: { path: "$actor", preserveNullAndEmptyArrays: true } }
+    ]);
+    const lastHandledMap = new Map();
+    latestActivities.forEach(act => {
+      if (act.actor) {
+        lastHandledMap.set(act._id.toString(), {
+          name: act.actor.name || "Unknown",
+          role: act.actor.role || "",
+          department: act.actor.department || "",
+          userId: act.actor._id ? act.actor._id.toString() : ""
+        });
       }
+    });
+
+    // Build conversation structures
+    const chats = inboxCustomers.map((c) => {
+      const lastHandled = lastHandledMap.get(c._id.toString()) || null;
       const bId = c.branchId ? (c.branchId._id ? c.branchId._id.toString() : c.branchId.toString()) : null;
       const bObj = bId && branchMap[bId] ? branchMap[bId] : null;
 
-      contactMap.set(c.phone, {
-        name: c.name,
-        status: c.status,
-        city: c.city,
-        assignedTo: c.assignedTo,
-        activeRouteCategory: c.activeRouteCategory,
-        unreadCount: c.unreadCount || 0,
-        priority: c.priority,
+      const customerMsgs = msgsByPhone[c.phone] || [];
+      customerMsgs.sort((a, b) => new Date(a.timestamp || a.createdAt || 0) - new Date(b.timestamp || b.createdAt || 0));
+
+      const latestMsg = customerMsgs.length > 0 ? customerMsgs[customerMsgs.length - 1] : null;
+
+      let msgText = latestMsg ? (latestMsg.message || "") : "";
+      if (!msgText && latestMsg && latestMsg.mediaUrl) {
+        if (latestMsg.mediaType?.includes("video")) msgText = "🎥 Video";
+        else if (latestMsg.mediaType?.includes("audio")) msgText = "🎵 Audio";
+        else if (latestMsg.mediaType?.includes("pdf") || latestMsg.mediaType?.includes("document")) msgText = "📄 Document";
+        else msgText = "📷 Photo";
+      }
+
+      return {
+        phone: c.phone,
+        name: resolveCustomerDisplayName({ phone: c.phone, customerName: c.name, senderName: latestMsg ? latestMsg.senderName : "" }),
+        message: msgText,
+        direction: latestMsg ? latestMsg.direction : "INBOUND",
+        city: c.currentAddressId?.city || c.city || "",
+        activeRouteCategory: c.activeRouteCategory || "Direct Lead",
+        status: c.status || "New",
+        priority: c.priority ?? "Medium",
+        messageStatus: latestMsg ? (latestMsg.status || "RECEIVED") : "RECEIVED",
+        read: latestMsg ? (latestMsg.read || "TRUE") : "TRUE",
+        timestamp: latestMsg ? new Date(latestMsg.timestamp || latestMsg.createdAt).toISOString() : new Date(c.updatedAt || c.createdAt).toISOString(),
+        twilioSid: latestMsg ? (latestMsg.twilioSid || "") : "",
+        associate: c.assignedTo || "",
+        role: "sales",
+        isClosed: c.isClosed || false,
+        isChatClosed: c.isClosed || false,
+        mediaUrl: latestMsg ? (latestMsg.mediaUrl || "") : "",
+        lastHandled,
+        mediaType: latestMsg ? (latestMsg.mediaType || "") : "",
+        lastSeenAt: latestMsg ? new Date(latestMsg.timestamp || latestMsg.createdAt).toISOString() : new Date(c.updatedAt || c.createdAt).toISOString(),
+        senderName: latestMsg ? (latestMsg.senderName || latestMsg.associateName || "") : "",
+        senderRole: latestMsg ? (latestMsg.role || "") : "",
+        sendBy: latestMsg ? latestMsg.sendBy : null,
         branchId: bId,
         branchName: bObj ? bObj.name : "Unassigned Branch",
         branchCode: bObj ? bObj.code : "",
-        lastHandled,
-      });
-    });
+        history: customerMsgs
+      };
+    }).filter((chat) => chat.phone && !chat.phone.includes("whatsapp:+14155238886"));
 
-    const chats = allMessages
-      .map((msg) => {
-        const customerInfo = contactMap.get(msg.phone) || {};
-        return {
-          phone: msg.phone,
-          name: resolveCustomerDisplayName({ phone: msg.phone, customerName: customerInfo.name, senderName: msg.senderName }),
-          message: msg.message || "",
-          direction: msg.direction,
-          city: customerInfo.city || "",
-          activeRouteCategory: customerInfo.activeRouteCategory,
-          status: customerInfo.status || "New",
-          priority: customerInfo.priority ?? "Medium",
-          messageStatus: msg.status || "RECEIVED",
-          read: msg.read || "TRUE",
-          timestamp: new Date(msg.time).toISOString(),
-          twilioSid: msg.twilioSid || "",
-          associate: customerInfo.assignedTo || "",
-          categoryLabel: msg.categoryLabel,
-          role: "sales",
-          isChatClosed: msg.isChatClosed,
-          mediaUrl: msg.mediaUrl || "",
-          lastHandled: customerInfo.lastHandled || null,
-          mediaType: msg.mediaType || "",
-          lastSeenAt: new Date(msg.time).toISOString(),
-          senderName: msg.senderName || msg.associateName || "",
-          senderRole: msg.role || "",
-          sendBy: msg.sendBy || null,
-          ...customerInfo,
-        };
-      })
-      .filter((chat) => chat.phone && !chat.phone.includes("whatsapp:+14155238886"));
+    chats.sort((a, b) => new Date(b.lastSeenAt || b.timestamp || 0) - new Date(a.lastSeenAt || a.timestamp || 0));
 
     if (redis && redis.status === "ready")
       await redis.set("chats:main_inbox_data", JSON.stringify(chats), "EX", REDIS_CACHE_TTL);
@@ -199,24 +216,10 @@ export async function POST(req) {
       await connectDB();
 
       try {
-        await Customer.findOneAndUpdate(
-          { phone },
-          {
-            $setOnInsert: {
-              name: name || phone,
-              status: "New",
-              assignedTo: "unassigned",
-              createdBy: session.user.id,
-              chatHistory: [{
-                action: "Started",
-                performedBy: session.user.id,
-                timestamp: new Date(),
-                notes: "First outbound message sent",
-              }],
-            },
-          },
-          { upsert: true },
-        );
+        const existingCustomer = await Customer.findOne({ phone }).lean();
+        if (!existingCustomer) {
+          await serverCustomerService.updateCustomer(phone, { name: name || phone, status: "New", source: "Whatsapp" }, session);
+        }
       } catch (customerErr) {
         console.error("[POST /api/chats] Customer upsert error:", customerErr.message, { phone, userId: session.user.id });
       }

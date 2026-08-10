@@ -2,6 +2,9 @@ import Customer from "@/shared/models/Customer";
 import Lead from "@/shared/models/Lead";
 import User from "@/shared/models/User";
 import Branch from "@/shared/models/Branch";
+import CustomerAddress from "@/shared/models/CustomerAddress";
+import { activityService } from "@/server/services/activityService";
+import { ActivityEvents, ActivitySources } from "@/shared/constants/activityConstants";
 import { getUserNameById } from "@/shared/utils/userUtils";
 import { 
   publishPerformanceEvent,
@@ -15,30 +18,6 @@ function normalisePhone(raw = "") {
   let p = raw.toString().trim();
   if (!p.startsWith("whatsapp:")) p = `whatsapp:${p}`;
   return p;
-}
-
-function rootLeadFields(body, resolvedName, resolvedCity, resolvedAddress, currentUser, associateId) {
-  const isClosed = body.status === "Closed" || body.status === "Not Interested";
-  const fields = {
-    name: resolvedName,
-    city: resolvedCity,
-    address: resolvedAddress,
-    source: body.source || "Whatsapp",
-    assignedTo: currentUser,
-    associateId,
-    isClosed
-  };
-
-  if (isClosed) {
-    fields.closedBy = currentUser;
-    fields.closedById = associateId;
-    fields.closedAt = new Date();
-  } else {
-    fields.closedBy = null;
-    fields.closedById = null;
-    fields.closedAt = null;
-  }
-  return fields;
 }
 
 const buildFollowUp = async (body, session) => {
@@ -85,8 +64,9 @@ export const serverLeadService = {
     const userDoc = await User.findOne({ name: currentUser }).lean();
     const associateId = userDoc ? userDoc._id.toString() : session.user.id;
 
-    // 1. Fetch existing lead to check closure rule
-    const existingLead = await Lead.findOne({ phone: cleanPhone });
+    // 1. Fetch existing customer and lead
+    let customerDoc = await Customer.findOne({ phone: cleanPhone });
+    let existingLead = customerDoc ? await Lead.findOne({ customerId: customerDoc._id }) : null;
     let wasAlreadyClosed = false;
 
     if (existingLead && existingLead.leads?.length > 0) {
@@ -97,18 +77,22 @@ export const serverLeadService = {
       }
     }
 
-    // Fetch existing customer
-    const existingCustomer = await Customer.findOne({ phone: cleanPhone }).lean();
-    
+    // Resolve Name, City, Address
     const resolvedName = (body.name?.trim())
-      || (existingCustomer?.name && existingCustomer.name !== "Unknown" ? existingCustomer.name : "")
+      || (customerDoc?.name && customerDoc.name !== "Unknown" ? customerDoc.name : "")
       || "Unknown";
-    const resolvedCity = body.city?.trim() || existingCustomer?.city || "";
-    const resolvedAddress = body.address?.trim() || existingCustomer?.address || "";
+    
+    // Resolve current address if customer exists
+    const currentAddress = customerDoc
+      ? await CustomerAddress.findOne({ customerId: customerDoc._id, isCurrent: true }).lean()
+      : null;
+
+    const resolvedCity = body.city?.trim() || currentAddress?.city || "";
+    const resolvedAddress = body.address?.trim() || currentAddress?.address || "";
     const resolvedStatus = body.status || "New";
     const resolvedPriority = body.priority || "Medium";
-    
-    let resolvedBranchId = existingCustomer?.branchId || null;
+
+    let resolvedBranchId = customerDoc?.branchId || null;
     let resolvedBranchName = "Unassigned Branch";
     let resolvedBranchCode = "";
 
@@ -126,13 +110,17 @@ export const serverLeadService = {
       }
     }
 
+    // Resolve assigned user/associate
+    let assignedUserId = userDoc ? userDoc._id : null;
+    let assignedTo = currentUser;
+
+    // Prepare Customer updates
     const customerSetPayload = {
       name: resolvedName,
-      city: resolvedCity,
-      address: resolvedAddress,
       status: resolvedStatus,
       priority: resolvedPriority,
-      assignedTo: currentUser,
+      assignedTo,
+      assignedUserId
     };
     if (body.leadType) {
       customerSetPayload.activeRouteCategory = body.leadType;
@@ -140,130 +128,79 @@ export const serverLeadService = {
     if (body.branchId !== undefined) {
       customerSetPayload.branchId = resolvedBranchId;
     }
-    
-    const customerUpdate = {
-      $set: customerSetPayload
-    };
 
-    const historyEntries = [];
-    const previousStatus = existingCustomer?.status || "New";
+    const previousStatus = customerDoc?.status || "New";
+    const oldBranchId = customerDoc?.branchId ? customerDoc.branchId.toString() : null;
+    const newBranchId = resolvedBranchId ? resolvedBranchId.toString() : null;
 
-    if (existingCustomer) {
-      // 1. Status Changed
-      if (existingCustomer.status !== resolvedStatus) {
-        let leadEventType = "lead_new";
-        if (resolvedStatus === "Follow Up") leadEventType = "lead_followup";
-        else if (resolvedStatus === "Closed") leadEventType = "lead_closed";
-        else if (resolvedStatus === "Not Interested") leadEventType = "lead_not_interested";
-
-        historyEntries.push({
-          action: resolvedStatus,
-          eventType: leadEventType,
-          performedBy: session.user.id,
-          performedById: session.user.id,
-          performedByName: session.user.name || "User",
-          performedByRole: session.user.role || "associate",
-          performedAt: new Date(),
-          timestamp: new Date(),
-          notes: body.overAllRemarks || `Status changed to ${resolvedStatus}`
-        });
-      }
-
-      // 2. Priority Changed
-      if (existingCustomer.priority !== resolvedPriority) {
-        historyEntries.push({
-          action: "Priority Changed",
-          eventType: "lead_priority_changed",
-          performedBy: session.user.id,
-          performedById: session.user.id,
-          performedByName: session.user.name || "User",
-          performedByRole: session.user.role || "associate",
-          performedAt: new Date(),
-          timestamp: new Date(),
-          notes: `${existingCustomer.priority || "Medium"} → ${resolvedPriority}`
-        });
-      }
-
-      // 3. Branch Changed
-      if (body.branchId !== undefined && existingCustomer.branchId?.toString() !== resolvedBranchId?.toString()) {
-        historyEntries.push({
-          action: "Assigned Branch Changed",
-          eventType: "lead_branch_changed",
-          performedBy: session.user.id,
-          performedById: session.user.id,
-          performedByName: session.user.name || "User",
-          performedByRole: session.user.role || "associate",
-          performedAt: new Date(),
-          timestamp: new Date(),
-          notes: resolvedBranchId ? `Branch updated to ${resolvedBranchName}` : "Branch unassigned"
-        });
-      }
-
-      // 4. Assigned Associate Changed
-      if (existingCustomer.assignedTo && existingCustomer.assignedTo !== currentUser) {
-        historyEntries.push({
-          action: "Assigned Associate Changed",
-          eventType: "lead_assigned",
-          performedBy: session.user.id,
-          performedById: session.user.id,
-          performedByName: session.user.name || "User",
-          performedByRole: session.user.role || "associate",
-          performedAt: new Date(),
-          timestamp: new Date(),
-          notes: `Reassigned to ${currentUser}`
-        });
-      }
-
-      // 5. Lead Type Changed
-      if (existingLead) {
-        const oldLeadType = (existingLead.leads && existingLead.leads.length > 0)
-          ? existingLead.leads[existingLead.leads.length - 1].leadType
-          : "Direct Lead";
-        const newLeadType = body.leadType || "Direct Lead";
-        if (oldLeadType !== newLeadType) {
-          historyEntries.push({
-            action: "Lead Type Changed",
-            eventType: "lead_type_changed",
-            performedBy: session.user.id,
-            performedById: session.user.id,
-            performedByName: session.user.name || "User",
-            performedByRole: session.user.role || "associate",
-            performedAt: new Date(),
-            timestamp: new Date(),
-            notes: `${oldLeadType} → ${newLeadType}`
-          });
-        }
-      }
-
-      if (historyEntries.length > 0) {
-        customerUpdate.$push = { chatHistory: { $each: historyEntries } };
-      }
-    }
-
-    // 2. Get or Create the Customer
-    let updatedCustomer;
-    if (!existingCustomer) {
-      updatedCustomer = await Customer.create({
+    let isNewCustomer = false;
+    if (!customerDoc) {
+      isNewCustomer = true;
+      customerDoc = new Customer({
         phone: cleanPhone,
         createdBy: session.user.id,
-        chatHistory: [{
-          action: "Started",
-          performedBy: session.user.id,
-          timestamp: new Date(),
-          notes: "Lead record created"
-        }],
         ...customerSetPayload
       });
+      await customerDoc.save();
     } else {
-      updatedCustomer = await Customer.findOneAndUpdate(
-        { phone: cleanPhone },
-        customerUpdate,
-        { returnDocument: "after" }
-      );
+      Object.assign(customerDoc, customerSetPayload);
+      await customerDoc.save();
     }
 
-    // Emit customer branch update legacy event if branch changed
-    if (body.branchId !== undefined) {
+    // Address updates
+    const addressChanged = isNewCustomer || 
+      (body.address?.trim() !== undefined && body.address.trim() !== (currentAddress?.address || "")) ||
+      (body.city?.trim() !== undefined && body.city.trim() !== (currentAddress?.city || ""));
+
+    if (addressChanged) {
+      const newAddress = await CustomerAddress.create({
+        customerId: customerDoc._id,
+        city: body.city?.trim() !== undefined ? body.city.trim() : (currentAddress?.city || ""),
+        address: body.address?.trim() !== undefined ? body.address.trim() : (currentAddress?.address || ""),
+        isCurrent: true,
+        validFrom: new Date(),
+        createdBy: session.user.id
+      });
+
+      if (!isNewCustomer) {
+        await CustomerAddress.updateMany(
+          { customerId: customerDoc._id, _id: { $ne: newAddress._id } },
+          { $set: { isCurrent: false, validTo: new Date() } }
+        );
+      }
+
+      customerDoc.currentAddressId = newAddress._id;
+      await customerDoc.save();
+
+      // Log ADDRESS_CHANGED Activity
+      await activityService.log({
+        eventType: ActivityEvents.ADDRESS_UPDATED,
+        entityType: "Customer",
+        entityId: customerDoc._id,
+        customerId: customerDoc._id,
+        actorId: session.user.id,
+        source: ActivitySources.WEB,
+        metadata: {
+          notes: isNewCustomer ? "Initial address recorded" : `Address updated to ${newAddress.address}, ${newAddress.city}`,
+          after: { address: newAddress.address, city: newAddress.city }
+        }
+      });
+    }
+
+    // Log Branch reassignment
+    if (body.branchId !== undefined && oldBranchId !== newBranchId) {
+      await activityService.log({
+        eventType: ActivityEvents.CUSTOMER_UPDATED,
+        entityType: "Customer",
+        entityId: customerDoc._id,
+        customerId: customerDoc._id,
+        actorId: session.user.id,
+        source: ActivitySources.WEB,
+        metadata: {
+          notes: resolvedBranchId ? `Branch updated to ${resolvedBranchName}` : "Branch unassigned"
+        }
+      });
+
       emitCustomerBranchUpdated({
         phone: cleanPhone,
         branchId: resolvedBranchId ? resolvedBranchId.toString() : null,
@@ -273,20 +210,100 @@ export const serverLeadService = {
       }, resolvedBranchId);
     }
 
-    const rootFields = rootLeadFields(body, resolvedName, resolvedCity, resolvedAddress, currentUser, associateId);
+    // Log other status/priority/owner activities
+    if (!isNewCustomer) {
+      if (previousStatus !== resolvedStatus) {
+        await activityService.log({
+          eventType: ActivityEvents.LEAD_STATUS_CHANGED,
+          entityType: "Lead",
+          customerId: customerDoc._id,
+          actorId: session.user.id,
+          source: ActivitySources.WEB,
+          metadata: {
+            oldStatus: previousStatus,
+            newStatus: resolvedStatus,
+            notes: body.overAllRemarks || `Status changed to ${resolvedStatus}`
+          }
+        });
+      }
 
-    if (wasAlreadyClosed) {
-      delete rootFields.closedBy;
-      delete rootFields.closedById;
-      delete rootFields.closedAt;
-      rootFields.isClosed = true;
+      if (customerDoc.priority !== resolvedPriority) {
+        await activityService.log({
+          eventType: ActivityEvents.CUSTOMER_UPDATED,
+          entityType: "Customer",
+          entityId: customerDoc._id,
+          customerId: customerDoc._id,
+          actorId: session.user.id,
+          source: ActivitySources.WEB,
+          metadata: {
+            notes: `${customerDoc.priority || "Medium"} → ${resolvedPriority}`
+          }
+        });
+      }
+
+      if (customerDoc.assignedTo && customerDoc.assignedTo !== currentUser) {
+        await activityService.log({
+          eventType: ActivityEvents.LEAD_ASSIGNED,
+          entityType: "Lead",
+          customerId: customerDoc._id,
+          actorId: session.user.id,
+          source: ActivitySources.WEB,
+          metadata: {
+            oldOwner: customerDoc.assignedTo,
+            newOwner: currentUser,
+            notes: `Reassigned to ${currentUser}`
+          }
+        });
+      }
+    } else {
+      // Log new customer creation
+      await activityService.log({
+        eventType: ActivityEvents.CUSTOMER_CREATED,
+        entityType: "Customer",
+        entityId: customerDoc._id,
+        customerId: customerDoc._id,
+        actorId: session.user.id,
+        source: ActivitySources.WEB,
+        metadata: {
+          notes: `Customer record manually created by ${session.user.name}`
+        }
+      });
+
+      await activityService.log({
+        eventType: ActivityEvents.LEAD_CREATED,
+        entityType: "Lead",
+        customerId: customerDoc._id,
+        actorId: session.user.id,
+        source: ActivitySources.WEB,
+        metadata: {
+          notes: "Lead record created"
+        }
+      });
     }
 
+    // Construct follow-up and handoff fields
     const currentHandoff = {
       associateId: associateId || "system",
       associateName: currentUser,
       assignedAt: new Date()
     };
+
+    const isClosed = resolvedStatus === "Closed" || resolvedStatus === "Not Interested";
+    const rootFields = {
+      assignedTo: currentUser,
+      associateId,
+      isClosed
+    };
+
+    if (isClosed && !wasAlreadyClosed) {
+      rootFields.closedBy = currentUser;
+      rootFields.closedById = associateId;
+      rootFields.closedAt = new Date();
+    } else if (!isClosed) {
+      rootFields.closedBy = null;
+      rootFields.closedById = null;
+      rootFields.closedAt = null;
+    }
 
     let updatedLead;
     let action = "created";
@@ -295,15 +312,14 @@ export const serverLeadService = {
     if (!existingLead) {
       newLeadEntry = await buildFollowUp(body, session);
       updatedLead = await Lead.create({
-        phone: cleanPhone,
-        customerProfile: updatedCustomer._id,
+        customerId: customerDoc._id,
         handledByHistory: [currentHandoff],
         leads: [newLeadEntry],
         ...rootFields
       });
 
-      updatedCustomer.leadProfile = updatedLead._id;
-      await updatedCustomer.save();
+      customerDoc.activeLeadId = updatedLead._id;
+      await customerDoc.save();
       action = "created";
     } else {
       if (!existingLead.handledByHistory) existingLead.handledByHistory = [];
@@ -319,24 +335,31 @@ export const serverLeadService = {
       const latestStatus = existingLead.leads[latestIdx]?.status ?? "New";
       const incomingStatus = body.status ?? latestStatus;
 
-      let shouldCreateNewEntry = false;
+      const VALID_STATUSES = ["New", "Follow Up", "Closed", "Not Interested"];
+      if (!VALID_STATUSES.includes(incomingStatus)) {
+        throw new Error(`Invalid status: ${incomingStatus}`);
+      }
 
-      if (latestStatus === "Closed") {
-        shouldCreateNewEntry = false;
-      } else if (latestStatus === "Not Interested") {
-        if (incomingStatus === "Follow Up") {
-          shouldCreateNewEntry = true;
-        } else {
-          shouldCreateNewEntry = false;
+      let shouldCreateNewEntry = false;
+      if (incomingStatus !== latestStatus) {
+        // Enforce terminal state transition lock
+        if (latestStatus === "Closed" || latestStatus === "Not Interested") {
+          throw new Error(`Invalid transition: Cannot transition from terminal state '${latestStatus}' to '${incomingStatus}'.`);
         }
-      } else if (latestStatus === "Follow Up") {
-        if (incomingStatus === "Closed" || incomingStatus === "Not Interested") {
-          shouldCreateNewEntry = true;
-        } else {
-          shouldCreateNewEntry = false;
+        
+        // Enforce allowed transitions:
+        // New -> Follow Up -> Closed / Not Interested
+        if (latestStatus === "New") {
+          if (!["Follow Up", "Closed", "Not Interested"].includes(incomingStatus)) {
+            throw new Error(`Invalid transition: Cannot transition from 'New' to '${incomingStatus}' directly.`);
+          }
+        } else if (latestStatus === "Follow Up") {
+          if (!["Closed", "Not Interested"].includes(incomingStatus)) {
+            throw new Error(`Invalid transition: Cannot transition from 'Follow Up' to '${incomingStatus}'.`);
+          }
         }
-      } else {
-        shouldCreateNewEntry = false;
+        
+        shouldCreateNewEntry = true;
       }
 
       Object.assign(existingLead, rootFields);
@@ -347,6 +370,8 @@ export const serverLeadService = {
         action = "updated_existing_entry";
       } else {
         newLeadEntry = await buildFollowUp(body, session);
+        // Ensure new follow-up entry has correct status
+        newLeadEntry.status = incomingStatus;
         existingLead.leads.push(newLeadEntry);
         action = "pushed_new_entry";
       }
@@ -355,12 +380,8 @@ export const serverLeadService = {
       updatedLead = existingLead;
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    //  TELEMETRY EVENTS (Real-Time performance updates)
-    // ─────────────────────────────────────────────────────────────────────────
-    
-    // Check if new customer created
-    if (!existingCustomer) {
+    // Telemetry and real-time socket events
+    if (isNewCustomer) {
       publishPerformanceEvent("customer_created", {
         phone: cleanPhone,
         name: resolvedName,
@@ -371,19 +392,17 @@ export const serverLeadService = {
       }, resolvedBranchId);
     }
 
-    // Customer assignment
-    if (!existingCustomer || existingCustomer.assignedTo !== currentUser) {
-      const isReassignment = existingCustomer && existingCustomer.assignedTo && existingCustomer.assignedTo !== "Unassigned";
+    if (isNewCustomer || customerDoc.assignedTo !== currentUser) {
+      const isReassignment = !isNewCustomer && customerDoc.assignedTo && customerDoc.assignedTo !== "Unassigned";
       publishPerformanceEvent(isReassignment ? "customer_reassigned" : "customer_assigned", {
         phone: cleanPhone,
         name: resolvedName,
         branchId: resolvedBranchId,
         assignedTo: currentUser,
-        previousAssignedTo: existingCustomer?.assignedTo
+        previousAssignedTo: customerDoc?.assignedTo
       }, resolvedBranchId);
     }
 
-    // Lead created or updated
     const isNewLead = !existingLead;
     publishPerformanceEvent(isNewLead ? "lead_new" : "lead_existing", {
       phone: cleanPhone,
@@ -394,7 +413,6 @@ export const serverLeadService = {
       leadType: body.leadType || "Direct Lead"
     }, resolvedBranchId);
 
-    // Follow up tracking
     if (resolvedStatus === "Follow Up") {
       publishPerformanceEvent("followup_added", {
         phone: cleanPhone,
@@ -405,7 +423,6 @@ export const serverLeadService = {
       }, resolvedBranchId);
     }
 
-    // Check if status transitioned out of Follow Up (follow-up completed)
     if (previousStatus === "Follow Up" && resolvedStatus !== "Follow Up") {
       publishPerformanceEvent("followup_completed", {
         phone: cleanPhone,
@@ -417,7 +434,6 @@ export const serverLeadService = {
       }, resolvedBranchId);
     }
 
-    // Lead lifecycle status mapping
     if (resolvedStatus === "Closed") {
       publishPerformanceEvent("lead_closed", {
         phone: cleanPhone,
@@ -428,7 +444,6 @@ export const serverLeadService = {
         performedBy: session.user.name
       }, resolvedBranchId);
 
-      // Check if conversion (Closed with sale amount)
       if (body.saleAmount && Number(body.saleAmount) > 0) {
         publishPerformanceEvent("lead_converted", {
           phone: cleanPhone,
@@ -455,6 +470,36 @@ export const serverLeadService = {
     }
 
     if (previousStatus !== resolvedStatus) {
+      await activityService.log({
+        eventType: ActivityEvents.LEAD_STATUS_CHANGED,
+        entityType: "Lead",
+        entityId: updatedLead._id,
+        customerId: customerDoc._id,
+        leadId: updatedLead._id,
+        actorId: session.user.id,
+        source: ActivitySources.WEB,
+        metadata: {
+          oldStatus: previousStatus,
+          newStatus: resolvedStatus,
+          notes: `Lead status changed from ${previousStatus} to ${resolvedStatus}`
+        }
+      });
+
+      if (previousStatus === "Follow Up" && resolvedStatus !== "Follow Up") {
+        await activityService.log({
+          eventType: ActivityEvents.FOLLOWUP_COMPLETED,
+          entityType: "Lead",
+          entityId: updatedLead._id,
+          customerId: customerDoc._id,
+          leadId: updatedLead._id,
+          actorId: session.user.id,
+          source: ActivitySources.WEB,
+          metadata: {
+            notes: `Follow-up completed with outcome: ${resolvedStatus}`
+          }
+        });
+      }
+
       publishPerformanceEvent("lead_status_changed", {
         phone: cleanPhone,
         name: resolvedName,
@@ -475,6 +520,22 @@ export const serverLeadService = {
       }, resolvedBranchId);
     }
 
+    if (resolvedStatus === "Follow Up" && action === "pushed_new_entry") {
+      await activityService.log({
+        eventType: ActivityEvents.FOLLOWUP_CREATED,
+        entityType: "Lead",
+        entityId: updatedLead._id,
+        customerId: customerDoc._id,
+        leadId: updatedLead._id,
+        actorId: session.user.id,
+        source: ActivitySources.WEB,
+        metadata: {
+          notes: `Follow-up created: ${newLeadEntry?.overAllRemarks || ""}`,
+          followupDate: newLeadEntry?.date
+        }
+      });
+    }
+
     if (resolvedStatus === "Follow Up") {
       emitFollowUpAdded({
         phone: cleanPhone,
@@ -491,9 +552,9 @@ export const serverLeadService = {
       assignedTo: currentUser,
       status: resolvedStatus,
       name: resolvedName,
-      activeRouteCategory: body.leadType || (existingCustomer?.activeRouteCategory || "Direct Lead"),
+      activeRouteCategory: body.leadType || (customerDoc?.activeRouteCategory || "Direct Lead"),
     }, resolvedBranchId);
 
-    return { customer: updatedCustomer, lead: updatedLead, action };
+    return { customer: customerDoc, lead: updatedLead, action };
   }
 };

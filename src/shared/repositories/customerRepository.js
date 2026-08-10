@@ -2,14 +2,14 @@ import Customer from "@/shared/models/Customer";
 import User from "@/shared/models/User";
 
 export async function findAllCustomers(filter = {}) {
-  return await Customer.find(filter).populate({
+  return await Customer.find(filter).populate("currentAddressId").populate({
     path: "createdBy",
     select: "name role department branch"
   }).lean();
 }
 
 export async function findCustomerByPhone(phone) {
-  return await Customer.findOne({ phone }).populate({
+  return await Customer.findOne({ phone }).populate("currentAddressId").populate({
     path: "createdBy",
     select: "name role department branch"
   }).lean();

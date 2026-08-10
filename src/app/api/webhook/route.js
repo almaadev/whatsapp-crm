@@ -2,11 +2,16 @@ import { NextResponse } from "next/server";
 import connectDB from "@/shared/lib/db/mongodb";
 import Customer from "@/shared/models/Customer";
 import Message from "@/shared/models/Message";
+import Lead from "@/shared/models/Lead";
 import redis from "@/shared/lib/db/redis";
 import twilio from "twilio";
 import { processKeywordAutoReply } from "@/features/chat/services/keywordMatcher";
 import { isValidDisplayName } from "@/shared/utils/customerResolver";
 import { emitNewMessage, emitCategoryMessage, emitChatLockUpdated } from "@/shared/utils/socketPublisher";
+import CustomerAddress from "@/shared/models/CustomerAddress";
+import { activityService } from "@/server/services/activityService";
+import { ActivityEvents, ActivitySources } from "@/shared/constants/activityConstants";
+import { normalizePhone } from "@/shared/utils/phoneUtils";
 
 import {
   determineConversationRoute,
@@ -116,13 +121,7 @@ export async function POST(req) {
     }
 
     // Robust Phone Formatting (Strictly forces "whatsapp:+")
-    let rawPhone = body.From || body.from || "";
-    let phone = "";
-    if (rawPhone) {
-      let cleaned = rawPhone.replace("whatsapp:", "").trim();
-      if (!cleaned.startsWith("+")) cleaned = `+${cleaned}`;
-      phone = `whatsapp:${cleaned}`;
-    }
+    const phone = normalizePhone(body.From || body.from || "");
 
     const rawMessage = body.Body || body.body || "";
     let messageText = rawMessage.replace(/\\n/g, "\n");
@@ -137,8 +136,23 @@ export async function POST(req) {
       return twilioResponse();
     }
 
-    // 🚀 FETCH CUSTOMER EARLY TO CHECK OPT-OUT STATUS
+    // 🚀 FETCH CUSTOMER EARLY TO CHECK OPT-OUT STATUS (With legacy fallback)
     let customer = await Customer.findOne({ phone });
+    if (!customer) {
+      const cleanDigits = phone.replace("whatsapp:", "").replace("+", "");
+      const tenDigit = cleanDigits.substring(cleanDigits.length - 10);
+      const variations = [
+        `whatsapp:${cleanDigits}`,
+        `whatsapp:+${cleanDigits}`,
+        `+${cleanDigits}`,
+        cleanDigits,
+        `whatsapp:${tenDigit}`,
+        `whatsapp:+${tenDigit}`,
+        `+${tenDigit}`,
+        tenDigit
+      ];
+      customer = await Customer.findOne({ phone: { $in: variations } });
+    }
     console.log(`👤 [WEBHOOK] Customer Found: ${!!customer}`);
 
     // 🚀 EXACT MATCH LOGIC (Ignores sentences)
@@ -257,8 +271,118 @@ export async function POST(req) {
         unreadCount: 1,
         source: "Whatsapp",
         lastIncomingNumber: receivedOnNumber,
+        isClosed: false,
+      });
+
+      const newAddress = await CustomerAddress.create({
+        customerId: customer._id,
+        city: "",
+        address: "",
+        isCurrent: true,
+        validFrom: new Date()
+      });
+
+      customer.currentAddressId = newAddress._id;
+
+      // Create Lead (WhatsApp Lead, Status = New)
+      const lead = new Lead({
+        customerId: customer._id,
+        assignedTo: "unassigned",
+        associateId: "",
+        isClosed: false,
+        leads: [{
+          date: new Date(),
+          enquiredFor: "",
+          associateId: "",
+          associateName: "unassigned",
+          priority: "Medium",
+          status: "New",
+          leadType: "WhatsApp Lead",
+          overAllRemarks: "Customer record created via inbound message"
+        }]
+      });
+      await lead.save();
+
+      customer.activeLeadId = lead._id;
+      await customer.save();
+
+      // Register activities: Customer Created, Lead Created, Message Received
+      await activityService.log({
+        eventType: ActivityEvents.CUSTOMER_CREATED,
+        entityType: "Customer",
+        entityId: customer._id,
+        customerId: customer._id,
+        source: ActivitySources.WEBHOOK,
+        metadata: {
+          notes: "Customer record created via inbound message"
+        }
+      });
+
+      await activityService.log({
+        eventType: ActivityEvents.LEAD_CREATED,
+        entityType: "Lead",
+        entityId: lead._id,
+        customerId: customer._id,
+        leadId: lead._id,
+        source: ActivitySources.WEBHOOK,
+        metadata: {
+          notes: "WhatsApp Lead created"
+        }
+      });
+
+      await activityService.log({
+        eventType: ActivityEvents.MESSAGE_RECEIVED,
+        entityType: "Message",
+        customerId: customer._id,
+        leadId: lead._id,
+        source: ActivitySources.WEBHOOK,
+        metadata: {
+          notes: messageText || ""
+        }
       });
     } else {
+      // Reopen conversation automatically if it was closed
+      if (customer.isClosed) {
+        const hasPreviousChat = await Activity.exists({
+          customerId: customer._id,
+          eventType: { $in: [ActivityEvents.CHAT_STARTED, ActivityEvents.CHAT_CLOSED, ActivityEvents.CHAT_REOPENED] }
+        });
+
+        customer.isClosed = false;
+
+        let lead = await Lead.findOne({ customerId: customer._id });
+        if (lead) {
+          lead.isClosed = false;
+          // Transition Lead status by pushing follow-up history entry
+          lead.leads.push({
+            date: new Date(),
+            enquiredFor: lead.leads && lead.leads.length > 0 ? lead.leads[lead.leads.length - 1].enquiredFor : "",
+            associateId: lead.associateId || "",
+            associateName: lead.assignedTo || "unassigned",
+            priority: lead.leads && lead.leads.length > 0 ? lead.leads[lead.leads.length - 1].priority : "Medium",
+            status: "Follow Up",
+            leadType: lead.leads && lead.leads.length > 0 ? lead.leads[lead.leads.length - 1].leadType : "WhatsApp Lead",
+            overAllRemarks: "Lead automatically updated via inbound WhatsApp reply"
+          });
+          await lead.save();
+        }
+
+        if (hasPreviousChat) {
+          // Register Chat Reopened
+          await activityService.log({
+            eventType: ActivityEvents.CHAT_REOPENED,
+            entityType: "Chat",
+            entityId: lead?._id || customer._id,
+            customerId: customer._id,
+            leadId: lead?._id || null,
+            source: ActivitySources.WEBHOOK,
+            metadata: {
+              notes: "Automatically reopened via inbound message"
+            }
+          });
+        }
+      }
+
       customer.activeRouteCategory = targetCategory;
       customer.lastInteractionAt = new Date();
       customer.unreadCount = (customer.unreadCount || 0) + 1;
@@ -267,6 +391,19 @@ export async function POST(req) {
         customer.name = profileName;
       }
       await customer.save();
+
+      // Find active lead to log Message Received
+      const lead = await Lead.findOne({ customerId: customer._id });
+      await activityService.log({
+        eventType: ActivityEvents.MESSAGE_RECEIVED,
+        entityType: "Message",
+        customerId: customer._id,
+        leadId: lead?._id,
+        source: ActivitySources.WEBHOOK,
+        metadata: {
+          notes: messageText || ""
+        }
+      });
     }
 
     const inboundMessages = buildInboundMessages({
@@ -305,7 +442,8 @@ export async function POST(req) {
       chatType: targetCategory,
       mediaUrl: inboundMessages[0]?.mediaUrl || "",
       mediaType: inboundMessages[0]?.mediaType || "",
-      isChatClosed: true,
+      isChatClosed: customer.isClosed,
+      isClosed: customer.isClosed,
       read: "FALSE",
       receivedOnNumber,
       branchId,

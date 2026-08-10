@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { revalidatePath } from "next/cache";
 import { authOptions } from "@/shared/lib/auth";
 import connectDB from "@/shared/lib/db/mongodb";
-import Customer from "@/shared/models/Customer";
-import Lead from "@/shared/models/Lead";
-import User from "@/shared/models/User";
+import { serverLeadService } from "@/server/services/serverLeadService";
 import redis from "@/shared/lib/db/redis";
+import { revalidatePath } from "next/cache";
 
 export async function POST(req) {
   try {
@@ -18,57 +16,29 @@ export async function POST(req) {
     if (!mobile)
       return NextResponse.json({ error: "Mobile required" }, { status: 400 });
 
-    let cleanPhone = mobile.toString().trim();
-    if (!cleanPhone.startsWith("whatsapp:"))
-      cleanPhone = `whatsapp:${cleanPhone}`;
-
-    const findUserNameById = async (id) => {
-      const user = await User.findById(id).lean();
-      return user ? user.name : "Unknown";
-    };
     await connectDB();
     const newStateBoolean = currentState !== "TRUE"; // Toggle Action
+    const targetStatus = newStateBoolean ? "Closed" : "Follow Up";
 
-    // 2. Prepare the update data
-    const updateData = {
-      isClosed: newStateBoolean,
-      status: newStateBoolean ? "Closed" : "Follow Up",
-      lastClosedBy: newStateBoolean ? await findUserNameById(session.user.id) : "",
-    };
+    const result = await serverLeadService.createOrUpdateLead({
+      phone: mobile,
+      status: targetStatus,
+      overAllRemarks: newStateBoolean ? "Lead marked as closed" : "Lead reopened"
+    }, session);
 
-    // 3. If closing, set priority to empty string (null equivalent for Strings)
-    if (newStateBoolean) {
-      updateData.priority = "";
+    // Invalidate Redis cache
+    if (redis && redis.status === 'ready') {
+      try { 
+        await redis.del("chats:all_data"); 
+        await redis.del("chats:main_inbox_data");
+      } catch(e) {
+        console.error("Redis Cache Clear Error:", e);
+      }
     }
 
-    // 4. Update Customer
-    const updatedCustomer = await Customer.findOneAndUpdate(
-      { phone: cleanPhone },
-      updateData,
-      { returnDocument: "after" }, // Returns the updated document
-    );
-
-    if (!updatedCustomer) {
-      return NextResponse.json(
-        { error: "Customer not found in Database" },
-        { status: 404 },
-      );
-    }
-
-    // 5. Update Lead collection as well
-    await Lead.updateMany({ phone: cleanPhone }, updateData);
-
-    // 6. Clear Caches
-    try {
-      await redis.del("chats:all_data");
-    } catch (e) {
-      console.error("Redis delete error:", e);
-    }
-
-    // 7. Clear Next.js UI Cache
     revalidatePath("/crm/leads");
     revalidatePath("/crm/chat");
-    revalidatePath(`/crm/leads/${encodeURIComponent(cleanPhone)}`);
+    revalidatePath(`/crm/leads/${encodeURIComponent(mobile)}`);
 
     return NextResponse.json({
       success: true,
@@ -76,6 +46,6 @@ export async function POST(req) {
     });
   } catch (error) {
     console.error("Update Close Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message || "Failed to update close status" }, { status: 400 });
   }
 }

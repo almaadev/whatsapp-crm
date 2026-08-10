@@ -242,9 +242,9 @@ export default function ChatList({ role, loading }) {
       if (!matchesSearch) return false;
 
       // Filter by tab
-      const isClosed = chat.isChatClosed || chat.status === "Closed";
+      const isClosed = chat.isClosed || chat.isChatClosed;
       if (activeFilter === "Active") {
-        return !isClosed && chat.status !== "Closed";
+        return !isClosed;
       }
       if (activeFilter === "Closed") {
         return isClosed;

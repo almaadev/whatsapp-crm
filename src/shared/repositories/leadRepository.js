@@ -1,7 +1,10 @@
 import Lead from "@/shared/models/Lead";
+import Customer from "@/shared/models/Customer";
 
 export async function findLeadByPhone(phone) {
-  return await Lead.findOne({ phone }); // Not lean because we might save() it
+  const customer = await Customer.findOne({ phone }).lean();
+  if (!customer) return null;
+  return await Lead.findOne({ customerId: customer._id }); // Not lean because we might save() it
 }
 
 export async function createLead(leadPayload) {
@@ -17,8 +20,11 @@ export async function aggregateLeads(pipeline) {
 }
 
 export async function closeLeadsByPhones(phones, closedByInfo) {
+  const customers = await Customer.find({ phone: { $in: phones } }).select("_id").lean();
+  const customerIds = customers.map(c => c._id);
+  
   return await Lead.updateMany(
-    { phone: { $in: phones } },
+    { customerId: { $in: customerIds } },
     { 
       $set: { 
         isClosed: true, 

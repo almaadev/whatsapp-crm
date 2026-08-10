@@ -17,7 +17,6 @@ const TwilioNumberSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-TwilioNumberSchema.index({ phoneNumber: 1 });
 TwilioNumberSchema.index({ assignedAdmins: 1 });
 TwilioNumberSchema.index({ status: 1 });
 

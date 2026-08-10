@@ -1,4 +1,4 @@
-import { Check, CheckCheck, Clock, AlertCircle, Lock, Unlock, MapPin, UserCheck, Stethoscope, RefreshCw, Cog, Share2, Tag } from "lucide-react";
+import { Check, CheckCheck, Clock, AlertCircle, Lock, Unlock, MapPin, UserCheck, Stethoscope, RefreshCw, Cog, Share2, Tag, UserPlus, MessageSquare, User, FileText, CornerDownRight, Send } from "lucide-react";
 
 /**
  * Parses a date string into a Date object.
@@ -111,8 +111,8 @@ export const getSystemEventDetails = (audit) => {
             performedBy: "Super Admin"
         };
     }
-
-    const action = audit.eventType || audit.action || "Super Admin Action";
+    console.log("Audit Data:", audit);
+    const action = audit.eventType || audit.action;
 
     let performedBy = "Super Admin";
     if (audit.performedBy) {
@@ -127,11 +127,65 @@ export const getSystemEventDetails = (audit) => {
 
     const actionLower = action.toLowerCase();
     const eventType = audit.eventType ? audit.eventType.toLowerCase() : "";
+    const eventTypeUpper = audit.eventType ? audit.eventType.toUpperCase() : "";
 
     let title = action;
     let icon = <Cog size={14} className="text-slate-500 shrink-0" />;
 
-    if (eventType === "lead_followup") {
+    if (eventTypeUpper) {
+      if (eventTypeUpper === "CUSTOMER_CREATED") {
+        title = audit.action || "Customer Created";
+        icon = <UserPlus size={14} className="text-green-500 shrink-0" />;
+      } else if (eventTypeUpper === "LEAD_CREATED") {
+        title = audit.action || "Lead Created";
+        icon = <Tag size={14} className="text-blue-500 shrink-0" />;
+      } else if (eventTypeUpper === "CHAT_STARTED") {
+        title = audit.action || "Chat Started";
+        icon = <MessageSquare size={14} className="text-blue-500 shrink-0" />;
+      } else if (eventTypeUpper === "CHAT_CLOSED") {
+        title = audit.action || "Chat Closed";
+        icon = <Lock size={14} className="text-rose-500 shrink-0" />;
+      } else if (eventTypeUpper === "CHAT_REOPENED") {
+        title = audit.action || "Chat Reopened";
+        icon = <Unlock size={14} className="text-emerald-500 shrink-0" />;
+      } else if (eventTypeUpper === "LEAD_ASSIGNED") {
+        title = audit.action || "Lead Assigned";
+        icon = <UserCheck size={14} className="text-indigo-500 shrink-0" />;
+      } else if (eventTypeUpper === "CUSTOMER_ASSIGNED") {
+        title = audit.action || "Customer Assigned";
+        icon = <UserCheck size={14} className="text-indigo-500 shrink-0" />;
+      } else if (eventTypeUpper === "FOLLOWUP_CREATED") {
+        title = audit.action || "Follow Up Created";
+        icon = <Clock size={14} className="text-amber-500 shrink-0" />;
+      } else if (eventTypeUpper === "FOLLOWUP_COMPLETED") {
+        title = audit.action || "Follow Up Completed";
+        icon = <Check size={14} className="text-emerald-500 shrink-0" />;
+      } else if (eventTypeUpper === "LEAD_STATUS_CHANGED") {
+        title = audit.action || "Lead Status Changed";
+        icon = <RefreshCw size={14} className="text-violet-500 shrink-0" />;
+      } else if (eventTypeUpper === "CUSTOMER_UPDATED") {
+        title = audit.action || "Customer Profile Updated";
+        icon = <User size={14} className="text-indigo-500 shrink-0" />;
+      } else if (eventTypeUpper === "PROFILE_UPDATED") {
+        title = audit.action || "Customer Profile Updated";
+        icon = <User size={14} className="text-indigo-500 shrink-0" />;
+      } else if (eventTypeUpper === "ADDRESS_UPDATED") {
+        title = audit.action || "Customer Address Updated";
+        icon = <MapPin size={14} className="text-slate-500 shrink-0" />;
+      } else if (eventTypeUpper === "ADDRESS_CHANGED") {
+        title = audit.action || "Customer Address Updated";
+        icon = <MapPin size={14} className="text-slate-500 shrink-0" />;
+      } else if (eventTypeUpper === "TEMPLATE_SENT") {
+        title = audit.action || "Template Sent";
+        icon = <FileText size={14} className="text-violet-500 shrink-0" />;
+      } else if (eventTypeUpper === "MESSAGE_RECEIVED") {
+        title = audit.action || "Message Received";
+        icon = <CornerDownRight size={14} className="text-slate-400 shrink-0" />;
+      } else if (eventTypeUpper === "MESSAGE_SENT") {
+        title = audit.action || "Message Sent";
+        icon = <Send size={14} className="text-slate-500 shrink-0" />;
+      }
+    } else if (eventType === "lead_followup") {
         title = "Follow Up";
         icon = <Clock size={14} className="text-amber-500 shrink-0" />;
     } else if (eventType === "lead_closed") {
@@ -180,9 +234,12 @@ export const getSystemEventDetails = (audit) => {
     } else if (actionLower.includes("status")) {
         title = "Status Changed";
         icon = <RefreshCw size={14} className="text-violet-500 shrink-0" />;
+    } else if ( actionLower.includes("CUSTOMER_CREATED")) {
+        title = "Customer Created";
+        icon = <UserPlus size={14} className="text-green-500 shrink-0" />;
     } else {
-        if (!title.startsWith("Chat ") && !title.startsWith("Status") && !title.startsWith("Super Admin ")) {
-            title = `Chat ${title}`;
+        if (!title.startsWith("Chat") && !title.startsWith("Status") && !title.startsWith("Super Admin ")) {
+            title = `${title}`;
         }
     }
 

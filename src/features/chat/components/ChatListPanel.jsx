@@ -17,7 +17,7 @@ const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emp
   const handler = activeHandlers[chat.phone];
   const isBeingHandledByOther = handler && handler.userId !== (session?.user?.id || session?.user?.email) && (!handler.lockedUntil || handler.lockedUntil > Date.now());
 
-  const isClosed = Boolean(chat.isClosed || chat.isChatClosed || lastHistoryMsg?.isChatClosed || chat.status === "Closed");
+  const isClosed = Boolean(chat.isClosed || chat.isChatClosed);
   const cleanPhone = chat.phone ? chat.phone.replace("whatsapp:", "") : "";
   const resolvedName = resolveCustomerDisplayName(chat);
 

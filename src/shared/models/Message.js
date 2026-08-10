@@ -106,4 +106,8 @@ const MessageSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+if (process.env.NODE_ENV === "development" && mongoose.models.Message) {
+  delete mongoose.models.Message;
+}
+
 export default mongoose.models.Message || mongoose.model("Message", MessageSchema);

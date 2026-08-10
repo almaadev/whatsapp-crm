@@ -11,6 +11,7 @@ import {
     Filter, Search, ArrowRight, UserCircle,
     Activity, Tag, MessageSquare, Menu, AlertCircle, RefreshCw
 } from "lucide-react";
+import { useCountUp } from "@/shared/hooks/useCountUp";
 import { reportRepository } from "@/shared/api/repositories/reportRepository";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -28,20 +29,6 @@ function navigateToLead(router, setPath, currentPath, phone) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  UI UTILITIES & COMPONENTS
 // ─────────────────────────────────────────────────────────────────────────────
-function useCountUp(end, duration = 1000) {
-    const [count, setCount] = useState(0);
-    useEffect(() => {
-        let startTime = null;
-        const animate = (currentTime) => {
-            if (!startTime) startTime = currentTime;
-            const progress = Math.min((currentTime - startTime) / duration, 1);
-            setCount(Math.floor(progress * end));
-            if (progress < 1) requestAnimationFrame(animate);
-        };
-        requestAnimationFrame(animate);
-    }, [end, duration]);
-    return count;
-}
 
 const StatusBadge = ({ displayStatus, latestStatus }) => {
     let base = "bg-slate-100 text-slate-600 border-slate-200";

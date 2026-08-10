@@ -6,8 +6,12 @@ import Customer from "@/shared/models/Customer";
 import mongoose from "mongoose";
 import Branch from "@/shared/models/Branch";
 import User from "@/shared/models/User";
+import CustomerAddress from "@/shared/models/CustomerAddress";
+import Activity from "@/shared/models/Activity";
+import Lead from "@/shared/models/Lead";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 import { sanitizeCustomerOrLeadData } from "@/shared/utils/privacy";
+import { serverCustomerService } from "@/server/services/serverCustomerService";
 
 export const dynamic = "force-dynamic";
 
@@ -22,18 +26,14 @@ export async function GET(req, { params }) {
         const resolvedParams = await params;
         const rawPhone = decodeURIComponent(resolvedParams.phone || "");
         
-        // 1. Strip everything except digits
         const cleanPhone = rawPhone.replace(/\D/g, '');
-        
-        // 2. Create variations to ensure we catch the customer regardless of how it's stored in DB
         const variations = [
-            cleanPhone, // e.g. "919900010003"
-            `whatsapp:${cleanPhone}`, // e.g. "whatsapp:919900010003"
-            `whatsapp:+${cleanPhone}`, // e.g. "whatsapp:+919900010003"
-            `+${cleanPhone}` // e.g. "+919900010003"
+            cleanPhone, 
+            `whatsapp:${cleanPhone}`, 
+            `whatsapp:+${cleanPhone}`, 
+            `+${cleanPhone}` 
         ];
 
-        // If the number starts with 91 and is 12 digits, also try searching without the 91
         if (cleanPhone.startsWith('91') && cleanPhone.length === 12) {
             const tenDigit = cleanPhone.substring(2);
             variations.push(tenDigit);
@@ -45,23 +45,16 @@ export async function GET(req, { params }) {
         const { getBranchFilterForUser } = await import("@/shared/utils/serverAuth");
         const { branchQuery } = await getBranchFilterForUser(session);
 
-        // Use $in to search across all possible variations
         const customer = await Customer.findOne({
             phone: { $in: variations },
             ...branchQuery
-        }).populate({
+        }).populate("currentAddressId").populate({
             path: 'createdBy',
-            select: 'name role department branch'
-        }).populate({
-            path: 'chatHistory.performedBy',
-            select: 'name role department branch'
-        }).populate({
-            path: 'chatHistory.targetUser',
             select: 'name role department branch'
         }).lean();
 
         if (!customer) {
-           console.warn(`Customer not found for phone variations: ${variations.join(", ")}`);
+            console.warn(`Customer not found for phone variations: ${variations.join(", ")}`);
             return NextResponse.json({ error: "Customer not found" }, { status: 404 });
         }
 
@@ -70,6 +63,56 @@ export async function GET(req, { params }) {
         branches.forEach(b => {
             branchMap[b._id.toString()] = { name: b.name, code: b.code || "" };
         });
+
+        // Fetch all leads for this customer to retrieve historical activities
+        const leads = await Lead.find({ customerId: customer._id }).lean();
+        const leadIds = leads.map(l => l._id);
+
+        // Load timeline activities dynamically from Activity collection
+        const TIMELINE_EVENTS = [
+            "CUSTOMER_CREATED",
+            "LEAD_CREATED",
+            "CHAT_STARTED",
+            "CHAT_CLOSED",
+            "CHAT_REOPENED",
+            "LEAD_ASSIGNED",
+            "CUSTOMER_ASSIGNED",
+            "FOLLOWUP_CREATED",
+            "FOLLOWUP_COMPLETED",
+            "LEAD_STATUS_CHANGED",
+            "CUSTOMER_UPDATED",
+            "PROFILE_UPDATED",
+            "ADDRESS_UPDATED",
+            "ADDRESS_CHANGED",
+            "TEMPLATE_SENT"
+        ];
+
+        const query = {
+            $or: [
+                { customerId: customer._id },
+                { leadId: { $in: leadIds } }
+            ],
+            eventType: { $in: TIMELINE_EVENTS }
+        };
+
+        const rawActivities = await Activity.find(query)
+            .populate({
+                path: 'actorId',
+                select: 'name role department branch'
+            })
+            .populate({
+                path: 'metadata.targetUser',
+                select: 'name role department branch'
+            })
+            .sort({ createdAt: 1 })
+            .lean();
+
+        // Deduplicate activities by _id
+        const uniqueActivities = Array.from(
+            new Map(
+                rawActivities.map(activity => [activity._id.toString(), activity])
+            ).values()
+        );
 
         let creatorInfo = null;
         if (customer.createdBy) {
@@ -85,47 +128,56 @@ export async function GET(req, { params }) {
             };
         }
 
-        const resolvedChatHistory = (customer.chatHistory || []).map(entry => {
+        const resolvedChatHistory = uniqueActivities.map(entry => {
             let performedByResolved = null;
-            if (entry.performedBy) {
-                const branchVal = entry.performedBy.branch?.toString() || "";
+            if (entry.actorId) {
+                const branchVal = entry.actorId.branch?.toString() || "";
                 const bObj = branchMap[branchVal];
-                const branchName = bObj ? bObj.name : (entry.performedBy.branch || "");
+                const branchName = bObj ? bObj.name : (entry.actorId.branch || "");
                 performedByResolved = {
-                    name: entry.performedBy.name || "Unknown",
-                    role: entry.performedBy.role || "",
-                    department: entry.performedBy.department || "",
+                    name: entry.actorId.name || "Unknown",
+                    role: entry.actorId.role || "",
+                    department: entry.actorId.department || "",
                     branchName: branchName
                 };
             }
             let targetUserResolved = null;
-            if (entry.targetUser) {
-                const branchVal = entry.targetUser.branch?.toString() || "";
+            if (entry.metadata?.targetUser) {
+                const branchVal = entry.metadata.targetUser.branch?.toString() || "";
                 const bObj = branchMap[branchVal];
-                const branchName = bObj ? bObj.name : (entry.targetUser.branch || "");
+                const branchName = bObj ? bObj.name : (entry.metadata.targetUser.branch || "");
                 targetUserResolved = {
-                    name: entry.targetUser.name || "Unknown",
-                    role: entry.targetUser.role || "",
-                    department: entry.targetUser.department || "",
+                    name: entry.metadata.targetUser.name || "Unknown",
+                    role: entry.metadata.targetUser.role || "",
+                    department: entry.metadata.targetUser.department || "",
                     branchName: branchName
                 };
             }
-            const performedAtVal = entry.performedAt || entry.timestamp || new Date();
-            const performedByIdVal = entry.performedById || (entry.performedBy?._id ? entry.performedBy._id.toString() : (typeof entry.performedBy === "string" ? entry.performedBy : null));
-            const performedByRoleVal = entry.performedByRole || performedByResolved?.role || "";
+
+            const performedAtVal = entry.createdAt;
+            const performedByIdVal = entry.actorId?._id?.toString() || entry.actorId || null;
+            const performedByRoleVal = entry.metadata?.performedByRole || performedByResolved?.role || "";
+            const actionName = entry.metadata?.action || (entry.eventType === "ADDRESS_CHANGED" ? "Address Changed" : entry.eventType === "ASSIGNED" ? "Assigned" : "System Action");
 
             return {
+                ...entry,
                 _id: entry._id?.toString(),
-                action: entry.action || "System Action",
-                eventType: entry.eventType || (entry.action === "Branch Reassigned" ? "Chat Branch Reassigned" : entry.action) || "System Action",
-                timestamp: performedAtVal,
-                performedAt: performedAtVal,
-                notes: entry.notes || "",
-                isInternal: entry.isInternal || false,
-                performedBy: performedByResolved || entry.performedByName || (typeof entry.performedBy === "string" ? entry.performedBy : "System Admin"),
+                action: actionName,
+                eventType: entry.eventType,
+                entityType: entry.entityType || "General",
+                entityId: entry.entityId?.toString() || null,
+                customerId: entry.customerId?.toString() || null,
+                leadId: entry.leadId?.toString() || null,
+                conversationId: entry.conversationId || entry.leadId?.toString() || null,
+                actorId: performedByIdVal,
+                performedBy: performedByResolved || entry.metadata?.performedByName || "System Admin",
                 performedByRole: performedByRoleVal,
                 performedById: performedByIdVal,
-                targetUser: targetUserResolved
+                targetUser: targetUserResolved,
+                metadata: entry.metadata || {},
+                timestamp: performedAtVal,
+                performedAt: performedAtVal,
+                createdAt: entry.createdAt
             };
         });
 
@@ -143,8 +195,8 @@ export async function GET(req, { params }) {
         const formattedData = {
             phone: customer.phone,
             name: resolveCustomerDisplayName(customer),
-            city: customer.city || "",
-            address: customer.address || "",
+            city: customer.currentAddressId?.city || customer.city || "",
+            address: customer.currentAddressId?.address || customer.address || "",
             source: customer.source || "Manual Entry",
             enquiredFor: customer.enquiredFor || "",
             status: customer.status || "New",
@@ -173,8 +225,7 @@ export async function GET(req, { params }) {
     }
 }
 
-import { serverCustomerService } from "@/server/services/serverCustomerService";
-
+// --- PUT: Update Customer Profile ---
 export async function PUT(req, { params }) {
     try {
         const session = await getServerSession(authOptions);
@@ -188,9 +239,14 @@ export async function PUT(req, { params }) {
 
         const { customer, branchName, branchCode } = await serverCustomerService.updateCustomer(rawPhone, body, session);
 
+        // Fetch back with current address populated
+        const fullCustomer = await Customer.findById(customer._id).populate("currentAddressId").lean();
+
         const rawCustomer = {
-            ...customer.toObject(),
-            branchId: customer.branchId ? customer.branchId.toString() : null,
+            ...fullCustomer,
+            branchId: fullCustomer.branchId ? fullCustomer.branchId.toString() : null,
+            city: fullCustomer.currentAddressId?.city || "",
+            address: fullCustomer.currentAddressId?.address || "",
             branchName,
             branchCode
         };

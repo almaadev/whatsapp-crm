@@ -3,16 +3,7 @@
 import { useState, useRef, useEffect, memo, useMemo } from "react";
 import { useTemplateStore } from "@/features/templates/stores/templateStore";
 import { Search, X, Loader2, Layers } from "lucide-react";
-
-// --- Custom Debounce Hook (You can also move this to a shared hooks folder if needed) ---
-function useDebounce(value, delay) {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(() => {
-    const handler = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(handler);
-  }, [value, delay]);
-  return debouncedValue;
-}
+import { useDebounce } from "@/shared/hooks/useDebounce";
 
 export const TemplateBubble = memo(function TemplateBubble({
   onSelect,

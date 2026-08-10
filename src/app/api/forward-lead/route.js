@@ -7,6 +7,8 @@ import Customer from "@/shared/models/Customer";
 import Message from "@/shared/models/Message";
 import redis from "@/shared/lib/db/redis"; 
 import User from "@/shared/models/User";
+import { activityService } from "@/server/services/activityService";
+import { ActivityEvents, ActivitySources } from "@/shared/constants/activityConstants";
 
 export async function POST(req) {
   try {
@@ -34,28 +36,28 @@ export async function POST(req) {
     const targetUser = await User.findOne({ name: associateName }).lean();
     const targetUserId = targetUser?._id;
 
-    const now = new Date();
-    const chatHistoryEntry = {
-      action: "Transferred",
-      eventType: "lead_assigned",
-      performedBy: session.user.id,
-      performedById: session.user.id,
-      performedByName: forwardedBy || "User",
-      performedByRole: session.user.role || "associate",
-      performedAt: now,
-      timestamp: now,
-      targetUser: targetUserId || null,
-      notes: `Forwarded to ${associateName} by ${forwardedBy}`
-    };
+    const customerDoc = await Customer.findOne({ phone: customerPhone });
+    if (customerDoc) {
+      const oldAssignedTo = customerDoc.assignedTo;
+      
+      customerDoc.assignedTo = associateName;
+      if (targetUserId) customerDoc.assignedUserId = targetUserId;
+      await customerDoc.save();
 
-    // Change assignedTo in Customer
-    await Customer.findOneAndUpdate(
-      { phone: customerPhone },
-      { 
-        $set: { assignedTo: associateName },
-        $push: { chatHistory: chatHistoryEntry }
-      }
-    );
+      await activityService.log({
+        eventType: ActivityEvents.LEAD_ASSIGNED,
+        entityType: "Lead",
+        customerId: customerDoc._id,
+        actorId: session.user.id,
+        source: ActivitySources.WEB,
+        metadata: {
+          oldOwner: oldAssignedTo,
+          newOwner: associateName,
+          notes: `Forwarded to ${associateName} by ${forwardedBy}`,
+          targetUserName: associateName
+        }
+      });
+    }
 
     // Add a system message to Chat History
     const sysMessage = `[System]: Lead forwarded to ${associateName} by ${forwardedBy}`;

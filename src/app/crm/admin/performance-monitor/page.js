@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, Fragment } from "react";
 import { useSession } from "next-auth/react";
 import { useAuth } from "@/shared/hooks/useAuth";
-import { useQueryClient } from "@tanstack/react-query";
+
 import DashboardPage from "@/shared/components/layout/DashboardPage";
 import LoadingScreen from "@/shared/components/ui/LoadingScreen";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
@@ -13,7 +13,6 @@ import { branchService } from "@/features/branches/services/branchService";
 import { usePerformanceMonitorStore } from "@/features/admin/stores/performanceMonitorStore";
 import { usePresenceStore } from "@/features/presence/stores/presenceStore";
 import { toast } from "react-toastify";
-import Link from "next/link";
 
 import {
   TrendingUp,
@@ -24,25 +23,28 @@ import {
   Building2,
   Filter,
   Calendar,
-  Shield,
   Search,
   Award,
   ListTodo,
   ArrowUpDown,
   UserCheck,
   Download,
-  ExternalLink,
+  ShieldCheck,
   ChevronDown,
   ChevronUp,
   AlertCircle,
-  HelpCircle
+  
 } from "lucide-react";
 
 export default function PerformanceMonitor() {
   const { data: session, status } = useSession();
-  const { user, isLoading, isAdmin, isSuperAdmin: isSuperAdminUser } = useAuth();
+  const {
+    user,
+    isLoading,
+    isAdmin,
+    isSuperAdmin: isSuperAdminUser,
+  } = useAuth();
   const isAuthorized = isAdmin;
-  const queryClient = useQueryClient();
 
   const {
     filters,
@@ -51,7 +53,6 @@ export default function PerformanceMonitor() {
     setFilter,
     fetchAnalytics,
     refresh,
-    mergeSocketEvent
   } = usePerformanceMonitorStore();
 
   const onlineUserIds = usePresenceStore((state) => state.onlineUserIds);
@@ -70,21 +71,23 @@ export default function PerformanceMonitor() {
 
   const toggleAssociateExpand = async (id) => {
     const isNowExpanded = !expandedAssociates[id];
-    setExpandedAssociates(prev => ({
+    setExpandedAssociates((prev) => ({
       ...prev,
-      [id]: isNowExpanded
+      [id]: isNowExpanded,
     }));
 
     // Lazy load timeline history from sub-endpoint
     if (isNowExpanded && !historyCache[id]) {
-      setHistoryLoading(prev => ({ ...prev, [id]: true }));
+      setHistoryLoading((prev) => ({ ...prev, [id]: true }));
       try {
-        const res = await fetch(`/api/admin/performance-monitor?action=associateCustomers&associateId=${id}`);
+        const res = await fetch(
+          `/api/admin/performance-monitor?action=associateCustomers&associateId=${id}`,
+        );
         const data = await res.json();
         if (data.success) {
-          setHistoryCache(prev => ({
+          setHistoryCache((prev) => ({
             ...prev,
-            [id]: data.customers
+            [id]: data.customers,
           }));
         } else {
           toast.error("Failed to load customer history.");
@@ -92,7 +95,7 @@ export default function PerformanceMonitor() {
       } catch (err) {
         console.error("Failed loading associate history:", err);
       } finally {
-        setHistoryLoading(prev => ({ ...prev, [id]: false }));
+        setHistoryLoading((prev) => ({ ...prev, [id]: false }));
       }
     }
   };
@@ -173,7 +176,7 @@ export default function PerformanceMonitor() {
           a.associateName.toLowerCase().includes(q) ||
           a.branch.toLowerCase().includes(q) ||
           a.role.toLowerCase().includes(q) ||
-          a.department.toLowerCase().includes(q)
+          a.department.toLowerCase().includes(q),
       );
     }
 
@@ -215,9 +218,12 @@ export default function PerformanceMonitor() {
       if (moduleName === "overview") {
         headers = ["Operational Indicator Metric", "Value"];
         const dataObj = analyticsData?.associateAnalytics || [];
-        const online = dataObj.filter(a => a.status === "Online").length;
+        const online = dataObj.filter((a) => a.status === "Online").length;
         const total = dataObj.length;
-        const activeChats = dataObj.reduce((sum, a) => sum + a.currentActiveChatCount, 0);
+        const activeChats = dataObj.reduce(
+          (sum, a) => sum + a.currentActiveChatCount,
+          0,
+        );
         const closed = analyticsData?.leadAnalytics?.closedLeads || 0;
         const pending = dataObj.reduce((sum, a) => sum + a.pendingFollowUps, 0);
 
@@ -225,17 +231,30 @@ export default function PerformanceMonitor() {
           ["Online Associates", `${online} / ${total}`],
           ["Active Chats Count", activeChats],
           ["Conversions Closed", closed],
-          ["Pending Follow Ups", pending]
+          ["Pending Follow Ups", pending],
         ];
       } else if (moduleName === "associate") {
         headers = [
-          "Associate Name", "Branch", "Department", "Role", 
-          "Customers Handled Month", "New Leads Closed", "Existing Leads Closed", 
-          "Total Closed", "Follow Ups", "Pending Follow Ups", 
-          "Not Interested", "Average Response Time", "Status", "Active Chat Locks"
+          "Associate Name",
+          "Branch",
+          "Department",
+          "Role",
+          "Customers Handled Month",
+          "New Leads Closed",
+          "Existing Leads Closed",
+          "Total Closed",
+          "Follow Ups",
+          "Pending Follow Ups",
+          "Not Interested",
+          "Average Response Time",
+          "Status",
+          "Active Chat Locks",
         ];
-        const targetList = exportMode === "current" ? processedAssociates : (analyticsData?.associateAnalytics || []);
-        rows = targetList.map(a => [
+        const targetList =
+          exportMode === "current"
+            ? processedAssociates
+            : analyticsData?.associateAnalytics || [];
+        rows = targetList.map((a) => [
           `"${a.associateName}"`,
           `"${a.branch}"`,
           `"${a.department}"`,
@@ -249,12 +268,21 @@ export default function PerformanceMonitor() {
           a.notInterested,
           `"${a.averageResponseTime}"`,
           `"${a.status}"`,
-          a.currentActiveChatCount
+          a.currentActiveChatCount,
         ]);
       } else if (moduleName === "branch") {
-        headers = ["Branch Name", "Total Associates", "Online Associates", "Customers Received", "Customers Assigned", "Customers Closed", "Pending Follow Ups", "Conversion Rate %"];
+        headers = [
+          "Branch Name",
+          "Total Associates",
+          "Online Associates",
+          "Customers Received",
+          "Customers Assigned",
+          "Customers Closed",
+          "Pending Follow Ups",
+          "Conversion Rate %",
+        ];
         const targetList = analyticsData?.branchAnalytics || [];
-        rows = targetList.map(b => [
+        rows = targetList.map((b) => [
           `"${b.branchName}"`,
           b.totalAssociates,
           b.onlineAssociates,
@@ -262,7 +290,7 @@ export default function PerformanceMonitor() {
           b.customersAssigned,
           b.customersClosed,
           b.pendingFollowUps,
-          `${b.conversionRate}%`
+          `${b.conversionRate}%`,
         ]);
       } else if (moduleName === "lead") {
         headers = ["Lead Pipeline Status Category", "Activity Count"];
@@ -273,10 +301,19 @@ export default function PerformanceMonitor() {
           ["Reopened Chats", l.reopenedLeads || 0],
           ["Closed Leads Total", l.closedLeads || 0],
           ["Not Interested Leads", l.notInterested || 0],
-          ["Lost Leads Total", l.lostLeads || 0]
+          ["Lost Leads Total", l.lostLeads || 0],
         ];
       } else if (moduleName === "leaderboard") {
-        headers = ["Rank Standings", "Associate Name", "Role", "Branch", "Performance Score (pts)", "Closed Deals Count", "Follow Ups Count", "Customers Handled"];
+        headers = [
+          "Rank Standings",
+          "Associate Name",
+          "Role",
+          "Branch",
+          "Performance Score (pts)",
+          "Closed Deals Count",
+          "Follow Ups Count",
+          "Customers Handled",
+        ];
         const targetList = analyticsData?.topPerformers || [];
         rows = targetList.map((p, idx) => [
           idx + 1,
@@ -286,13 +323,18 @@ export default function PerformanceMonitor() {
           p.score,
           p.closed,
           p.followUps,
-          p.customersHandledMonth
+          p.customersHandledMonth,
         ]);
       }
 
       if (formatType === "csv") {
-        const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const csvContent = [
+          headers.join(","),
+          ...rows.map((r) => r.join(",")),
+        ].join("\n");
+        const blob = new Blob([csvContent], {
+          type: "text/csv;charset=utf-8;",
+        });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
@@ -301,11 +343,13 @@ export default function PerformanceMonitor() {
         link.click();
         document.body.removeChild(link);
       } else {
-        const rowsHTML = rows.map(row => `
+        const rowsHTML = rows.map(
+          (row) => `
           <tr>
-            ${row.map(val => `<td>${String(val).replace(/"/g, '')}</td>`).join("")}
+            ${row.map((val) => `<td>${String(val).replace(/"/g, "")}</td>`).join("")}
           </tr>
-        `);
+        `,
+        );
         const excelContent = `
           <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
           <head><meta charset="utf-8"/><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Sheet1</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>
@@ -314,7 +358,7 @@ export default function PerformanceMonitor() {
             <table border="1">
               <thead>
                 <tr style="background-color: #0f172a; color: white; font-weight: bold;">
-                  ${headers.map(h => `<th>${h}</th>`).join("")}
+                  ${headers.map((h) => `<th>${h}</th>`).join("")}
                 </tr>
               </thead>
               <tbody>
@@ -324,7 +368,9 @@ export default function PerformanceMonitor() {
           </body>
           </html>
         `;
-        const blob = new Blob([excelContent], { type: "application/vnd.ms-excel" });
+        const blob = new Blob([excelContent], {
+          type: "application/vnd.ms-excel",
+        });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
@@ -343,14 +389,23 @@ export default function PerformanceMonitor() {
   // Derived dashboard variables
   const computedStats = useMemo(() => {
     const associates = analyticsData?.associateAnalytics || [];
-    const online = associates.filter(a => a.status === "Online").length;
-    const busy = associates.filter(a => a.currentActiveChatCount > 0).length;
+    const online = associates.filter((a) => a.status === "Online").length;
+    const busy = associates.filter((a) => a.currentActiveChatCount > 0).length;
     const closed = analyticsData?.leadAnalytics?.closedLeads || 0;
     const pending = associates.reduce((sum, a) => sum + a.pendingFollowUps, 0);
 
-    const totalResponseWeight = associates.reduce((sum, a) => sum + (a.avgResponseSeconds * a.followUps), 0);
-    const totalResponseCount = associates.reduce((sum, a) => sum + (a.avgResponseSeconds > 0 ? a.followUps : 0), 0);
-    const avgResponseSeconds = totalResponseCount > 0 ? Math.round(totalResponseWeight / totalResponseCount) : 0;
+    const totalResponseWeight = associates.reduce(
+      (sum, a) => sum + a.avgResponseSeconds * a.followUps,
+      0,
+    );
+    const totalResponseCount = associates.reduce(
+      (sum, a) => sum + (a.avgResponseSeconds > 0 ? a.followUps : 0),
+      0,
+    );
+    const avgResponseSeconds =
+      totalResponseCount > 0
+        ? Math.round(totalResponseWeight / totalResponseCount)
+        : 0;
     let averageResponseTime = "--";
     if (avgResponseSeconds > 0) {
       const m = Math.floor(avgResponseSeconds / 60);
@@ -358,7 +413,8 @@ export default function PerformanceMonitor() {
       averageResponseTime = m > 0 ? `${m}m ${s}s` : `${s}s`;
     }
 
-    const conversionRate = analyticsData?.branchAnalytics?.[0]?.conversionRate || 0;
+    const conversionRate =
+      analyticsData?.branchAnalytics?.[0]?.conversionRate || 0;
 
     return {
       online,
@@ -366,16 +422,16 @@ export default function PerformanceMonitor() {
       closed,
       pending,
       averageResponseTime,
-      conversionRate
+      conversionRate,
     };
   }, [analyticsData]);
 
   // Roster options
   const associatesOptions = useMemo(() => {
     if (!analyticsData?.associateAnalytics) return [];
-    return analyticsData.associateAnalytics.map(a => ({
+    return analyticsData.associateAnalytics.map((a) => ({
       id: a.associateId,
-      name: a.associateName
+      name: a.associateName,
     }));
   }, [analyticsData]);
 
@@ -401,7 +457,6 @@ export default function PerformanceMonitor() {
     { id: "branch", label: "Branch Analytics", icon: Building2 },
     { id: "lead", label: "Lead Analytics", icon: ListTodo },
     { id: "leaderboard", label: "Leaderboard", icon: Award },
-    
   ];
 
   return (
@@ -414,12 +469,11 @@ export default function PerformanceMonitor() {
 
       {/* Main Container */}
       <div className="max-w-[1800px] mx-auto py-4 px-6 space-y-4 select-none relative flex flex-col h-[calc(100vh-140px)] overflow-hidden">
-        
         {/* GLOBAL STICKY FILTERS BAR */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm flex flex-wrap gap-3 items-center justify-between sticky top-0 z-20">
+        <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-sm flex flex-wrap gap-3 items-center justify-between sticky top-0 z-20">
           <div className="flex flex-wrap gap-2 items-center">
             {/* Date Preset */}
-            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 px-2 py-1 rounded-xl text-xs font-semibold">
+            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg text-xs font-semibold">
               <Calendar size={13} className="text-slate-400" />
               <select
                 value={filters.dateRange}
@@ -495,21 +549,39 @@ export default function PerformanceMonitor() {
             </div>
 
             {/* Role */}
-            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 px-2 py-1 rounded-xl text-xs font-semibold">
-              <Shield size={13} className="text-slate-400" />
-              <select
-                value={filters.role}
-                onChange={(e) => setFilter("role", e.target.value)}
-                className="bg-transparent font-bold text-slate-700 outline-none cursor-pointer text-xs"
-              >
-                <option value="all">All Roles</option>
-                {roleOptions.map((role) => (
-                  <option key={role} value={role === "SuperAdmin" ? "superAdmin" : role.toLowerCase()}>
-                    {role}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {session?.user?.role === "superAdmin" ? (
+              <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 px-2 py-1 rounded-xl text-xs font-semibold">
+                <ShieldCheck size={13} className="text-slate-400" />
+
+                <select
+                  value={filters.role}
+                  onChange={(e) => setFilter("role", e.target.value)}
+                  className="bg-transparent font-bold text-slate-700 outline-none cursor-pointer max-w-[120px] text-xs"
+                >
+                  <option value="all">All Roles</option>
+
+                  {roleOptions.map((role) => (
+                    <option
+                      key={role}
+                      value={
+                        role === "SuperAdmin"
+                          ? "superAdmin"
+                          : role.toLowerCase()
+                      }
+                    >
+                      {role === "SuperAdmin" ? "Super Admin" : role}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="bg-slate-100 border border-slate-200 px-2 py-1 rounded-xl text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Role:{" "}
+                {user?.role === "superAdmin"
+                  ? "Super Admin"
+                  : user?.role || "My Role"}
+              </div>
+            )}
 
             {/* Associate Selector */}
             <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 px-2 py-1 rounded-xl text-xs font-semibold">
@@ -548,7 +620,10 @@ export default function PerformanceMonitor() {
             disabled={isStoreLoading}
             className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
           >
-            <Activity size={11} className={isStoreLoading ? "animate-spin" : ""} />
+            <Activity
+              size={11}
+              className={isStoreLoading ? "animate-spin" : ""}
+            />
             Sync Monitor
           </button>
         </div>
@@ -577,64 +652,99 @@ export default function PerformanceMonitor() {
 
         {/* ACTIVE TAB VIEWS (Lazy loaded, scroll protected, high visual density) */}
         <div className="flex-1 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col h-[calc(100vh-250px)] relative">
-          
           {/* TAB 1: OVERVIEW */}
           {activeTab === "overview" && (
             <div className="p-4 space-y-4 flex flex-col h-full overflow-y-auto">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
-                  <TrendingUp size={16} className="text-[#00a884]" /> Quick Performance Snapshot
+                  <TrendingUp size={16} className="text-[#00a884]" /> Quick
+                  Performance Snapshot
                 </h3>
-
               </div>
 
               {/* 1. TOP KPI CARDS GRID */}
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
                 <div className="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-xl p-3 flex items-center gap-2.5 shadow-sm">
-                  <div className="p-2 bg-emerald-50 text-[#00a884] rounded-lg"><UserCheck size={18} /></div>
+                  <div className="p-2 bg-emerald-50 text-[#00a884] rounded-lg">
+                    <UserCheck size={18} />
+                  </div>
                   <div>
-                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Online Staff</p>
-                    <h4 className="text-lg font-black text-slate-800">{onlineUsers.length}</h4>
+                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">
+                      Online Staff
+                    </p>
+                    <h4 className="text-lg font-black text-slate-800">
+                      {onlineUsers.length}
+                    </h4>
                   </div>
                 </div>
 
                 <div className="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-xl p-3 flex items-center gap-2.5 shadow-sm">
-                  <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><Activity size={18} /></div>
+                  <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                    <Activity size={18} />
+                  </div>
                   <div>
-                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Busy Staff</p>
-                    <h4 className="text-lg font-black text-slate-800">{computedStats.busy}</h4>
+                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">
+                      Busy Staff
+                    </p>
+                    <h4 className="text-lg font-black text-slate-800">
+                      {computedStats.busy}
+                    </h4>
                   </div>
                 </div>
 
                 <div className="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-xl p-3 flex items-center gap-2.5 shadow-sm">
-                  <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><CheckCircle size={18} /></div>
+                  <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                    <CheckCircle size={18} />
+                  </div>
                   <div>
-                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Closed Today</p>
-                    <h4 className="text-lg font-black text-slate-800">{analyticsData?.leadAnalytics?.closedLeads || 0}</h4>
+                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">
+                      Closed Today
+                    </p>
+                    <h4 className="text-lg font-black text-slate-800">
+                      {analyticsData?.leadAnalytics?.closedLeads || 0}
+                    </h4>
                   </div>
                 </div>
 
                 <div className="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-xl p-3 flex items-center gap-2.5 shadow-sm">
-                  <div className="p-2 bg-rose-50 text-rose-600 rounded-lg"><Clock size={18} /></div>
+                  <div className="p-2 bg-rose-50 text-rose-600 rounded-lg">
+                    <Clock size={18} />
+                  </div>
                   <div>
-                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Pending Follow Ups</p>
-                    <h4 className="text-lg font-black text-slate-800">{computedStats.pending}</h4>
+                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">
+                      Pending Follow Ups
+                    </p>
+                    <h4 className="text-lg font-black text-slate-800">
+                      {computedStats.pending}
+                    </h4>
                   </div>
                 </div>
 
                 <div className="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-xl p-3 flex items-center gap-2.5 shadow-sm">
-                  <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Clock size={18} /></div>
+                  <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                    <Clock size={18} />
+                  </div>
                   <div>
-                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Avg Response</p>
-                    <h4 className="text-lg font-black text-slate-800">{computedStats.averageResponseTime}</h4>
+                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">
+                      Avg Response
+                    </p>
+                    <h4 className="text-lg font-black text-slate-800">
+                      {computedStats.averageResponseTime}
+                    </h4>
                   </div>
                 </div>
 
                 <div className="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-xl p-3 flex items-center gap-2.5 shadow-sm">
-                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><TrendingUp size={18} /></div>
+                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                    <TrendingUp size={18} />
+                  </div>
                   <div>
-                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Conversion Rate</p>
-                    <h4 className="text-lg font-black text-slate-800">{computedStats.conversionRate}%</h4>
+                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">
+                      Conversion Rate
+                    </p>
+                    <h4 className="text-lg font-black text-slate-800">
+                      {computedStats.conversionRate}%
+                    </h4>
                   </div>
                 </div>
               </div>
@@ -642,19 +752,28 @@ export default function PerformanceMonitor() {
               {/* 2. MIDDLE SNAPSHOT & TRENDS */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col justify-between">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Top Performing Branch</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Top Performing Branch
+                  </span>
                   <div className="flex items-center justify-between mt-2">
                     <h3 className="text-base font-extrabold text-slate-800">
-                      {analyticsData?.branchAnalytics?.sort((a,b) => b.conversionRate - a.conversionRate)?.[0]?.branchName || "-"}
+                      {analyticsData?.branchAnalytics?.sort(
+                        (a, b) => b.conversionRate - a.conversionRate,
+                      )?.[0]?.branchName || "-"}
                     </h3>
                     <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md font-bold">
-                      {analyticsData?.branchAnalytics?.sort((a,b) => b.conversionRate - a.conversionRate)?.[0]?.conversionRate || 0}% Conv
+                      {analyticsData?.branchAnalytics?.sort(
+                        (a, b) => b.conversionRate - a.conversionRate,
+                      )?.[0]?.conversionRate || 0}
+                      % Conv
                     </span>
                   </div>
                 </div>
 
                 <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col justify-between">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Top Performing Associate</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Top Performing Associate
+                  </span>
                   <div className="flex items-center justify-between mt-2">
                     <h3 className="text-base font-extrabold text-slate-800">
                       {analyticsData?.topPerformers?.[0]?.associateName || "-"}
@@ -670,16 +789,23 @@ export default function PerformanceMonitor() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* SVG Chart 1: Conversions progress by Branch */}
                 <div className="bg-slate-50/50 border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
-                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Branch Conversions</h4>
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Branch Conversions
+                  </h4>
                   <div className="space-y-2">
-                    {analyticsData?.branchAnalytics?.map(b => (
+                    {analyticsData?.branchAnalytics?.map((b) => (
                       <div key={b.branchName} className="space-y-1">
                         <div className="flex justify-between text-[10px] font-semibold">
                           <span>{b.branchName}</span>
                           <span>{b.customersClosed} Closed</span>
                         </div>
                         <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                          <div className="bg-[#00a884] h-full transition-all" style={{ width: `${Math.min(b.conversionRate, 100)}%` }}></div>
+                          <div
+                            className="bg-[#00a884] h-full transition-all"
+                            style={{
+                              width: `${Math.min(b.conversionRate, 100)}%`,
+                            }}
+                          ></div>
                         </div>
                       </div>
                     ))}
@@ -688,23 +814,33 @@ export default function PerformanceMonitor() {
 
                 {/* Lead Pipeline Totals */}
                 <div className="bg-slate-50/50 border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
-                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Lead Funnel Distribution</h4>
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Lead Funnel Distribution
+                  </h4>
                   <div className="grid grid-cols-2 gap-2 text-[11px] font-semibold">
                     <div className="flex justify-between py-1 border-b border-slate-100">
                       <span className="text-slate-400">New Leads</span>
-                      <span className="font-bold text-slate-800">{analyticsData?.leadAnalytics?.newLeads || 0}</span>
+                      <span className="font-bold text-slate-800">
+                        {analyticsData?.leadAnalytics?.newLeads || 0}
+                      </span>
                     </div>
                     <div className="flex justify-between py-1 border-b border-slate-100">
                       <span className="text-slate-400">Existing Leads</span>
-                      <span className="font-bold text-slate-800">{analyticsData?.leadAnalytics?.existingLeads || 0}</span>
+                      <span className="font-bold text-slate-800">
+                        {analyticsData?.leadAnalytics?.existingLeads || 0}
+                      </span>
                     </div>
                     <div className="flex justify-between py-1 border-b border-slate-100">
                       <span className="text-slate-400">Follow Ups</span>
-                      <span className="font-bold text-slate-800">{analyticsData?.leadAnalytics?.followUps || 0}</span>
+                      <span className="font-bold text-slate-800">
+                        {analyticsData?.leadAnalytics?.followUps || 0}
+                      </span>
                     </div>
                     <div className="flex justify-between py-1 border-b border-slate-100">
                       <span className="text-slate-400">Closed Leads</span>
-                      <span className="font-bold text-[#00a884]">{analyticsData?.leadAnalytics?.closedLeads || 0}</span>
+                      <span className="font-bold text-[#00a884]">
+                        {analyticsData?.leadAnalytics?.closedLeads || 0}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -717,7 +853,10 @@ export default function PerformanceMonitor() {
             <div className="flex flex-col h-full overflow-hidden">
               <div className="p-3 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/50">
                 <div className="relative w-64">
-                  <Search size={11} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Search
+                    size={11}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
                   <input
                     type="text"
                     placeholder="Search associate name..."
@@ -728,17 +867,31 @@ export default function PerformanceMonitor() {
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  <button onClick={() => handleExport("associate", "current", "csv")} className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-lg flex items-center gap-1 border border-slate-200 cursor-pointer">
+                  <button
+                    onClick={() => handleExport("associate", "current", "csv")}
+                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-lg flex items-center gap-1 border border-slate-200 cursor-pointer"
+                  >
                     <Download size={9} /> CSV
                   </button>
-                  <button onClick={() => handleExport("associate", "current", "excel")} className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-lg flex items-center gap-1 border border-slate-200 cursor-pointer">
+                  <button
+                    onClick={() =>
+                      handleExport("associate", "current", "excel")
+                    }
+                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-lg flex items-center gap-1 border border-slate-200 cursor-pointer"
+                  >
                     <Download size={9} /> Excel
                   </button>
                   <div className="w-px h-3.5 bg-slate-350 mx-1"></div>
-                  <button onClick={() => handleExport("associate", "all", "csv")} className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] rounded-lg flex items-center gap-1 cursor-pointer">
+                  <button
+                    onClick={() => handleExport("associate", "all", "csv")}
+                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] rounded-lg flex items-center gap-1 cursor-pointer"
+                  >
                     Export All CSV
                   </button>
-                  <button onClick={() => handleExport("associate", "all", "excel")} className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] rounded-lg flex items-center gap-1 cursor-pointer">
+                  <button
+                    onClick={() => handleExport("associate", "all", "excel")}
+                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] rounded-lg flex items-center gap-1 cursor-pointer"
+                  >
                     Export All Excel
                   </button>
                 </div>
@@ -750,17 +903,26 @@ export default function PerformanceMonitor() {
                   <thead className="bg-slate-50 text-slate-500 text-[9px] uppercase font-bold tracking-wider border-b border-slate-200 sticky top-0 z-10 select-none">
                     <tr>
                       <th className="w-6 px-3"></th>
-                      <th onClick={() => handleSort("associateName")} className="px-4 py-2.5 cursor-pointer hover:bg-slate-100 transition-colors">
-                        <div className="flex items-center gap-1">Associate <ArrowUpDown size={8} /></div>
+                      <th
+                        onClick={() => handleSort("associateName")}
+                        className="px-4 py-2.5 cursor-pointer hover:bg-slate-100 transition-colors"
+                      >
+                        <div className="flex items-center gap-1">
+                          Associate <ArrowUpDown size={8} />
+                        </div>
                       </th>
                       <th className="px-4 py-2.5">Branch</th>
                       <th className="px-4 py-2.5">Role / Dept</th>
                       <th className="px-4 py-2.5 text-center">Handled Month</th>
                       <th className="px-4 py-2.5 text-center">New Closed</th>
                       <th className="px-4 py-2.5 text-center">Exist Closed</th>
-                      <th className="px-4 py-2.5 text-center text-[#00a884]">Closed</th>
+                      <th className="px-4 py-2.5 text-center text-[#00a884]">
+                        Closed
+                      </th>
                       <th className="px-4 py-2.5 text-center">Follow Ups</th>
-                      <th className="px-4 py-2.5 text-center text-rose-600">Pending</th>
+                      <th className="px-4 py-2.5 text-center text-rose-600">
+                        Pending
+                      </th>
                       <th className="px-4 py-2.5 text-center">Avg Resp</th>
                       <th className="px-4 py-2.5 text-center">Status</th>
                       <th className="px-4 py-2.5 text-right">Locked Chats</th>
@@ -769,39 +931,88 @@ export default function PerformanceMonitor() {
                   <tbody className="divide-y divide-slate-100 text-xs">
                     {isStoreLoading ? (
                       [...Array(4)].map((_, i) => (
-                        <tr key={i}><td colSpan="13" className="p-3"><div className="w-full h-6 bg-slate-100 rounded-lg animate-pulse"></div></td></tr>
+                        <tr key={i}>
+                          <td colSpan="13" className="p-3">
+                            <div className="w-full h-6 bg-slate-100 rounded-lg animate-pulse"></div>
+                          </td>
+                        </tr>
                       ))
                     ) : processedAssociates.length === 0 ? (
-                      <tr><td colSpan="13" className="p-5 text-center text-slate-400 font-bold">No associates matched current criteria.</td></tr>
+                      <tr>
+                        <td
+                          colSpan="13"
+                          className="p-5 text-center text-slate-400 font-bold"
+                        >
+                          No associates matched current criteria.
+                        </td>
+                      </tr>
                     ) : (
                       processedAssociates.map((assoc) => {
-                        const isExpanded = !!expandedAssociates[assoc.associateId];
-                        const historyData = historyCache[assoc.associateId] || [];
-                        const isHistoryLoading = !!historyLoading[assoc.associateId];
-                        const isOnline = onlineUserIds.has(assoc.associateId?.toString());
+                        const isExpanded =
+                          !!expandedAssociates[assoc.associateId];
+                        const historyData =
+                          historyCache[assoc.associateId] || [];
+                        const isHistoryLoading =
+                          !!historyLoading[assoc.associateId];
+                        const isOnline = onlineUserIds.has(
+                          assoc.associateId?.toString(),
+                        );
 
                         return (
                           <Fragment key={assoc.associateId}>
-                            <tr className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => toggleAssociateExpand(assoc.associateId)}>
+                            <tr
+                              className="hover:bg-slate-50 transition-colors cursor-pointer"
+                              onClick={() =>
+                                toggleAssociateExpand(assoc.associateId)
+                              }
+                            >
                               <td className="px-3 py-2.5 text-center text-slate-400">
-                                {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                {isExpanded ? (
+                                  <ChevronUp size={12} />
+                                ) : (
+                                  <ChevronDown size={12} />
+                                )}
                               </td>
-                              <td className="px-4 py-2.5 font-bold text-slate-800">{assoc.associateName}</td>
-                              <td className="px-4 py-2.5 text-slate-600">{assoc.branch}</td>
-                              <td className="px-4 py-2.5 text-slate-400 uppercase text-[9px] font-semibold">{assoc.role} / {assoc.department}</td>
-                              <td className="px-4 py-2.5 text-center font-semibold text-slate-600">{assoc.customersHandledMonth}</td>
-                              <td className="px-4 py-2.5 text-center text-slate-600">{assoc.newLeads}</td>
-                              <td className="px-4 py-2.5 text-center text-slate-600">{assoc.existingLeads}</td>
-                              <td className="px-4 py-2.5 text-center font-extrabold text-[#00a884]">{assoc.closed}</td>
-                              <td className="px-4 py-2.5 text-center text-slate-600">{assoc.followUps}</td>
-                              <td className="px-4 py-2.5 text-center font-bold text-rose-600">{assoc.pendingFollowUps}</td>
-                              <td className="px-4 py-2.5 text-center text-slate-600">{assoc.averageResponseTime}</td>
+                              <td className="px-4 py-2.5 font-bold text-slate-800">
+                                {assoc.associateName}
+                              </td>
+                              <td className="px-4 py-2.5 text-slate-600">
+                                {assoc.branch}
+                              </td>
+                              <td className="px-4 py-2.5 text-slate-400 uppercase text-[9px] font-semibold">
+                                {assoc.role} / {assoc.department}
+                              </td>
+                              <td className="px-4 py-2.5 text-center font-semibold text-slate-600">
+                                {assoc.customersHandledMonth}
+                              </td>
+                              <td className="px-4 py-2.5 text-center text-slate-600">
+                                {assoc.newLeads}
+                              </td>
+                              <td className="px-4 py-2.5 text-center text-slate-600">
+                                {assoc.existingLeads}
+                              </td>
+                              <td className="px-4 py-2.5 text-center font-extrabold text-[#00a884]">
+                                {assoc.closed}
+                              </td>
+                              <td className="px-4 py-2.5 text-center text-slate-600">
+                                {assoc.followUps}
+                              </td>
+                              <td className="px-4 py-2.5 text-center font-bold text-rose-600">
+                                {assoc.pendingFollowUps}
+                              </td>
+                              <td className="px-4 py-2.5 text-center text-slate-600">
+                                {assoc.averageResponseTime}
+                              </td>
                               <td className="px-4 py-2.5 text-center">
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${isOnline ? "bg-emerald-50 text-emerald-700" : "bg-slate-50 text-slate-500"}`}>
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${isOnline ? "bg-emerald-50 text-emerald-700" : "bg-slate-50 text-slate-500"}`}
+                                >
                                   {isOnline ? "Online" : "Offline"}
                                 </span>
                               </td>
-                              <td className="px-4 py-2.5 text-right font-bold text-slate-700">{assoc.currentActiveChatCount} locked</td>
+                              <td className="px-4 py-2.5 text-right font-bold text-slate-700">
+                                {assoc.currentActiveChatCount} locked
+                              </td>
                             </tr>
 
                             {/* Expandable sub-row containing lazy loaded customer list */}
@@ -810,47 +1021,101 @@ export default function PerformanceMonitor() {
                                 <td colSpan="13" className="px-5 py-3">
                                   <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm space-y-2">
                                     <h5 className="font-extrabold text-slate-800 flex items-center gap-1.5 text-xs pb-1 border-b border-slate-100">
-                                      <Users size={12} className="text-[#00a884]" /> Managed Customers & Handled History
+                                      <Users
+                                        size={12}
+                                        className="text-[#00a884]"
+                                      />{" "}
+                                      Managed Customers & Handled History
                                     </h5>
-                                    
+
                                     {isHistoryLoading ? (
                                       <div className="flex items-center justify-center py-4 text-slate-400 text-xs font-semibold">
-                                        <Activity className="animate-spin mr-1.5" size={12} /> Loading customer history...
+                                        <Activity
+                                          className="animate-spin mr-1.5"
+                                          size={12}
+                                        />{" "}
+                                        Loading customer history...
                                       </div>
                                     ) : historyData.length === 0 ? (
-                                      <p className="text-xs text-slate-400 text-center py-4 font-bold">No handled customer timeline logs.</p>
+                                      <p className="text-xs text-slate-400 text-center py-4 font-bold">
+                                        No handled customer timeline logs.
+                                      </p>
                                     ) : (
                                       <div className="overflow-x-auto max-h-48">
                                         <table className="w-full text-left border-collapse text-[10px]">
                                           <thead className="bg-slate-50 text-slate-500 uppercase text-[8px] font-bold tracking-wider sticky top-0 z-10 select-none border-b border-slate-200">
                                             <tr>
-                                              <th className="px-3 py-2">Customer Name</th>
-                                              <th className="px-3 py-2">Phone</th>
-                                              <th className="px-3 py-2">Enquired For</th>
-                                              <th className="px-3 py-2">Current Status</th>
-                                              <th className="px-3 py-2">Activity Type</th>
-                                              <th className="px-3 py-2 text-center">Handled Date & Time</th>
-                                              <th className="px-3 py-2">Handled By</th>
-                                              <th className="px-3 py-2">Branch</th>
-                                              <th className="px-3 py-2">Remark</th>
+                                              <th className="px-3 py-2">
+                                                Customer Name
+                                              </th>
+                                              <th className="px-3 py-2">
+                                                Phone
+                                              </th>
+                                              <th className="px-3 py-2">
+                                                Enquired For
+                                              </th>
+                                              <th className="px-3 py-2">
+                                                Current Status
+                                              </th>
+                                              <th className="px-3 py-2">
+                                                Activity Type
+                                              </th>
+                                              <th className="px-3 py-2 text-center">
+                                                Handled Date & Time
+                                              </th>
+                                              <th className="px-3 py-2">
+                                                Handled By
+                                              </th>
+                                              <th className="px-3 py-2">
+                                                Branch
+                                              </th>
+                                              <th className="px-3 py-2">
+                                                Remark
+                                              </th>
                                             </tr>
                                           </thead>
                                           <tbody className="divide-y divide-slate-100">
                                             {historyData.map((row, index) => (
-                                              <tr key={index} className="hover:bg-slate-50">
-                                                <td className="px-3 py-2 font-bold text-slate-800">{row.customerName}</td>
-                                                <td className="px-3 py-2 text-slate-500">{row.phone}</td>
-                                                <td className="px-3 py-2 text-slate-500">{row.enquiredFor}</td>
+                                              <tr
+                                                key={index}
+                                                className="hover:bg-slate-50"
+                                              >
+                                                <td className="px-3 py-2 font-bold text-slate-800">
+                                                  {row.customerName}
+                                                </td>
+                                                <td className="px-3 py-2 text-slate-500">
+                                                  {row.phone}
+                                                </td>
+                                                <td className="px-3 py-2 text-slate-500">
+                                                  {row.enquiredFor}
+                                                </td>
                                                 <td className="px-3 py-2">
-                                                  <span className={`px-2 py-0.5 rounded-full text-[8px] font-bold ${row.currentStatus === "Closed" ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-600"}`}>
+                                                  <span
+                                                    className={`px-2 py-0.5 rounded-full text-[8px] font-bold ${row.currentStatus === "Closed" ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-600"}`}
+                                                  >
                                                     {row.currentStatus}
                                                   </span>
                                                 </td>
-                                                <td className="px-3 py-2 font-semibold text-slate-700">{row.activityType}</td>
-                                                <td className="px-3 py-2 text-center text-slate-400">{new Date(row.handledAt).toLocaleString()}</td>
-                                                <td className="px-3 py-2 text-slate-600">{row.handledBy}</td>
-                                                <td className="px-3 py-2 text-slate-500">{row.branch}</td>
-                                                <td className="px-3 py-2 text-slate-400 max-w-xs truncate" title={row.remark}>{row.remark}</td>
+                                                <td className="px-3 py-2 font-semibold text-slate-700">
+                                                  {row.activityType}
+                                                </td>
+                                                <td className="px-3 py-2 text-center text-slate-400">
+                                                  {new Date(
+                                                    row.handledAt,
+                                                  ).toLocaleString()}
+                                                </td>
+                                                <td className="px-3 py-2 text-slate-600">
+                                                  {row.handledBy}
+                                                </td>
+                                                <td className="px-3 py-2 text-slate-500">
+                                                  {row.branch}
+                                                </td>
+                                                <td
+                                                  className="px-3 py-2 text-slate-400 max-w-xs truncate"
+                                                  title={row.remark}
+                                                >
+                                                  {row.remark}
+                                                </td>
                                               </tr>
                                             ))}
                                           </tbody>
@@ -875,12 +1140,20 @@ export default function PerformanceMonitor() {
           {activeTab === "branch" && (
             <div className="flex flex-col h-full overflow-hidden">
               <div className="p-3 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/50">
-                <span className="text-xs font-bold text-slate-500">Branch Performance Overview</span>
+                <span className="text-xs font-bold text-slate-500">
+                  Branch Performance Overview
+                </span>
                 <div className="flex items-center gap-1.5">
-                  <button onClick={() => handleExport("branch", "current", "csv")} className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-lg flex items-center gap-1 border border-slate-200 cursor-pointer">
+                  <button
+                    onClick={() => handleExport("branch", "current", "csv")}
+                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-lg flex items-center gap-1 border border-slate-200 cursor-pointer"
+                  >
                     <Download size={9} /> CSV
                   </button>
-                  <button onClick={() => handleExport("branch", "current", "excel")} className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-lg flex items-center gap-1 border border-slate-200 cursor-pointer">
+                  <button
+                    onClick={() => handleExport("branch", "current", "excel")}
+                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-lg flex items-center gap-1 border border-slate-200 cursor-pointer"
+                  >
                     <Download size={9} /> Excel
                   </button>
                 </div>
@@ -893,24 +1166,50 @@ export default function PerformanceMonitor() {
                       <th className="px-6 py-2.5">Branch Name</th>
                       <th className="px-6 py-2.5 text-center">Total Staff</th>
                       <th className="px-6 py-2.5 text-center">Online Staff</th>
-                      <th className="px-6 py-2.5 text-center">Customers Received</th>
-                      <th className="px-6 py-2.5 text-center">Customers Assigned</th>
-                      <th className="px-6 py-2.5 text-center text-[#00a884]">Customers Closed</th>
-                      <th className="px-6 py-2.5 text-center text-rose-600">Pending Follow Ups</th>
-                      <th className="px-6 py-2.5 text-right">Conversion Rate %</th>
+                      <th className="px-6 py-2.5 text-center">
+                        Customers Received
+                      </th>
+                      <th className="px-6 py-2.5 text-center">
+                        Customers Assigned
+                      </th>
+                      <th className="px-6 py-2.5 text-center text-[#00a884]">
+                        Customers Closed
+                      </th>
+                      <th className="px-6 py-2.5 text-center text-rose-600">
+                        Pending Follow Ups
+                      </th>
+                      <th className="px-6 py-2.5 text-right">
+                        Conversion Rate %
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
                     {analyticsData?.branchAnalytics?.map((branch) => (
                       <tr key={branch.branchName} className="hover:bg-slate-50">
-                        <td className="px-6 py-2.5 font-bold text-slate-800">{branch.branchName}</td>
-                        <td className="px-6 py-2.5 text-center text-slate-600 font-semibold">{branch.totalAssociates}</td>
-                        <td className="px-6 py-2.5 text-center text-slate-600 font-semibold">{branch.onlineAssociates}</td>
-                        <td className="px-6 py-2.5 text-center text-slate-600">{branch.customersReceived}</td>
-                        <td className="px-6 py-2.5 text-center text-slate-600">{branch.customersAssigned}</td>
-                        <td className="px-6 py-2.5 text-center font-extrabold text-[#00a884]">{branch.customersClosed}</td>
-                        <td className="px-6 py-2.5 text-center font-bold text-rose-600">{branch.pendingFollowUps}</td>
-                        <td className="px-6 py-2.5 text-right font-black text-slate-800">{branch.conversionRate}%</td>
+                        <td className="px-6 py-2.5 font-bold text-slate-800">
+                          {branch.branchName}
+                        </td>
+                        <td className="px-6 py-2.5 text-center text-slate-600 font-semibold">
+                          {branch.totalAssociates}
+                        </td>
+                        <td className="px-6 py-2.5 text-center text-slate-600 font-semibold">
+                          {branch.onlineAssociates}
+                        </td>
+                        <td className="px-6 py-2.5 text-center text-slate-600">
+                          {branch.customersReceived}
+                        </td>
+                        <td className="px-6 py-2.5 text-center text-slate-600">
+                          {branch.customersAssigned}
+                        </td>
+                        <td className="px-6 py-2.5 text-center font-extrabold text-[#00a884]">
+                          {branch.customersClosed}
+                        </td>
+                        <td className="px-6 py-2.5 text-center font-bold text-rose-600">
+                          {branch.pendingFollowUps}
+                        </td>
+                        <td className="px-6 py-2.5 text-right font-black text-slate-800">
+                          {branch.conversionRate}%
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -924,74 +1223,123 @@ export default function PerformanceMonitor() {
             <div className="p-4 space-y-4 flex flex-col h-full overflow-y-auto">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <h3 className="text-xs font-extrabold text-slate-800 flex items-center gap-2">
-                  <ListTodo size={16} className="text-slate-600" /> Pipeline Conversions & Lead Analytics
+                  <ListTodo size={16} className="text-slate-600" /> Pipeline
+                  Conversions & Lead Analytics
                 </h3>
-
               </div>
 
               {/* KPI Cards Row (Grid 4-col) */}
               <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 ">
                 <div className="bg-slate-50/50 border border-slate-200 rounded-xl p-3 flex items-center gap-2.5 shadow-sm">
-                  <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><CheckCircle size={18} /></div>
+                  <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                    <CheckCircle size={18} />
+                  </div>
                   <div>
-                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">New Leads Closed</p>
-                    <h4 className="text-lg font-black text-slate-700">{analyticsData?.leadAnalytics?.newLeads || 0}</h4>
+                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">
+                      New Leads Closed
+                    </p>
+                    <h4 className="text-lg font-black text-slate-700">
+                      {analyticsData?.leadAnalytics?.newLeads || 0}
+                    </h4>
                   </div>
                 </div>
 
                 <div className="bg-slate-50/50 border border-slate-200 rounded-xl p-3 flex items-center gap-2.5 shadow-sm">
-                  <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><TrendingUp size={18} /></div>
+                  <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                    <TrendingUp size={18} />
+                  </div>
                   <div>
-                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Existing Leads Closed</p>
-                    <h4 className="text-lg font-black text-slate-700">{analyticsData?.leadAnalytics?.existingLeads || 0}</h4>
+                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">
+                      Existing Leads Closed
+                    </p>
+                    <h4 className="text-lg font-black text-slate-700">
+                      {analyticsData?.leadAnalytics?.existingLeads || 0}
+                    </h4>
                   </div>
                 </div>
 
                 <div className="bg-slate-50/50 border border-slate-200 rounded-xl p-3 flex items-center gap-2.5 shadow-sm">
-                  <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><Activity size={18} /></div>
+                  <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                    <Activity size={18} />
+                  </div>
                   <div>
-                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Reopened Leads</p>
-                    <h4 className="text-lg font-black text-slate-700">{analyticsData?.leadAnalytics?.reopenedLeads || 0}</h4>
+                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">
+                      Reopened Leads
+                    </p>
+                    <h4 className="text-lg font-black text-slate-700">
+                      {analyticsData?.leadAnalytics?.reopenedLeads || 0}
+                    </h4>
                   </div>
                 </div>
 
                 <div className="bg-slate-50/50 border border-slate-200 rounded-xl p-3 flex items-center gap-2.5 shadow-sm">
-                  <div className="p-2 bg-emerald-50 text-[#00a884] rounded-lg"><CheckCircle size={18} /></div>
+                  <div className="p-2 bg-emerald-50 text-[#00a884] rounded-lg">
+                    <CheckCircle size={18} />
+                  </div>
                   <div>
-                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Closed Leads Total</p>
-                    <h4 className="text-lg font-black text-[#00a884]">{analyticsData?.leadAnalytics?.closedLeads || 0}</h4>
+                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">
+                      Closed Leads Total
+                    </p>
+                    <h4 className="text-lg font-black text-[#00a884]">
+                      {analyticsData?.leadAnalytics?.closedLeads || 0}
+                    </h4>
                   </div>
                 </div>
 
                 <div className="bg-slate-50/50 border border-slate-200 rounded-xl p-3 flex items-center gap-2.5 shadow-sm">
-                  <div className="p-2 bg-slate-100 text-slate-600 rounded-lg"><Filter size={18} /></div>
+                  <div className="p-2 bg-slate-100 text-slate-600 rounded-lg">
+                    <Filter size={18} />
+                  </div>
                   <div>
-                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Follow Ups Count</p>
-                    <h4 className="text-lg font-black text-slate-700">{analyticsData?.leadAnalytics?.followUps || 0}</h4>
+                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">
+                      Follow Ups Count
+                    </p>
+                    <h4 className="text-lg font-black text-slate-700">
+                      {analyticsData?.leadAnalytics?.followUps || 0}
+                    </h4>
                   </div>
                 </div>
 
                 <div className="bg-slate-50/50 border border-slate-200 rounded-xl p-3 flex items-center gap-2.5 shadow-sm">
-                  <div className="p-2 bg-rose-50 text-rose-600 rounded-lg"><AlertCircle size={18} /></div>
+                  <div className="p-2 bg-rose-50 text-rose-600 rounded-lg">
+                    <AlertCircle size={18} />
+                  </div>
                   <div>
-                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Not Interested Leads</p>
-                    <h4 className="text-lg font-black text-rose-600">{analyticsData?.leadAnalytics?.notInterested || 0}</h4>
+                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">
+                      Not Interested Leads
+                    </p>
+                    <h4 className="text-lg font-black text-rose-600">
+                      {analyticsData?.leadAnalytics?.notInterested || 0}
+                    </h4>
                   </div>
                 </div>
 
                 <div className="bg-slate-50/50 border border-slate-200 rounded-xl p-3 flex items-center gap-2.5 shadow-sm">
-                  <div className="p-2 bg-rose-100/30 text-rose-800 rounded-lg"><AlertCircle size={18} /></div>
+                  <div className="p-2 bg-rose-100/30 text-rose-800 rounded-lg">
+                    <AlertCircle size={18} />
+                  </div>
                   <div>
-                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Lost Leads Total</p>
-                    <h4 className="text-lg font-black text-rose-800">{analyticsData?.leadAnalytics?.lostLeads || 0}</h4>
+                    <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">
+                      Lost Leads Total
+                    </p>
+                    <h4 className="text-lg font-black text-rose-800">
+                      {analyticsData?.leadAnalytics?.lostLeads || 0}
+                    </h4>
                   </div>
                 </div>
 
                 <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 rounded-xl p-3 flex items-center gap-2.5 shadow-sm">
-                  <div className="p-2 bg-[#00a884]/10 text-[#00a884] rounded-lg"><TrendingUp size={18} /></div>
+                  <div className="p-2 bg-[#00a884]/10 text-[#00a884] rounded-lg">
+                    <TrendingUp size={18} />
+                  </div>
                   <div>
-                    <p className="text-[9px] uppercase font-bold text-emerald-700 tracking-wider font-extrabold">Conversion Progress</p>
-                    <h4 className="text-lg font-extrabold text-[#00a884]">{analyticsData?.branchAnalytics?.[0]?.conversionRate || 0}%</h4>
+                    <p className="text-[9px] uppercase font-bold text-emerald-700 tracking-wider font-extrabold">
+                      Conversion Progress
+                    </p>
+                    <h4 className="text-lg font-extrabold text-[#00a884]">
+                      {analyticsData?.branchAnalytics?.[0]?.conversionRate || 0}
+                      %
+                    </h4>
                   </div>
                 </div>
               </div>
@@ -1002,8 +1350,9 @@ export default function PerformanceMonitor() {
           {activeTab === "leaderboard" && (
             <div className="flex flex-col h-full overflow-hidden">
               <div className="p-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                <span className="text-xs font-bold text-slate-500">Leaderboard Rankings standings (Current Month)</span>
-
+                <span className="text-xs font-bold text-slate-500">
+                  Leaderboard Rankings standings (Current Month)
+                </span>
               </div>
 
               <div className="flex-1 overflow-y-auto">
@@ -1015,23 +1364,49 @@ export default function PerformanceMonitor() {
                       <th className="px-6 py-2.5">Role</th>
                       <th className="px-6 py-2.5">Branch</th>
                       <th className="px-6 py-2.5 text-center">Follow Ups</th>
-                      <th className="px-6 py-2.5 text-center text-[#00a884]">Closed Leads</th>
+                      <th className="px-6 py-2.5 text-center text-[#00a884]">
+                        Closed Leads
+                      </th>
                       <th className="px-6 py-2.5 text-right">Points Score</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
                     {analyticsData?.topPerformers?.length === 0 ? (
-                      <tr><td colSpan="7" className="p-5 text-center text-slate-400 font-bold">No performance records found.</td></tr>
+                      <tr>
+                        <td
+                          colSpan="7"
+                          className="p-5 text-center text-slate-400 font-bold"
+                        >
+                          No performance records found.
+                        </td>
+                      </tr>
                     ) : (
                       analyticsData?.topPerformers?.map((performer, idx) => (
-                        <tr key={performer.associateName} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-6 py-2.5 font-extrabold text-slate-400">#{idx + 1}</td>
-                          <td className="px-6 py-2.5 font-bold text-slate-800">{performer.associateName}</td>
-                          <td className="px-6 py-2.5 text-slate-500 uppercase text-[9px] font-semibold">{performer.role}</td>
-                          <td className="px-6 py-2.5 text-slate-600">{performer.branch}</td>
-                          <td className="px-6 py-2.5 text-center font-semibold text-slate-600">{performer.followUps}</td>
-                          <td className="px-6 py-2.5 text-center font-bold text-[#00a884]">{performer.closed}</td>
-                          <td className="px-6 py-2.5 text-right font-black text-slate-800">{performer.score} pts</td>
+                        <tr
+                          key={performer.associateName}
+                          className="hover:bg-slate-50 transition-colors"
+                        >
+                          <td className="px-6 py-2.5 font-extrabold text-slate-400">
+                            #{idx + 1}
+                          </td>
+                          <td className="px-6 py-2.5 font-bold text-slate-800">
+                            {performer.associateName}
+                          </td>
+                          <td className="px-6 py-2.5 text-slate-500 uppercase text-[9px] font-semibold">
+                            {performer.role}
+                          </td>
+                          <td className="px-6 py-2.5 text-slate-600">
+                            {performer.branch}
+                          </td>
+                          <td className="px-6 py-2.5 text-center font-semibold text-slate-600">
+                            {performer.followUps}
+                          </td>
+                          <td className="px-6 py-2.5 text-center font-bold text-[#00a884]">
+                            {performer.closed}
+                          </td>
+                          <td className="px-6 py-2.5 text-right font-black text-slate-800">
+                            {performer.score} pts
+                          </td>
                         </tr>
                       ))
                     )}
@@ -1040,11 +1415,7 @@ export default function PerformanceMonitor() {
               </div>
             </div>
           )}
-
-
-
         </div>
-
       </div>
     </DashboardPage>
   );

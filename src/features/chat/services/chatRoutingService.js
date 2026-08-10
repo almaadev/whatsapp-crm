@@ -1,14 +1,30 @@
 import { findLastMessageByPhone, getModelByCategory } from "@/shared/repositories/messageRepository";
 import Message from "@/shared/models/Message";
+import Customer from "@/shared/models/Customer";
 
 export const KEYWORD_ROUTES = [];
 
 export { getModelByCategory };
 
 export const checkIsChatClosed = async (phone, category) => {
-  const lastMsg = await findLastMessageByPhone(phone, Message);
-  if (!lastMsg) return true;
-  return lastMsg.isChatClosed === true;
+  let customer = await Customer.findOne({ phone }).lean();
+  if (!customer) {
+    const cleanDigits = phone.replace("whatsapp:", "").replace("+", "");
+    const tenDigit = cleanDigits.substring(cleanDigits.length - 10);
+    const variations = [
+      `whatsapp:${cleanDigits}`,
+      `whatsapp:+${cleanDigits}`,
+      `+${cleanDigits}`,
+      cleanDigits,
+      `whatsapp:${tenDigit}`,
+      `whatsapp:+${tenDigit}`,
+      `+${tenDigit}`,
+      tenDigit
+    ];
+    customer = await Customer.findOne({ phone: { $in: variations } }).lean();
+  }
+  if (!customer) return true;
+  return customer.isClosed === true;
 };
 
 export const matchKeywordRoute = (messageText) => {

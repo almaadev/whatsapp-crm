@@ -7,7 +7,7 @@ import {
   getTemplateDetail, 
   validateTemplatePayload 
 } from "@/features/admin/services/twilioService";
-import { emitNewMessage } from "@/features/chat/services/socketEmitter";
+import { emitNewMessage } from "@/shared/utils/socketPublisher";
 import Message from "@/shared/models/Message";
 
 /**

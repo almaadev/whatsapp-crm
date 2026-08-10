@@ -5,6 +5,19 @@ import mongoose from "mongoose";
 import Branch from "@/shared/models/Branch";
 import User from "@/shared/models/User";
 
+function mapKeys(obj, fromKey, toKey) {
+  if (!obj || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(item => mapKeys(item, fromKey, toKey));
+  }
+  const result = {};
+  for (const [key, val] of Object.entries(obj)) {
+    const newKey = key === fromKey ? toKey : key;
+    result[newKey] = mapKeys(val, fromKey, toKey);
+  }
+  return result;
+}
+
 export const leadQueryService = {
   async getLeads(params, session = null) {
     console.log("Fetching leads with params:", params);
@@ -32,7 +45,8 @@ export const leadQueryService = {
       const { getBranchFilterForUser } = await import("@/shared/utils/serverAuth");
       const { branchQuery } = await getBranchFilterForUser(session);
       if (branchQuery && Object.keys(branchQuery).length > 0) {
-        andConditions.push(branchQuery);
+        const mappedBranchQuery = mapKeys(branchQuery, "branchId", "customerInfo.branchId");
+        andConditions.push(mappedBranchQuery);
       }
     }
 
@@ -69,9 +83,9 @@ export const leadQueryService = {
       const searchRegex = new RegExp(search, "i");
       andConditions.push({
         $or: [
-          { name: searchRegex },
-          { phone: searchRegex },
-          { city: searchRegex },
+          { "customerInfo.name": searchRegex },
+          { "customerInfo.phone": searchRegex },
+          { "addressInfo.city": searchRegex },
           { leadType: searchRegex },
           { "leads.leadType": searchRegex }
         ]
@@ -82,15 +96,43 @@ export const leadQueryService = {
       match.$and = andConditions;
     }
 
+    const lookupStages = [
+      {
+        $lookup: {
+          from: "customers",
+          localField: "customerId",
+          foreignField: "_id",
+          as: "customerInfo"
+        }
+      },
+      { $unwind: { path: "$customerInfo", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "customeraddresses",
+          let: { custId: "$customerId" },
+          pipeline: [
+            { $match: { $expr: { $and: [ { $eq: [ "$customerId", "$$custId" ] }, { $eq: [ "$isCurrent", true ] } ] } } }
+          ],
+          as: "addressInfo"
+        }
+      },
+      { $unwind: { path: "$addressInfo", preserveNullAndEmptyArrays: true } }
+    ];
+
     let pipeline = [];
     if (view === "activities") {
       pipeline = [
+        ...lookupStages,
         { $unwind: "$leads" },
         { $match: match },
         { $sort: { "leads.date": -1 } },
         {
           $project: {
-            phone: 1, name: { $ifNull: ["$name", "Unknown"] },
+            phone: { $ifNull: ["$customerInfo.phone", ""] },
+            name: { $ifNull: ["$customerInfo.name", "Unknown"] },
+            city: { $ifNull: ["$addressInfo.city", ""] },
+            address: { $ifNull: ["$addressInfo.address", ""] },
+            source: { $ifNull: ["$customerInfo.source", "Whatsapp"] },
             enquiredFor: { $ifNull: ["$leads.enquiredFor", ""] },
             status: { $ifNull: ["$leads.status", "New"] },
             priority: { $ifNull: ["$leads.priority", "Medium"] },
@@ -106,6 +148,7 @@ export const leadQueryService = {
       ];
     } else {
       pipeline = [
+        ...lookupStages,
         { $match: match },
         { 
           $addFields: { 
@@ -130,25 +173,25 @@ export const leadQueryService = {
         { $sort: { sortDate: -1 } },
         {
           $project: {
-            phone: 1, 
-            name: { $ifNull: ["$name", "Unknown Lead"] },
+            phone: { $ifNull: ["$customerInfo.phone", ""] }, 
+            name: { $ifNull: ["$customerInfo.name", "Unknown Lead"] },
             displayName: {
               $cond: {
-                if: { $in: [{ $ifNull: ["$name", ""] }, ["", "Unknown", "Unknown Lead"]] },
-                then: { $replaceAll: { input: "$phone", find: "whatsapp:", replacement: "" } },
-                else: "$name"
+                if: { $in: [{ $ifNull: ["$customerInfo.name", ""] }, ["", "Unknown", "Unknown Lead"]] },
+                then: { $replaceAll: { input: { $ifNull: ["$customerInfo.phone", ""] }, find: "whatsapp:", replacement: "" } },
+                else: "$customerInfo.name"
               }
             },
-            city: { $ifNull: ["$city", ""] },
+            city: { $ifNull: ["$addressInfo.city", ""] },
             displayCity: {
               $cond: {
-                if: { $in: [{ $ifNull: ["$city", ""] }, [""]] },
+                if: { $in: [{ $ifNull: ["$addressInfo.city", ""] }, [""]] },
                 then: "Unknown Location",
-                else: "$city"
+                else: "$addressInfo.city"
               }
             },
-            address: { $ifNull: ["$address", ""] }, 
-            source: { $ifNull: ["$source", "Whatsapp"] },
+            address: { $ifNull: ["$addressInfo.address", ""] }, 
+            source: { $ifNull: ["$customerInfo.source", "Whatsapp"] },
             enquiredFor: { $ifNull: ["$latest.enquiredFor", ""] }, 
             status: { $ifNull: ["$latest.status", "$status", "New"] },
             priority: { $ifNull: ["$latest.priority", "Medium"] }, 
@@ -262,7 +305,7 @@ export const leadQueryService = {
     const cleanPhone = normalizePhone(decodeURIComponent(phone));
     
     const [lead, customer] = await Promise.all([
-      findLeadByPhone(cleanPhone).then(l => l?.toJSON()),
+      findLeadByPhone(cleanPhone).then(l => l?.toJSON ? l.toJSON() : l),
       findCustomerByPhone(cleanPhone)
     ]);
 
@@ -301,21 +344,21 @@ export const leadQueryService = {
     }
 
     return {
-      name: lead?.name || customer?.name || "",
-      city: lead?.city || customer?.city || "",
-      phone: lead?.phone || cleanPhone,
-      address: lead?.address || customer?.address || "",
-      source: lead?.source || customer?.source || "Whatsapp",
-      assignedTo: lead?.assignedTo || customer?.assignedTo || "Unassigned",
+      name: customer?.name || lead?.name || "",
+      city: customer?.currentAddressId?.city || customer?.city || lead?.city || "",
+      phone: customer?.phone || lead?.phone || cleanPhone,
+      address: customer?.currentAddressId?.address || customer?.address || lead?.address || "",
+      source: customer?.source || lead?.source || "Whatsapp",
+      assignedTo: customer?.assignedTo || lead?.assignedTo || "Unassigned",
       enquiredFor: latest?.enquiredFor || customer?.enquiredFor || "",
-      status: latest?.status || "",
-      priority: latest?.priority || "Medium",
-      remarks: latest?.overAllRemarks || "",
+      status: latest?.status || customer?.status || "New",
+      priority: latest?.priority || customer?.priority || "Medium",
+      remarks: latest?.overAllRemarks || customer?.remarks || "",
       day1Remarks: latest?.day1Remarks ?? "",
       day2Remarks: latest?.day2Remarks ?? "",
       day3Remarks: latest?.day3Remarks ?? "",
-      saleAmount: latest?.saleAmount || "0",
-      leadType: latest?.leadType || "Direct Lead",
+      saleAmount: latest?.saleAmount || customer?.saleAmount || "0",
+      leadType: latest?.leadType || customer?.activeRouteCategory || "Direct Lead",
       branchId: customerBranchId,
       branchName: customerBranchName,
       branchCode: customerBranchCode,

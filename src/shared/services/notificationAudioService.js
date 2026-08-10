@@ -1,5 +1,5 @@
 import { useChatStore } from "@/features/chat/stores/chatStore";
-import { getDisplayName } from "@/shared/utils/chatHelpers";
+import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 import { showChatNotification } from "@/shared/utils/notification";
 
 /**
@@ -191,7 +191,7 @@ class NotificationAudioService {
       const isTabActive = typeof document !== "undefined" && document.visibilityState === "visible";
 
       const contact = state.messages.find((item) => item.phone === msg.phone);
-      const displayName = getDisplayName(msg.phone, msg.name, contact);
+      const displayName = resolveCustomerDisplayName(contact || msg || { phone: msg.phone, name: msg.name });
 
       if (isCurrentConversationOpen) {
         // Case 1: Active conversation -> incoming_message.mp3 ONCE

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, memo, useCallback, useMemo, useLayoutEffect } from "react";
 import api from "@/shared/lib/axios";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { useChatStore } from "@/features/chat/stores/chatStore";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
@@ -38,6 +39,7 @@ export default function ChatArea({
   customService = null,
 }) {
   const { data: session } = useSession();
+  const queryClient = useQueryClient();
   const userRole = customRole || session?.user?.role || "associate";
   const userName = session?.user?.name || "User";
   const userEmail = session?.user?.email;
@@ -74,34 +76,22 @@ export default function ChatArea({
   const messages = activeChat?.history || [];
   const lastMessage =
     messages.length > 0 ? messages[messages.length - 1] : null;
-  const isChatClosed = lastMessage?.isChatClosed || false;
+  const isChatClosed = activeChat?.isClosed ?? true;
   
-  const [detailedCustomer, setDetailedCustomer] = useState(null);
-  const [detailsLoading, setDetailsLoading] = useState(false);
   const availableNumbers = useChatStore((s) => s.availableNumbers);
   const selectedSender = useChatStore((s) => s.selectedSender);
 
-  useEffect(() => {
-    if (activeChat?.phone) {
-      setDetailsLoading(true);
+  const { data: detailedCustomer, isLoading: detailsLoading } = useQuery({
+    queryKey: ["detailed-customer", activeChat?.phone],
+    queryFn: async () => {
+      if (!activeChat?.phone) return null;
       const cleanPhone = activeChat.phone.replace("whatsapp:", "");
-      api.get(`/api/leads/${encodeURIComponent(cleanPhone)}`)
-        .then(({ data }) => {
-          if (data && !data.error) {
-            setDetailedCustomer(data);
-          } else {
-            setDetailedCustomer(null);
-          }
-        })
-        .catch(err => {
-          console.error("Failed to load detailed customer:", err);
-          setDetailedCustomer(null);
-        })
-        .finally(() => setDetailsLoading(false));
-    } else {
-      setDetailedCustomer(null);
-    }
-  }, [activeChat?.phone, isToggling, showPriorityModal, showClosingModal]);
+      const { data } = await api.get(`/api/leads/${encodeURIComponent(cleanPhone)}?scope=chat`);
+      return data && !data.error ? data : null;
+    },
+    enabled: !!activeChat?.phone,
+    staleTime: 0,
+  });
 
   const chronologicalTimeline = useMemo(() => {
     const list = [];
@@ -224,20 +214,25 @@ export default function ChatArea({
         role: userRole,
       });
       toast.success(`Lead forwarded to ${targetName}`);
+      queryClient.invalidateQueries({ queryKey: ["detailed-customer", activeChat.phone] });
     } catch (e) {
       toast.error("Error forwarding lead.");
     }
   };
 
   const handleToggleChatStatus = async () => {
-    if (!activeChat || isToggling || messages.length === 0) return;
+    if (!activeChat || isToggling) return;
     setIsToggling(true);
     const newClosedState = !isChatClosed;
 
-    const updatedHistory = mutateLastMessage(messages, {
-      isChatClosed: newClosedState,
-    });
-    updateChatDetails(activeChat.phone, { history: updatedHistory });
+    if (messages.length > 0) {
+      const updatedHistory = mutateLastMessage(messages, {
+        isChatClosed: newClosedState,
+      });
+      updateChatDetails(activeChat.phone, { history: updatedHistory, isClosed: newClosedState, isChatClosed: newClosedState });
+    } else {
+      updateChatDetails(activeChat.phone, { isClosed: newClosedState, isChatClosed: newClosedState });
+    }
 
     try {
       await chatService.updateChatControlStatus(
@@ -248,12 +243,17 @@ export default function ChatArea({
       toast.success(
         newClosedState ? "Chat Marked as Closed" : "Chat Marked as Active",
       );
+      queryClient.invalidateQueries({ queryKey: ["detailed-customer", activeChat.phone] });
     } catch (error) {
       toast.error("Failed to update Chat Control Status");
-      const revertedHistory = mutateLastMessage(messages, {
-        isChatClosed: !newClosedState,
-      });
-      updateChatDetails(activeChat.phone, { history: revertedHistory });
+      if (messages.length > 0) {
+        const revertedHistory = mutateLastMessage(messages, {
+          isChatClosed: !newClosedState,
+        });
+        updateChatDetails(activeChat.phone, { history: revertedHistory, isClosed: !newClosedState, isChatClosed: !newClosedState });
+      } else {
+        updateChatDetails(activeChat.phone, { isClosed: !newClosedState, isChatClosed: !newClosedState });
+      }
     } finally {
       setIsToggling(false);
     }
@@ -289,6 +289,7 @@ export default function ChatArea({
         notes: actionNote,
         priority: targetPriority, // Ensure backend gets the correct priority
       });
+      queryClient.invalidateQueries({ queryKey: ["detailed-customer", activeChat.phone] });
     } catch (e) {
       toast.error("Failed to save status. Reverting...");
       updateChatDetails(activeChat.phone, originalChat);
@@ -369,6 +370,7 @@ export default function ChatArea({
           senderNumber: selectedSender,
         });
         updateMessageStatus(activeChat.phone, tempId, "SENT", res?.messageSid);
+        queryClient.invalidateQueries({ queryKey: ["detailed-customer", activeChat.phone] });
       } catch (error) {
         updateMessageStatus(activeChat.phone, tempId, "FAILED");
         toast.error("Template failed to send.");

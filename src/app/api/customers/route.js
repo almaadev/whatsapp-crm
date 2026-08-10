@@ -6,6 +6,7 @@ import Customer from "@/shared/models/Customer";
 import Branch from "@/shared/models/Branch";
 import User from "@/shared/models/User";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
+import { serverCustomerService } from "@/server/services/serverCustomerService";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +19,8 @@ const formatCustomerForUI = (c, branchMap = {}) => {
   return {
     phone: c.phone,
     name: resolveCustomerDisplayName(c),
-    city: c.city || "",
-    address: c.address || "",
+    city: c.currentAddressId?.city || c.city || "",
+    address: c.currentAddressId?.address || c.address || "",
     source: c.source || "Manual Entry",
     enquiredFor: c.enquiredFor || "",
     status: c.status || "New",
@@ -54,8 +55,9 @@ export async function GET(req) {
           branchMap[b._id.toString()] = { name: b.name, code: b.code || "" };
         });
 
-        // Fetch lean records sorted by latest updates
+        // Fetch lean records sorted by latest updates, populating currentAddressId
         const customers = await Customer.find(branchQuery).sort({ updatedAt: -1 })
+            .populate("currentAddressId")
             .populate({
                 path: 'createdBy',
                 select: 'name role department branch'
@@ -79,43 +81,14 @@ export async function POST(req) {
         await connectDB();
         
         const body = await req.json();
-        const { phone, name, city, address, source } = body;
+        const { phone } = body;
 
         if (!phone || phone.trim() === "") {
             return NextResponse.json({ error: "Phone number is required." }, { status: 400 });
         }
 
-        // Standardize Phone Formatting
-        let cleanPhone = phone.replace(/\D/g, '');
-        if (cleanPhone.length === 10) cleanPhone = `91${cleanPhone}`;
-        const finalPhone = `whatsapp:${cleanPhone}`;
-
-        // Upsert Customer logic to prevent duplicates
-        const updatedCustomer = await Customer.findOneAndUpdate(
-            { phone: finalPhone },
-            {
-                $set: {
-                    name: name?.trim() || "Unknown",
-                    city: city?.trim() || "",
-                    address: address?.trim() || "",
-                    source: source?.trim() || "Manual Entry",
-                    status: "New" // Default state for manually added customers
-                },
-                $setOnInsert: {
-                    createdBy: session.user.id,
-                    chatHistory: [{
-                        action: "Started",
-                        performedBy: session.user.id,
-                        timestamp: new Date(),
-                        notes: "Customer record created"
-                    }]
-                }
-            },
-            { returnDocument: "after", upsert: true }
-        ).populate({
-            path: 'createdBy',
-            select: 'name role department branch'
-        });
+        // Delegate to customer service to ensure normalized creation (address, logs, etc.)
+        const { customer } = await serverCustomerService.updateCustomer(phone, body, session);
 
         const branches = await Branch.find().lean();
         const branchMap = {};
@@ -123,9 +96,18 @@ export async function POST(req) {
           branchMap[b._id.toString()] = b.name;
         });
 
+        // Re-populate creator info for response mapping
+        const populatedCustomer = await Customer.findById(customer._id)
+          .populate("currentAddressId")
+          .populate({
+            path: 'createdBy',
+            select: 'name role department branch'
+          })
+          .lean();
+
         return NextResponse.json({ 
             success: true, 
-            data: formatCustomerForUI(updatedCustomer, branchMap) 
+            data: formatCustomerForUI(populatedCustomer, branchMap) 
         }, { status: 201 });
 
     } catch (error) {
