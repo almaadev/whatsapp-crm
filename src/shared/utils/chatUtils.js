@@ -1,4 +1,4 @@
-import { Check, CheckCheck, Clock, AlertCircle, Lock, Unlock, MapPin, UserCheck, Stethoscope, RefreshCw, Cog, Share2, Tag, UserPlus, MessageSquare, User, FileText, CornerDownRight, Send } from "lucide-react";
+import { Check, CheckCheck, Clock, AlertCircle, Lock, Unlock, MapPin, UserCheck, Stethoscope, RefreshCw, Cog, Share2, Tag, UserPlus, MessageSquare, User, FileText, CornerDownRight, Send, Globe, HelpCircle, Building2 } from "lucide-react";
 
 /**
  * Parses a date string into a Date object.
@@ -169,12 +169,37 @@ export const getSystemEventDetails = (audit) => {
       } else if (eventTypeUpper === "PROFILE_UPDATED") {
         title = audit.action || "Customer Profile Updated";
         icon = <User size={14} className="text-indigo-500 shrink-0" />;
-      } else if (eventTypeUpper === "ADDRESS_UPDATED") {
-        title = audit.action || "Customer Address Updated";
+      } else if (eventTypeUpper === "NAME_UPDATED") {
+        title = "Name changed";
+        icon = <User size={14} className="text-indigo-500 shrink-0" />;
+      } else if (eventTypeUpper === "ADDRESS_UPDATED" || eventTypeUpper === "ADDRESS_CHANGED") {
+        title = "Address changed";
         icon = <MapPin size={14} className="text-slate-500 shrink-0" />;
-      } else if (eventTypeUpper === "ADDRESS_CHANGED") {
-        title = audit.action || "Customer Address Updated";
+      } else if (eventTypeUpper === "CITY_UPDATED") {
+        title = "City changed";
         icon = <MapPin size={14} className="text-slate-500 shrink-0" />;
+      } else if (eventTypeUpper === "SOURCE_UPDATED") {
+        title = "Source changed";
+        icon = <Globe size={14} className="text-blue-500 shrink-0" />;
+      } else if (eventTypeUpper === "ENQUIRED_FOR_UPDATED") {
+        title = "Enquired For changed";
+        icon = <HelpCircle size={14} className="text-amber-500 shrink-0" />;
+      } else if (eventTypeUpper === "LEAD_TYPE_UPDATED") {
+        title = "Lead Type changed";
+        icon = <Tag size={14} className="text-violet-500 shrink-0" />;
+      } else if (eventTypeUpper === "BRANCH_UPDATED") {
+        title = "Branch changed";
+        icon = <Building2 size={14} className="text-teal-500 shrink-0" />;
+      } else if (eventTypeUpper === "OVERALL_REMARKS_UPDATED") {
+        title = "Overall Remarks changed";
+        icon = <FileText size={14} className="text-indigo-500 shrink-0" />;
+      } else if (eventTypeUpper === "FOLLOWUP_REMARK_UPDATED") {
+        const field = audit.metadata?.field;
+        if (field === "day1Remarks") title = "Day 1 Remarks changed";
+        else if (field === "day2Remarks") title = "Day 2 Remarks changed";
+        else if (field === "day3Remarks") title = "Day 3 Remarks changed";
+        else title = "Follow-up Remarks changed";
+        icon = <Clock size={14} className="text-amber-500 shrink-0" />;
       } else if (eventTypeUpper === "TEMPLATE_SENT") {
         title = audit.action || "Template Sent";
         icon = <FileText size={14} className="text-violet-500 shrink-0" />;

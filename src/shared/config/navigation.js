@@ -24,6 +24,7 @@ export const NAVIGATION_CONFIG = [
       "/crm/admin/twilio",
       "/crm/admin/keyword-automation",
       "/crm/admin/branches",
+      "/crm/admin/twillio-numbers"
     ],
     items: [
       { label: "Dashboard", href: "/crm/admin" },
@@ -33,6 +34,7 @@ export const NAVIGATION_CONFIG = [
       { label: "Template Manager", href: "/crm/admin/template-manager" },
       { label: "Automatic Reply", href: "/crm/admin/keyword-automation" },
       { label: "Twilio Center", href: "/crm/admin/twilio" },
+      { label: "Twilio Numbers", href: "/crm/admin/twillio-numbers" },
     ],
   },
   {

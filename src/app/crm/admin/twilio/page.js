@@ -54,12 +54,6 @@ export default function TwilioEnterpriseDashboard() {
     analytics: {},
   });
 
-  const [configuredNumbers, setConfiguredNumbers] = useState([]);
-  const [branchesList, setBranchesList] = useState([]);
-  const [showAddNumberModal, setShowAddNumberModal] = useState(false);
-  const [newNumberForm, setNewNumberForm] = useState({ friendlyName: "", phoneNumber: "", twilioSenderSid: "", branchId: "" });
-  const [submittingNumber, setSubmittingNumber] = useState(false);
-
   const [exchangeRate, setExchangeRate] = useState(83.5);
   const [isEditingRate, setIsEditingRate] = useState(false);
   const [tempRate, setTempRate] = useState("");
@@ -194,8 +188,7 @@ export default function TwilioEnterpriseDashboard() {
           messages: data.messages || [],
           analytics: data.analytics || {},
         });
-        if (data.numbers) setConfiguredNumbers(data.numbers);
-        if (data.branches) setBranchesList(data.branches);
+        
         if (data.exchangeRate) setExchangeRate(data.exchangeRate);
         setExpandedRows({});
         setCurrentPage(1);
@@ -217,72 +210,6 @@ export default function TwilioEnterpriseDashboard() {
     isAuthorized,
   ]);
 
-  const handleAddNumber = async () => {
-    if (!newNumberForm.friendlyName || !newNumberForm.phoneNumber) {
-      return toast.error("Friendly Name and Phone Number are required.");
-    }
-    setSubmittingNumber(true);
-    try {
-      const res = await fetch("/api/admin/twilio", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "addNumber",
-          ...newNumberForm,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success("Twilio number added successfully!");
-        setShowAddNumberModal(false);
-        setNewNumberForm({ friendlyName: "", phoneNumber: "", twilioSenderSid: "", branchId: "" });
-        fetchTwilioData();
-      } else {
-        toast.error(data.error || "Failed to add number.");
-      }
-    } catch (err) {
-      toast.error("Error adding number.");
-    } finally {
-      setSubmittingNumber(false);
-    }
-  };
-
-  const handleUpdateNumber = async (id, payload) => {
-    try {
-      const res = await fetch(`/api/admin/twilio/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success("Twilio number updated!");
-        fetchTwilioData();
-      } else {
-        toast.error(data.error || "Failed to update number.");
-      }
-    } catch (err) {
-      toast.error("Error updating number.");
-    }
-  };
-
-  const handleDeleteNumber = async (id, friendlyName) => {
-    if (!window.confirm(`Are you sure you want to delete "${friendlyName}"?`)) return;
-    try {
-      const res = await fetch(`/api/admin/twilio/${id}`, {
-        method: "DELETE",
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success("Number deleted successfully!");
-        fetchTwilioData();
-      } else {
-        toast.error(data.error || "Failed to delete number.");
-      }
-    } catch (err) {
-      toast.error("Error deleting number.");
-    }
-  };
 
   useEffect(() => {
     if (status === "authenticated" && isAuthorized) fetchTwilioData();
@@ -863,151 +790,7 @@ export default function TwilioEnterpriseDashboard() {
 
         <main className="flex-1 p-4 md:p-6 lg:p-8 flex flex-col min-h-0">
           <div className="max-w-[1600px] mx-auto w-full flex flex-col gap-6 h-full min-h-0">
-            {/* --- SUPER ADMIN: TWILIO NUMBER MANAGEMENT SECTION --- */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col gap-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                <div>
-                  <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
-                    <Smartphone className="text-emerald-500" size={22} />
-                    Configured WhatsApp Sender Numbers
-                  </h2>
-                  <p className="text-xs text-slate-500 font-medium mt-1">
-                    Manage WhatsApp Business numbers, enable/disable senders, and monitor enterprise activity.
-                  </p>
-                </div>
-                {session?.user?.role === "superAdmin" && (
-                  <button
-                    onClick={() => setShowAddNumberModal(true)}
-                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 shrink-0 cursor-pointer"
-                  >
-                    + Add Sender Number
-                  </button>
-                )}
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {configuredNumbers.map((num) => (
-                  <div
-                    key={num._id}
-                    className="bg-slate-50/70 rounded-2xl p-4 border border-slate-200 flex flex-col justify-between gap-3 relative hover:border-emerald-300 transition-all"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="text-xs font-black text-slate-400 uppercase tracking-wider block">
-                          {num.friendlyName}
-                        </span>
-                        <span className="text-base font-extrabold text-slate-800 font-mono">
-                          {num.phoneNumber}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => handleUpdateNumber(num._id, { status: num.status === "active" ? "inactive" : "active" })}
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border cursor-pointer ${
-                          num.status === "active"
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                            : "bg-slate-200 text-slate-600 border-slate-300 hover:bg-slate-300"
-                        }`}
-                      >
-                        {num.status === "active" ? "Active" : "Inactive"}
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-xs">
-                      <div className="flex items-center gap-1.5 font-semibold text-slate-600">
-                        <Users size={14} className="text-slate-400" />
-                        <span>Assigned Admins:</span>
-                        <span className="font-bold text-slate-800">
-                          {Array.isArray(num.assignedAdmins) ? num.assignedAdmins.length : 0} Admins
-                        </span>
-                      </div>
-
-                      {session?.user?.role === "superAdmin" && (
-                        <button
-                          onClick={() => handleDeleteNumber(num._id, num.friendlyName)}
-                          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                          title="Delete Number"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-
-                {configuredNumbers.length === 0 && (
-                  <div className="col-span-full text-center py-8 text-slate-400 text-xs font-bold">
-                    No configured Twilio numbers found. Numbers in ENV will automatically bootstrap on request.
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* --- ADD NUMBER MODAL --- */}
-            <AnimatePresence>
-              {showAddNumberModal && (
-                <div className="fixed inset-0 z-[9999] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-                  <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 border border-slate-200 flex flex-col gap-5">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                      <h3 className="text-lg font-extrabold text-slate-800">Add WhatsApp Sender Number</h3>
-                      <button onClick={() => setShowAddNumberModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
-                        <X size={20} />
-                      </button>
-                    </div>
-
-                    <div className="flex flex-col gap-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 mb-1">Friendly Name *</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Almaa Main Business"
-                          value={newNumberForm.friendlyName}
-                          onChange={(e) => setNewNumberForm({ ...newNumberForm, friendlyName: e.target.value })}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold outline-none focus:border-emerald-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 mb-1">WhatsApp Phone Number *</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. +91XXXXXXXXXX"
-                          value={newNumberForm.phoneNumber}
-                          onChange={(e) => setNewNumberForm({ ...newNumberForm, phoneNumber: e.target.value })}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold outline-none focus:border-emerald-500 font-mono"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 mb-1">Twilio Sender SID (Optional)</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. XE..."
-                          value={newNumberForm.twilioSenderSid}
-                          onChange={(e) => setNewNumberForm({ ...newNumberForm, twilioSenderSid: e.target.value })}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold outline-none focus:border-emerald-500 font-mono"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-                      <button
-                        onClick={() => setShowAddNumberModal(false)}
-                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleAddNumber}
-                        disabled={submittingNumber}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                      >
-                        {submittingNumber ? "Saving..." : "Add Number"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </AnimatePresence>
 
             {/* --- FILTER TOOLBAR --- */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-2 sm:p-2.5 flex flex-col xl:flex-row gap-3 xl:gap-4 transition-all shrink-0">

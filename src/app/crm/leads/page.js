@@ -15,6 +15,7 @@ import EmptyState from "@/shared/components/ui/EmptyState";
 import { branchService } from "@/features/branches/services/branchService";
 import { userRepository } from "@/shared/api/repositories/userRepository";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
+import { resolveLeadStatus } from "@/shared/utils/leadStatusResolver";
 import { connectSocket } from "@/features/chat/services/socketService";
 import {
   Save,
@@ -236,7 +237,7 @@ export default function LeadsPage() {
   // Client-side filtering of results loaded on current page
   const filteredLeads = useMemo(() => {
     return paginatedLeads.filter((lead) => {
-      if (filterStatus !== "all" && (lead.status || "New") !== filterStatus) return false;
+      if (filterStatus !== "all" && resolveLeadStatus(lead) !== filterStatus) return false;
       if (filterLeadType !== "all" && (lead.leadType || "Direct Lead") !== filterLeadType) return false;
       if (filterAssociate !== "all" && lead.assignedTo !== filterAssociate) return false;
       return true;
@@ -353,7 +354,7 @@ export default function LeadsPage() {
             onClick={fetchRecentLeads}
             disabled={fetchingLeads}
             title="Refresh Pipeline"
-            className="bg-slate-800 border-slate-750 hover:bg-slate-750 text-slate-350"
+            className=" border-slate-750 hover:bg-slate-800 text-slate-350"
           >
             <RefreshCcw
               size={15}
@@ -424,7 +425,7 @@ export default function LeadsPage() {
                   const cleanPhone = lead.phone?.replace("whatsapp:", "") || "";
                   const displayCity = lead.city || "-";
                   const leadType = lead.leadType || "Direct Lead";
-                  const leadStatus = lead.status || "New";
+                  const leadStatus = resolveLeadStatus(lead);
                   const assignedTo = lead.assignedTo || "unassigned";
                   const lastHandler = lead.leads && lead.leads.length > 0 ? lead.leads[lead.leads.length - 1].associateName : (lead.assignedTo || "unassigned");
                   const followUpCount = lead.leads?.filter(l => l.status === "Follow Up").length || 0;
@@ -510,7 +511,7 @@ export default function LeadsPage() {
               const isExpanded = expandedLeadId === leadId;
               const displayName = resolveCustomerDisplayName(lead);
               const cleanPhone = lead.phone?.replace("whatsapp:", "") || "";
-              const leadStatus = lead.status || "New";
+              const leadStatus = resolveLeadStatus(lead);
 
               return (
                 <div key={leadId} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
@@ -684,7 +685,7 @@ function ExpandedDetailsArea({ lead, handleCustomerRedirect }) {
               { label: "Address", value: lead.address || "-" },
               { label: "Lead Type", value: lead.leadType || "Direct Lead" },
               { label: "Enquired For", value: lead.enquiredFor || "-" },
-              { label: "Current Status", value: lead.status || "New" },
+              { label: "Current Status", value: resolveLeadStatus(lead) },
               { label: "Assigned Associate", value: lead.assignedTo || "unassigned" },
               { label: "Total Follow Ups", value: followUpCount },
               { label: "Total Closures", value: closureCount },

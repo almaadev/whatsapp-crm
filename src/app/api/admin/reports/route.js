@@ -10,46 +10,10 @@ import Branch from "@/shared/models/Branch";
 import mongoose from "mongoose";
 import { isAdminAuthorized, isSuperAdmin as checkSuperAdmin } from "@/shared/utils/auth";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
+import { resolveLeadStatus } from "@/shared/utils/leadStatusResolver";
+import { getOperationalDateBounds } from "@/shared/utils/dateRangeResolver";
 
 export const dynamic = "force-dynamic";
-
-/**
- * Calculates start and end Date objects based on preset values or custom inputs.
- */
-function getOperationalDateBounds(dateRange, customFrom, customTo) {
-  const now = new Date();
-  let startDate = null;
-  let endDate = null;
-
-  if (dateRange === "today") {
-    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-  } else if (dateRange === "yesterday") {
-    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
-    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
-  } else if (dateRange === "thisWeek") {
-    const dayOfWeek = now.getDay();
-    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek, 0, 0, 0, 0);
-    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-  } else if (dateRange === "thisMonth") {
-    startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0));
-    endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
-  } else if (dateRange === "lastMonth") {
-    startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0));
-    endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999));
-  } else if (dateRange === "custom") {
-    if (customFrom) {
-      startDate = new Date(customFrom);
-      startDate.setHours(0, 0, 0, 0);
-    }
-    if (customTo) {
-      endDate = new Date(customTo);
-      endDate.setHours(23, 59, 59, 999);
-    }
-  }
-
-  return { startDate, endDate };
-}
 
 /**
  * Format seconds into a friendly human-readable format.
@@ -115,182 +79,290 @@ export async function GET(req) {
       const limitParam = searchParams.get("limit") || "25";
       const limit = limitParam === "all" ? 999999 : parseInt(limitParam);
 
-      const customerMatchStage = {};
+      // 1. Build Match Stage for Lead
+      const leadMatchStage = {};
 
       // Role boundary security
       if (!isSuperAdmin) {
-        customerMatchStage.branchId = new mongoose.Types.ObjectId(adminBranch);
+        // Find customers belonging to admin's branch
+        const branchCustomers = await Customer.find({ branchId: new mongoose.Types.ObjectId(adminBranch) }).select("_id").lean();
+        const customerIds = branchCustomers.map(c => c._id);
+        leadMatchStage.customerId = { $in: customerIds };
       } else if (branchFilter !== "all" && branchFilter !== "none" && /^[0-9a-fA-F]{24}$/.test(branchFilter)) {
-        customerMatchStage.branchId = new mongoose.Types.ObjectId(branchFilter);
+        const branchCustomers = await Customer.find({ branchId: new mongoose.Types.ObjectId(branchFilter) }).select("_id").lean();
+        const customerIds = branchCustomers.map(c => c._id);
+        leadMatchStage.customerId = { $in: customerIds };
       }
-
-      // Date Range Filter on Customer.createdAt
-      if (startDate || endDate) {
-        customerMatchStage.createdAt = {};
-        if (startDate) customerMatchStage.createdAt.$gte = startDate;
-        if (endDate) customerMatchStage.createdAt.$lte = endDate;
-      }
-
-      // Search term (Name, Phone, City, Enquired For, Associate)
-      if (search) {
-        const searchRegex = { $regex: search, $options: "i" };
-        customerMatchStage.$or = [
-          { name: searchRegex },
-          { phone: searchRegex },
-          { city: searchRegex },
-          { enquiredFor: searchRegex },
-          { assignedTo: searchRegex }
-        ];
-      }
-
-      const customerReportQuery = [
-        { $match: customerMatchStage },
-        // Join associate info
-        {
-          $lookup: {
-            from: "users",
-            let: { assocName: "$assignedTo" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ["$name", "$$assocName"] },
-                      { $ne: ["$role", "superAdmin"] }
-                    ]
-                  }
-                }
-              }
-            ],
-            as: "assocDoc"
-          }
-        },
-        { $unwind: { path: "$assocDoc", preserveNullAndEmptyArrays: true } },
-        // Join branch info
-        {
-          $lookup: {
-            from: "branches",
-            localField: "branchId",
-            foreignField: "_id",
-            as: "branchDoc"
-          }
-        },
-        { $unwind: { path: "$branchDoc", preserveNullAndEmptyArrays: true } },
-        // Join lead information
-        {
-          $lookup: {
-            from: "leads",
-            localField: "phone",
-            foreignField: "phone",
-            as: "leadDoc"
-          }
-        },
-        { $unwind: { path: "$leadDoc", preserveNullAndEmptyArrays: true } }
-      ];
 
       // Department & Role permission checks
-      const extraFilters = {};
+      const userFilters = {};
       if (!isSuperAdmin) {
         const adminAllowedDepts = ["telecalling", "support"];
         if (departmentFilter !== "all" && adminAllowedDepts.includes(departmentFilter)) {
-          extraFilters["assocDoc.department"] = departmentFilter;
+          userFilters.department = departmentFilter;
         } else if (departmentFilter !== "all") {
-          extraFilters["assocDoc.department"] = { $in: adminAllowedDepts };
+          userFilters.department = { $in: adminAllowedDepts };
         }
 
         const adminAllowedRoles = ["doctor"];
         if (roleFilter !== "all" && adminAllowedRoles.includes(roleFilter)) {
-          extraFilters["assocDoc.role"] = roleFilter;
+          userFilters.role = roleFilter;
         } else if (roleFilter !== "all") {
-          extraFilters["assocDoc.role"] = { $in: adminAllowedRoles };
+          userFilters.role = { $in: adminAllowedRoles };
         }
       } else {
         if (departmentFilter !== "all") {
-          extraFilters["assocDoc.department"] = departmentFilter;
+          userFilters.department = departmentFilter;
         }
         if (roleFilter !== "all") {
-          extraFilters["assocDoc.role"] = roleFilter;
+          userFilters.role = roleFilter;
         }
       }
 
       if (associateFilter !== "all" && /^[0-9a-fA-F]{24}$/.test(associateFilter)) {
-        extraFilters["assocDoc._id"] = new mongoose.Types.ObjectId(associateFilter);
+        userFilters._id = new mongoose.Types.ObjectId(associateFilter);
       }
 
-      if (Object.keys(extraFilters).length > 0) {
-        customerReportQuery.push({ $match: extraFilters });
+      if (Object.keys(userFilters).length > 0) {
+        const matchedUsers = await User.find(userFilters).select("name _id").lean();
+        const matchedNames = matchedUsers.map(u => u.name);
+        const matchedUserIds = matchedUsers.map(u => u._id.toString());
+        leadMatchStage.$or = [
+          { associateId: { $in: matchedUserIds } },
+          { assignedTo: { $in: matchedNames } },
+          { "leads.associateId": { $in: matchedUserIds } }
+        ];
       }
+
+      // Search term
+      if (search) {
+        const searchRegex = new RegExp(search, "i");
+        const matchedCustomers = await Customer.find({
+          $or: [
+            { name: searchRegex },
+            { phone: searchRegex },
+            { city: searchRegex },
+            { enquiredFor: searchRegex },
+            { assignedTo: searchRegex }
+          ]
+        }).select("_id").lean();
+        const customerIds = matchedCustomers.map(c => c._id);
+        
+        if (leadMatchStage.customerId) {
+          const branchIdsSet = new Set(leadMatchStage.customerId.$in.map(id => id.toString()));
+          const searchIds = customerIds.filter(id => branchIdsSet.has(id.toString()));
+          leadMatchStage.customerId = { $in: searchIds };
+        } else {
+          leadMatchStage.customerId = { $in: customerIds };
+        }
+      }
+
+      // Date range filtering
+      if (startDate || endDate) {
+        const dateFilter = {};
+        if (startDate) dateFilter.$gte = startDate;
+        if (endDate) dateFilter.$lte = endDate;
+        
+        leadMatchStage.$or = leadMatchStage.$or || [];
+        leadMatchStage.$or.push(
+          { createdAt: dateFilter },
+          { "leads.date": dateFilter }
+        );
+      }
+
+      // Query database
+      const rawLeads = await Lead.find(leadMatchStage)
+        .populate({
+          path: "customerId",
+          populate: {
+            path: "branchId",
+            model: "Branch"
+          }
+        })
+        .lean();
+
+      // Populate branches cache
+      const branches = await Branch.find().lean();
+      const branchMap = {};
+      branches.forEach(b => {
+        branchMap[b._id.toString()] = b.name;
+      });
+
+      // Group by customerId to ensure: ONE customer = ONE row
+      const customerRowsMap = new Map();
+
+      rawLeads.forEach(lead => {
+        const customer = lead.customerId;
+        if (!customer) return;
+
+        const customerIdStr = customer._id.toString();
+        
+        // Filter followups by date range
+        const relevantFollowups = (lead.leads || []).filter(fu => {
+          const fuDate = new Date(fu.date);
+          return (!startDate || fuDate >= startDate) && (!endDate || fuDate <= endDate);
+        });
+
+        // Skip if outside range (if date range is filtered)
+        const leadCreatedInRange = (!startDate || lead.createdAt >= startDate) && (!endDate || lead.createdAt <= endDate);
+        if ((startDate || endDate) && !leadCreatedInRange && relevantFollowups.length === 0) {
+          return;
+        }
+
+        // Sort chronologically
+        relevantFollowups.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        const latestEvent = relevantFollowups.length > 0 ? relevantFollowups[relevantFollowups.length - 1] : null;
+
+        // Follow up date & remark
+        const followUpEvents = relevantFollowups.filter(e => e.status === "Follow Up");
+        const latestFollowUpEvent = followUpEvents.length > 0 ? followUpEvents[followUpEvents.length - 1] : null;
+
+        // Closed date & remark
+        const closedEvents = relevantFollowups.filter(e => e.status === "Closed");
+        const latestClosedEvent = closedEvents.length > 0 ? closedEvents[closedEvents.length - 1] : null;
+
+        // Current status is resolved lead status of the latest lead
+        const currentLeadStatus = resolveLeadStatus(lead);
+        const currentPriority = latestEvent?.priority || customer.priority || "Medium";
+
+        const handHistory = lead.handledByHistory?.map(h => h.associateName) || [];
+        const followupHandlers = (lead.leads || []).map(f => f.associateName).filter(Boolean);
+        const leadHandlers = Array.from(new Set([lead.assignedTo, ...handHistory, ...followupHandlers].filter(name => name && name !== "unassigned" && name !== "System")));
+
+        const customerName = resolveCustomerDisplayName({ customer, phone: customer.phone });
+        const phone = customer.phone;
+
+        if (!customerRowsMap.has(customerIdStr)) {
+          customerRowsMap.set(customerIdStr, {
+            id: customerIdStr,
+            customerId: customerIdStr,
+            customerName,
+            phone,
+            firstEnquiryDate: customer.createdAt ? new Date(customer.createdAt).toLocaleDateString() : "-",
+            enquiredFor: latestEvent?.enquiredFor || customer.enquiredFor || "-",
+            city: customer.city || "-",
+            assignedBranch: branchMap[customer.branchId?.toString()] || "-",
+            handledByAssociates: leadHandlers.join(", ") || "-",
+            currentLeadStatus,
+            currentLeadOwner: lead.assignedTo || customer.assignedTo || "unassigned",
+            latestRemark: latestEvent?.overAllRemarks || latestEvent?.note || customer.remarks || "-",
+            lastFollowUpDate: latestFollowUpEvent?.date ? new Date(latestFollowUpEvent.date).toLocaleDateString() : "-",
+            lastActivity: customer.lastInteractionAt || customer.updatedAt || customer.createdAt,
+            createdDate: customer.createdAt,
+            timeline: (lead.leads || []).map(fu => ({
+              associate: fu.associateName || "System",
+              action: fu.status || "-",
+              remark: fu.overAllRemarks || fu.note || "-",
+              date: fu.date ? new Date(fu.date).toLocaleDateString("en-US", { day: "numeric", month: "short" }) : "-"
+            })).reverse(),
+            // Contract fields
+            branchId: customer.branchId?.toString() || "",
+            branchName: branchMap[customer.branchId?.toString()] || "-",
+            associateId: lead.associateId || "",
+            associateName: lead.assignedTo || "unassigned",
+            associateNames: leadHandlers,
+            leadStatus: currentLeadStatus,
+            priority: currentPriority,
+            followUpDate: latestFollowUpEvent ? latestFollowUpEvent.date : null,
+            followUpRemark: latestFollowUpEvent ? (latestFollowUpEvent.overAllRemarks || latestFollowUpEvent.note || "-") : "-",
+            closedDate: latestClosedEvent ? latestClosedEvent.date : null,
+            closedRemark: latestClosedEvent ? (latestClosedEvent.overAllRemarks || latestClosedEvent.note || "-") : "-",
+            latestActivityDate: latestEvent?.date || lead.updatedAt || lead.createdAt
+          });
+        } else {
+          // Merge lead information
+          const existing = customerRowsMap.get(customerIdStr);
+          existing.associateNames = Array.from(new Set([...existing.associateNames, ...leadHandlers]));
+          existing.handledByAssociates = existing.associateNames.join(", ") || "-";
+
+          const isNewer = new Date(lead.updatedAt || lead.createdAt) > new Date(existing.latestActivityDate || 0);
+          if (isNewer) {
+            existing.currentLeadStatus = currentLeadStatus;
+            existing.leadStatus = currentLeadStatus;
+            existing.priority = currentPriority;
+            existing.currentLeadOwner = lead.assignedTo || existing.currentLeadOwner;
+            existing.associateId = lead.associateId || existing.associateId;
+            existing.associateName = lead.assignedTo || existing.associateName;
+            if (latestEvent?.enquiredFor) {
+              existing.enquiredFor = latestEvent.enquiredFor;
+            }
+          }
+
+          if (latestFollowUpEvent) {
+            if (!existing.followUpDate || new Date(latestFollowUpEvent.date) > new Date(existing.followUpDate)) {
+              existing.followUpDate = latestFollowUpEvent.date;
+              existing.followUpRemark = latestFollowUpEvent.overAllRemarks || latestFollowUpEvent.note || "-";
+              existing.lastFollowUpDate = new Date(latestFollowUpEvent.date).toLocaleDateString();
+            }
+          }
+
+          if (latestClosedEvent) {
+            if (!existing.closedDate || new Date(latestClosedEvent.date) > new Date(existing.closedDate)) {
+              existing.closedDate = latestClosedEvent.date;
+              existing.closedRemark = latestClosedEvent.overAllRemarks || latestClosedEvent.note || "-";
+            }
+          }
+
+          if (latestEvent?.date && new Date(latestEvent.date) > new Date(existing.latestActivityDate)) {
+            existing.latestActivityDate = latestEvent.date;
+            existing.latestRemark = latestEvent.overAllRemarks || latestEvent.note || existing.latestRemark;
+          }
+
+          // Merge timeline
+          const newTimeline = (lead.leads || []).map(fu => ({
+            associate: fu.associateName || "System",
+            action: fu.status || "-",
+            remark: fu.overAllRemarks || fu.note || "-",
+            date: fu.date ? new Date(fu.date).toLocaleDateString("en-US", { day: "numeric", month: "short" }) : "-"
+          })).reverse();
+          existing.timeline = Array.from(new Map([...existing.timeline, ...newTimeline].map(item => [item.date + item.action + item.remark, item])).values());
+        }
+      });
+
+      const customerReportRows = Array.from(customerRowsMap.values());
 
       // Server-side Sorting
       const sortBy = searchParams.get("sortBy") || "date";
       const sortOrder = searchParams.get("sortOrder") || "desc";
       const sortDirection = sortOrder === "asc" ? 1 : -1;
 
-      let sortStage = {};
-      if (sortBy === "customerName") {
-        sortStage = { name: sortDirection };
-      } else if (sortBy === "associate") {
-        sortStage = { assignedTo: sortDirection };
-      } else if (sortBy === "status") {
-        sortStage = { status: sortDirection };
-      } else if (sortBy === "branch") {
-        sortStage = { "branchDoc.name": sortDirection };
-      } else {
-        sortStage = { createdAt: sortDirection };
-      }
-      customerReportQuery.push({ $sort: sortStage });
+      customerReportRows.sort((a, b) => {
+        let valA = a[sortBy] || "";
+        let valB = b[sortBy] || "";
+        if (sortBy === "customerName") {
+          valA = a.customerName;
+          valB = b.customerName;
+        } else if (sortBy === "associate") {
+          valA = a.currentLeadOwner;
+          valB = b.currentLeadOwner;
+        } else if (sortBy === "status") {
+          valA = a.currentLeadStatus;
+          valB = b.currentLeadStatus;
+        } else if (sortBy === "branch") {
+          valA = a.assignedBranch;
+          valB = b.assignedBranch;
+        } else {
+          valA = new Date(a.createdDate || 0);
+          valB = new Date(b.createdDate || 0);
+        }
+        if (typeof valA === "string") {
+          return valA.localeCompare(valB) * sortDirection;
+        }
+        return (valA - valB) * sortDirection;
+      });
 
       // Pagination Count
-      const countQuery = [...customerReportQuery, { $count: "total" }];
-      const countRes = await Customer.aggregate(countQuery);
-      const totalCount = countRes.length > 0 ? countRes[0].total : 0;
+      const totalCount = customerReportRows.length;
 
+      let paginatedRows = customerReportRows;
       if (limitParam !== "all") {
-        customerReportQuery.push({ $skip: (page - 1) * limit });
-        customerReportQuery.push({ $limit: limit });
+        paginatedRows = customerReportRows.slice((page - 1) * limit, page * limit);
       }
-
-      const rawCustomers = await Customer.aggregate(customerReportQuery);
-
-      // Compute formatting
-      const customerReportRows = rawCustomers.map((cust) => {
-        const handHistory = cust.leadDoc?.handledByHistory?.map(h => h.associateName) || [];
-        const chatHistoryNames = cust.chatHistory?.map(c => c.performedByName).filter(Boolean) || [];
-        const allHandlers = Array.from(new Set([cust.assignedTo, ...handHistory, ...chatHistoryNames].filter(name => name && name !== "unassigned" && name !== "System")));
-        const handledBy = allHandlers.join(", ") || "-";
-
-        const latestFollowUp = cust.leadDoc?.leads && cust.leadDoc.leads.length > 0 ? cust.leadDoc.leads[cust.leadDoc.leads.length - 1] : null;
-        const remarks = latestFollowUp?.overAllRemarks || latestFollowUp?.note || cust.remarks || "-";
-
-        const customerTimeline = (cust.chatHistory || []).map(hist => ({
-          associate: hist.performedByName || "System",
-          action: hist.action || hist.eventType || "-",
-          remark: hist.notes || "-",
-          date: hist.timestamp ? new Date(hist.timestamp).toLocaleDateString("en-US", { day: "numeric", month: "short" }) : "-"
-        }));
-
-        return {
-          id: cust._id.toString(),
-          customerName: resolveCustomerDisplayName(cust),
-          phone: cust.phone,
-          firstEnquiryDate: cust.createdAt ? new Date(cust.createdAt).toLocaleDateString() : "-",
-          enquiredFor: latestFollowUp?.enquiredFor || cust.enquiredFor || "-",
-          city: cust.city || "-",
-          assignedBranch: cust.branchDoc?.name || "-",
-          handledByAssociates: handledBy,
-          currentLeadStatus: latestFollowUp?.status || cust.status || "New",
-          currentLeadOwner: cust.assignedTo || "unassigned",
-          latestRemark: remarks,
-          lastFollowUpDate: latestFollowUp?.date ? new Date(latestFollowUp.date).toLocaleDateString() : "-",
-          lastActivity: cust.lastInteractionAt || cust.updatedAt || cust.createdAt,
-          createdDate: cust.createdAt,
-          timeline: customerTimeline
-        };
-      });
 
       return NextResponse.json({
         success: true,
-        customerReportRows,
+        customerReportRows: paginatedRows,
         pagination: {
           total: totalCount,
           page,
@@ -424,7 +496,9 @@ export async function GET(req) {
           { assignedTo: { $in: userNames } },
           { "leads.associateId": { $in: userIds } }
         ]
-      }).lean();
+      })
+      .populate("customerId")
+      .lean();
 
       // Find message history
       const messages = await Message.find({
@@ -467,79 +541,165 @@ export async function GET(req) {
         }
       });
 
+      // Populate branches cache
+      const branches = await Branch.find().lean();
+      const branchMap = {};
+      branches.forEach(b => {
+        branchMap[b._id.toString()] = b.name;
+      });
+
       const associatePerformanceSummary = matchingUsers.map((user) => {
         const uid = user._id.toString();
         const name = user.name;
 
-        const associateLeads = leads.filter(l => l.associateId === uid || l.assignedTo === name || l.leads?.some(fu => fu.associateId === uid));
-        const customersHandledCount = new Set(associateLeads.map(l => l.phone)).size;
+        // Filter leads where this associate is involved
+        const associateLeads = leads.filter(l => 
+          l.associateId === uid || 
+          l.assignedTo === name || 
+          l.leads?.some(fu => fu.associateId === uid || fu.associateName === name)
+        );
 
+        // Group by customer to ensure: ONE customer = ONE row
+        const customerRowsMap = new Map();
+
+        let followUps = 0;
+        let notInterested = 0;
         let newLeadsClosed = 0;
         let existingLeadsClosed = 0;
         let pending = 0;
-        let followUps = 0;
-        let notInterested = 0;
 
         associateLeads.forEach((lead) => {
+          const customer = lead.customerId;
+          if (!customer) return;
+
+          const customerIdStr = customer._id.toString();
+
+          // Filter followups by date range AND handler
+          const relevantEvents = (lead.leads || []).filter(fu => {
+            const fuDate = new Date(fu.date);
+            const isHandler = fu.associateId === uid || fu.associateName === name;
+            const matchesDate = (!startDate || fuDate >= startDate) && (!endDate || fuDate <= endDate);
+            return isHandler && matchesDate;
+          });
+
+          // Metrics calculation (independent of date range for pending, but followups/closed are filtered)
+          if (!lead.isClosed && (lead.associateId === uid || lead.assignedTo === name)) {
+            pending++;
+          }
+
           const closures = (lead.leads || [])
             .filter(fu => fu.status === "Closed")
             .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-          if (!lead.isClosed) {
-            pending++;
-          }
-
-          const history = lead.leads || [];
-          history.forEach((fu) => {
-            const fuDate = new Date(fu.date);
-            const isHandler = fu.associateId === uid || fu.associateName === name;
-            
-            if (isHandler && (!startDate || fuDate >= startDate) && (!endDate || fuDate <= endDate)) {
-              if (fu.status === "Follow Up") {
-                followUps++;
-              }
-              if (fu.status === "Not Interested") {
-                notInterested++;
-              }
-              if (fu.status === "Closed") {
-                const matchedIdx = closures.findIndex(
-                  c => c._id?.toString() === fu._id?.toString() ||
-                       new Date(c.date).getTime() === new Date(fu.date).getTime()
-                );
-                const leadSequence = matchedIdx !== -1 ? matchedIdx + 1 : 1;
-                if (leadSequence === 1) {
-                  newLeadsClosed++;
-                } else {
-                  existingLeadsClosed++;
-                }
+          relevantEvents.forEach((fu) => {
+            if (fu.status === "Follow Up") {
+              followUps++;
+            }
+            if (fu.status === "Not Interested") {
+              notInterested++;
+            }
+            if (fu.status === "Closed") {
+              const matchedIdx = closures.findIndex(
+                c => c._id?.toString() === fu._id?.toString() ||
+                     new Date(c.date).getTime() === new Date(fu.date).getTime()
+              );
+              const leadSequence = matchedIdx !== -1 ? matchedIdx + 1 : 1;
+              if (leadSequence === 1) {
+                newLeadsClosed++;
+              } else {
+                existingLeadsClosed++;
               }
             }
           });
+
+          // Group by customer for history table
+          if (relevantEvents.length > 0) {
+            // Sort chronologically
+            relevantEvents.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            const latestEvent = relevantEvents[relevantEvents.length - 1];
+
+            // Filter for Follow Up status events
+            const followUpEvents = relevantEvents.filter(e => e.status === "Follow Up");
+            const latestFollowUpEvent = followUpEvents.length > 0 ? followUpEvents[followUpEvents.length - 1] : null;
+
+            // Filter for Closed status events
+            const closedEvents = relevantEvents.filter(e => e.status === "Closed");
+            const latestClosedEvent = closedEvents.length > 0 ? closedEvents[closedEvents.length - 1] : null;
+
+            const handHistory = lead.handledByHistory?.map(h => h.associateName) || [];
+            const followupHandlers = (lead.leads || []).map(f => f.associateName).filter(Boolean);
+            const leadHandlers = Array.from(new Set([lead.assignedTo, ...handHistory, ...followupHandlers].filter(n => n && n !== "unassigned" && n !== "System")));
+
+            const customerName = resolveCustomerDisplayName({ customer, phone: customer.phone });
+            const phone = customer.phone;
+
+            if (!customerRowsMap.has(customerIdStr)) {
+              customerRowsMap.set(customerIdStr, {
+                id: customerIdStr,
+                customerId: customerIdStr,
+                customerName,
+                phone,
+                enquiredFor: latestEvent?.enquiredFor || customer.enquiredFor || "-",
+                leadStatus: resolveLeadStatus(lead),
+                priority: latestEvent?.priority || customer.priority || "Medium",
+                followUpDate: latestFollowUpEvent ? latestFollowUpEvent.date : null,
+                followUpRemark: latestFollowUpEvent ? (latestFollowUpEvent.overAllRemarks || latestFollowUpEvent.note || "-") : "-",
+                closedDate: latestClosedEvent ? latestClosedEvent.date : null,
+                closedRemark: latestClosedEvent ? (latestClosedEvent.overAllRemarks || latestClosedEvent.note || "-") : "-",
+                latestActivityDate: latestEvent?.date || null,
+                date: latestEvent?.date || null,
+                timeline: (lead.leads || []).map(fu => ({
+                  associate: fu.associateName || "System",
+                  action: fu.status || "-",
+                  remark: fu.overAllRemarks || fu.note || "-",
+                  date: fu.date ? new Date(fu.date).toLocaleDateString("en-US", { day: "numeric", month: "short" }) : "-"
+                })).reverse(),
+                // Contract fields
+                branchId: customer.branchId?.toString() || "",
+                branchName: branchMap[customer.branchId?.toString()] || "-",
+                associateId: uid,
+                associateName: name,
+                associateNames: leadHandlers
+              });
+            } else {
+              // Merge multiple leads for the same customer
+              const existing = customerRowsMap.get(customerIdStr);
+              
+              if (latestFollowUpEvent) {
+                if (!existing.followUpDate || new Date(latestFollowUpEvent.date) > new Date(existing.followUpDate)) {
+                  existing.followUpDate = latestFollowUpEvent.date;
+                  existing.followUpRemark = latestFollowUpEvent.overAllRemarks || latestFollowUpEvent.note || "-";
+                }
+              }
+
+              if (latestClosedEvent) {
+                if (!existing.closedDate || new Date(latestClosedEvent.date) > new Date(existing.closedDate)) {
+                  existing.closedDate = latestClosedEvent.date;
+                  existing.closedRemark = latestClosedEvent.overAllRemarks || latestClosedEvent.note || "-";
+                }
+              }
+
+              if (latestEvent?.date && new Date(latestEvent.date) > new Date(existing.latestActivityDate)) {
+                existing.latestActivityDate = latestEvent.date;
+                existing.date = latestEvent.date;
+                existing.priority = latestEvent.priority || existing.priority;
+                existing.enquiredFor = latestEvent.enquiredFor || existing.enquiredFor;
+              }
+            }
+          }
         });
 
+        const associateCustomerHistory = Array.from(customerRowsMap.values());
+        // Sort history by date descending
+        associateCustomerHistory.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+        const customersHandledCount = associateCustomerHistory.length;
+
+        // Average response time tracking
         const tracker = userResponseTracker[uid];
         const avgResponseSeconds = tracker && tracker.count > 0 ? Math.round(tracker.sum / tracker.count / 1000) : 0;
         const averageResponseTime = formatSeconds(avgResponseSeconds);
-
-        const associateCustomerHistory = [];
-        associateLeads.forEach((lead) => {
-          const history = lead.leads || [];
-          history.forEach((fu) => {
-            const isHandler = fu.associateId === uid || fu.associateName === name;
-            if (isHandler) {
-              associateCustomerHistory.push({
-                customerName: resolveCustomerDisplayName(lead),
-                phone: lead.phone,
-                enquiredFor: fu.enquiredFor || lead.enquiredFor || "-",
-                leadStatus: fu.status || "New",
-                remark: fu.overAllRemarks || fu.note || "-",
-                latestActivityDate: fu.date,
-                date: fu.date
-              });
-            }
-          });
-        });
-        associateCustomerHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
 
         return {
           associateId: uid,

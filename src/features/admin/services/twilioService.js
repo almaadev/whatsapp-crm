@@ -86,7 +86,7 @@ export async function getAvailableNumbers(user = null) {
   await connectDB();
   await bootstrapTwilioNumbersFromEnv();
 
-  const allNumbers = await TwilioNumber.find({ isActive: true, status: "active" }).lean();
+  const allNumbers = await TwilioNumber.find().lean();
 
   if (!user) return allNumbers;
 

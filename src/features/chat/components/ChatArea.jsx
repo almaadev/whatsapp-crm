@@ -262,37 +262,45 @@ export default function ChatArea({
   const submitStatusChange = async (newStatus, priority = null) => {
     if (!activeChat) return;
 
-    // 🚀 FIX: If closing the chat, wipe priority. Otherwise, keep the new one (or the old one).
+    // If closing the lead, wipe priority. Otherwise, keep the new one (or the old one).
     const targetPriority =
-      newStatus === "Closed" ? "" : priority || activeChat.priority;
+      (newStatus === "Closed" || newStatus === "Not Interested") ? "" : priority || activeChat.priority;
 
-    const optimisticUpdate = {
-      status: newStatus,
-      priority: targetPriority,
-      isChatClosed: newStatus === "Closed",
-      currentHandler: userName,
-    };
-
-    const originalChat = { ...activeChat };
-
-    updateChatDetails(activeChat.phone, optimisticUpdate);
     setShowPriorityModal(false);
     setShowClosingModal(false);
-    toast.success(`Status updated to ${newStatus}`);
 
     try {
-      await chatService.updateLeadLifecycle({
+      const res = await chatService.updateLeadLifecycle({
         phone: activeChat.phone,
+        leadId: detailedCustomer?.leadId,
+        customerId: detailedCustomer?.customerId,
         status: newStatus,
         associateEmail: userEmail,
         associateName: userName,
         notes: actionNote,
-        priority: targetPriority, // Ensure backend gets the correct priority
+        priority: targetPriority,
       });
+
+      const confirmedStatus = res?.status || newStatus;
+      const confirmedPriority = res?.lead?.priority || targetPriority;
+
+      // Update the local state with the server-confirmed values
+      updateChatDetails(activeChat.phone, {
+        status: confirmedStatus,
+        priority: confirmedPriority,
+        currentHandler: userName,
+      });
+
+      toast.success(`Status updated to ${confirmedStatus}`);
+
+      // Invalidate queries to fetch fresh status and activities
       queryClient.invalidateQueries({ queryKey: ["detailed-customer", activeChat.phone] });
+      queryClient.invalidateQueries({ queryKey: ["chats"] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
     } catch (e) {
-      toast.error("Failed to save status. Reverting...");
-      updateChatDetails(activeChat.phone, originalChat);
+      console.error("[LeadStatus UI] Failed to save status:", e);
+      toast.error(e.response?.data?.error || e.message || "Failed to save status.");
     }
   };
 

@@ -81,7 +81,7 @@ export default function PerformanceMonitor() {
       setHistoryLoading((prev) => ({ ...prev, [id]: true }));
       try {
         const res = await fetch(
-          `/api/admin/performance-monitor?action=associateCustomers&associateId=${id}`,
+          `/api/admin/performance-monitor?action=associateCustomers&associateId=${id}&dateRange=${filters.dateRange}&startDate=${filters.startDate || ""}&endDate=${filters.endDate || ""}&branchId=${filters.branchId || "all"}`,
         );
         const data = await res.json();
         if (data.success) {
@@ -624,7 +624,7 @@ export default function PerformanceMonitor() {
               size={11}
               className={isStoreLoading ? "animate-spin" : ""}
             />
-            Sync Monitor
+            Refresh
           </button>
         </div>
 
@@ -657,8 +657,7 @@ export default function PerformanceMonitor() {
             <div className="p-4 space-y-4 flex flex-col h-full overflow-y-auto">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
-                  <TrendingUp size={16} className="text-[#00a884]" /> Quick
-                  Performance Snapshot
+                  <TrendingUp size={16} className="text-[#00a884]" /> Quick Performance Snapshot
                 </h3>
               </div>
 

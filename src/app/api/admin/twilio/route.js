@@ -209,7 +209,7 @@ export async function POST(req) {
         return NextResponse.json({ error: "Only Super Admin can add new Twilio numbers." }, { status: 403 });
       }
 
-      const { friendlyName, phoneNumber, twilioSenderSid, branchId } = body;
+      const { friendlyName, phoneNumber, branchId } = body;
       if (!friendlyName || !phoneNumber) {
         return NextResponse.json({ error: "Friendly Name and Phone Number are required." }, { status: 400 });
       }
@@ -224,7 +224,6 @@ export async function POST(req) {
       const newNumber = await TwilioNumber.create({
         friendlyName: friendlyName.trim(),
         phoneNumber: formattedNum,
-        twilioSenderSid: twilioSenderSid || "",
         branchId: branchId || null,
         status: "active",
         isActive: true,

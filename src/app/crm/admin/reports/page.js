@@ -518,34 +518,40 @@ export default function ReportsPage() {
         }
       } else {
         const headers = [
-          "Date & Time",
+          "Customer Name",
+          "Phone",
           "Associate Name",
-          "Employee ID",
           "Branch",
           "Role",
           "Department",
-          "Customer Name",
-          "Phone",
-          "Action / Status",
+          "Enquired For",
           "Lead Status",
-          "Remark",
+          "Priority",
+          "Follow-Up Date",
+          "Follow-Up Remark",
+          "Closed Date",
+          "Closed Remark",
+          "Latest Activity Date"
         ];
         const rows = [];
         data.forEach((assoc) => {
           const history = assoc.associateCustomerHistory || [];
           history.forEach((inter) => {
             rows.push([
-              `"${inter.date ? new Date(inter.date).toLocaleString() : "-"}"`,
+              `"${inter.customerName}"`,
+              `"${cleanPhoneNumber(inter.phone)}"`,
               `"${assoc.associateName}"`,
-              `"${assoc.employeeId}"`,
               `"${assoc.branch}"`,
               `"${assoc.role}"`,
               `"${assoc.department}"`,
-              `"${inter.customerName}"`,
-              `"${inter.phone}"`,
-              `"${inter.leadStatus}"`, // Action
-              `"${inter.leadStatus}"`, // Lead Status
-              `"${(inter.remark || "-").replace(/"/g, '""').replace(/\n/g, " ")}"`, // Remark
+              `"${inter.enquiredFor}"`,
+              `"${inter.leadStatus}"`,
+              `"${inter.priority}"`,
+              `"${inter.followUpDate ? new Date(inter.followUpDate).toLocaleDateString() : "-"}"`,
+              `"${(inter.followUpRemark || "-").replace(/"/g, '""').replace(/\n/g, " ")}"`,
+              `"${inter.closedDate ? new Date(inter.closedDate).toLocaleDateString() : "-"}"`,
+              `"${(inter.closedRemark || "-").replace(/"/g, '""').replace(/\n/g, " ")}"`,
+              `"${inter.latestActivityDate ? new Date(inter.latestActivityDate).toLocaleString() : "-"}"`
             ]);
           });
         });
@@ -567,17 +573,20 @@ export default function ReportsPage() {
             history.forEach((inter) => {
               rowsHTML.push(`
                 <tr>
-                  <td>${inter.date ? new Date(inter.date).toLocaleString() : "-"}</td>
+                  <td>${inter.customerName}</td>
+                  <td>${cleanPhoneNumber(inter.phone)}</td>
                   <td>${assoc.associateName}</td>
-                  <td>${assoc.employeeId}</td>
                   <td>${assoc.branch}</td>
                   <td>${assoc.role}</td>
                   <td>${assoc.department}</td>
-                  <td>${inter.customerName}</td>
-                  <td>${inter.phone}</td>
+                  <td>${inter.enquiredFor}</td>
                   <td>${inter.leadStatus}</td>
-                  <td>${inter.leadStatus}</td>
-                  <td>${inter.remark}</td>
+                  <td>${inter.priority}</td>
+                  <td>${inter.followUpDate ? new Date(inter.followUpDate).toLocaleDateString() : "-"}</td>
+                  <td>${inter.followUpRemark}</td>
+                  <td>${inter.closedDate ? new Date(inter.closedDate).toLocaleDateString() : "-"}</td>
+                  <td>${inter.closedRemark}</td>
+                  <td>${inter.latestActivityDate ? new Date(inter.latestActivityDate).toLocaleString() : "-"}</td>
                 </tr>
               `);
             });
@@ -863,7 +872,7 @@ export default function ReportsPage() {
                   placeholder={
                     activeTab === "customer"
                       ? "Name, Phone, City..."
-                      : "Name, ID, Phone..."
+                      : "Name, Phone..."
                   }
                   value={activeFilters.search}
                   onChange={(e) => {
@@ -1154,14 +1163,14 @@ export default function ReportsPage() {
                                   <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
                                     <div className="inline-flex gap-1.5">
                                       <Link
-                                        href={`/crm/chat?phone=${row.phone.replace("whatsapp:", "")}`}
+                                        href={`/crm/chat?phone=${(row.phone || "").replace("whatsapp:", "")}`}
                                         target="_blank"
                                         className="inline-flex items-center gap-0.5 bg-[#00a884] hover:bg-[#008f70] text-white font-bold py-0.5 px-2 rounded text-[10px] transition-colors shadow-sm"
                                       >
                                         Chat <ExternalLink size={9} />
                                       </Link>
                                       <Link
-                                        href={`/crm/leads/${row.phone.replace("whatsapp:", "")}`}
+                                        href={`/crm/leads/${(row.phone || "").replace("whatsapp:", "")}`}
                                         target="_blank"
                                         className="inline-flex items-center gap-0.5 bg-slate-900 hover:bg-black text-white font-bold py-0.5 px-2 rounded text-[10px] transition-colors shadow-sm"
                                       >
@@ -1400,128 +1409,95 @@ export default function ReportsPage() {
                                           {row.associateName}
                                         </h5>
                                         <div className="overflow-x-auto">
-                                          <table className="w-full text-left border-collapse min-w-[1100px]">
+                                          <table className="w-full text-left border-collapse min-w-[1400px]">
                                             <thead>
                                               <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                <th className="py-2 px-3">
-                                                  Customer Name
-                                                </th>
-                                                <th className="py-2 px-3">
-                                                  Phone
-                                                </th>
-                                                <th className="py-2 px-3">
-                                                  Enquired For
-                                                </th>
-                                                <th className="py-2 px-3">
-                                                  Lead Status
-                                                </th>
-                                                <th className="py-2 px-3">
-                                                  Remark
-                                                </th>
-                                                <th className="py-2 px-3">
-                                                  Latest Activity Date
-                                                </th>
-                                                <th className="py-2 px-3">
-                                                  Date
-                                                </th>
-                                                <th className="py-2 px-3 text-center w-20">
-                                                  Links
-                                                </th>
+                                                <th className="py-2 px-3">Customer Name</th>
+                                                <th className="py-2 px-3">Phone</th>
+                                                <th className="py-2 px-3">Enquired For</th>
+                                                <th className="py-2 px-3">Lead Status</th>
+                                                <th className="py-2 px-3">Priority</th>
+                                                <th className="py-2 px-3">Follow-Up Date</th>
+                                                <th className="py-2 px-3">Follow-Up Remark</th>
+                                                <th className="py-2 px-3">Closed Date</th>
+                                                <th className="py-2 px-3">Closed Remark</th>
+                                                <th className="py-2 px-3">Latest Activity Date</th>
+                                                <th className="py-2 px-3 text-center w-20">Links</th>
                                               </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
-                                              {(
-                                                row.associateCustomerHistory ||
-                                                []
-                                              ).map((cust, cIdx) => (
-                                                <tr
-                                                  key={cIdx}
-                                                  className="hover:bg-slate-50/40"
-                                                >
+                                              {(row.associateCustomerHistory || []).map((cust, cIdx) => (
+                                                <tr key={cIdx} className="hover:bg-slate-50/40">
                                                   <td className="py-1.5 px-3 text-slate-900 font-bold">
                                                     {cust.customerName}
                                                   </td>
                                                   <td className="py-1.5 px-3 font-mono text-slate-500">
-                                                    {cust.phone}
+                                                    {cleanPhoneNumber(cust.phone)}
                                                   </td>
+                                                  <td className="py-1.5 px-3">{cust.enquiredFor}</td>
                                                   <td className="py-1.5 px-3">
-                                                    {cust.enquiredFor}
-                                                  </td>
-                                                  <td className="py-1.5 px-3">
-                                                    <span
-                                                      className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
-                                                        cust.leadStatus ===
-                                                        "Closed"
-                                                          ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
-                                                          : cust.leadStatus ===
-                                                              "Follow Up"
-                                                            ? "bg-amber-50 text-amber-600 border border-amber-100"
-                                                            : cust.leadStatus ===
-                                                                "Not Interested"
-                                                              ? "bg-slate-100 text-slate-500 border border-slate-200"
-                                                              : "bg-blue-50 text-blue-500 border border-blue-105"
-                                                      }`}
-                                                    >
+                                                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
+                                                      cust.leadStatus === "Closed"
+                                                        ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
+                                                        : cust.leadStatus === "Follow Up"
+                                                          ? "bg-amber-50 text-amber-600 border border-amber-100"
+                                                          : cust.leadStatus === "Not Interested"
+                                                            ? "bg-slate-150 text-slate-550 border border-slate-200"
+                                                            : "bg-blue-50 text-blue-550 border border-blue-100"
+                                                    }`}>
                                                       {cust.leadStatus}
                                                     </span>
                                                   </td>
-                                                  <td
-                                                    className="py-1.5 px-3 max-w-xs truncate text-slate-500"
-                                                    title={cust.remark}
-                                                  >
-                                                    {cust.remark}
+                                                  <td className="py-1.5 px-3">
+                                                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
+                                                      cust.priority === "High"
+                                                        ? "bg-rose-50 text-rose-600 border border-rose-100"
+                                                        : cust.priority === "Medium"
+                                                          ? "bg-orange-50 text-orange-600 border border-orange-100"
+                                                          : "bg-emerald-50 text-emerald-650 border border-emerald-100"
+                                                    }`}>
+                                                      {cust.priority}
+                                                    </span>
                                                   </td>
                                                   <td className="py-1.5 px-3 text-slate-500">
-                                                    {cust.latestActivityDate
-                                                      ? new Date(
-                                                          cust.latestActivityDate,
-                                                        ).toLocaleString()
-                                                      : "-"}
+                                                    {cust.followUpDate ? new Date(cust.followUpDate).toLocaleDateString() : "-"}
+                                                  </td>
+                                                  <td className="py-1.5 px-3 max-w-xs truncate text-slate-500" title={cust.followUpRemark}>
+                                                    {cust.followUpRemark}
                                                   </td>
                                                   <td className="py-1.5 px-3 text-slate-500">
-                                                    {cust.date
-                                                      ? new Date(
-                                                          cust.date,
-                                                        ).toLocaleDateString()
-                                                      : "-"}
+                                                    {cust.closedDate ? new Date(cust.closedDate).toLocaleDateString() : "-"}
+                                                  </td>
+                                                  <td className="py-1.5 px-3 max-w-xs truncate text-slate-500" title={cust.closedRemark}>
+                                                    {cust.closedRemark}
+                                                  </td>
+                                                  <td className="py-1.5 px-3 text-slate-500">
+                                                    {cust.latestActivityDate ? new Date(cust.latestActivityDate).toLocaleString() : "-"}
                                                   </td>
                                                   <td className="py-1.5 px-3 text-center whitespace-nowrap">
                                                     <div className="inline-flex gap-1">
                                                       <Link
-                                                        href={`/crm/chat?phone=${cust.phone.replace("whatsapp:", "")}`}
+                                                        href={`/crm/chat?phone=${(cust.phone || "").replace("whatsapp:", "")}`}
                                                         target="_blank"
                                                         className="inline-flex items-center gap-0.5 bg-[#00a884] hover:bg-[#008f70] text-white font-bold py-0.5 px-1.5 rounded text-[9px] transition-colors shadow-sm"
                                                       >
-                                                        Chat{" "}
-                                                        <ExternalLink
-                                                          size={8}
-                                                        />
+                                                        Chat <ExternalLink size={8} />
                                                       </Link>
                                                       <Link
-                                                        href={`/crm/leads/${cust.phone.replace("whatsapp:", "")}`}
+                                                        href={`/crm/leads/${(cust.phone || "").replace("whatsapp:", "")}`}
                                                         target="_blank"
                                                         className="inline-flex items-center gap-0.5 bg-slate-900 hover:bg-black text-white font-bold py-0.5 px-1.5 rounded text-[9px] transition-colors shadow-sm"
                                                       >
-                                                        Lead{" "}
-                                                        <ExternalLink
-                                                          size={8}
-                                                        />
+                                                        Lead <ExternalLink size={8} />
                                                       </Link>
                                                     </div>
                                                   </td>
                                                 </tr>
                                               ))}
-                                              {(
-                                                row.associateCustomerHistory ||
-                                                []
-                                              ).length === 0 && (
+                                              {(row.associateCustomerHistory || []).length === 0 && (
                                                 <tr>
-                                                  <td
-                                                    colSpan="8"
-                                                    className="py-3 text-center text-slate-400 italic"
-                                                  >
-                                                    No handled customer records
-                                                    logged.
+                                                  <td colSpan="11" className="py-3 text-center text-slate-400 italic">
+                                                    No handled customer records logged.
                                                   </td>
                                                 </tr>
                                               )}

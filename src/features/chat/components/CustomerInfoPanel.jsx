@@ -1,7 +1,9 @@
 "use client";
 import api from "@/shared/lib/axios";
 import { useState, useEffect, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useChatStore } from "@/features/chat/stores/chatStore";
+import { calculateFollowUpCalendarDay } from "@/shared/utils/dateRangeResolver";
 import {
   X,
   User,
@@ -28,6 +30,7 @@ import {
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { getAvailableLeadStatuses, resolveLeadStatus } from "@/shared/utils/leadStatusResolver";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { toast } from "react-toastify";
 import {
@@ -183,6 +186,7 @@ export default function CustomerInfoPanel({
   onClose,
   activeChat = null,
 }) {
+  const queryClient = useQueryClient();
   const globalSelectedChat = useChatStore((s) => s.selectedChat);
   const updateChatDetails = useChatStore((s) => s.updateChatDetails);
 
@@ -236,6 +240,22 @@ export default function CustomerInfoPanel({
       .slice(0, 3);
   }, [followUps]);
 
+  const availableStatusOptions = useMemo(() => {
+    const currentStatus = leadData?.status || activeChat?.status || "New";
+    const hasLeadHistory = Array.isArray(followUps) && followUps.length > 0;
+
+    const available = getAvailableLeadStatuses({
+      currentStatus,
+      hasLeadHistory,
+    });
+
+    const options = [...available];
+    if (formData.status && !options.includes(formData.status)) {
+      options.unshift(formData.status);
+    }
+    return options;
+  }, [leadData, activeChat, followUps, formData.status]);
+
   const handleSeeCompleteHistory = () => {
     const phone =
       selectedChat?.phone || activeChat?.phone || leadData?.phone || "";
@@ -253,6 +273,26 @@ export default function CustomerInfoPanel({
       selectedChat?.history || globalSelectedChat?.history || [];
     return chatHistory.filter((msg) => msg.mediaUrl);
   }, [selectedChat?.history, globalSelectedChat?.history]);
+
+  const activeFollowUpCycle = useMemo(() => {
+    if (!leadData?.history?.length) return null;
+    if (formData.followUpCycleId) {
+      return (
+        leadData.history.find(
+          (f) =>
+            (f._id || f.id)?.toString() ===
+            formData.followUpCycleId.toString(),
+        ) || leadData.history[leadData.history.length - 1]
+      );
+    }
+    return leadData.history[leadData.history.length - 1];
+  }, [leadData, formData.followUpCycleId]);
+
+  const activeCalendarDay = useMemo(() => {
+    if (!activeFollowUpCycle) return 1;
+    const startDate = activeFollowUpCycle.date || activeFollowUpCycle.createdAt;
+    return calculateFollowUpCalendarDay(startDate);
+  }, [activeFollowUpCycle]);
 
   const [branches, setBranches] = useState([]);
 
@@ -283,24 +323,28 @@ export default function CustomerInfoPanel({
         setLeadData(data);
         const fetchedLeads = data.history || [];
         setFollowUps(fetchedLeads);
-        const latest = fetchedLeads.length > 0 ? fetchedLeads[fetchedLeads.length - 1] : {};
+        const activeCycleId = data.activeFollowUpCycleId;
+        const activeCycle = activeCycleId
+          ? (fetchedLeads.find(f => (f._id || f.id)?.toString() === activeCycleId.toString()) || (fetchedLeads.length > 0 ? fetchedLeads[fetchedLeads.length - 1] : {}))
+          : (fetchedLeads.length > 0 ? fetchedLeads[fetchedLeads.length - 1] : {});
 
         const initialFormData = {
           name: data.name || activeChat?.name || "",
           city: data.city || activeChat?.city || "",
           address: data.address || activeChat?.address || "",
           source: data.source || "Whatsapp",
-          enquiredFor: latest.enquiredFor ?? "",
-          status: latest.status?.trim() || "",
-          priority: latest.priority || "Medium",
-          remarks: latest.overAllRemarks || data.remarks || "",
-          day1Remarks: latest.day1Remarks ?? "",
-          day2Remarks: latest.day2Remarks ?? "",
-          day3Remarks: latest.day3Remarks ?? "",
-          saleAmount: latest.saleAmount || "0",
-          leadType: latest.leadType || "Direct Lead",
+          enquiredFor: activeCycle.enquiredFor ?? "",
+          status: activeCycle.status?.trim() || "",
+          priority: activeCycle.priority || "Medium",
+          remarks: data.remarks || "",
+          day1Remarks: activeCycle.day1Remarks ?? "",
+          day2Remarks: activeCycle.day2Remarks ?? "",
+          day3Remarks: activeCycle.day3Remarks ?? "",
+          saleAmount: activeCycle.saleAmount || "0",
+          leadType: activeCycle.leadType || "Direct Lead",
           adType: data.adType || "",
           branchId: data.branchId || activeChat?.branchId || "",
+          followUpCycleId: activeCycle._id || activeCycle.id || null,
         };
 
         setFormData(initialFormData);
@@ -344,10 +388,13 @@ export default function CustomerInfoPanel({
       leadType: formData.leadType,
       adType: formData.adType,
       branchId: formData.branchId || null,
+      remarks: formData.remarks,
+      overallRemarks: formData.remarks,
       overAllRemarks: formData.remarks,
       day1Remarks: formData.day1Remarks,
       day2Remarks: formData.day2Remarks,
       day3Remarks: formData.day3Remarks,
+      followUpCycleId: formData.followUpCycleId || null,
       date: new Date().toISOString(),
     };
 
@@ -361,16 +408,6 @@ export default function CustomerInfoPanel({
     setLoading(true);
     try {
       const { data } = await api.post("/api/leads", payload);
-
-      if (formData.branchId !== undefined) {
-        await api
-          .put(`/api/customers/${encodeURIComponent(normalizedPhone)}`, {
-            branchId: formData.branchId || null,
-          })
-          .catch((e) => {
-            console.error("PUT Customer Branch Error:", e);
-          });
-      }
 
       updateChatDetails(selectedChat.phone, {
         ...formData,
@@ -387,6 +424,12 @@ export default function CustomerInfoPanel({
         });
         setFollowUps(data.lead.leads || []);
       }
+
+      // Invalidate queries so Chat Activity Timeline and other views update immediately
+      queryClient.invalidateQueries({ queryKey: ["detailed-customer", selectedChat.phone] });
+      queryClient.invalidateQueries({ queryKey: ["chats"] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
 
       const actionMsg =
         {
@@ -581,12 +624,11 @@ export default function CustomerInfoPanel({
                       onChange={handleChange}
                       className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none bg-slate-50 text-sm font-semibold text-slate-700 cursor-pointer"
                     >
-                      {formData.status === "New" && (
-                        <option value="New">New</option>
-                      )}
-                      <option value="Follow Up">Follow Up</option>
-                      <option value="Closed">Closed</option>
-                      <option value="Not Interested">Not Interested</option>
+                      {availableStatusOptions.map((st) => (
+                        <option key={st} value={st}>
+                          {st}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -808,24 +850,51 @@ export default function CustomerInfoPanel({
               </div>
 
               <div className="space-y-4 bg-emerald-50/50 p-5 rounded-xl border border-emerald-100 shadow-sm">
-                <h3 className="text-xs font-black text-emerald-800 border-b border-emerald-200/50 pb-2 uppercase tracking-wide">
-                  Current Enquiry Follow-up
+                <h3 className="text-xs font-black text-emerald-800 border-b border-emerald-200/50 pb-2 uppercase tracking-wide flex items-center justify-between">
+                  <span>Current Enquiry Follow-up</span>
+                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-full">
+                    Day {activeCalendarDay} Active
+                  </span>
                 </h3>
                 {["day1Remarks", "day2Remarks", "day3Remarks"].map(
-                  (field, i) => (
-                    <div key={field}>
-                      <label className="block text-[10px] font-black text-emerald-700 uppercase mb-1.5">
-                        Day {i + 1} Remarks
-                      </label>
-                      <textarea
-                        name={field}
-                        value={formData[field]}
-                        onChange={handleChange}
-                        className="w-full px-3 py-2 border border-emerald-200/60 rounded-xl focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none h-20 resize-none text-sm bg-white text-slate-700"
-                        placeholder={`Notes from Day ${i + 1}...`}
-                      />
-                    </div>
-                  ),
+                  (field, i) => {
+                    const dayNum = i + 1;
+                    const isEditable = activeCalendarDay >= dayNum;
+                    return (
+                      <div key={field}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-[10px] font-black text-emerald-700 uppercase">
+                            Day {dayNum} Remarks
+                          </label>
+                          {isEditable ? (
+                            <span className="text-[9px] font-bold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-md">
+                              Active
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200">
+                              Locked until Day {dayNum}
+                            </span>
+                          )}
+                        </div>
+                        <textarea
+                          name={field}
+                          value={formData[field] || ""}
+                          onChange={handleChange}
+                          disabled={!isEditable}
+                          className={`w-full px-3 py-2 border rounded-xl outline-none h-20 resize-none text-sm transition-all ${
+                            isEditable
+                              ? "border-emerald-200/60 focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 bg-white text-slate-700 font-medium"
+                              : "border-slate-200 bg-slate-100/70 text-slate-500 cursor-not-allowed font-medium"
+                          }`}
+                          placeholder={
+                            isEditable
+                              ? `Notes from Day ${dayNum}...`
+                              : `Day ${dayNum} remarks locked until operational Day ${dayNum}.`
+                          }
+                        />
+                      </div>
+                    );
+                  },
                 )}
               </div>
             </div>

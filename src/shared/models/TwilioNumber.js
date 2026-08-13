@@ -4,7 +4,6 @@ const TwilioNumberSchema = new mongoose.Schema(
   {
     friendlyName: { type: String, required: true, trim: true },
     phoneNumber: { type: String, required: true, unique: true, trim: true },
-    twilioSenderSid: { type: String, default: "" },
     branchId: { type: mongoose.Schema.Types.ObjectId, ref: "Branch", default: null },
     assignedAdmins: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     assignedAssociates: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],

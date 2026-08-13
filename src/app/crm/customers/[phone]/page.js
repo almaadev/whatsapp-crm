@@ -253,9 +253,7 @@ export default function CustomerDetailPage({ params }) {
                                 </div>
 
                                 <div className="flex items-center gap-3 shrink-0 border-t lg:border-none border-slate-100 pt-6 lg:pt-0">
-                                    <button className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl font-semibold shadow-sm flex items-center gap-2 transition-all text-sm" title="Call feature will be available soon">
-                                        <Phone size={16} className="text-slate-500" /> Call
-                                    </button>
+
                                     <button onClick={handleOpenChat} className="px-4 py-2.5 bg-[#25D366]/10 border border-[#25D366]/20 text-[#075E54] hover:bg-[#25D366]/20 rounded-xl font-semibold shadow-sm flex items-center gap-2 transition-all text-sm" >
                                         <MessageCircle size={16} className="text-[#25D366]"  /> WhatsApp
                                     </button>

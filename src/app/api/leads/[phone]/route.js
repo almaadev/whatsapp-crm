@@ -10,6 +10,7 @@ import Branch from "@/shared/models/Branch";
 import User from "@/shared/models/User";
 import { sanitizeCustomerOrLeadData } from "@/shared/utils/privacy";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
+import { resolveLeadStatus } from "@/shared/utils/leadStatusResolver";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,7 @@ export async function GET(req, { params }) {
       .lean();
 
     // Fetch all leads for this customer to retrieve historical activities
-    const leads = customer ? await Lead.find({ customerId: customer._id }).lean() : [];
+    const leads = customer ? await Lead.find({ customerId: customer._id }).sort({ createdAt: 1 }).lean() : [];
     const leadIds = leads.map(l => l._id);
     const lead = leads.find(l => !l.isClosed) || leads[leads.length - 1] || null;
 
@@ -133,6 +134,14 @@ export async function GET(req, { params }) {
         "PROFILE_UPDATED",
         "ADDRESS_UPDATED",
         "ADDRESS_CHANGED",
+        "NAME_UPDATED",
+        "CITY_UPDATED",
+        "SOURCE_UPDATED",
+        "ENQUIRED_FOR_UPDATED",
+        "LEAD_TYPE_UPDATED",
+        "BRANCH_UPDATED",
+        "OVERALL_REMARKS_UPDATED",
+        "FOLLOWUP_REMARK_UPDATED",
         "TEMPLATE_SENT"
       ];
 
@@ -223,6 +232,8 @@ export async function GET(req, { params }) {
     });
 
     const data = {
+      leadId: lead?._id ? lead._id.toString() : null,
+      customerId: customer?._id ? customer._id.toString() : null,
       name: resolveCustomerDisplayName({ lead, customer, phone: primaryPhone }),
       city: customer?.currentAddressId?.city || customer?.city || "",
       phone: customer?.phone || primaryPhone,
@@ -231,9 +242,9 @@ export async function GET(req, { params }) {
       assignedTo: customer?.assignedTo || "Unassigned",
       branchId: customer?.branchId?._id?.toString() || customer?.branchId?.toString() || null,
       enquiredFor: latest?.enquiredFor || customer?.enquiredFor || "",
-      status: latest?.status || customer?.status || "New",
+      status: resolveLeadStatus(lead),
       priority: latest?.priority || customer?.priority || "Medium",
-      remarks: latest?.overAllRemarks || customer?.remarks || "",
+      remarks: customer?.remarks || "",
       day1Remarks: latest?.day1Remarks || "",
       day2Remarks: latest?.day2Remarks || "",
       day3Remarks: latest?.day3Remarks || "",
@@ -241,6 +252,7 @@ export async function GET(req, { params }) {
       leadType: latest?.leadType || customer?.activeRouteCategory || "Direct Lead",
       history: history,
       latestFollowUp: latest || {},
+      activeFollowUpCycleId: latest?._id ? latest._id.toString() : null,
       creatorInfo,
       chatHistory: filteredChatHistory
     };

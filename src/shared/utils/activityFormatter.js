@@ -14,7 +14,10 @@ import {
   UserCheck,
   RefreshCw,
   PlusCircle,
-  Cog
+  Cog,
+  Globe,
+  HelpCircle,
+  Building2
 } from "lucide-react";
 import { ActivityEvents } from "@/shared/constants/activityConstants";
 
@@ -30,7 +33,7 @@ export const getActivityTitle = (eventType, performerName, metadata = {}) => {
     case ActivityEvents.CUSTOMER_CREATED:
       return `Customer Created `;
     case ActivityEvents.LEAD_CREATED:
-      return `New Lead Created by ${user}`;
+      return `New Lead Created`;
     case ActivityEvents.CHAT_STARTED:
       return `Chat Started `;
     case ActivityEvents.CHAT_CLOSED:
@@ -42,22 +45,40 @@ export const getActivityTitle = (eventType, performerName, metadata = {}) => {
       return targetUser ? `Lead Assigned to ${targetUser} by ${user}` : `Lead Assigned by ${user}`;
     case ActivityEvents.CUSTOMER_ASSIGNED:
       const targetCust = metadata.newOwner || metadata.targetUserName || (metadata.targetUser?.name);
-      return targetCust ? `Customer Assigned to ${targetCust} by ${user}` : `Customer Assigned by ${user}`;
+      return targetCust ? `Customer Assigned to ${targetCust} ` : `Customer Assigned by ${user}`;
     case ActivityEvents.FOLLOWUP_CREATED:
-      return `Follow Up Created by ${user}`;
+      return `Follow Up Created `;
     case ActivityEvents.FOLLOWUP_COMPLETED:
-      return `Follow Up Completed by ${user}`;
-    case ActivityEvents.LEAD_STATUS_CHANGED:
-      const newStatus = metadata.newStatus || metadata.status;
-      return newStatus ? `Lead Status Changed to ${newStatus} by ${user}` : `Lead Status Changed by ${user}`;
+      return `Lead Closed `;
+    // case ActivityEvents.LEAD_STATUS_CHANGED:
+    //   const newStatus = metadata.newStatus || metadata.status;
+    //   return newStatus ? `Lead Status Changed to ${newStatus} ` : `Lead Status Changed `;
     case ActivityEvents.CUSTOMER_UPDATED:
       return `Customer Profile Updated by ${user}`;
     case ActivityEvents.PROFILE_UPDATED:
       return `Customer Profile Updated by ${user}`;
+    case ActivityEvents.NAME_UPDATED:
+      return `Name changed by ${user}`;
     case ActivityEvents.ADDRESS_UPDATED:
-      return `Customer Address Updated by ${user}`;
     case ActivityEvents.ADDRESS_CHANGED:
-      return `Customer Address Updated by ${user}`;
+      return `Address changed by ${user}`;
+    case ActivityEvents.CITY_UPDATED:
+      return `City changed by ${user}`;
+    case ActivityEvents.SOURCE_UPDATED:
+      return `Source changed by ${user}`;
+    case ActivityEvents.ENQUIRED_FOR_UPDATED:
+      return `Enquired For changed by ${user}`;
+    case ActivityEvents.LEAD_TYPE_UPDATED:
+      return `Lead Type changed by ${user}`;
+    case ActivityEvents.BRANCH_UPDATED:
+      return `Branch changed by ${user}`;
+    case ActivityEvents.OVERALL_REMARKS_UPDATED:
+      return `Overall Remarks changed by ${user}`;
+    case ActivityEvents.FOLLOWUP_REMARK_UPDATED:
+      if (metadata.field === "day1Remarks") return `Day 1 Remarks changed by ${user}`;
+      if (metadata.field === "day2Remarks") return `Day 2 Remarks changed by ${user}`;
+      if (metadata.field === "day3Remarks") return `Day 3 Remarks changed by ${user}`;
+      return `Follow-up Remarks changed by ${user}`;
     case ActivityEvents.TEMPLATE_SENT:
       return `Template Sent by ${user}`;
     case ActivityEvents.MESSAGE_RECEIVED:
@@ -100,13 +121,25 @@ export const getActivityIcon = (eventType) => {
     case ActivityEvents.LEAD_STATUS_CHANGED:
       return <RefreshCw size={size} className="text-violet-500 shrink-0" />;
     case ActivityEvents.CUSTOMER_UPDATED:
-      return <User size={size} className="text-indigo-500 shrink-0" />;
     case ActivityEvents.PROFILE_UPDATED:
+    case ActivityEvents.NAME_UPDATED:
       return <User size={size} className="text-indigo-500 shrink-0" />;
     case ActivityEvents.ADDRESS_UPDATED:
-      return <MapPin size={size} className="text-slate-500 shrink-0" />;
     case ActivityEvents.ADDRESS_CHANGED:
+    case ActivityEvents.CITY_UPDATED:
       return <MapPin size={size} className="text-slate-500 shrink-0" />;
+    case ActivityEvents.SOURCE_UPDATED:
+      return <Globe size={size} className="text-blue-500 shrink-0" />;
+    case ActivityEvents.ENQUIRED_FOR_UPDATED:
+      return <HelpCircle size={size} className="text-amber-500 shrink-0" />;
+    case ActivityEvents.LEAD_TYPE_UPDATED:
+      return <Tag size={size} className="text-violet-500 shrink-0" />;
+    case ActivityEvents.BRANCH_UPDATED:
+      return <Building2 size={size} className="text-teal-500 shrink-0" />;
+    case ActivityEvents.OVERALL_REMARKS_UPDATED:
+      return <FileText size={size} className="text-indigo-500 shrink-0" />;
+    case ActivityEvents.FOLLOWUP_REMARK_UPDATED:
+      return <Clock size={size} className="text-amber-500 shrink-0" />;
     case ActivityEvents.TEMPLATE_SENT:
       return <FileText size={size} className="text-violet-500 shrink-0" />;
     case ActivityEvents.MESSAGE_RECEIVED:
@@ -131,19 +164,27 @@ export const getActivityColor = (eventType) => {
     case ActivityEvents.FOLLOWUP_COMPLETED:
       return "emerald";
     case ActivityEvents.FOLLOWUP_CREATED:
+    case ActivityEvents.FOLLOWUP_REMARK_UPDATED:
+    case ActivityEvents.ENQUIRED_FOR_UPDATED:
       return "amber";
     case ActivityEvents.CHAT_STARTED:
     case ActivityEvents.LEAD_CREATED:
     case ActivityEvents.CUSTOMER_CREATED:
+    case ActivityEvents.SOURCE_UPDATED:
       return "blue";
     case ActivityEvents.LEAD_STATUS_CHANGED:
+    case ActivityEvents.LEAD_TYPE_UPDATED:
       return "violet";
     case ActivityEvents.LEAD_ASSIGNED:
     case ActivityEvents.CUSTOMER_ASSIGNED:
     case ActivityEvents.CUSTOMER_UPDATED:
     case ActivityEvents.PROFILE_UPDATED:
+    case ActivityEvents.NAME_UPDATED:
     case ActivityEvents.ADDRESS_UPDATED:
     case ActivityEvents.ADDRESS_CHANGED:
+    case ActivityEvents.CITY_UPDATED:
+    case ActivityEvents.BRANCH_UPDATED:
+    case ActivityEvents.OVERALL_REMARKS_UPDATED:
       return "indigo";
     default:
       return "slate";

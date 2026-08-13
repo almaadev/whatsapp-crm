@@ -6,43 +6,7 @@ import Message from "@/shared/models/Message";
 import Branch from "@/shared/models/Branch";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 
-/**
- * Calculates start and end Date objects based on preset values or custom inputs.
- */
-export function getOperationalDateBounds(dateRange, customStart, customEnd) {
-  const now = new Date();
-  let startDate = new Date();
-  let endDate = new Date();
-
-  if (dateRange === "today") {
-    startDate.setHours(0, 0, 0, 0);
-    endDate.setHours(23, 59, 59, 999);
-  } else if (dateRange === "yesterday") {
-    startDate.setDate(startDate.getDate() - 1);
-    startDate.setHours(0, 0, 0, 0);
-    endDate = new Date(startDate);
-    endDate.setHours(23, 59, 59, 999);
-  } else if (dateRange === "thisWeek") {
-    const dayOfWeek = now.getDay();
-    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek, 0, 0, 0, 0);
-    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-  } else if (dateRange === "thisMonth") {
-    startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0));
-    endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
-  } else if (dateRange === "lastMonth") {
-    startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0));
-    endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999));
-  } else if (dateRange === "custom" && customStart) {
-    startDate = new Date(customStart);
-    endDate = customEnd ? new Date(customEnd) : new Date();
-  } else {
-    // Default to this month
-    startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0));
-    endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
-  }
-
-  return { startDate, endDate };
-}
+import { getOperationalDateBounds } from "@/shared/utils/dateRangeResolver";
 
 /**
  * Main analytics compiler that executes MongoDB aggregations and constructs the Response DTO.
@@ -451,50 +415,245 @@ export async function getPerformanceAnalytics({
   };
 }
 
+import Activity from "@/shared/models/Activity";
+import CustomerAddress from "@/shared/models/CustomerAddress";
+import { resolveLeadStatus } from "@/shared/utils/leadStatusResolver";
+import { getActivityTitle } from "@/shared/utils/activityFormatter";
+
 /**
- * Lazy loads every customer handled timeline history for a specific associate.
+ * Lazy loads customer-level handled history DTOs for a specific associate.
  */
-export async function getAssociateCustomers(associateId) {
-  const user = await User.findById(associateId).lean();
-  
+export async function getAssociateCustomers(associateId, options = {}) {
+  const {
+    dateRange = "thisMonth",
+    customStart,
+    customEnd,
+    branchFilter = "all",
+    isSuperAdmin = false,
+    adminBranch = null
+  } = options;
+
+  // 1. Resolve User identity (associateId -> User ObjectId & name)
+  let user = null;
+  const isObjectId = mongoose.Types.ObjectId.isValid(associateId);
+  if (isObjectId) {
+    user = await User.findById(associateId).lean();
+  }
+  if (!user) {
+    user = await User.findOne({
+      $or: [
+        { name: associateId },
+        { email: associateId }
+      ]
+    }).lean();
+  }
+
+  const associateObjectId = user?._id || (isObjectId ? new mongoose.Types.ObjectId(associateId) : null);
+  const associateIdStr = associateObjectId ? associateObjectId.toString() : associateId;
+  const associateName = user?.name || "";
+
+  // 2. IST Date bounds & Branch RBAC
+  const { startDate, endDate } = getOperationalDateBounds(dateRange, customStart, customEnd);
+
   const branches = await Branch.find().lean();
   const branchMap = {};
   branches.forEach(b => {
     branchMap[b._id.toString()] = b.name;
   });
 
-  const customers = await Customer.find({
-    $or: [
-      { "chatHistory.performedById": associateId },
-      { "chatHistory.performedByName": user?.name || "" }
+  let effectiveBranch = branchFilter;
+  if (!isSuperAdmin) {
+    effectiveBranch = adminBranch || "none";
+  }
+
+  // 3. Primary Handled Customer Qualification (Rule 1 & 2)
+  const idVariations = [associateIdStr];
+  if (associateObjectId) idVariations.push(associateObjectId);
+
+  const qualifiedCustomerSet = new Set();
+  const handlingTimestampMap = {};
+
+  const leadMatchConditions = [
+    { associateId: { $in: idVariations } },
+    { "handledByHistory.associateId": { $in: idVariations } },
+    { "leads.associateId": { $in: idVariations } }
+  ];
+  if (associateName) {
+    leadMatchConditions.push({ assignedTo: associateName });
+    leadMatchConditions.push({ "leads.associateName": associateName });
+    leadMatchConditions.push({ "handledByHistory.associateName": associateName });
+  }
+
+  const qualifiedLeads = await Lead.find({
+    $or: leadMatchConditions,
+    $and: [
+      {
+        $or: [
+          { createdAt: { $gte: startDate, $lte: endDate } },
+          { updatedAt: { $gte: startDate, $lte: endDate } },
+          { "handledByHistory.assignedAt": { $gte: startDate, $lte: endDate } },
+          { "leads.date": { $gte: startDate, $lte: endDate } }
+        ]
+      }
     ]
   }).lean();
 
-  const timelineEntries = [];
-  customers.forEach(customer => {
-    const history = customer.chatHistory || [];
-    history.forEach(item => {
-      const matchId = item.performedById?.toString() === associateId;
-      const matchName = item.performedByName === user?.name;
-      
-      if (matchId || matchName) {
-        timelineEntries.push({
-          customerName: resolveCustomerDisplayName(customer),
-          phone: customer.phone,
-          enquiredFor: customer.enquiredFor || "-",
-          currentStatus: customer.status || "New",
-          activityType: item.action || item.eventType || "-",
-          handledAt: item.timestamp || item.performedAt || new Date(),
-          handledBy: item.performedByName || user?.name || "System",
-          branch: branchMap[customer.branchId?.toString()] || "-",
-          remark: item.notes || "-"
-        });
+  qualifiedLeads.forEach(l => {
+    if (l.customerId) {
+      const cid = l.customerId.toString();
+      qualifiedCustomerSet.add(cid);
+
+      let handledTs = l.createdAt;
+      if (l.handledByHistory?.length) {
+        const matchH = l.handledByHistory.find(h => idVariations.includes(h.associateId?.toString()) || h.associateName === associateName);
+        if (matchH?.assignedAt) handledTs = matchH.assignedAt;
       }
-    });
+      if (!handlingTimestampMap[cid] || new Date(handledTs) < new Date(handlingTimestampMap[cid])) {
+        handlingTimestampMap[cid] = handledTs;
+      }
+    }
   });
 
-  // Sort newest first
-  timelineEntries.sort((a, b) => new Date(b.handledAt) - new Date(a.handledAt));
+  const customerMatchConditions = [
+    { assignedUserId: { $in: idVariations } },
+    { createdBy: { $in: idVariations } }
+  ];
+  if (associateName) {
+    customerMatchConditions.push({ assignedTo: associateName });
+  }
 
-  return timelineEntries;
+  const qualifiedCustomersDirect = await Customer.find({
+    $or: customerMatchConditions,
+    createdAt: { $gte: startDate, $lte: endDate }
+  }).lean();
+
+  qualifiedCustomersDirect.forEach(c => {
+    const cid = c._id.toString();
+    qualifiedCustomerSet.add(cid);
+    if (!handlingTimestampMap[cid] || new Date(c.createdAt) < new Date(handlingTimestampMap[cid])) {
+      handlingTimestampMap[cid] = c.createdAt;
+    }
+  });
+
+  const qualifiedCustomerIds = Array.from(qualifiedCustomerSet);
+  if (qualifiedCustomerIds.length === 0) {
+    return [];
+  }
+
+  // 4. Fetch related Customer, Address, Lead, and Activity data
+  const customerQuery = { _id: { $in: qualifiedCustomerIds } };
+  if (effectiveBranch !== "all" && effectiveBranch !== "none") {
+    const branchDoc = await Branch.findOne({
+      $or: [
+        { _id: mongoose.Types.ObjectId.isValid(effectiveBranch) ? effectiveBranch : null },
+        { name: effectiveBranch }
+      ]
+    }).lean();
+    if (branchDoc) {
+      customerQuery.branchId = branchDoc._id;
+    }
+  }
+
+  const customers = await Customer.find(customerQuery)
+    .populate("currentAddressId")
+    .lean();
+
+  const matchedCustomerIds = customers.map(c => c._id);
+  const leads = await Lead.find({ customerId: { $in: matchedCustomerIds } }).lean();
+  const activities = await Activity.find({ customerId: { $in: matchedCustomerIds } }).sort({ createdAt: -1 }).lean();
+
+  const leadByCustId = {};
+  leads.forEach(l => {
+    leadByCustId[l.customerId.toString()] = l;
+  });
+
+  const activitiesByCustId = {};
+  activities.forEach(a => {
+    const cid = a.customerId.toString();
+    if (!activitiesByCustId[cid]) activitiesByCustId[cid] = [];
+    activitiesByCustId[cid].push(a);
+  });
+
+  // 5. Aggregate by customerId into 1 Customer = 1 Row DTOs
+  const customerDTOs = customers.map(customer => {
+    const cid = customer._id.toString();
+    const lead = leadByCustId[cid];
+    const custActivities = activitiesByCustId[cid] || [];
+    const followUps = lead?.leads || [];
+    const latestFollowUp = followUps.length > 0 ? followUps[followUps.length - 1] : null;
+
+    const branchName = branchMap[customer.branchId?.toString()] || customer.branchName || "Unassigned Branch";
+    const currentStatus = resolveLeadStatus(lead) || customer.status || "New";
+
+    const historyList = [];
+    const seenEventKeys = new Set();
+
+    followUps.forEach(fu => {
+      const matchAssoc = idVariations.includes(fu.associateId?.toString()) || fu.associateName === associateName;
+      if (matchAssoc) {
+        const key = `fu_${fu._id?.toString() || fu.date}`;
+        if (!seenEventKeys.has(key)) {
+          seenEventKeys.add(key);
+          historyList.push({
+            eventType: "FOLLOWUP_ENTRY",
+            action: `Follow-Up (${fu.status || "Note"})`,
+            handledAt: fu.date || fu.createdAt,
+            handledBy: fu.associateName || associateName,
+            remark: fu.overAllRemarks || fu.day1Remarks || fu.day2Remarks || fu.day3Remarks || fu.note || "-"
+          });
+        }
+      }
+    });
+
+    custActivities.forEach(act => {
+      const matchActor = idVariations.includes(act.actorId?.toString()) ||
+                         idVariations.includes(act.metadata?.performedById) ||
+                         act.metadata?.performedByName === associateName;
+      if (matchActor) {
+        const key = `act_${act._id?.toString()}`;
+        if (!seenEventKeys.has(key)) {
+          seenEventKeys.add(key);
+          const actTitle = getActivityTitle(act.eventType, act.metadata?.performedByName || associateName, act.metadata) || act.eventType;
+          historyList.push({
+            eventType: act.eventType,
+            action: actTitle,
+            handledAt: act.createdAt,
+            handledBy: act.metadata?.performedByName || associateName,
+            remark: act.metadata?.newValue || act.metadata?.notes || act.metadata?.remarks || "-"
+          });
+        }
+      }
+    });
+
+    historyList.sort((a, b) => new Date(b.handledAt) - new Date(a.handledAt));
+
+    const latestHistoryItem = historyList.length > 0 ? historyList[0] : null;
+    const latestActivityDate = latestHistoryItem ? latestHistoryItem.handledAt : (customer.updatedAt || customer.createdAt);
+    const handledAt = handlingTimestampMap[cid] || customer.createdAt;
+
+    return {
+      customerId: cid,
+      customerName: resolveCustomerDisplayName({ lead, customer, phone: customer.phone }),
+      phone: customer.phone,
+      branch: branchName,
+      associate: customer.assignedTo || associateName || "Unassigned",
+      currentStatus,
+      leadType: lead?.latestFollowUp?.leadType || customer.activeRouteCategory || "Direct Lead",
+      enquiredFor: latestFollowUp?.enquiredFor || customer.enquiredFor || "-",
+      priority: latestFollowUp?.priority || customer.priority || "Medium",
+      handledAt,
+      followUpDate: latestFollowUp?.nextFollowUp || latestFollowUp?.date || null,
+      followUpRemark: latestFollowUp?.day1Remarks || latestFollowUp?.overAllRemarks || "-",
+      closedDate: lead?.closedAt || null,
+      closedRemark: lead?.closedBy ? `Closed by ${lead.closedBy}` : "-",
+      latestActivityDate,
+      activityType: latestHistoryItem ? latestHistoryItem.action : "Customer Handled",
+      remark: latestHistoryItem?.remark || latestFollowUp?.overAllRemarks || customer.remarks || "-",
+      history: historyList
+    };
+  });
+
+  customerDTOs.sort((a, b) => new Date(b.latestActivityDate || b.handledAt) - new Date(a.latestActivityDate || a.handledAt));
+
+  return customerDTOs;
 }

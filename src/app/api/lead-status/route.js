@@ -15,6 +15,8 @@ export async function POST(req) {
     // Delegate entirely to serverLeadService
     const result = await serverLeadService.createOrUpdateLead({
       phone: body.phone,
+      leadId: body.leadId,
+      customerId: body.customerId,
       status: body.status,
       priority: body.priority,
       overAllRemarks: body.notes || body.remarks || "",
@@ -32,7 +34,7 @@ export async function POST(req) {
       }
     }
 
-    return NextResponse.json({ success: true, lead: result.lead });
+    return NextResponse.json({ success: true, lead: result.lead, status: result.status });
   } catch (error) {
     console.error("Lead status update error:", error);
     return NextResponse.json({ error: error.message || "Failed to update lead status" }, { status: 400 });

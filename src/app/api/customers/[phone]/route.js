@@ -84,6 +84,14 @@ export async function GET(req, { params }) {
             "PROFILE_UPDATED",
             "ADDRESS_UPDATED",
             "ADDRESS_CHANGED",
+            "NAME_UPDATED",
+            "CITY_UPDATED",
+            "SOURCE_UPDATED",
+            "ENQUIRED_FOR_UPDATED",
+            "LEAD_TYPE_UPDATED",
+            "BRANCH_UPDATED",
+            "OVERALL_REMARKS_UPDATED",
+            "FOLLOWUP_REMARK_UPDATED",
             "TEMPLATE_SENT"
         ];
 

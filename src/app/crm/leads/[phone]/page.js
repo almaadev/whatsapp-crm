@@ -10,7 +10,7 @@ import {
   MessageSquare, History, Briefcase, Clock,
   AlertCircle, Copy, Check, Loader2, Menu, Globe,
   BadgeCheck, RefreshCcw, TrendingUp, UserCircle, CornerDownRight,
-  ChevronDown, ChevronUp, Filter, ChevronLeft, ChevronRight, X, CheckCircle2,
+  ChevronDown, Filter, ChevronLeft, ChevronRight, X, CheckCircle2,
   IndianRupee, ShieldAlert
 } from "lucide-react";
 import Link from "next/link";
@@ -20,6 +20,7 @@ import { leadRepository } from "@/shared/api/repositories/leadRepository";
 import { useAuth } from "@/shared/hooks/useAuth";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
 import { getActivityTitle } from "@/shared/utils/activityFormatter";
+import { resolveLeadStatus, isLeadLifecycleActivity, getClosedLeadCount } from "@/shared/utils/leadStatusResolver";
 // ─────────────────────────────────────────────────────────────────────────────
 //  MODERN ENTERPRISE STATUS BADGES
 // ─────────────────────────────────────────────────────────────────────────────
@@ -122,16 +123,21 @@ export default function LeadDetailsPage({ params }) {
             date: act.timestamp || act.createdAt,
             status: mappedStatus,
             associateName: performerName,
-            overAllRemarks: formattedTitle,
-            enquiredFor: "",
+            overAllRemarks: act.metadata?.notes || act.notes || act.metadata?.remarks || "",
+            title: formattedTitle,
+            enquiredFor: act.metadata?.enquiredFor || "",
             isActivity: true,
-            eventType: act.eventType
+            eventType: act.eventType,
+            metadata: act.metadata || {},
+            priority: act.metadata?.priority || null
           };
         });
 
-      const timeline = [...followups, ...activities].sort((a, b) => new Date(a.date) - new Date(b.date));
+      const timeline = [...followups, ...activities]
+        .filter(isLeadLifecycleActivity)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
       
-      const interactionCount = followups.filter(interaction => interaction.status === "Closed").length;
+      const interactionCount = getClosedLeadCount(lead);
       
       const firstFollowUp = followups.length > 0 ? followups[0] : {};
       const latestFollowUp = followups.length > 0 ? followups[followups.length - 1] : {};
@@ -139,7 +145,7 @@ export default function LeadDetailsPage({ params }) {
       const originHandler = firstFollowUp.associateName || lead.assignedTo || "Unassigned";
       const currentHandler = latestFollowUp.associateName || lead.assignedTo || "Unassigned";
 
-      const currentStatus = latestFollowUp.status || "New";
+      const currentStatus = resolveLeadStatus({ leads: followups });
       const currentPriority = latestFollowUp.priority || "Medium";
       const currentEnquiry = latestFollowUp.enquiredFor || "None specified";
       const currentRemarks = latestFollowUp.overAllRemarks || "No remarks added.";
@@ -382,7 +388,7 @@ export default function LeadDetailsPage({ params }) {
                           <p className="text-[13px] font-medium text-slate-500 mt-1">Review lifecycle history, handoffs, and progressions.</p>
                         </div>
                         <span className="bg-slate-50 text-slate-600 text-[13px] font-bold px-4 py-2 rounded-xl border border-slate-200 shrink-0 shadow-sm">
-                          {filteredTimeline.length} Record{filteredTimeline.length !== 1 ? "s" : ""}
+                          {intelligence.interactionCount} Record{intelligence.interactionCount !== 1 ? "s" : ""}
                         </span>
                     </div>
 
@@ -430,7 +436,8 @@ export default function LeadDetailsPage({ params }) {
                                       >
                                           <div className="flex flex-wrap sm:flex-nowrap justify-between items-start sm:items-center gap-2">
                                               <div className="flex flex-wrap items-center gap-3">
-                                                  <StatusBadge status={fu.status} labelOverride={fu.isActivity ? fu.overAllRemarks : null} />
+                                                  <StatusBadge status={fu.status} labelOverride={fu.isActivity ? (fu.title || fu.status) : null} />
+                                                  {fu.priority && <StatusBadge status={fu.priority} />}
                                                   <span className="text-[12px] font-semibold text-slate-500 flex items-center gap-1.5">
                                                       <Clock size={12} className="text-slate-400"/> {new Date(fu.date).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute:"2-digit" })}
                                                   </span>
@@ -462,7 +469,7 @@ export default function LeadDetailsPage({ params }) {
 
                                       {/* Expanded Body Layer */}
                                       {isExpanded && (
-                                          <div className="px-5 pb-6 pt-2 border-t border-slate-100 bg-slate-50/50 animate-in fade-in slide-in-from-top-2 duration-200">
+                                          <div className="px-5 pb-6 pt-2 border-t border-slate-100 bg-slate-50/50 animate-in fade-in slide-in-from-top-2 duration-200 font-medium">
                                               
                                               {fu.enquiredFor && (
                                                   <div className="mb-4 text-[14px] text-slate-800 flex items-center gap-2">
@@ -471,10 +478,24 @@ export default function LeadDetailsPage({ params }) {
                                                   </div>
                                               )}
 
+                                              {fu.priority && (
+                                                  <div className="mb-4 text-[14px] text-slate-800 flex items-center gap-2">
+                                                      <span className="font-bold text-slate-500 text-[11px] uppercase tracking-widest">Priority:</span> 
+                                                      <StatusBadge status={fu.priority} />
+                                                  </div>
+                                              )}
+
                                               {fu.overAllRemarks && (
                                                   <div className="bg-white border border-slate-200 rounded-2xl p-5 text-[14px] text-slate-700 font-medium italic shadow-sm relative mb-4">
                                                       <CornerDownRight size={18} className="absolute top-5 left-5 text-slate-300" />
                                                       <span className="pl-8 block leading-relaxed">"{fu.overAllRemarks}"</span>
+                                                  </div>
+                                              )}
+
+                                              {fu.note && (
+                                                  <div className="bg-white border border-slate-200 rounded-2xl p-5 text-[14px] text-slate-700 font-medium shadow-sm relative mb-4">
+                                                      <span className="font-bold text-slate-500 text-[11px] uppercase tracking-widest block mb-1 font-sans">Notes:</span>
+                                                      <span className="block leading-relaxed">{fu.note}</span>
                                                   </div>
                                               )}
 

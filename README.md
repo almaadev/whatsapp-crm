@@ -1,591 +1,279 @@
-#  Almaa Herbal Nature CRM
+# Almaa Herbal Nature CRM
 
-A modern, enterprise-grade Customer Relationship Management (CRM) platform built specifically for **WhatsApp-based customer engagement**, **lead management**, **sales operations**, and **real-time team collaboration**.
+An enterprise-grade Customer Relationship Management (CRM) platform built specifically for **WhatsApp customer engagement**, **lead pipeline management**, **automated keyword workflows**, **multi-branch sales operations**, and **real-time team collaboration**.
 
-The platform enables organizations to manage customer conversations, automate WhatsApp communication, assign leads, monitor sales performance, and collaborate across multiple departments through a scalable architecture.
-
----
-
-# Features
-
-- 🔐 Secure Authentication & Authorization
-- 💬 Real-time WhatsApp Chat
-- 📲 Twilio WhatsApp Integration
-- 🤖 Keyword-based Automated Replies
-- 📋 Lead & Customer Management
-- 👥 Multi-Role User Management
-- 🏢 Branch & Associate Support
-- 📊 Dashboard & Reports
-- 📁 WhatsApp Template Management
-- 🔄 Live Socket.io Synchronization
-- ⚡ Redis Caching & Session Management
-- 📎 Media Message Support
-- 🎯 Follow-up Tracking
-- 🔍 Global Customer Search
+Built for **Almaa Herbal Nature**, this platform streamlines customer communication, automates lead assignment, monitors sales metrics, and enables multi-role collaboration across branches.
 
 ---
 
-# Tech Stack
+## 📑 Table of Contents
 
-| Category | Technology |
-|-----------|------------|
-| Framework | Next.js (App Router) |
-| Runtime | Node.js Custom Server |
-| Database | MongoDB + Mongoose |
-| Cache | Redis (ioredis) |
-| Authentication | NextAuth.js |
-| Password Hashing | bcryptjs |
-| Real-time | Socket.io |
-| State Management | Zustand |
-| Styling | Tailwind CSS |
-| Animations | Framer Motion |
-| Icons | Lucide React |
-| Messaging | Twilio WhatsApp API |
-| Language | JavaScript |
+- [Features](#-features)
+- [Tech Stack](#-tech-stack)
+- [System Architecture](#-system-architecture)
+- [Directory Structure](#-directory-structure)
+- [User Roles & Permissions](#-user-roles--permissions)
+- [WhatsApp & Keyword Automation](#-whatsapp--keyword-automation)
+- [Environment Configuration](#-environment-configuration)
+- [Getting Started](#-getting-started)
+- [Database Migrations](#-database-migrations)
+- [Security & Encryption](#-security--encryption)
+- [Documentation](#-documentation)
+- [License](#-license)
 
 ---
 
-# System Architecture
+## ✨ Features
+
+- 💬 **Real-time WhatsApp Communication**: Instant bi-directional messaging using Twilio WhatsApp API & Socket.io synchronization.
+- 🤖 **Keyword Automated Responses**: Intelligent lead categorization and auto-replies (MD Camp, Product, Therapy, Direct Leads) using approved templates.
+- 📋 **Lead & Pipeline Management**: Track sales funnels, status progressions (`New`, `Contacted`, `Interested`, `Follow-up`, `Closed`, `Lost`), deal sizes, priority levels, and follow-up schedules.
+- 👥 **Role-Based Access Control (RBAC)**: Custom NextAuth.js authentication with role-based routing for `Super Admin`, `Sales`, `Doctor`, and `Associate` users.
+- 🟢 **User Online Presence**: Live online/offline tracking and socket connection management.
+- 📁 **WhatsApp Template Engine**: Search, preview, dynamic variable injection (`{{1}}`, `{{2}}`), and meta template status management.
+- 🏢 **Multi-Branch & Regional Phone Support**: Supports branch-specific WhatsApp numbers (e.g., Chennai regional line) and branch filtering.
+- 📊 **Analytics & Reporting Dashboards**: Monitor customer volume, message counts, associate performance, conversion rates, and revenue.
+- 🔒 **Payload Encryption & Data Protection**: Encryption utilities for sensitive payload transport (`NEXT_PUBLIC_API_ENCRYPTION_KEY`), password hashing via bcryptjs, and Redis token blacklisting.
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology | Details |
+|---|---|---|
+| **Framework** | Next.js 16 (App Router) | Server-side rendering, API routes, App layout |
+| **Frontend Library** | React 19 | UI component architecture |
+| **Server Engine** | Custom Node.js Server | `src/server.js` running HTTP server + Socket.io |
+| **Database** | MongoDB + Mongoose 9 | NoSQL persistence layer for customer, lead, and message records |
+| **Caching & Sessions** | Redis (`ioredis`) | Session store, JWT blacklisting, and fast query caching |
+| **Real-time Sync** | Socket.io 4 | WebSockets for live chat, presence, and status notifications |
+| **State & Data Fetching**| Zustand 5 + TanStack Query 5 | Client-side state management and asynchronous server state caching |
+| **Styling** | Tailwind CSS v4 + Framer Motion | Modern responsive design system and micro-animations |
+| **Messaging & Voice** | Twilio API | Twilio WhatsApp Business API & Twilio Voice/TwIML support |
+| **Authentication** | NextAuth.js v4 | JWT strategy, credentials provider, protected middleware |
+
+---
+
+## 📐 System Architecture
 
 ```
-                Twilio WhatsApp
-                       │
-                       ▼
-                Webhook Endpoint
-                       │
-          Keyword Detection & Routing
-                       │
-        ┌──────────────┴──────────────┐
-        ▼                             ▼
- Automatic Reply               Store Message
- (Template Engine)             MongoDB
-        │                             │
-        └──────────────┬──────────────┘
-                       ▼
-                Socket.io Events
-                       │
-                       ▼
-              Next.js CRM Dashboard
-```
-
----
-
-# Authentication & Access Control
-
-The CRM uses **NextAuth.js** with a custom **Credentials Provider**.
-
-Supported roles:
-
-- Super Admin
-- Sales
-- Doctor
-
-Features include:
-
-- JWT Authentication
-- Secure Password Hashing
-- Redis Token Blacklisting
-- Protected Middleware Routes
-- Module-based Permissions
-- Department-based Access
-- Session Validation
-
-Protected modules include:
-
-- Dashboard
-- CRM Inbox
-- Reports
-- Bulk Messaging
-- Template Library
-- Associate Management
-- Admin Panel
-
----
-
-# WhatsApp Integration
-
-The CRM integrates directly with the **Twilio WhatsApp Business API**.
-
-Capabilities include:
-
-- Receive Incoming Messages
-- Send Individual Messages
-- Send Template Messages
-- Manage WhatsApp Templates
-- Delivery Status Tracking
-- Read Receipts
-- Media Messages
-- Webhook Processing
-- Real-time Synchronization
-
-Supported media:
-
-- Images
-- Videos
-- Audio
-- Documents
-- PDF Files
-
----
-
-# Intelligent Message Routing
-
-Incoming WhatsApp messages are automatically categorized using keyword matching.
-
-Example routing:
-
-```
-Incoming Message
-        │
-        ▼
-Keyword Detection
-        │
- ┌──────┼─────────┐
- ▼      ▼         ▼
-Product MD Camp Therapy
- Lead     Lead     Lead
-        │
-        ▼
- Default Direct Lead
-```
-
-Automation supports:
-
-- Product Leads
-- Medical Camp Leads
-- Therapy Leads
-- Direct Leads
-
-If an active keyword automation exists, the system automatically replies using an approved WhatsApp Template.
-
----
-
-# Customer Management
-
-Features include:
-
-- Customer Profiles
-- Conversation History
-- Lead Assignment
-- Associate Ownership
-- Branch Assignment
-- Notes & Remarks
-- Follow-up History
-- Lead Status
-- Priority Levels
-- Customer Search
-
----
-
-# Lead Management
-
-Each lead contains:
-
-- Customer Details
-- Status
-- Priority
-- Source
-- Follow-up Schedule
-- Sales Amount
-- Assigned Associate
-- Branch
-- Closing Information
-- Remarks
-
-Supported statuses:
-
-- New
-- Contacted
-- Interested
-- Follow-up
-- Closed
-- Lost
-
----
-
-# Real-Time Communication
-
-Socket.io keeps every connected CRM user synchronized.
-
-Real-time updates include:
-
-- New Messages
-- Message Status
-- Customer Assignment
-- Template Updates
-- Chat Notifications
-- Lead Changes
-- Delivery Reports
-- Read Receipts
-
-No manual refresh required.
-
----
-
-# WhatsApp Templates
-
-Agents can:
-
-- Browse Templates
-- Search Templates
-- Send Approved Templates
-- Fill Dynamic Variables
-- Preview Templates
-- Categorize Templates
-- Manage Template Status
-
-Variable support:
-
-```
-Hello {{1}}
-
-Your appointment is confirmed for {{2}}.
-
-Thank you.
+                       Twilio WhatsApp Business API
+                                    │
+                                    ▼
+                      Incoming Webhook / Route Handler
+                                    │
+                       Keyword Detection & Routing
+                                    │
+           ┌────────────────────────┴────────────────────────┐
+           ▼                                                 ▼
+ Automatic Auto-Reply                              Store Message & Lead
+  (Template Engine)                                (MongoDB / Mongoose)
+           │                                                 │
+           └────────────────────────┬────────────────────────┘
+                                    ▼
+                          Socket.io Event Server
+                            (`src/server.js`)
+                                    │
+                                    ▼
+                      Next.js CRM Dashboard & Inbox
+                   (`src/app` / `src/features/chat`)
 ```
 
 ---
 
-# Dashboard
+## 📂 Directory Structure
 
-Dashboard statistics include:
-
-- Total Customers
-- Active Leads
-- Closed Leads
-- Today's Messages
-- Revenue
-- Follow-ups
-- Pending Tasks
-- Associate Performance
-- Branch Performance
-
----
-
-# User Roles
-
-## Super Admin
-
-- Full CRM Access
-- Manage Users
-- Manage Associates
-- Manage Branches
-- Reports
-- Dashboard
-- Templates
-- Bulk Messaging
-- Settings
-
----
-
-## Sales
-
-- Assigned Customers
-- WhatsApp Inbox
-- Lead Management
-- Follow-ups
-- Customer Notes
-- Templates
-
----
-
-## Doctor
-
-- Assigned Patients
-- Chat Access
-- Medical Follow-ups
-- Consultation History
-
----
-
-# Project Structure
+The project follows a modular, feature-driven directory structure inside `src/`:
 
 ```
 .
-├── app/
-├── components/
-├── hooks/
-├── lib/
-├── middleware/
-├── models/
-├── repositories/
-├── routes/
-├── server/
-├── services/
-├── socket/
-├── stores/
-├── styles/
-├── utils/
-├── validators/
-├── public/
-├── server.js
-├── package.json
-└── README.md
+├── docs/                             # Deep-dive technical documentation
+│   └── technical_documentation.md    # Complete system specification
+├── public/                           # Static public assets
+├── scripts/                          # Maintenance & DB migration scripts
+│   └── migrate.js                    # Database migration tool
+├── src/
+│   ├── app/                          # Next.js 16 App Router
+│   │   ├── api/                      # Next.js API endpoints (webhooks, auth, export)
+│   │   ├── crm/                      # Core CRM pages (chat, leads, reports, admin)
+│   │   ├── globals.css               # Global styles & Tailwind CSS v4 config
+│   │   ├── layout.js                 # Root app layout & providers
+│   │   └── page.js                   # Root landing / redirect page
+│   ├── features/                     # Feature modules (UI, components, hooks, stores)
+│   │   ├── admin/                    # System administration & branch management
+│   │   ├── auth/                     # Authentication components & login forms
+│   │   ├── branches/                 # Branch location configurations
+│   │   ├── chat/                     # WhatsApp live inbox, chat window & media previews
+│   │   ├── leads/                    # Lead board, pipeline views & customer profiles
+│   │   ├── presence/                 # User online presence tracker
+│   │   ├── reports/                  # Analytics, charts & report exports
+│   │   ├── templates/                # WhatsApp template library & message composer
+│   │   └── user/                     # Associate & user profile tools
+│   ├── server/                       # Server-side domain business logic
+│   │   └── services/                 # Activity, chat, customer & lead server services
+│   ├── shared/                       # Shared utilities, hooks, models & configuration
+│   │   ├── api/                      # HTTP client & Axios request wrappers
+│   │   ├── components/               # Common UI components (buttons, modals, tables)
+│   │   ├── config/                   # System config & environment setups
+│   │   ├── constants/                # Enums, statuses & constant values
+│   │   ├── hooks/                    # Global custom React hooks
+│   │   ├── lib/                      # DB connections (MongoDB, Redis), socket client
+│   │   ├── models/                   # Mongoose DB schemas (User, Customer, Lead, etc.)
+│   │   ├── repositories/              # Database data access layer
+│   │   ├── serializers/              # Data encryption & serialization utilities
+│   │   ├── services/                 # Business logic services
+│   │   └── utils/                    # Helper functions, date formatters, audio alerts
+│   ├── proxy.js                      # Route proxy handler
+│   └── server.js                     # Custom Node.js server (Next.js + Socket.io)
+├── .env.local                        # Local environment variables
+├── next.config.mjs                   # Next.js configuration
+├── package.json                      # npm dependencies and scripts
+└── README.md                         # Project documentation
 ```
 
 ---
 
-# Directory Overview
+## 👥 User Roles & Permissions
 
-## `server.js`
-
-Custom Node.js server responsible for:
-
-- Initializing Next.js
-- Creating HTTP Server
-- Attaching Socket.io
-- Starting Application
+- 👑 **Super Admin**: Full administrative control over all branches, associates, templates, reporting, system settings, and lead reassignments.
+- 💼 **Sales Associate**: Access to assigned WhatsApp conversations, lead pipeline updates, follow-up scheduling, customer notes, and template messaging.
+- 🩺 **Doctor**: Access to medical consultation leads, patient conversation history, clinical follow-ups, and specialized consultation notes.
 
 ---
 
-## `app/`
+## 🤖 WhatsApp & Keyword Automation
 
-Next.js App Router pages.
+Incoming WhatsApp messages trigger intelligent keyword detection:
 
-Contains:
-
-- Dashboard
-- CRM
-- Authentication
-- Settings
-- Reports
-
----
-
-## `components/`
-
-Reusable React components.
-
-Examples:
-
-- Chat Area
-- Sidebar
-- Header
-- Customer Card
-- Lead Card
-- Template Modal
-- Dashboard Widgets
-
----
-
-## `services/`
-
-Business logic layer.
-
-Examples:
-
-- Lead Service
-- Customer Service
-- Twilio Service
-- Webhook Service
-- Template Service
-
----
-
-## `repositories/`
-
-Database abstraction layer.
-
-Handles:
-
-- CRUD Operations
-- Aggregations
-- Pagination
-- Search Queries
-
----
-
-## `models/`
-
-MongoDB Mongoose Models.
-
-Examples:
-
-- User
-- Customer
-- Lead
-- Message
-- Template
-- KeywordAutomation
-- Branch
-
----
-
-## `stores/`
-
-Zustand state management.
-
-Examples:
-
-- Chat Store
-- Category Store
-- Template Store
-- UI Store
-
----
-
-## `lib/`
-
-Core configurations.
-
-Includes:
-
-- MongoDB
-- Redis
-- Authentication
-- Socket Configuration
-- Keyword Matching
-
----
-
-## `utils/`
-
-Utility functions.
-
-Examples:
-
-- Date Formatting
-- Audio Notifications
-- XML Builders
-- Helpers
-- Constants
-
----
-
-## `validators/`
-
-Input validation.
-
-Examples:
-
-- Webhook Validation
-- Customer Validation
-- Lead Validation
-- Template Validation
-
----
-
-# Redis Usage
-
-Redis is used for:
-
-- JWT Blacklisting
-- Query Cache
-- Session Storage
-- Frequently Accessed Data
-- Performance Optimization
-
----
-
-# Security
-
-Security measures include:
-
-- JWT Authentication
-- Password Hashing
-- Protected Routes
-- Middleware Validation
-- Redis Session Revocation
-- Input Validation
-- Environment Variables
-- Secure Cookies
-
----
-
-# Performance
-
-Optimizations include:
-
-- Redis Cache
-- Zustand Client Cache
-- Socket Event Deduplication
-- MongoDB Aggregation Pipelines
-- Lazy Component Loading
-- Optimized React Rendering
-
----
-
-# Installation
-
-```bash
-git clone https://github.com/yourusername/almaa-herbal-crm.git
-
-cd almaa-herbal-crm
-
-npm install
+```
+Incoming Customer Message
+           │
+           ▼
+ Keyword Router Engine
+           │
+ ┌─────────┼───────────┬──────────────┐
+ ▼         ▼           ▼              ▼
+Product MD Camp     Therapy        Direct
+ Lead     Lead       Lead           Lead
+ └─────────┴───────────┴──────────────┘
+           │
+           ▼
+ Send Approved WhatsApp Template Auto-Reply
 ```
 
+Automations allow instantaneous engagement with prospective leads before an associate manually takes over the conversation.
+
 ---
 
-# Environment Variables
+## 🔑 Environment Configuration
 
-Create a `.env` file.
+Create a `.env.local` file in the project root with the required environment parameters:
 
 ```env
-NEXTAUTH_SECRET=
+# Node & Server Setup
+PORT=3000
+HOST="localhost"
+NODE_ENV="development"
+NEXT_PUBLIC_BASE_URL="http://localhost:3000"
 
-NEXTAUTH_URL=
+# Authentication (NextAuth.js)
+NEXTAUTH_SECRET="your-nextauth-secret-key"
+NEXTAUTH_URL="http://localhost:3000"
+JWT_SECRET="your-jwt-secret-key"
 
-MONGODB_URI=
+# Database Connections
+MONGODB_URI="mongodb://127.0.0.1:27017/almaa_crm"
+MONGODB_DB="almaa_crm"
+REDIS_URL="redis://127.0.0.1:6379"
 
-REDIS_URL=
+# Security & Encryption
+NEXT_PUBLIC_API_ENCRYPTION_KEY="your-32-byte-hex-encryption-key"
 
-TWILIO_ACCOUNT_SID=
+# Twilio Account & WhatsApp Credentials
+TWILIO_ACCOUNT_SID="ACxxxxxxxxxxxxxxxxxxxxxxxx"
+TWILIO_AUTH_TOKEN="your_twilio_auth_token"
+TWILIO_API_KEY="your_twilio_api_key"
+TWILIO_API_SECRET="your_twilio_api_secret"
+TWILIO_TWIML_APP_SID="your_twiml_app_sid"
+NEXT_PUBLIC_TWILIO_PHONE_NUMBER="whatsapp:+91XXXXXXXXXX"
+NEXT_PUBLIC_TWILIO_WHATSAPP_NUMBER_CHENNAI="whatsapp:+91XXXXXXXXXX"
 
-TWILIO_AUTH_TOKEN=
-
-TWILIO_WHATSAPP_NUMBER=
-
-TWILIO_CONTENT_API_KEY=
-
-JWT_SECRET=
+# Initial Admin Credentials
+ADMIN_EMAIL="admin@almaa.com"
+ADMIN_PASSWORD="admin123"
 ```
 
 ---
 
-# Run Development Server
+## 🚀 Getting Started
+
+### Prerequisites
+
+Ensure you have the following installed on your environment:
+- **Node.js**: v18.0.0 or higher
+- **MongoDB**: v6.0 or higher (running locally or MongoDB Atlas)
+- **Redis**: v6.0 or higher (running locally or cloud instance)
+
+### Installation & Run
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/your-org/whatsapp-crm.git
+   cd whatsapp-crm
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+3. **Configure Environment Variables**:
+   Copy `.env.example` (or set up `.env.local`) with your local MongoDB, Redis, NextAuth, and Twilio credentials.
+
+4. **Run the Development Server**:
+   ```bash
+   npm run dev
+   ```
+   > The app will launch on `http://localhost:3000` via the custom Node.js server (`src/server.js`).
+
+5. **Build and Run in Production**:
+   ```bash
+   npm run build
+   npm run start
+   ```
+
+---
+
+## 🔄 Database Migrations
+
+To run database maintenance or update database collections, execute the migration script:
 
 ```bash
-npm run dev
+node scripts/migrate.js
 ```
 
----
-
-# Production
-
-```bash
-npm run build
-
-npm start
-```
+The script automatically detects environment configurations from `.env` / `.env.local` and executes schema transformations safely.
 
 ---
 
-# Future Roadmap
+## 🔒 Security & Encryption
 
-- AI Chat Assistant
-- AI Lead Scoring
-- WhatsApp Broadcast Analytics
-- Branch-wise CRM
-- Voice Calling Integration
-- Call Recording
-- Customer Timeline
-- Marketing Campaign Automation
-- Mobile Application
-- Advanced Reporting Dashboard
-- Multi-language Support
-- Workflow Automation Builder
+- **Authentication**: Powered by NextAuth.js using secure JWT tokens and bcrypt password hashing.
+- **Token Blacklisting**: Revoked sessions are logged in Redis to prevent unauthorized session reuse.
+- **Payload Encryption**: Endpoints support request/response payload encryption using AES via `NEXT_PUBLIC_API_ENCRYPTION_KEY`.
+- **Role Guards**: Middleware routes and feature components are guarded by role-based authorization helpers (`src/shared/utils/auth.js`).
 
 ---
 
-# License
+## 📖 Documentation
 
-This project is proprietary software developed for **Almaa Herbal Nature**.
+For detailed technical specifications, database schema diagrams, API contracts, and real-time Socket event schemas, consult the dedicated documentation:
 
-Unauthorized copying, modification, distribution, or commercial use is prohibited without written permission.
+👉 **[Technical Documentation](file:///d:/HARD%20DISK%20FILES/whatsapp-crm%20-%20test/docs/technical_documentation.md)**
 
 ---
 
-# Developed With ❤️
+## ⚖️ License
 
-Built using **Next.js**, **MongoDB**, **Redis**, **Socket.io**, **Twilio**, and modern JavaScript technologies to deliver a scalable, real-time CRM experience for WhatsApp customer engagement.
+Proprietary software developed for **Almaa Herbal Nature**.  
+All rights reserved. Unauthorized copying, distribution, or commercial reuse is strictly prohibited.

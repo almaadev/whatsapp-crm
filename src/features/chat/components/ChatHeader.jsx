@@ -3,6 +3,8 @@ import { ChevronLeft,ChevronDown, Bell, Share2, Info, Tag, MapPin, MoreVertical,
 import { useSession } from "next-auth/react";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
+import { getAvailableLeadStatuses } from "@/shared/utils/leadStatusResolver";
+
 
 const ChatHeader = memo(function ChatHeader({
   activeChat,
@@ -44,15 +46,13 @@ const ChatHeader = memo(function ChatHeader({
   const chatHistory = detailedCustomer?.chatHistory || [];
   const hasChatHistory = chatHistory.some(act => ["CHAT_STARTED", "CHAT_CLOSED", "CHAT_REOPENED"].includes(act.eventType)) || (history.length > 0);
 
-  const hasStatusHistory = Boolean(
-    lastHistoryMsg?.status === "Follow Up" ||
-    lastHistoryMsg?.status === "Closed" ||
-    lastHistoryMsg?.status === "Not Interested"
-  );
+  const currentStatus = detailedCustomer?.status || activeChat?.status || "New";
+  const hasLeadHistory = Boolean(detailedCustomer?.history && detailedCustomer.history.length > 0);
 
-  const statusOptions = hasStatusHistory
-    ? ["Follow Up", "Closed", "Not Interested"]
-    : ["New", "Follow Up", "Closed", "Not Interested"];
+  const statusOptions = getAvailableLeadStatuses({
+    currentStatus,
+    hasLeadHistory,
+  });
 
   return (
     <div className="bg-white border-b border-slate-200/80 px-4 sm:px-6 py-3.5 flex items-center justify-between shadow-sm z-20 select-none">
@@ -235,16 +235,14 @@ const ChatHeader = memo(function ChatHeader({
             <span className="px-4 py-1 text-[9px] font-black text-slate-400 uppercase tracking-widest">
               Set Status:
             </span>
-            {["New", "Follow Up", "Closed", "Not Interested"].map((st) => (
+            {statusOptions.map((st) => (
               <button
                 key={st}
                 onClick={() => {
                   onStatusChange(st);
                   setActionsMenuOpen(false);
                 }}
-                className={`w-full text-left px-4 py-2 hover:bg-slate-50 transition-colors
-                  ${activeChat.status === st ? "text-[#00a884] font-extrabold" : ""}
-                `}
+                className="w-full text-left px-4 py-2 hover:bg-slate-50 transition-colors"
               >
                 {st}
               </button>
