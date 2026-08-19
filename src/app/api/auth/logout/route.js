@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import redis from "@/shared/lib/db/redis";
 import { cookies } from "next/headers";
+import { associateSessionService } from "@/server/services/associateSessionService";
 
 export async function POST(req) {
     try {
@@ -13,6 +14,15 @@ export async function POST(req) {
             const userId = token.id || token.sub;
             const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";
             
+            // Mark associate session as logged_out (manual_logout)
+            if (userId) {
+                try {
+                    await associateSessionService.logoutSession(userId, null, "manual_logout");
+                } catch (e) {
+                    console.error("[LOGOUT API] Failed to mark associate session logged out:", e);
+                }
+            }
+
             // 2. Blacklist the JWT in Redis (if Redis is available and JTI exists)
             if (jti && redis && redis.status === "ready") {
                 // Blacklist until the token naturally expires, or default to 24h

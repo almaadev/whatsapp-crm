@@ -3,19 +3,27 @@ import { useState, useEffect } from "react";
 import { 
   Search, Plus, Edit2, Trash2, Zap, 
   Loader2, MessageSquareCode, Check, X, 
-  AlertCircle, Activity
+  AlertCircle, Activity, FileText, Layers, Variable
 } from "lucide-react";
 import { automationRepository } from "@/shared/api/repositories/automationRepository";
+import { crmTemplateRepository } from "@/shared/api/repositories/crmTemplateRepository";
 import { toast } from "react-toastify";
 
 export default function KeywordAutomationPage() {
   const [keywords, setKeywords] = useState([]);
+  const [crmTemplates, setCrmTemplates] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [currentEdit, setCurrentEdit] = useState(null);
   const [keywordInput, setKeywordInput] = useState("");
-  const [formData, setFormData] = useState({ keywords: [], templateSid: "", isActive: true });
+  const [formData, setFormData] = useState({
+    keywords: [],
+    templateType: "whatsapp",
+    templateId: "",
+    templateSid: "",
+    isActive: true,
+  });
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -31,8 +39,18 @@ export default function KeywordAutomationPage() {
     setLoading(false);
   };
 
+  const fetchCrmTemplates = async () => {
+    try {
+      const { data: json } = await crmTemplateRepository.getTemplates({ status: "active" });
+      if (json.success) setCrmTemplates(json.data || []);
+    } catch (err) {
+      console.error("Failed to fetch CRM templates", err);
+    }
+  };
+
   useEffect(() => {
     fetchKeywords();
+    fetchCrmTemplates();
   }, []);
 
   const addKeyword = (rawWord) => {
@@ -52,7 +70,7 @@ export default function KeywordAutomationPage() {
       }
       return {
         ...prev,
-        keywords: [...prev.keywords, word]
+        keywords: [...prev.keywords, word],
       };
     });
     setKeywordInput("");
@@ -71,14 +89,25 @@ export default function KeywordAutomationPage() {
         initialKeywords = [automationRule.key];
       }
 
+      const tType = automationRule.templateType || (automationRule.templateId ? "crm" : "whatsapp");
+      const tId = automationRule.templateId?._id || automationRule.templateId || "";
+
       setFormData({ 
         keywords: initialKeywords, 
-        templateSid: automationRule.templateSid, 
-        isActive: automationRule.isActive 
+        templateType: tType,
+        templateId: tId,
+        templateSid: automationRule.templateSid || "", 
+        isActive: automationRule.isActive ?? true,
       });
     } else {
       setCurrentEdit(null);
-      setFormData({ keywords: [], templateSid: "", isActive: true });
+      setFormData({
+        keywords: [],
+        templateType: "crm",
+        templateId: crmTemplates[0]?._id || "",
+        templateSid: "",
+        isActive: true,
+      });
     }
     setModalOpen(true);
   };
@@ -100,26 +129,35 @@ export default function KeywordAutomationPage() {
       setIsSubmitting(false);
       return setError("At least one trigger keyword is required.");
     }
-    if (!formData.templateSid.trim()) {
-      setIsSubmitting(false);
-      return setError("Template SID is required.");
+
+    if (formData.templateType === "crm") {
+      if (!formData.templateId) {
+        setIsSubmitting(false);
+        return setError("Please select a CRM Template.");
+      }
+    } else {
+      if (!formData.templateSid.trim()) {
+        setIsSubmitting(false);
+        return setError("Twilio WhatsApp Template SID is required.");
+      }
     }
 
     const payload = {
       keywords: finalKeywords,
       key: finalKeywords[0],
-      templateSid: formData.templateSid.trim(),
-      isActive: formData.isActive
+      templateType: formData.templateType,
+      templateId: formData.templateType === "crm" ? formData.templateId : null,
+      templateSid: formData.templateType === "whatsapp" ? formData.templateSid.trim() : "",
+      isActive: formData.isActive,
     };
 
     try {
-      let result;
       if (currentEdit) {
-        const { data } = await automationRepository.updateKeyword(currentEdit, payload);
-        result = data;
+        await automationRepository.updateKeyword(currentEdit, payload);
+        toast.success("Keyword automation updated successfully");
       } else {
-        const { data } = await automationRepository.createKeyword(payload);
-        result = data;
+        await automationRepository.createKeyword(payload);
+        toast.success("Keyword automation created successfully");
       }
       
       setModalOpen(false);
@@ -134,12 +172,13 @@ export default function KeywordAutomationPage() {
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this automated keyword?")) return;
     await automationRepository.deleteKeyword(id);
+    toast.success("Keyword automation deleted");
     fetchKeywords();
   };
 
   const handleToggle = async (id, currentStatus) => {
     const updatedStatus = !currentStatus;
-    setKeywords(keywords.map(k => k._id === id ? { ...k, isActive: updatedStatus } : k));
+    setKeywords(keywords.map((k) => (k._id === id ? { ...k, isActive: updatedStatus } : k)));
     await automationRepository.patchKeyword(id, { isActive: updatedStatus });
   };
 
@@ -148,165 +187,188 @@ export default function KeywordAutomationPage() {
     if (!q) return true;
     if (k.key && k.key.toLowerCase().includes(q)) return true;
     if (Array.isArray(k.keywords)) {
-      return k.keywords.some(word => word && word.toLowerCase().includes(q));
+      if (k.keywords.some((kw) => kw.toLowerCase().includes(q))) return true;
     }
+    if (k.templateSid && k.templateSid.toLowerCase().includes(q)) return true;
+    if (k.templateId?.name && k.templateId.name.toLowerCase().includes(q)) return true;
     return false;
   });
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-slate-50 relative">
-      {/* Page Header */}
-      <header className="px-6 py-8 bg-white border-b border-slate-200 shrink-0 shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
-        <div className="max-w-[1400px] mx-auto relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center border border-emerald-100 shrink-0">
-              <Zap className="text-emerald-600" size={24} />
+    <div className="flex-1 flex flex-col h-full bg-[#f8fafc] overflow-hidden select-none">
+      {/* Top Banner Header */}
+      <div className="bg-white border-b border-slate-200/80 px-8 py-6 sticky top-0 z-20">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#00a884] to-emerald-400 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+              <Zap size={24} className="fill-white/20" />
             </div>
             <div>
-              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Keyword Auto-Reply</h1>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">System Automations</p>
+              <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                Keyword Automation
+                <span className="text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full bg-emerald-50 text-[#00a884] border border-emerald-100/80">
+                  Live Engine
+                </span>
+              </h1>
+              <p className="text-xs font-semibold text-slate-400 mt-0.5">
+                Automatically reply to customer messages with WhatsApp or CRM Templates
+              </p>
             </div>
           </div>
           
-          <div className="flex items-center gap-3 w-full md:w-auto mt-2 md:mt-0">
-            <div className="relative flex-1 md:w-64 group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#00a884] transition-colors" size={16} />
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input
                 type="text"
-                placeholder="Search keywords..."
-                className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:bg-white focus:border-[#00a884] focus:ring-4 focus:ring-[#00a884]/10 transition-all placeholder:text-slate-400"
+                placeholder="Search keywords or templates..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                className="pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-medium text-slate-700 outline-none focus:bg-white focus:border-[#00a884] focus:ring-4 focus:ring-emerald-500/10 transition-all w-64 shadow-xs"
               />
             </div>
-            <button 
-              onClick={() => handleOpenModal()} 
-              className="px-5 py-2.5 bg-[#00a884] hover:bg-emerald-600 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-emerald-200/50 flex items-center gap-2 shrink-0 active:scale-95"
+            
+            <button
+              onClick={() => handleOpenModal()}
+              className="flex items-center gap-2 bg-[#00a884] hover:bg-emerald-600 active:scale-95 text-white px-5 py-2.5 rounded-xl font-bold text-xs shadow-md shadow-emerald-600/20 transition-all"
             >
-              <Plus size={16} /> <span className="hidden sm:inline">Add Keyword</span>
+              <Plus size={16} />
+              <span>Create Rule</span>
             </button>
           </div>
         </div>
-      </header>
+      </div>
 
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 lg:p-8">
-        <div className="max-w-[1400px] mx-auto w-full">
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-            <div className="overflow-x-auto w-full">
-              <table className="w-full text-left border-collapse whitespace-nowrap">
-                <thead className="bg-slate-50/80 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200">
-                  <tr>
-                    <th className="px-6 py-4 pl-8 rounded-tl-2xl">Trigger Keyword</th>
-                    <th className="px-6 py-4">Twilio Template SID</th>
-                    <th className="px-6 py-4 text-center">Status</th>
-                    <th className="px-6 py-4 text-right pr-8 rounded-tr-2xl">Actions</th>
+      {/* Main Table Content */}
+      <main className="flex-1 p-8 overflow-y-auto custom-scrollbar">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/50 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+                    <th className="py-4 px-6">Trigger Keywords</th>
+                    <th className="py-4 px-6">Template Type</th>
+                    <th className="py-4 px-6">Template Target</th>
+                    <th className="py-4 px-6 text-center">Status</th>
+                    <th className="py-4 px-6 text-right pr-8">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
+                <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-600">
                   {loading ? (
                     <tr>
-                      <td colSpan="4" className="px-6 py-12">
-                        <div className="flex flex-col items-center justify-center text-slate-400 gap-3">
-                          <Loader2 size={32} className="animate-spin text-[#00a884]" />
-                          <span className="text-xs font-bold tracking-widest uppercase">Loading Automations...</span>
+                      <td colSpan="5" className="py-16 text-center text-slate-400">
+                        <div className="flex flex-col items-center gap-2">
+                          <Loader2 className="animate-spin text-[#00a884]" size={28} />
+                          <span className="text-xs font-bold text-slate-500">Loading automations...</span>
                         </div>
                       </td>
                     </tr>
                   ) : filteredKeywords.length === 0 ? (
                     <tr>
-                      <td colSpan="4" className="px-6 py-16 text-center">
-                        <div className="flex flex-col items-center justify-center">
-                          <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4 shadow-inner border border-slate-100">
-                            <MessageSquareCode size={32} className="text-slate-300" />
+                      <td colSpan="5" className="py-16 text-center text-slate-400">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400">
+                            <MessageSquareCode size={24} />
                           </div>
-                          <h3 className="text-lg font-extrabold text-slate-800">No Automations Found</h3>
-                          <p className="text-sm font-medium text-slate-500 mt-1 max-w-sm">
-                            {search ? "No keywords match your search query." : "You haven't set up any keyword auto-replies yet. Click 'Add Keyword' to start automating."}
-                          </p>
+                          <span className="text-sm font-bold text-slate-600">No keyword rules found</span>
+                          <span className="text-xs text-slate-400 max-w-xs">
+                            Create a keyword automation rule to send automated templates to incoming chats.
+                          </span>
                         </div>
                       </td>
                     </tr>
                   ) : (
-                    filteredKeywords.map((automationRule) => (
-                      <tr key={automationRule._id} className="hover:bg-slate-50/50 transition-colors group">
-                        <td className="px-6 py-4 pl-8">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs border border-emerald-100">
-                              <Zap size={14} />
+                    filteredKeywords.map((rule) => {
+                      const isCrm = rule.templateType === "crm" || (rule.templateId && !rule.templateSid);
+                      const list = Array.isArray(rule.keywords) && rule.keywords.length > 0 ? rule.keywords : [rule.key];
+                      const firstFew = list.slice(0, 3);
+                      const extraCount = list.length - firstFew.length;
+
+                      return (
+                        <tr key={rule._id} className="hover:bg-slate-50/80 transition-colors group">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-[#00a884]" />
+                              <div className="text-sm font-bold text-slate-800 truncate">
+                                {firstFew.join(", ")}
+                                {extraCount > 0 && (
+                                  <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded ml-1.5 border border-slate-200 inline-block font-extrabold align-middle">
+                                    +{extraCount} more
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex flex-col max-w-[280px] sm:max-w-[350px] overflow-hidden" title={
-                              Array.isArray(automationRule.keywords) && automationRule.keywords.length > 0
-                                ? automationRule.keywords.join(", ")
-                                : automationRule.key
-                            }>
-                              {(() => {
-                                const list = Array.isArray(automationRule.keywords) && automationRule.keywords.length > 0
-                                  ? automationRule.keywords
-                                  : [automationRule.key].filter(Boolean);
-                                  
-                                if (list.length === 0) return <span className="text-slate-450 italic">No keywords</span>;
-                                
-                                const firstFew = list.slice(0, 3);
-                                const extraCount = list.length - firstFew.length;
-                                
-                                return (
-                                  <div className="text-sm font-bold text-slate-800 truncate">
-                                    {firstFew.join(", ")}
-                                    {extraCount > 0 && (
-                                      <span className="text-[10px] bg-slate-100 text-slate-650 px-1.5 py-0.5 rounded ml-1.5 border border-slate-200 inline-block font-extrabold align-middle">
-                                        +{extraCount} more
-                                      </span>
-                                    )}
-                                  </div>
-                                );
-                              })()}
+                          </td>
+
+                          <td className="px-6 py-4">
+                            {isCrm ? (
+                              <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-200">
+                                <FileText size={11} /> CRM Template
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded border border-blue-200">
+                                <Layers size={11} /> WhatsApp Template
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="px-6 py-4">
+                            {isCrm ? (
+                              <div className="flex flex-col">
+                                <span className="font-bold text-slate-800 text-xs">
+                                  {rule.templateId?.name || "CRM Template"}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  ID: {rule.templateId?._id || rule.templateId}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="font-mono text-[11px] text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 selection:bg-emerald-200">
+                                {rule.templateSid}
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <span className={`text-[10px] font-bold uppercase tracking-wider ${rule.isActive ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                {rule.isActive ? 'Active' : 'Inactive'}
+                              </span>
+                              <button
+                                onClick={() => handleToggle(rule._id, rule.isActive)}
+                                className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#00a884]/20 focus:ring-offset-2 ${
+                                  rule.isActive ? "bg-[#00a884]" : "bg-slate-300"
+                                }`}
+                              >
+                                <span className={`inline-block w-4 h-4 transform bg-white rounded-full shadow-sm transition-transform ${
+                                  rule.isActive ? "translate-x-6" : "translate-x-1"
+                                }`} />
+                              </button>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="font-mono text-[11px] text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 selection:bg-emerald-200">
-                            {automationRule.templateSid}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            <span className={`text-[10px] font-bold uppercase tracking-wider ${automationRule.isActive ? 'text-emerald-600' : 'text-slate-400'}`}>
-                              {automationRule.isActive ? 'Active' : 'Inactive'}
-                            </span>
-                            <button
-                              onClick={() => handleToggle(automationRule._id, automationRule.isActive)}
-                              className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#00a884]/20 focus:ring-offset-2 ${
-                                automationRule.isActive ? "bg-[#00a884]" : "bg-slate-300"
-                              }`}
-                            >
-                              <span className={`inline-block w-4 h-4 transform bg-white rounded-full shadow-sm transition-transform ${
-                                automationRule.isActive ? "translate-x-6" : "translate-x-1"
-                              }`} />
-                            </button>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right pr-8">
-                          <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button 
-                              onClick={() => handleOpenModal(automationRule)} 
-                              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
-                              title="Edit Automation"
-                            >
-                              <Edit2 size={16} />
-                            </button>
-                            <button 
-                              onClick={() => handleDelete(automationRule._id)} 
-                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-100"
-                              title="Delete Keyword"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                          </td>
+
+                          <td className="px-6 py-4 text-right pr-8">
+                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => handleOpenModal(rule)} 
+                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Edit Automation"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button 
+                                onClick={() => handleDelete(rule._id)} 
+                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                title="Delete Keyword"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -315,12 +377,12 @@ export default function KeywordAutomationPage() {
         </div>
       </main>
 
-      {/* Premium Create/Edit Modal */}
+      {/* Modal */}
       {modalOpen && (
         <>
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 transition-opacity animate-in fade-in" onClick={() => setModalOpen(false)}></div>
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100 flex flex-col max-h-[90vh]">
+            <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100 flex flex-col max-h-[90vh]">
               
               <div className="px-6 py-5 flex items-center justify-between border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
                 <div className="flex items-center gap-3">
@@ -348,6 +410,7 @@ export default function KeywordAutomationPage() {
                 )}
                 
                 <form id="keyword-form" onSubmit={handleSave} className="space-y-5">
+                  {/* Trigger Keywords */}
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
                       Trigger Keywords <span className="text-rose-500">*</span>
@@ -397,78 +460,122 @@ export default function KeywordAutomationPage() {
                             addKeyword(keywordInput);
                           }
                         }}
-                        onPaste={(e) => {
-                          e.preventDefault();
-                          const text = e.clipboardData.getData("text");
-                          const words = text.split(/,|\n/);
-                          words.forEach(addKeyword);
-                        }}
                       />
                     </div>
                     <p className="text-[10px] text-slate-400 font-semibold mt-1.5 ml-1 leading-normal">
-                      Press Enter, Comma, or Tab to add. Max 50 keywords (up to 100 chars each).
+                      Press Enter, Comma, or Tab to add keywords.
                     </p>
                   </div>
                   
+                  {/* Template Type Selector */}
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-                      Twilio Template SID <span className="text-rose-500">*</span>
+                      Template Type <span className="text-rose-500">*</span>
                     </label>
-                    <div className="relative group">
-                      <div className="absolute left-3.5 top-3 text-slate-400 font-mono text-[10px] font-bold group-focus-within:text-[#00a884] transition-colors mt-0.5">SID</div>
-                      <input
-                        type="text"
-                        required
-                        className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-4 focus:ring-[#00a884]/10 focus:border-[#00a884] transition-all text-sm font-mono text-slate-800 placeholder:font-sans placeholder:font-medium placeholder:text-slate-400"
-                        value={formData.templateSid}
-                        onChange={(e) => setFormData({ ...formData, templateSid: e.target.value })}
-                        placeholder="HX1234567890abcdef..."
-                      />
+                    <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, templateType: "crm" })}
+                        className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                          formData.templateType === "crm"
+                            ? "bg-white text-slate-900 shadow-sm"
+                            : "text-slate-500 hover:text-slate-900"
+                        }`}
+                      >
+                        <FileText size={14} className={formData.templateType === "crm" ? "text-[#00a884]" : "text-slate-400"} />
+                        CRM Template
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, templateType: "whatsapp" })}
+                        className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                          formData.templateType === "whatsapp"
+                            ? "bg-white text-slate-900 shadow-sm"
+                            : "text-slate-500 hover:text-slate-900"
+                        }`}
+                      >
+                        <Layers size={14} className={formData.templateType === "whatsapp" ? "text-blue-600" : "text-slate-400"} />
+                        WhatsApp Approved
+                      </button>
                     </div>
                   </div>
 
-                  <div className="pt-2">
-                    <label className="flex items-center gap-3 p-4 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-slate-50 transition-colors group">
-                      <div className="flex-1">
-                        <span className="block text-sm font-bold text-slate-800">Automation Status</span>
-                        <span className="block text-xs text-slate-500 mt-0.5">Enable or disable this auto-reply instantly.</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ ...formData, isActive: !formData.isActive })}
-                        className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#00a884]/20 focus:ring-offset-2 shrink-0 ${
-                          formData.isActive ? "bg-[#00a884]" : "bg-slate-300"
-                        }`}
+                  {/* Template Selection / SID */}
+                  {formData.templateType === "crm" ? (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                        Select CRM Template <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        value={formData.templateId}
+                        onChange={(e) => setFormData({ ...formData, templateId: e.target.value })}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-[#00a884] focus:bg-white text-slate-800"
                       >
-                        <span className={`inline-block w-4 h-4 transform bg-white rounded-full shadow-sm transition-transform ${
-                          formData.isActive ? "translate-x-6" : "translate-x-1"
-                        }`} />
-                      </button>
-                    </label>
+                        <option value="">-- Choose a CRM Template --</option>
+                        {crmTemplates.map((t) => (
+                          <option key={t._id} value={t._id}>
+                            {t.name} ({t.category || "General"})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                        Twilio Template SID <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative group">
+                        <div className="absolute left-3.5 top-3 text-slate-400 font-mono text-[10px] font-bold group-focus-within:text-[#00a884] transition-colors mt-0.5">SID</div>
+                        <input
+                          type="text"
+                          required
+                          placeholder="HXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                          value={formData.templateSid}
+                          onChange={(e) => setFormData({ ...formData, templateSid: e.target.value })}
+                          className="w-full pl-12 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-medium outline-none focus:border-[#00a884] focus:bg-white text-slate-800"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Status Toggle */}
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <div>
+                      <span className="block text-xs font-bold text-slate-700">Enable Automation</span>
+                      <span className="text-[10px] text-slate-400">Rule will trigger immediately on match</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, isActive: !formData.isActive })}
+                      className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors ${
+                        formData.isActive ? "bg-[#00a884]" : "bg-slate-300"
+                      }`}
+                    >
+                      <span className={`inline-block w-4 h-4 transform bg-white rounded-full shadow-sm transition-transform ${
+                        formData.isActive ? "translate-x-6" : "translate-x-1"
+                      }`} />
+                    </button>
                   </div>
                 </form>
               </div>
 
-              <div className="p-6 bg-white border-t border-slate-100 flex flex-col sm:flex-row gap-3 sm:justify-end shrink-0">
-                <button 
-                  type="button" 
-                  onClick={() => setModalOpen(false)} 
-                  disabled={isSubmitting}
-                  className="px-6 py-3 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:text-slate-900 transition-all disabled:opacity-50 order-2 sm:order-1"
+              {/* Modal Footer */}
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/60 rounded-xl transition"
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   form="keyword-form"
                   disabled={isSubmitting}
-                  className="px-8 py-3 text-sm font-bold text-white bg-[#00a884] rounded-xl shadow-md shadow-emerald-200/50 hover:bg-emerald-600 transition-all active:scale-95 disabled:opacity-70 disabled:active:scale-100 flex items-center justify-center gap-2 order-1 sm:order-2"
+                  className="px-5 py-2 bg-[#00a884] hover:bg-emerald-600 active:scale-95 text-white text-xs font-bold rounded-xl transition shadow-sm"
                 >
-                  {isSubmitting ? (
-                    <><Loader2 size={16} className="animate-spin" /> Saving...</>
-                  ) : (
-                    <><Check size={16} /> Save Rule</>
-                  )}
+                  {isSubmitting ? "Saving..." : currentEdit ? "Update Rule" : "Create Rule"}
                 </button>
               </div>
             </div>

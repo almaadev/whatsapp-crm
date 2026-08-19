@@ -5,8 +5,12 @@ let heartbeatInterval = null;
 let currentSocket = null;
 
 export const presenceService = {
+  _registerHandler: null,
+  _presenceHandler: null,
+  _visibilityHandler: null,
+
   init(user) {
-    if (!user || !user.id) {
+    if (!user || (!user.id && !user._id && !user.userId)) {
       this.destroy();
       return;
     }
@@ -15,30 +19,44 @@ export const presenceService = {
     currentSocket = socket;
 
     // Listen to presence updates
-    socket.off("presence_change");
-    socket.on("presence_change", (onlineUsers) => {
+    if (this._presenceHandler) {
+      socket.off("presence_change", this._presenceHandler);
+    }
+    this._presenceHandler = (onlineUsers) => {
       usePresenceStore.getState().setOnlineUsers(onlineUsers);
-    });
+    };
+    socket.on("presence_change", this._presenceHandler);
 
     // Register user details on connect or reconnect
-    const register = () => {
+    const uId = (user.id || user._id || user.userId).toString();
+    const branchId = user.branch?.toString() || user.branchId?.toString() || "";
+
+    if (this._registerHandler) {
+      socket.off("connect", this._registerHandler);
+      socket.off("reconnect", this._registerHandler);
+    }
+
+    this._registerHandler = () => {
       const userData = {
-        userId: user.id.toString(),
+        userId: uId,
+        id: uId,
         name: user.name,
+        email: user.email,
         role: user.role,
         department: user.department,
-        branch: user.branch?.toString() || ""
+        branch: branchId,
+        branchId: branchId
       };
       socket.emit("register_user", userData);
       console.log("⚡ Registered presence for user:", user.name);
     };
 
-    socket.on("connect", register);
-    socket.on("reconnect", register);
+    socket.on("connect", this._registerHandler);
+    socket.on("reconnect", this._registerHandler);
 
     // If socket is already connected, register immediately
     if (socket.connected) {
-      register();
+      this._registerHandler();
     }
 
     // Start sending heartbeat signals every 10 seconds
@@ -50,18 +68,20 @@ export const presenceService = {
     }, 10000);
 
     // Trigger instant re-register when tab visibility returns (e.g. suspension wakeup)
-    const handleVisibilityChange = () => {
+    if (this._visibilityHandler) {
+      document.removeEventListener("visibilitychange", this._visibilityHandler);
+    }
+    this._visibilityHandler = () => {
       if (document.visibilityState === "visible") {
         if (!socket.connected) {
           socket.connect();
-        } else {
-          register();
+        } else if (this._registerHandler) {
+          this._registerHandler();
         }
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    this._visibilityHandler = handleVisibilityChange;
+    document.addEventListener("visibilitychange", this._visibilityHandler);
   },
 
   destroy() {
@@ -70,9 +90,15 @@ export const presenceService = {
       heartbeatInterval = null;
     }
     if (currentSocket) {
-      currentSocket.off("presence_change");
-      currentSocket.off("connect");
-      currentSocket.off("reconnect");
+      if (this._presenceHandler) {
+        currentSocket.off("presence_change", this._presenceHandler);
+        this._presenceHandler = null;
+      }
+      if (this._registerHandler) {
+        currentSocket.off("connect", this._registerHandler);
+        currentSocket.off("reconnect", this._registerHandler);
+        this._registerHandler = null;
+      }
       currentSocket = null;
     }
     if (this._visibilityHandler) {

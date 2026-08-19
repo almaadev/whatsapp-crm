@@ -4,6 +4,7 @@ import { formatSafeTime, getDisplayMessage, getChatMessagePreview } from "@/shar
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { useSession } from "next-auth/react";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
+import { isSameConversation } from "@/features/chat/stores/chatStore";
 
 
 const ChatListItem = memo(function ChatListItem({ chat, isSelected, onClick, emptyFallback }) {
@@ -142,9 +143,9 @@ export default function ChatListPanel({
         ) : (
           messages?.map((chat) => (
             <ChatListItem 
-              key={chat?.phone || Math.random()} 
+              key={chat?.customerId || chat?.phone || Math.random()} 
               chat={chat} 
-              isSelected={selectedChat?.phone === chat?.phone} 
+              isSelected={isSameConversation(selectedChat, chat)} 
               onClick={handleChatSelect} 
               emptyFallback={emptyFallback} 
             />

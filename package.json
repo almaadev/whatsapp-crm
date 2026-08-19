@@ -8,10 +8,14 @@
     "start": "NODE_ENV=production node src/server.js"
   },
   "type": "module",
+  "imports": {
+    "@/*": "./src/*"
+  },
   "dependencies": {
     "@tanstack/react-query": "^5.101.0",
     "axios": "^1.13.4",
     "bcryptjs": "^3.0.3",
+    "bullmq": "^6.1.2",
     "framer-motion": "^12.38.0",
     "ioredis": "^5.9.2",
     "lucide-react": "^0.563.0",

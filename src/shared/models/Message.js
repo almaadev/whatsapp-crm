@@ -38,14 +38,50 @@ const MessageSchema = new mongoose.Schema(
     },
     templateSid: {
       type: String,
+      default: "",
+    },
+    templateMetadata: {
+      type: {
+        type: String,
+        enum: ["whatsapp", "crm", null],
+        default: null,
+      },
+      templateId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "CRMTemplate",
+        default: null,
+      },
+      templateName: {
+        type: String,
+        default: "",
+      },
+      version: {
+        type: Number,
+        default: 1,
+      },
+      source: {
+        type: String,
+        enum: ["manual", "automation", null],
+        default: null,
+      },
+      automationId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "KeywordAutomation",
+        default: null,
+      },
+      sourceMessageSid: {
+        type: String,
+        default: null,
+        index: true,
+      },
+      variables: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null,
+      },
     },
     isAutomated: {
       type: Boolean,
       default: false,
-    },
-    templateSid: {
-      type: String,
-      default: "",
     },
     source: {
       type: String,

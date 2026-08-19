@@ -1,13 +1,26 @@
 import React, { useState, useRef, useEffect, memo } from "react";
 import { Send, Layers, X, Variable, Paperclip, Smile } from "lucide-react";
-import { TemplateBubble } from "@/shared/components/layout/TemplateBubble";
+import { ChatTemplatePanel } from "@/features/chat/components/ChatTemplatePanel";
 import { toast } from "react-toastify";
 
 import EmojiPicker from "@/features/chat/components/EmojiPicker";
 
 import ChatStatusBanner from "@/features/chat/components/ChatStatusBanner";
 
-const ChatInput = memo(function ChatInput({ onSendMessage, onSendTemplate, sending, disabled, onFocus, isChatClosed, chatClosed, isLockedByOther, lockHandlerName }) {
+const ChatInput = memo(function ChatInput({
+  onSendMessage,
+  onSendTemplate,
+  onSendCRMTemplate,
+  sending,
+  disabled,
+  onFocus,
+  isChatClosed,
+  chatClosed,
+  isLockedByOther,
+  lockHandlerName,
+  activeChat,
+  customerContext,
+}) {
   const isClosed = Boolean(isChatClosed || chatClosed);
   const [text, setText] = useState("");
   const [showBubble, setShowBubble] = useState(false);
@@ -42,7 +55,7 @@ const ChatInput = memo(function ChatInput({ onSendMessage, onSendTemplate, sendi
     return count;
   };
 
-  const handleTemplateSelect = (tpl) => {
+  const handleWhatsAppSelect = (tpl) => {
     const reqCount = getRequiredVariablesCount(tpl.body);
     if (reqCount > 0) {
       setVarTemplate({ template: tpl, reqCount });
@@ -51,6 +64,15 @@ const ChatInput = memo(function ChatInput({ onSendMessage, onSendTemplate, sendi
     } else {
       onSendTemplate(tpl, {});
       setShowBubble(false);
+    }
+  };
+
+  const handleCRMSelect = (tpl, resolvedText) => {
+    setShowBubble(false);
+    if (onSendCRMTemplate) {
+      onSendCRMTemplate(tpl, resolvedText);
+    } else if (onSendMessage) {
+      onSendMessage(resolvedText);
     }
   };
 
@@ -118,9 +140,15 @@ const ChatInput = memo(function ChatInput({ onSendMessage, onSendTemplate, sendi
         </div>
       )}
 
-      {/* Template picker popover */}
+      {/* Floating Two-Tab Template Picker Panel */}
       {showBubble && (
-        <TemplateBubble onSelect={handleTemplateSelect} onManage={() => setShowBubble(false)} onClose={() => setShowBubble(false)} />
+        <ChatTemplatePanel
+          activeChat={activeChat}
+          customerContext={customerContext}
+          onSelectWhatsApp={handleWhatsAppSelect}
+          onSelectCRM={handleCRMSelect}
+          onClose={() => setShowBubble(false)}
+        />
       )}
 
       {/* Local File Attachment Preview Queue */}

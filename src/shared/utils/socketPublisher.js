@@ -1,8 +1,11 @@
 /**
- * Central Enterprise Socket Event Publisher for the CRM.
- * Handles performance monitoring events (role & branch scoped), room-targeted broadcasts,
- * and unified real-time event dispatching across all CRM business actions.
+ * Helper to inspect connected socket count in a room
  */
+export function getRoomSocketCount(roomName) {
+  if (!global.io) return 0;
+  const room = global.io.sockets?.adapter?.rooms?.get(roomName);
+  return room ? room.size : 0;
+}
 
 export function publishPerformanceEvent(eventType, payload, branchId) {
   if (!global.io) return;
@@ -24,16 +27,31 @@ export function publishPerformanceEvent(eventType, payload, branchId) {
 }
 
 export function emitNewMessage(payload, branchId = null) {
-  if (!global.io) return;
+  if (!global.io) {
+    console.warn("⚠️ [SOCKET PUBLISHER] emitNewMessage failed: global.io is undefined");
+    return;
+  }
   const phone = payload.phone;
+  const canonicalPhone = payload.canonicalPhone || phone;
+  const customerId = payload.customerId;
+  const targetBranch = branchId || payload.branchId;
+
+  console.log(`[SOCKET PUBLISHER] EMIT MESSAGE | event=new_message | customerId=${customerId} | canonicalPhone=${canonicalPhone} | messageId=${payload.messageId || payload._id}`);
+
   if (phone) {
+    const phoneCount = getRoomSocketCount(phone);
+    console.log(`[SOCKET DEBUG] message target | room=${phone} | socketCount=${phoneCount}`);
     global.io.to(phone).emit("new_message", payload);
   }
+  
+  // Broadcast to global CRM event bus
   global.io.emit("new_message", payload);
 
-  const targetBranch = branchId || payload.branchId;
   if (targetBranch) {
-    global.io.to(`branch:${targetBranch.toString()}`).emit("new_message", payload);
+    const branchRoom = `branch:${targetBranch.toString()}`;
+    const branchCount = getRoomSocketCount(branchRoom);
+    console.log(`[SOCKET DEBUG] message target | room=${branchRoom} | socketCount=${branchCount}`);
+    global.io.to(branchRoom).emit("new_message", payload);
   }
 
   // Send telemetry
@@ -168,3 +186,62 @@ export function emitDashboardStatsUpdated(payload, branchId = null) {
   if (!global.io) return;
   global.io.emit("dashboard_stats_updated", payload);
 }
+
+export function emitAssociateSessionUpdated(payload, branchId = null) {
+  if (!global.io) return;
+  global.io.emit("associate_session_updated", payload);
+  const targetBranch = branchId || payload.branchId;
+  if (targetBranch) {
+    global.io.to(`branch:${targetBranch.toString()}`).emit("associate_session_updated", payload);
+  }
+}
+
+export function emitNotificationCreated(payload, recipientUserId) {
+  if (!global.io || !recipientUserId) return;
+  const room = `user:${recipientUserId.toString()}`;
+  const socketCount = getRoomSocketCount(room);
+  console.log(`[SOCKET DEBUG] message target | room=${room} | socketCount=${socketCount}`);
+  console.log(`[SOCKET PUBLISHER] EMIT NOTIFICATION_CREATED | event=notification_created | room=${room} | notificationId=${payload?._id}`);
+  global.io.to(room).emit("notification_created", payload);
+}
+
+export function emitNotificationUpdated(payload, recipientUserId) {
+  if (!global.io || !recipientUserId) return;
+  const room = `user:${recipientUserId.toString()}`;
+  const socketCount = getRoomSocketCount(room);
+  console.log(`[SOCKET DEBUG] message target | room=${room} | socketCount=${socketCount}`);
+  console.log(`[SOCKET PUBLISHER] EMIT NOTIFICATION_UPDATED | event=notification_updated | room=${room} | notificationId=${payload?._id}`);
+  global.io.to(room).emit("notification_updated", payload);
+}
+
+export function emitNotificationRead(payload, recipientUserId) {
+  if (!global.io || !recipientUserId) return;
+  global.io.to(`user:${recipientUserId.toString()}`).emit("notification_read", payload);
+}
+
+export function emitNotificationUnread(payload, recipientUserId) {
+  if (!global.io || !recipientUserId) return;
+  global.io.to(`user:${recipientUserId.toString()}`).emit("notification_unread", payload);
+}
+
+export function emitNotificationDismissed(payload, recipientUserId) {
+  if (!global.io || !recipientUserId) return;
+  global.io.to(`user:${recipientUserId.toString()}`).emit("notification_dismissed", payload);
+}
+
+export function emitNotificationClearedAll(payload, recipientUserId) {
+  if (!global.io || !recipientUserId) return;
+  global.io.to(`user:${recipientUserId.toString()}`).emit("notification_cleared_all", payload);
+}
+
+export function emitChatDeleted(payload, branchId = null) {
+  if (!global.io) return;
+  global.io.emit("chat_deleted", payload);
+
+  const targetBranch = branchId || payload.branchId;
+  if (targetBranch) {
+    global.io.to(`branch:${targetBranch.toString()}`).emit("chat_deleted", payload);
+  }
+}
+
+

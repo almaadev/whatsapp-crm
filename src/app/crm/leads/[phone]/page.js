@@ -107,48 +107,101 @@ export default function LeadDetailsPage({ params }) {
               performerName = act.performedBy;
             }
           }
-          const formattedTitle = getActivityTitle(act.eventType, performerName, act.metadata || act);
+          const actorLabel = act.performedByLabel || formatActorDisplayName(act.performedBy || {
+            name: performerName,
+            role: act.performedByRole,
+            department: act.performedByDept
+          });
+
+          const formattedTitle = act.action || getActivityTitle(act.eventType, act.performedBy || {
+            name: performerName,
+            role: act.performedByRole,
+            department: act.performedByDept
+          }, act.metadata || {});
+
           let mappedStatus = "Active";
           if (act.eventType === "LEAD_STATUS_CHANGED") {
             mappedStatus = act.metadata?.newStatus || "Follow Up";
-          } else if (act.eventType === "LEAD_CREATED") {
+          } else if (act.eventType === "LEAD_CREATED" || act.eventType === "CUSTOMER_CREATED") {
             mappedStatus = "New";
           } else if (act.eventType === "FOLLOWUP_CREATED") {
             mappedStatus = "Follow Up";
           } else if (act.eventType === "FOLLOWUP_COMPLETED") {
             mappedStatus = "Closed";
+          } else if (act.eventType === "LEAD_ASSIGNED" || act.eventType === "CUSTOMER_ASSIGNED") {
+            mappedStatus = "Assigned";
           }
+
+          // Transfer detection: only true if metadata or event explicitly represents an actual transfer
+          let isTransfer = false;
+          if (act.eventType === "LEAD_ASSIGNED" || act.eventType === "CUSTOMER_ASSIGNED") {
+            const oldOwner = act.metadata?.oldOwner;
+            const newOwner = act.metadata?.newOwner || act.metadata?.targetUserName || (act.targetUser?.name);
+            const wasPreviouslyAssigned = oldOwner && oldOwner.toLowerCase() !== "unassigned";
+            isTransfer = act.metadata?.isTransfer === true || act.metadata?.isForwarded === true || Boolean(wasPreviouslyAssigned && newOwner && oldOwner !== newOwner);
+          } else if (act.metadata?.isTransfer === true || act.isTransfer === true) {
+            isTransfer = true;
+          }
+
+          // Creation events can NEVER be transfers
+          if (act.eventType === "CUSTOMER_CREATED" || act.eventType === "LEAD_CREATED") {
+            isTransfer = false;
+          }
+
+          const description = act.metadata?.notes || act.metadata?.remarks || act.notes || act.remarks || "";
+
           return {
             _id: act._id || `act-${index}`,
             date: act.timestamp || act.createdAt,
             status: mappedStatus,
-            associateName: performerName,
-            overAllRemarks: act.metadata?.notes || act.notes || act.metadata?.remarks || "",
+            associateName: actorLabel,
+            actorName: actorLabel,
+            overAllRemarks: description,
             title: formattedTitle,
             enquiredFor: act.metadata?.enquiredFor || "",
             isActivity: true,
             eventType: act.eventType,
             metadata: act.metadata || {},
-            priority: act.metadata?.priority || null
+            priority: act.metadata?.priority || null,
+            leadTransferred: isTransfer,
+            saleAmount: act.metadata?.saleAmount || 0
           };
         });
 
-      const timeline = [...followups, ...activities]
-        .filter(isLeadLifecycleActivity)
-        .sort((a, b) => new Date(a.date) - new Date(b.date));
+      let timeline = [];
+      if (activities.length > 0) {
+        timeline = activities.filter(isLeadLifecycleActivity);
+      } else {
+        // Fallback for legacy leads without Activity records
+        timeline = followups.map((fu, idx) => ({
+          ...fu,
+          _id: fu._id || `fu-${idx}`,
+          status: fu.status || "New",
+          actorName: fu.associateName || "Team Member",
+          associateName: fu.associateName || "Team Member",
+          leadTransferred: false,
+          isActivity: false
+        }));
+      }
+
+      timeline.sort((a, b) => new Date(a.date) - new Date(b.date));
       
       const interactionCount = getClosedLeadCount(lead);
       
       const firstFollowUp = followups.length > 0 ? followups[0] : {};
       const latestFollowUp = followups.length > 0 ? followups[followups.length - 1] : {};
 
-      const originHandler = firstFollowUp.associateName || lead.assignedTo || "Unassigned";
-      const currentHandler = latestFollowUp.associateName || lead.assignedTo || "Unassigned";
+      const currentHandler = (lead.assignedTo && lead.assignedTo.toLowerCase() !== "unassigned")
+        ? lead.assignedTo
+        : (latestFollowUp.associateName && latestFollowUp.associateName.toLowerCase() !== "unassigned" ? latestFollowUp.associateName : "Unassigned");
+      const originHandler = (firstFollowUp.associateName && firstFollowUp.associateName.toLowerCase() !== "unassigned")
+        ? firstFollowUp.associateName
+        : currentHandler;
 
       const currentStatus = resolveLeadStatus({ leads: followups });
-      const currentPriority = latestFollowUp.priority || "Medium";
-      const currentEnquiry = latestFollowUp.enquiredFor || "None specified";
-      const currentRemarks = latestFollowUp.overAllRemarks || "No remarks added.";
+      const currentPriority = latestFollowUp.priority || lead.priority || "Medium";
+      const currentEnquiry = latestFollowUp.enquiredFor || lead.enquiredFor || "None specified";
+      const currentRemarks = latestFollowUp.overAllRemarks || lead.remarks || "No remarks added.";
       const leadType = latestFollowUp.leadType || "Direct Lead";
       const saleAmount = parseInt(latestFollowUp.saleAmount) || 0;
 
@@ -171,10 +224,8 @@ export default function LeadDetailsPage({ params }) {
   
   const enrichedTimeline = useMemo(() => {
       if (!intelligence?.timeline) return [];
-      return intelligence.timeline.map((leadInteraction, index, interactionsList) => {
-          const prev = interactionsList[index - 1]; // chronological previous
-          const leadTransferred = prev && prev.associateName !== leadInteraction.associateName;
-          return { ...leadInteraction, leadTransferred, originalIndex: index };
+      return intelligence.timeline.map((leadInteraction, index) => {
+          return { ...leadInteraction, originalIndex: index };
       }).reverse(); // Reverse to show newest first
   }, [intelligence]);
 

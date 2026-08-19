@@ -12,6 +12,7 @@ import Lead from "@/shared/models/Lead";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 import { sanitizeCustomerOrLeadData } from "@/shared/utils/privacy";
 import { serverCustomerService } from "@/server/services/serverCustomerService";
+import { getActivityTitle, formatActorDisplayName } from "@/shared/utils/activityFormatter";
 
 export const dynamic = "force-dynamic";
 
@@ -106,11 +107,11 @@ export async function GET(req, { params }) {
         const rawActivities = await Activity.find(query)
             .populate({
                 path: 'actorId',
-                select: 'name role department branch'
+                select: 'name preferredName role department branch'
             })
             .populate({
                 path: 'metadata.targetUser',
-                select: 'name role department branch'
+                select: 'name preferredName role department branch'
             })
             .sort({ createdAt: 1 })
             .lean();
@@ -128,7 +129,7 @@ export async function GET(req, { params }) {
             const bObj = branchMap[branchVal];
             const branchName = bObj ? bObj.name : (customer.createdBy.branch || "");
             creatorInfo = {
-                name: customer.createdBy.name || "Unknown",
+                name: customer.createdBy.name || customer.createdBy.preferredName || "Unknown",
                 role: customer.createdBy.role || "",
                 department: customer.createdBy.department || "",
                 branchName: branchName || "",
@@ -143,19 +144,26 @@ export async function GET(req, { params }) {
                 const bObj = branchMap[branchVal];
                 const branchName = bObj ? bObj.name : (entry.actorId.branch || "");
                 performedByResolved = {
-                    name: entry.actorId.name || "Unknown",
-                    role: entry.actorId.role || "",
+                    name: entry.actorId.name || entry.actorId.preferredName || "Unknown",
+                    role: entry.actorId.role || "associate",
                     department: entry.actorId.department || "",
                     branchName: branchName
                 };
+            } else {
+                performedByResolved = {
+                    name: entry.metadata?.performedByName || "System Admin",
+                    role: entry.metadata?.performedByRole || "superAdmin",
+                    department: entry.metadata?.performedByDept || "admin"
+                };
             }
+
             let targetUserResolved = null;
             if (entry.metadata?.targetUser) {
                 const branchVal = entry.metadata.targetUser.branch?.toString() || "";
                 const bObj = branchMap[branchVal];
                 const branchName = bObj ? bObj.name : (entry.metadata.targetUser.branch || "");
                 targetUserResolved = {
-                    name: entry.metadata.targetUser.name || "Unknown",
+                    name: entry.metadata.targetUser.name || entry.metadata.targetUser.preferredName || "Unknown",
                     role: entry.metadata.targetUser.role || "",
                     department: entry.metadata.targetUser.department || "",
                     branchName: branchName
@@ -164,8 +172,7 @@ export async function GET(req, { params }) {
 
             const performedAtVal = entry.createdAt;
             const performedByIdVal = entry.actorId?._id?.toString() || entry.actorId || null;
-            const performedByRoleVal = entry.metadata?.performedByRole || performedByResolved?.role || "";
-            const actionName = entry.metadata?.action || (entry.eventType === "ADDRESS_CHANGED" ? "Address Changed" : entry.eventType === "ASSIGNED" ? "Assigned" : "System Action");
+            const actionName = getActivityTitle(entry.eventType, performedByResolved, entry.metadata || {});
 
             return {
                 ...entry,
@@ -178,11 +185,20 @@ export async function GET(req, { params }) {
                 leadId: entry.leadId?.toString() || null,
                 conversationId: entry.conversationId || entry.leadId?.toString() || null,
                 actorId: performedByIdVal,
-                performedBy: performedByResolved || entry.metadata?.performedByName || "System Admin",
-                performedByRole: performedByRoleVal,
+                performedBy: performedByResolved,
+                performedByName: performedByResolved.name,
+                performedByRole: performedByResolved.role,
+                performedByDept: performedByResolved.department,
+                performedByLabel: formatActorDisplayName(performedByResolved),
                 performedById: performedByIdVal,
                 targetUser: targetUserResolved,
-                metadata: entry.metadata || {},
+                metadata: {
+                    ...entry.metadata,
+                    action: actionName,
+                    performedByName: performedByResolved.name,
+                    performedByRole: performedByResolved.role,
+                    performedByDept: performedByResolved.department
+                },
                 timestamp: performedAtVal,
                 performedAt: performedAtVal,
                 createdAt: entry.createdAt

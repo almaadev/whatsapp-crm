@@ -28,6 +28,7 @@ export default function ChatViewPanel({
   config,
   handleSend,
   handleSendTemplate,
+  handleSendCRMTemplate,
   sending,
   messagesEndRef,
   onFocus,
@@ -224,6 +225,9 @@ export default function ChatViewPanel({
           <ChatInput
             onSendMessage={handleSend}
             onSendTemplate={handleSendTemplate}
+            onSendCRMTemplate={handleSendCRMTemplate}
+            activeChat={selectedChat}
+            customerContext={detailedCustomer}
             sending={sending}
             disabled={isLockedByOther || (availableNumbers.length === 0 && session?.user?.role !== "superAdmin" && session?.user?.department !== "admin")}
             isLockedByOther={isLockedByOther}

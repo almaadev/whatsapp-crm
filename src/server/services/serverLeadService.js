@@ -22,9 +22,16 @@ function normalisePhone(raw = "") {
   return p;
 }
 
-const buildFollowUp = async (body, session) => {
-  const associateId = body.associateId || session.user.id;
-  const resolvedAssociateName = await getUserNameById(associateId, session.user.name);
+const buildFollowUp = async (body, session, fallbackAssignedTo = "unassigned") => {
+  let associateId = body.associateId || "";
+  let resolvedAssociateName = body.associateName || body.associate || "";
+
+  if (!resolvedAssociateName && associateId && associateId !== "unassigned") {
+    resolvedAssociateName = await getUserNameById(associateId, "");
+  }
+  if (!resolvedAssociateName) {
+    resolvedAssociateName = fallbackAssignedTo;
+  }
 
   return {
     date: body.date ? new Date(body.date) : new Date(),
@@ -33,7 +40,7 @@ const buildFollowUp = async (body, session) => {
     priority: body.priority || "Medium",
     source: body.source || "Manual Entry",
     enquiredFor: body.enquiredFor || "",
-    overAllRemarks: body.overAllRemarks || "",
+    overAllRemarks: body.overAllRemarks || body.remarks || "",
     saleAmount: body.saleAmount || 0,
     associateId: associateId,
     associateName: resolvedAssociateName,
@@ -152,8 +159,45 @@ export const serverLeadService = {
     } : null;
 
     // Resolve assigned user/associate
-    let assignedUserId = userDoc ? userDoc._id : null;
-    let assignedTo = currentUser;
+    let assignedUserId = undefined;
+    let assignedTo = undefined;
+
+    if (body.associate !== undefined || body.assignedTo !== undefined || body.associateName !== undefined) {
+      const assignedName = body.associate || body.assignedTo || body.associateName;
+      if (assignedName && assignedName !== "unassigned" && assignedName !== "Unassigned") {
+        const targetUser = await User.findOne({ name: assignedName }).lean();
+        if (targetUser) {
+          assignedUserId = targetUser._id;
+          assignedTo = targetUser.name;
+        } else {
+          assignedTo = assignedName;
+          assignedUserId = null;
+        }
+      } else {
+        assignedUserId = null;
+        assignedTo = "unassigned";
+      }
+    } else if (body.associateId !== undefined) {
+      if (body.associateId && body.associateId !== "unassigned") {
+        const targetUser = await User.findById(body.associateId).lean();
+        if (targetUser) {
+          assignedUserId = targetUser._id;
+          assignedTo = targetUser.name;
+        } else {
+          assignedTo = "unassigned";
+          assignedUserId = null;
+        }
+      } else {
+        assignedUserId = null;
+        assignedTo = "unassigned";
+      }
+    } else if (customerDoc) {
+      assignedTo = customerDoc.assignedTo || "unassigned";
+      assignedUserId = customerDoc.assignedUserId || null;
+    } else {
+      assignedTo = "unassigned";
+      assignedUserId = null;
+    }
 
     // Prepare Customer updates
     const customerSetPayload = {
@@ -237,7 +281,9 @@ export const serverLeadService = {
         });
       }
 
-      if (customerDoc.assignedTo && customerDoc.assignedTo !== currentUser) {
+      if (assignedTo !== undefined && customerDoc.assignedTo !== assignedTo) {
+        const wasPreviouslyAssigned = customerDoc.assignedTo && customerDoc.assignedTo.toLowerCase() !== "unassigned";
+        const isTransfer = wasPreviouslyAssigned && assignedTo !== "unassigned";
         await activityService.log({
           eventType: ActivityEvents.LEAD_ASSIGNED,
           entityType: "Lead",
@@ -245,9 +291,11 @@ export const serverLeadService = {
           actorId: session.user.id,
           source: ActivitySources.WEB,
           metadata: {
-            oldOwner: customerDoc.assignedTo,
-            newOwner: currentUser,
-            notes: `Reassigned to ${currentUser}`
+            oldOwner: customerDoc.assignedTo || "unassigned",
+            newOwner: assignedTo,
+            isTransfer,
+            notes: isTransfer ? `Transferred to ${assignedTo} by ${session.user.name}` : `Assigned to ${assignedTo} by ${session.user.name}`,
+            targetUserName: assignedTo
           }
         });
       }
@@ -264,36 +312,25 @@ export const serverLeadService = {
           notes: `Customer record manually created by ${session.user.name}`
         }
       });
-
-      await activityService.log({
-        eventType: ActivityEvents.LEAD_CREATED,
-        entityType: "Lead",
-        customerId: customerDoc._id,
-        actorId: session.user.id,
-        source: ActivitySources.WEB,
-        metadata: {
-          notes: "Lead record created"
-        }
-      });
     }
 
     // Construct follow-up and handoff fields
-    const currentHandoff = {
-      associateId: associateId || "system",
-      associateName: currentUser,
+    const currentHandoff = (assignedTo && assignedTo !== "unassigned") ? {
+      associateId: assignedUserId ? assignedUserId.toString() : "",
+      associateName: assignedTo,
       assignedAt: new Date()
-    };
+    } : null;
 
     const isClosed = resolvedStatus === "Closed" || resolvedStatus === "Not Interested";
     const rootFields = {
-      assignedTo: currentUser,
-      associateId,
+      assignedTo,
+      associateId: assignedUserId ? assignedUserId.toString() : "",
       isClosed
     };
 
     if (isClosed && !wasAlreadyClosed) {
       rootFields.closedBy = currentUser;
-      rootFields.closedById = associateId;
+      rootFields.closedById = userDoc ? userDoc._id.toString() : session.user.id;
       rootFields.closedAt = new Date();
     } else if (!isClosed) {
       rootFields.closedBy = null;
@@ -306,10 +343,10 @@ export const serverLeadService = {
     let newLeadEntry = null;
 
     if (!existingLead) {
-      newLeadEntry = await buildFollowUp(body, session);
+      newLeadEntry = await buildFollowUp(body, session, assignedTo);
       updatedLead = await Lead.create({
         customerId: customerDoc._id,
-        handledByHistory: [currentHandoff],
+        handledByHistory: currentHandoff ? [currentHandoff] : [],
         leads: [newLeadEntry],
         ...rootFields
       });
@@ -317,13 +354,47 @@ export const serverLeadService = {
       customerDoc.activeLeadId = updatedLead._id;
       await customerDoc.save();
       action = "created";
+
+      // Log new lead creation
+      await activityService.log({
+        eventType: ActivityEvents.LEAD_CREATED,
+        entityType: "Lead",
+        entityId: updatedLead._id,
+        customerId: customerDoc._id,
+        leadId: updatedLead._id,
+        actorId: session.user.id,
+        source: ActivitySources.WEB,
+        metadata: {
+          notes: `Lead record manually created by ${session.user.name}`
+        }
+      });
+
+      // Log initial LEAD_ASSIGNED only if explicitly assigned to a user upon creation
+      if (assignedTo && assignedTo.toLowerCase() !== "unassigned") {
+        await activityService.log({
+          eventType: ActivityEvents.LEAD_ASSIGNED,
+          entityType: "Lead",
+          entityId: updatedLead._id,
+          customerId: customerDoc._id,
+          leadId: updatedLead._id,
+          actorId: session.user.id,
+          source: ActivitySources.WEB,
+          metadata: {
+            oldOwner: "unassigned",
+            newOwner: assignedTo,
+            isTransfer: false,
+            notes: `Lead assigned to ${assignedTo} by ${session.user.name}`,
+            targetUserName: assignedTo
+          }
+        });
+      }
     } else {
       if (!existingLead.handledByHistory) existingLead.handledByHistory = [];
       const lastHandler = existingLead.handledByHistory.length > 0 
           ? existingLead.handledByHistory[existingLead.handledByHistory.length - 1] 
           : null;
       
-      if (!lastHandler || lastHandler.associateName !== currentUser) {
+      if (currentHandoff && (!lastHandler || lastHandler.associateName !== assignedTo)) {
         existingLead.handledByHistory.push(currentHandoff);
       }
 
@@ -649,17 +720,17 @@ export const serverLeadService = {
         branchId: resolvedBranchId,
         status: resolvedStatus,
         priority: resolvedPriority,
-        assignedTo: currentUser
+        assignedTo: assignedTo || "unassigned"
       }, resolvedBranchId);
     }
 
-    if (isNewCustomer || customerDoc.assignedTo !== currentUser) {
-      const isReassignment = !isNewCustomer && customerDoc.assignedTo && customerDoc.assignedTo !== "Unassigned";
+    if (isNewCustomer || customerDoc.assignedTo !== assignedTo) {
+      const isReassignment = !isNewCustomer && customerDoc.assignedTo && customerDoc.assignedTo.toLowerCase() !== "unassigned";
       publishPerformanceEvent(isReassignment ? "customer_reassigned" : "customer_assigned", {
         phone: cleanPhone,
         name: resolvedName,
         branchId: resolvedBranchId,
-        assignedTo: currentUser,
+        assignedTo: assignedTo || "unassigned",
         previousAssignedTo: customerDoc?.assignedTo
       }, resolvedBranchId);
     }
@@ -731,21 +802,6 @@ export const serverLeadService = {
     }
 
     if (previousStatus !== resolvedStatus) {
-      // await activityService.log({
-      //   eventType: ActivityEvents.LEAD_STATUS_CHANGED,
-      //   entityType: "Lead",
-      //   entityId: updatedLead._id,
-      //   customerId: customerDoc._id,
-      //   leadId: updatedLead._id,
-      //   actorId: session.user.id,
-      //   source: ActivitySources.WEB,
-      //   metadata: {
-      //     oldStatus: previousStatus,
-      //     newStatus: resolvedStatus,
-      //     notes: `Lead status changed from ${previousStatus} to ${resolvedStatus}`
-      //   }
-      // });
-
       if (previousStatus === "Follow Up" && resolvedStatus !== "Follow Up") {
         await activityService.log({
           eventType: ActivityEvents.FOLLOWUP_COMPLETED,
@@ -775,7 +831,7 @@ export const serverLeadService = {
         name: resolvedName,
         status: resolvedStatus,
         previousStatus,
-        assignedTo: currentUser,
+        assignedTo: assignedTo || "unassigned",
         leadType: body.leadType || "Direct Lead",
         updatedAt: new Date()
       }, resolvedBranchId);
@@ -802,7 +858,7 @@ export const serverLeadService = {
         phone: cleanPhone,
         name: resolvedName,
         status: resolvedStatus,
-        assignedTo: currentUser,
+        assignedTo: assignedTo || "unassigned",
         followUp: newLeadEntry,
         updatedAt: new Date()
       }, resolvedBranchId);
@@ -810,7 +866,7 @@ export const serverLeadService = {
 
     emitCustomerUpdated({
       phone: cleanPhone,
-      assignedTo: currentUser,
+      assignedTo: assignedTo || "unassigned",
       status: resolvedStatus,
       name: resolvedName,
       activeRouteCategory: body.leadType || (customerDoc?.activeRouteCategory || "Direct Lead"),

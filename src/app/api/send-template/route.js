@@ -59,7 +59,9 @@ export async function POST(req) {
       sendBy: session.user.id,
     });
 
-    let custDoc = await Customer.findOne({ phone: formattedTo });
+    const { getPhoneVariations, normalizePhone } = await import("@/shared/utils/phoneUtils");
+    const phoneVariations = getPhoneVariations(formattedTo);
+    let custDoc = await Customer.findOne({ phone: { $in: phoneVariations } });
     if (!custDoc) {
       const { customer } = await serverCustomerService.updateCustomer(formattedTo, { status: "New" }, session);
       custDoc = customer;
@@ -82,10 +84,17 @@ export async function POST(req) {
       }
     });
 
-    if (global.io) {
+    try {
+      const { emitNewMessage } = await import("@/shared/utils/socketPublisher");
       const resolvedName = associateName || (await findUserNameById(session.user.id)) || "Unknown";
-      global.io.emit("new_message", {
+      const branchId = custDoc?.branchId ? (custDoc.branchId._id ? custDoc.branchId._id.toString() : custDoc.branchId.toString()) : null;
+
+      emitNewMessage({
+        customerId: custDoc?._id ? custDoc._id.toString() : undefined,
         phone: formattedTo,
+        canonicalPhone: normalizePhone(formattedTo),
+        name: custDoc?.name || resolvedName,
+        customerName: custDoc?.name,
         message: `Template Sent: ${message.body}`,
         direction: "OUTBOUND",
         status: "SENT",
@@ -98,7 +107,12 @@ export async function POST(req) {
         },
         senderName: resolvedName,
         senderRole: session.user.role || "associate",
-      });
+        branchId,
+        isClosed: custDoc?.isClosed || false,
+        isChatClosed: custDoc?.isClosed || false,
+      }, branchId);
+    } catch (socketErr) {
+      console.error("[send-template] Socket emit error:", socketErr);
     }
 
     return NextResponse.json(

@@ -1,7 +1,8 @@
 import Activity from "@/shared/models/Activity";
 import User from "@/shared/models/User";
+import mongoose from "mongoose";
 import { ActivityEvents, ActivitySources } from "@/shared/constants/activityConstants";
-import { getActivityTitle } from "@/shared/utils/activityFormatter";
+import { getActivityTitle, formatActorDisplayName } from "@/shared/utils/activityFormatter";
 
 export const activityService = {
   /**
@@ -20,44 +21,60 @@ export const activityService = {
 
   /**
    * Automatically resolves actor user information if actorId is provided.
+   * Business Rules:
+   * - SuperAdmin -> "System Admin"
+   * - Admin -> "John (Admin)"
+   * - Associate / Doctor / Sales -> "Mani" or "Dr. Kumar"
    */
   async resolveActor(actorId) {
     if (!actorId) {
       return {
         performedBy: "System Admin",
         performedById: null,
-        role: "system",
+        role: "superAdmin",
+        department: "admin",
         branch: null
       };
     }
 
     try {
       if (typeof actorId === "object" && actorId._id) {
+        const role = actorId.role || "associate";
+        const dept = actorId.department || "";
+        const name = actorId.name || actorId.preferredName || "System Admin";
         return {
-          performedBy: actorId.name || "System Admin",
+          performedBy: name,
           performedById: actorId._id.toString(),
-          role: actorId.role || "associate",
+          role: role,
+          department: dept,
           branch: actorId.branch ? actorId.branch.toString() : null
         };
       }
 
-      const user = await User.findById(actorId).lean();
-      if (user) {
-        return {
-          performedBy: user.name || "System Admin",
-          performedById: user._id.toString(),
-          role: user.role || "associate",
-          branch: user.branch ? user.branch.toString() : null
-        };
+      if (mongoose.Types.ObjectId.isValid(actorId.toString())) {
+        const user = await User.findById(actorId).select("name preferredName role department branch").lean();
+        if (user) {
+          const role = user.role || "associate";
+          const dept = user.department || "";
+          const name = user.name || user.preferredName || "System Admin";
+          return {
+            performedBy: name,
+            performedById: user._id.toString(),
+            role: role,
+            department: dept,
+            branch: user.branch ? user.branch.toString() : null
+          };
+        }
       }
     } catch (e) {
-      // Gracefully catch cases where actorId is a string name instead of ObjectId
+      console.error("[activityService] resolveActor error:", e);
     }
 
     return {
-      performedBy: typeof actorId === "string" ? actorId : "System Admin",
+      performedBy: typeof actorId === "string" ? actorId : "Team Member",
       performedById: null,
       role: "associate",
+      department: "",
       branch: null
     };
   },
@@ -101,10 +118,16 @@ export const activityService = {
     const entityInfo = this.resolveEntity(entityType, entityId);
     const normalizedMetadata = this.formatMetadata(metadata);
 
-    const title = getActivityTitle(eventType, actorInfo.performedBy, normalizedMetadata);
+    const title = getActivityTitle(eventType, {
+      name: actorInfo.performedBy,
+      role: actorInfo.role,
+      department: actorInfo.department
+    }, normalizedMetadata);
+
     normalizedMetadata.action = title;
     normalizedMetadata.performedByName = actorInfo.performedBy;
     normalizedMetadata.performedByRole = actorInfo.role;
+    normalizedMetadata.performedByDept = actorInfo.department;
 
     return {
       customerId: customerId || null,
@@ -128,5 +151,68 @@ export const activityService = {
   async log(params) {
     const payload = await this.buildPayload(params);
     return await Activity.create(payload);
+  },
+
+  /**
+   * Server-side activity enrichment helper for API endpoints.
+   * Ensures every activity document returns with resolved actor details and display labels.
+   */
+  async enrichActivity(activity) {
+    if (!activity) return activity;
+    const obj = typeof activity.toObject === "function" ? activity.toObject() : { ...activity };
+
+    let actorUser = null;
+
+    if (obj.actorId) {
+      if (typeof obj.actorId === "object" && obj.actorId.name) {
+        actorUser = obj.actorId;
+      } else {
+        try {
+          const uId = obj.actorId._id || obj.actorId;
+          if (mongoose.Types.ObjectId.isValid(uId.toString())) {
+            actorUser = await User.findById(uId).select("name preferredName role department").lean();
+          }
+        } catch (e) {}
+      }
+    }
+
+    const actorInfo = await this.resolveActor(actorUser || obj.actorId);
+
+    const metadata = obj.metadata || {};
+    metadata.performedByName = actorInfo.performedBy;
+    metadata.performedByRole = actorInfo.role;
+    metadata.performedByDept = actorInfo.department;
+
+    const formattedLabel = formatActorDisplayName({
+      name: actorInfo.performedBy,
+      role: actorInfo.role,
+      department: actorInfo.department
+    });
+
+    metadata.action = getActivityTitle(obj.eventType, {
+      name: actorInfo.performedBy,
+      role: actorInfo.role,
+      department: actorInfo.department
+    }, metadata);
+
+    return {
+      ...obj,
+      performedById: actorInfo.performedById,
+      performedByName: actorInfo.performedBy,
+      performedByRole: actorInfo.role,
+      performedByDept: actorInfo.department,
+      performedByLabel: formattedLabel,
+      performedBy: {
+        name: actorInfo.performedBy,
+        role: actorInfo.role,
+        department: actorInfo.department
+      },
+      metadata
+    };
+  },
+
+  async enrichActivities(activities) {
+    if (!Array.isArray(activities)) return [];
+    return await Promise.all(activities.map(a => this.enrichActivity(a)));
   }
 };

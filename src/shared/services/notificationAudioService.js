@@ -1,4 +1,4 @@
-import { useChatStore } from "@/features/chat/stores/chatStore";
+import { useChatStore, isSameConversation } from "@/features/chat/stores/chatStore";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 import { showChatNotification } from "@/shared/utils/notification";
 
@@ -120,18 +120,37 @@ class NotificationAudioService {
   }
 
   /**
-   * Display native browser notification if tab is in background
+   * Helper to check if CRM tab is currently open, visible and focused
+   */
+  isTabVisibleAndActive() {
+    if (typeof document === "undefined") return false;
+    const isVisible = !document.hidden && document.visibilityState === "visible";
+    const hasFocus = typeof document.hasFocus === "function" ? document.hasFocus() : true;
+    return isVisible && hasFocus;
+  }
+
+  /**
+   * Display native browser notification ONLY if tab is in background / inactive
    */
   showBrowserNotification(title, body, phone) {
     if (typeof window === "undefined" || !("Notification" in window)) return;
 
+    // Strict check: if CRM tab is visible and focused, NEVER show OS/browser notification
+    if (this.isTabVisibleAndActive()) {
+      console.log("ℹ️ [NotificationAudioService] Tab is visible and active; suppressing OS browser notification.");
+      return;
+    }
+
     if (Notification.permission === "granted") {
       try {
-        new Notification(title, {
+        const notif = new Notification(title, {
           body,
           icon: "/logo/logo.png",
           tag: phone || "whatsapp-crm-msg",
         });
+        notif.onclick = () => {
+          window.focus();
+        };
       } catch (e) {}
     } else if (Notification.permission !== "denied") {
       Notification.requestPermission();
@@ -187,11 +206,11 @@ class NotificationAudioService {
     try {
       const state = useChatStore.getState();
       const selectedChat = state.selectedChat;
-      const isCurrentConversationOpen = selectedChat?.phone === msg.phone;
-      const isTabActive = typeof document !== "undefined" && document.visibilityState === "visible";
+      const isCurrentConversationOpen = isSameConversation(selectedChat, msg);
+      const isTabActive = this.isTabVisibleAndActive();
 
-      const contact = state.messages.find((item) => item.phone === msg.phone);
-      const displayName = resolveCustomerDisplayName(contact || msg || { phone: msg.phone, name: msg.name });
+      const contact = state.messages.find((item) => isSameConversation(item, msg));
+      const displayName = resolveCustomerDisplayName(contact || msg || { phone: msg.phone, name: msg.name, customerName: msg.customerName });
 
       if (isCurrentConversationOpen) {
         // Case 1: Active conversation -> incoming_message.mp3 ONCE
@@ -208,7 +227,7 @@ class NotificationAudioService {
           addNotification: state.addNotification,
         });
 
-        // Case 3: Background tab native notification
+        // Case 3: Background tab native OS notification ONLY when tab is inactive/hidden
         if (!isTabActive) {
           this.showBrowserNotification(`New message from ${displayName}`, msg.message || "Media message", msg.phone);
         }

@@ -51,10 +51,15 @@ export function isLeadLifecycleActivity(activity) {
   }
 
   const lifecycleEvents = [
+    "CUSTOMER_CREATED",
     "LEAD_CREATED",
+    "LEAD_ASSIGNED",
+    "CUSTOMER_ASSIGNED",
     "FOLLOWUP_CREATED",
     "FOLLOWUP_COMPLETED",
     "LEAD_STATUS_CHANGED",
+    "CHAT_CLOSED",
+    "CHAT_REOPENED",
   ];
 
   if (!lifecycleEvents.includes(activity.eventType)) {

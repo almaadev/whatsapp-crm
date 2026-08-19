@@ -51,6 +51,7 @@ export function isAdminUser(user) {
     (user?.role === "doctor" && user?.department === "admin")
   );
 }
+
 export async function requireAdmin() {
   const { session, error } = await requireSession();
   if (error) return { session: null, error };

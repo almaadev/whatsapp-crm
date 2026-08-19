@@ -5,5 +5,7 @@ export const chatRepository = {
   sendMessage: (payload, options = {}) => api.post("/api/chats", payload, options),
   updateStatus: (payload, options = {}) => api.post("/api/chats/status", payload, options),
   markRead: (payload, options = {}) => api.post("/api/chats/mark-read", payload, options),
-  sendTemplate: (payload, options = {}) => api.post("/api/send-template", payload, options)
+  sendTemplate: (payload, options = {}) => api.post("/api/send-template", payload, options),
+  deleteChats: (payload, options = {}) => api.delete("/api/chats", { data: payload, ...options })
 };
+

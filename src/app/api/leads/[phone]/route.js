@@ -11,6 +11,7 @@ import User from "@/shared/models/User";
 import { sanitizeCustomerOrLeadData } from "@/shared/utils/privacy";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 import { resolveLeadStatus } from "@/shared/utils/leadStatusResolver";
+import { getActivityTitle, formatActorDisplayName } from "@/shared/utils/activityFormatter";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +55,7 @@ export async function GET(req, { params }) {
       .populate("currentAddressId")
       .populate({
         path: 'createdBy',
-        select: 'name role department branch'
+        select: 'name preferredName role department branch'
       })
       .lean();
 
@@ -81,7 +82,7 @@ export async function GET(req, { params }) {
       if (typeof customer.createdBy === "object" && customer.createdBy.name) {
         creatorUser = customer.createdBy;
       } else {
-        creatorUser = await User.findById(customer.createdBy).select("name role department branch branchId").lean();
+        creatorUser = await User.findById(customer.createdBy).select("name preferredName role department branch branchId").lean();
       }
     }
 
@@ -100,7 +101,7 @@ export async function GET(req, { params }) {
       }
 
       creatorInfo = {
-        name: creatorUser.name || "Unknown",
+        name: creatorUser.name || creatorUser.preferredName || "Unknown",
         role: creatorUser.role || "associate",
         department: creatorUser.department || "sales",
         branchId: rawBranch || null,
@@ -116,6 +117,7 @@ export async function GET(req, { params }) {
         branchName: "Unassigned Branch"
       };
     }
+
     // Load timeline activities dynamically from Activity collection
     let resolvedChatHistory = [];
     if (customer) {
@@ -156,11 +158,11 @@ export async function GET(req, { params }) {
       const rawActivities = await Activity.find(query)
         .populate({
           path: 'actorId',
-          select: 'name role department branch'
+          select: 'name preferredName role department branch'
         })
         .populate({
           path: 'metadata.targetUser',
-          select: 'name role department branch'
+          select: 'name preferredName role department branch'
         })
         .sort({ createdAt: 1 })
         .lean();
@@ -178,27 +180,34 @@ export async function GET(req, { params }) {
           const branchVal = entry.actorId.branch?.toString() || "";
           const branchName = branchMap[branchVal] || entry.actorId.branch || "";
           performedByResolved = {
-            name: entry.actorId.name || "Unknown",
-            role: entry.actorId.role || "",
+            name: entry.actorId.name || entry.actorId.preferredName || "Unknown",
+            role: entry.actorId.role || "associate",
             department: entry.actorId.department || "",
             branchName: branchName
           };
+        } else {
+          performedByResolved = {
+            name: entry.metadata?.performedByName || "System Admin",
+            role: entry.metadata?.performedByRole || "superAdmin",
+            department: entry.metadata?.performedByDept || "admin"
+          };
         }
+
         let targetUserResolved = null;
         if (entry.metadata?.targetUser) {
           const branchVal = entry.metadata.targetUser.branch?.toString() || "";
           const branchName = branchMap[branchVal] || entry.metadata.targetUser.branch || "";
           targetUserResolved = {
-            name: entry.metadata.targetUser.name || "Unknown",
+            name: entry.metadata.targetUser.name || entry.metadata.targetUser.preferredName || "Unknown",
             role: entry.metadata.targetUser.role || "",
             department: entry.metadata.targetUser.department || "",
             branchName: branchName
           };
         }
+
         const performedAtVal = entry.createdAt;
         const performedByIdVal = entry.actorId?._id?.toString() || entry.actorId || null;
-        const performedByRoleVal = entry.metadata?.performedByRole || performedByResolved?.role || "";
-        const actionName = entry.metadata?.action || (entry.eventType === "ADDRESS_CHANGED" ? "Address Changed" : entry.eventType === "ASSIGNED" ? "Assigned" : "System Action");
+        const actionName = getActivityTitle(entry.eventType, performedByResolved, entry.metadata || {});
 
         return {
           ...entry,
@@ -211,11 +220,20 @@ export async function GET(req, { params }) {
           leadId: entry.leadId?.toString() || null,
           conversationId: entry.conversationId || entry.leadId?.toString() || null,
           actorId: performedByIdVal,
-          performedBy: performedByResolved || entry.metadata?.performedByName || "System Admin",
-          performedByRole: performedByRoleVal,
+          performedBy: performedByResolved,
+          performedByName: performedByResolved.name,
+          performedByRole: performedByResolved.role,
+          performedByDept: performedByResolved.department,
+          performedByLabel: formatActorDisplayName(performedByResolved),
           performedById: performedByIdVal,
           targetUser: targetUserResolved,
-          metadata: entry.metadata || {},
+          metadata: {
+            ...entry.metadata,
+            action: actionName,
+            performedByName: performedByResolved.name,
+            performedByRole: performedByResolved.role,
+            performedByDept: performedByResolved.department
+          },
           timestamp: performedAtVal,
           performedAt: performedAtVal,
           createdAt: entry.createdAt
@@ -223,47 +241,43 @@ export async function GET(req, { params }) {
       });
     }
 
-    const userRole = session?.user?.role || "associate";
-    const filteredChatHistory = resolvedChatHistory.filter(entry => {
-      if (entry.isInternal) {
-        return userRole === "superAdmin";
-      }
-      return true;
-    });
+    const leadCustomerName = customer ? resolveCustomerDisplayName(customer) : (lead?.name || "New Customer");
+    const leadCustomerCity = customer?.currentAddressId?.city || customer?.city || lead?.city || "";
+    const leadCustomerAddress = customer?.currentAddressId?.address || customer?.address || lead?.address || "";
+    const leadCustomerSource = customer?.source || lead?.source || "Manual Entry";
+    const leadCustomerEnquiredFor = customer?.enquiredFor || lead?.enquiredFor || "";
+    const leadStatusResolved = resolveLeadStatus(lead, latest);
 
-    const data = {
-      leadId: lead?._id ? lead._id.toString() : null,
-      customerId: customer?._id ? customer._id.toString() : null,
-      name: resolveCustomerDisplayName({ lead, customer, phone: primaryPhone }),
-      city: customer?.currentAddressId?.city || customer?.city || "",
-      phone: customer?.phone || primaryPhone,
-      address: customer?.currentAddressId?.address || customer?.address || "",
-      source: customer?.source || "Whatsapp",
-      assignedTo: customer?.assignedTo || "Unassigned",
-      branchId: customer?.branchId?._id?.toString() || customer?.branchId?.toString() || null,
-      enquiredFor: latest?.enquiredFor || customer?.enquiredFor || "",
-      status: resolveLeadStatus(lead),
-      priority: latest?.priority || customer?.priority || "Medium",
-      remarks: customer?.remarks || "",
-      day1Remarks: latest?.day1Remarks || "",
-      day2Remarks: latest?.day2Remarks || "",
-      day3Remarks: latest?.day3Remarks || "",
-      saleAmount: latest?.saleAmount || customer?.saleAmount || "0",
-      leadType: latest?.leadType || customer?.activeRouteCategory || "Direct Lead",
-      history: history,
-      latestFollowUp: latest || {},
-      activeFollowUpCycleId: latest?._id ? latest._id.toString() : null,
+    const formattedResponse = {
+      _id: lead?._id?.toString(),
+      customerId: customer?._id?.toString(),
+      phone: primaryPhone,
+      name: leadCustomerName,
+      city: leadCustomerCity,
+      address: leadCustomerAddress,
+      source: leadCustomerSource,
+      enquiredFor: leadCustomerEnquiredFor,
+      status: leadStatusResolved,
+      priority: lead?.priority || "Medium",
+      remarks: lead?.remarks || "",
+      saleAmount: lead?.saleAmount || "0",
+      assignedTo: lead?.assignedTo || customer?.assignedTo || "Unassigned",
+      branchId: lead?.branchId?.toString() || customer?.branchId?.toString() || null,
+      branchName: branchMap[lead?.branchId?.toString() || customer?.branchId?.toString()] || "Unassigned Branch",
+      isClosed: lead?.isClosed || false,
+      followUpStartDate: lead?.followUpStartDate || null,
       creatorInfo,
-      chatHistory: filteredChatHistory
+      history: history,
+      chatHistory: resolvedChatHistory,
+      createdAt: lead?.createdAt ? new Date(lead.createdAt).toISOString() : null,
+      updatedAt: lead?.updatedAt ? new Date(lead.updatedAt).toISOString() : null
     };
 
-    const sanitizedData = sanitizeCustomerOrLeadData(data, session.user);
-    return NextResponse.json(sanitizedData, { status: 200 });
+    const sanitizedResponse = sanitizeCustomerOrLeadData(formattedResponse, session.user);
+    return NextResponse.json(sanitizedResponse, { status: 200 });
+
   } catch (error) {
     console.error("Fetch Lead Error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch lead" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

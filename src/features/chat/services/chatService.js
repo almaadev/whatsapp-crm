@@ -1,6 +1,7 @@
 import { chatRepository } from "@/shared/api/repositories/chatRepository";
 import { leadRepository } from "@/shared/api/repositories/leadRepository";
 import { templateRepository } from "@/shared/api/repositories/templateRepository";
+import { reminderRepository } from "@/shared/api/repositories/reminderRepository";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 
 /**
@@ -106,5 +107,10 @@ export const chatService = {
   sendTemplateMessage: async ({ phone, templateSid, chatType, associateName, contentVariables, senderNumber }) => {
     const { data } = await templateRepository.sendTemplate({ phone, templateSid, chatType, associateName, contentVariables, senderNumber });
     return data;
-  }
+  },
+
+  setReminder: async (payload) => {
+    const { data } = await reminderRepository.setReminder(payload);
+    return data;
+  },
 };

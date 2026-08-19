@@ -1,7 +1,8 @@
 "use client";
 import api from "@/shared/lib/axios";
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useChatStore } from "@/features/chat/stores/chatStore";
+import { useQueryClient } from "@tanstack/react-query";
+import { useChatStore, isSameConversation } from "@/features/chat/stores/chatStore";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { useSession } from "next-auth/react";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
@@ -37,6 +38,7 @@ const getAvatarGradient = (name) => {
 };
 
 export default function ChatList({ role, loading }) {
+  const queryClient = useQueryClient();
   const messages = useChatStore((s) => s.messages);
 
   const { selectedChat, setSelectedChat, updateChatDetails } = useChatStore();
@@ -53,10 +55,11 @@ export default function ChatList({ role, loading }) {
   const [activeChatMenu, setActiveChatMenu] = useState(null);
 
   // 👇 New Custom Modal States
-  const [deleteModal, setDeleteModal] = useState({ isOpen: false, phones: [] });
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, chats: [] });
   const [isDeleting, setIsDeleting] = useState(false);
 
   const [activeFilter, setActiveFilter] = useState("All");
+
   const [visibleCount, setVisibleCount] = useState(30);
   const listContainerRef = useRef(null);
 
@@ -205,32 +208,60 @@ export default function ChatList({ role, loading }) {
   };
 
   // 👇 API Functions to trigger and confirm deletion
-  const triggerDelete = (phonesArray) => {
-    setDeleteModal({ isOpen: true, phones: phonesArray });
+  const triggerDelete = (chatsArray) => {
+    if (!Array.isArray(chatsArray) || chatsArray.length === 0) return;
+    setDeleteModal({ isOpen: true, chats: chatsArray });
   };
 
   const confirmDelete = async () => {
-    const phonesArray = deleteModal.phones;
+    if (isDeleting || !deleteModal.chats || deleteModal.chats.length === 0) return;
+    const chatsToDelete = deleteModal.chats;
     setIsDeleting(true);
+
     try {
-      const { data: res } = await api.delete("/api/chats", {
-        data: { phones: phonesArray },
-      });
+      const customerIds = chatsToDelete.map((c) => c.customerId).filter(Boolean);
+      const phones = chatsToDelete.map((c) => c.phone).filter(Boolean);
 
-      if (selectedChat && phonesArray.includes(selectedChat.phone)) {
-        setSelectedChat(null);
+      const { data: res } = await chatRepository.deleteChats({ customerIds, phones });
+
+      if (res?.success) {
+        // 1. Remove from Zustand chat store
+        useChatStore.getState().removeConversations({ customerIds, phones });
+
+        // 2. Clear selectedChat if it was among deleted
+        if (selectedChat && chatsToDelete.some((c) => isSameConversation(c, selectedChat))) {
+          setSelectedChat(null);
+        }
+
+        // 3. Reset local selection and modal state
+        setIsSelectionMode(false);
+        setSelectedPhones(new Set());
+        setActiveChatMenu(null);
+        setDeleteModal({ isOpen: false, chats: [] });
+
+        // 4. Invalidate React Query caches
+        try {
+          queryClient.invalidateQueries({ queryKey: ["chats"] });
+          queryClient.invalidateQueries({ queryKey: ["leads"] });
+          queryClient.invalidateQueries({ queryKey: ["customers"] });
+          queryClient.invalidateQueries({ queryKey: ["detailed-customer"] });
+        } catch (queryErr) {
+          console.error("Cache invalidation error:", queryErr);
+        }
+      } else {
+        alert(res?.message || "Failed to delete chat.");
       }
-      setIsSelectionMode(false);
-      setSelectedPhones(new Set());
-      setActiveChatMenu(null);
-      setDeleteModal({ isOpen: false, phones: [] });
-
-      window.location.reload();
     } catch (err) {
       console.error("Delete Error", err);
-      alert("An error occurred while deleting.");
+      const errMsg =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        err.message ||
+        "An error occurred while deleting.";
+      alert(errMsg);
+    } finally {
+      setIsDeleting(false);
     }
-    setIsDeleting(false);
   };
 
   const groupedChats = useMemo(() => {
@@ -321,7 +352,7 @@ export default function ChatList({ role, loading }) {
         </div>
         <div className="space-y-1.5 pt-2">
           {chats.map((chat, index) => {
-            const isSelected = selectedChat?.phone === chat.phone;
+            const isSelected = isSameConversation(selectedChat, chat);
             const isUnread =
               !isSelected &&
               chat.direction === "INBOUND" &&
@@ -341,7 +372,7 @@ export default function ChatList({ role, loading }) {
 
             return (
               <div
-                key={index}
+                key={chat.customerId || chat.phone || index}
                 onClick={(e) => {
                   if (isSelectionMode) {
                     e.preventDefault();
@@ -528,10 +559,10 @@ export default function ChatList({ role, loading }) {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            triggerDelete([chat.phone]);
+                            triggerDelete([chat]);
                           }}
                           disabled={isDeleting}
-                          className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors font-semibold"
+                          className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors font-semibold disabled:opacity-50"
                         >
                           <Trash2 size={13} /> Delete
                         </button>
@@ -566,18 +597,17 @@ export default function ChatList({ role, loading }) {
             </div>
             <div className="pt-0.5">
               <h4 className="text-sm font-bold text-slate-800">
-                Delete Conversation{deleteModal.phones.length > 1 ? "s" : ""}?
+                Delete Conversation{deleteModal.chats?.length > 1 ? "s" : ""}?
               </h4>
               <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                You are about to delete {deleteModal.phones.length} chat
-                {deleteModal.phones.length > 1 ? "s" : ""}. This will clear the
-                message history. The customer will remain in your database.
+                You are about to permanently delete {deleteModal.chats?.length} conversation
+                {deleteModal.chats?.length > 1 ? "s" : ""}. This will remove all associated messages, leads, and customer records from the database.
               </p>
             </div>
           </div>
           <div className="flex justify-end gap-2 mt-2 pt-3 border-t border-slate-100/50">
             <button
-              onClick={() => setDeleteModal({ isOpen: false, phones: [] })}
+              onClick={() => setDeleteModal({ isOpen: false, chats: [] })}
               disabled={isDeleting}
               className="px-4 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-transparent"
             >
@@ -586,7 +616,7 @@ export default function ChatList({ role, loading }) {
             <button
               onClick={confirmDelete}
               disabled={isDeleting}
-              className="px-4 py-1.5 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-red-200"
+              className="px-4 py-1.5 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-red-200 disabled:opacity-50"
             >
               {isDeleting ? (
                 <Clock size={14} className="animate-spin" />
@@ -670,9 +700,12 @@ export default function ChatList({ role, loading }) {
               </button>
               {selectedPhones.size > 0 && (
                 <button
-                  onClick={() => triggerDelete(Array.from(selectedPhones))} // Trigger modal instead of immediate delete
+                  onClick={() => {
+                    const selectedChats = messages.filter((c) => selectedPhones.has(c.phone));
+                    triggerDelete(selectedChats);
+                  }}
                   disabled={isDeleting}
-                  className="p-2 text-white bg-red-500 hover:bg-red-600 rounded-xl transition-colors shadow-sm flex items-center gap-1 text-sm font-medium"
+                  className="p-2 text-white bg-red-500 hover:bg-red-600 rounded-xl transition-colors shadow-sm flex items-center gap-1 text-sm font-medium disabled:opacity-50"
                 >
                   <Trash2 size={16} /> {selectedPhones.size}
                 </button>

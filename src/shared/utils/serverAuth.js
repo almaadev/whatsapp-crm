@@ -1,36 +1,37 @@
 import mongoose from "mongoose";
 import User from "@/shared/models/User";
+import { isSuperAdmin as checkSuperAdmin, isAdminAuthorized } from "@/shared/utils/auth";
 
 /**
  * Centralized Branch Access Control Helper for Server-Side API Handlers & Services.
- * Enforces role-based customer visibility:
+ * Enforces role-based visibility:
  * - Super Admin -> No filter ({})
- * - Admin & Associates -> Filtered by assigned branch(es) OR unassigned customers
+ * - Admin & Associates -> Filtered by assigned branch(es)
  */
 export async function getBranchFilterForUser(session) {
   if (!session?.user) {
-    return { isSuperAdmin: false, userBranchIds: [], branchQuery: { _id: null } };
+    return { isSuperAdmin: false, userBranchIds: [], userBranchObjectIds: [], branchQuery: { _id: null } };
   }
 
   const role = session.user.role;
   const department = session.user.department;
-  const isSuperAdmin = role === "superAdmin";
+  const isSuper = checkSuperAdmin(role);
 
-  if (isSuperAdmin) {
-    return { isSuperAdmin: true, userBranchIds: [], branchQuery: {} };
+  if (isSuper) {
+    return { isSuperAdmin: true, userBranchIds: [], userBranchObjectIds: [], branchQuery: {} };
   }
 
   let rawBranch = session.user.branch;
 
-  // Fallback: If rawBranch is missing in session.user, fetch fresh from User document
-  if (rawBranch === undefined || rawBranch === null) {
-    if (session.user.id) {
-      try {
-        const userDoc = await User.findById(session.user.id).select("branch").lean();
-        if (userDoc) rawBranch = userDoc.branch;
-      } catch (e) {
-        console.error("Error fetching user branch fallback:", e);
+  // Always fetch fresh branch from User document for non-superAdmin to ensure accuracy
+  if (session.user.id) {
+    try {
+      const userDoc = await User.findById(session.user.id).select("branch").lean();
+      if (userDoc && userDoc.branch !== undefined && userDoc.branch !== null) {
+        rawBranch = userDoc.branch;
       }
+    } catch (e) {
+      console.error("[getBranchFilterForUser] Error fetching user branch fallback:", e);
     }
   }
 
@@ -69,11 +70,93 @@ export async function getBranchFilterForUser(session) {
     ],
   };
 
-  console.log(`[getBranchFilterForUser] User: ${session.user.name || session.user.email}, Role: ${role}, Dept: ${department}, Branch IDs: ${stringIdArray.join(", ") || "None"}`);
-
   return {
     isSuperAdmin: false,
     userBranchIds: stringIdArray,
+    userBranchObjectIds: objectIdArray,
     branchQuery,
+  };
+}
+
+/**
+ * Authoritative Hierarchical Scope Resolver for Session & Attendance Logs.
+ * Role Hierarchy:
+ * 1. SuperAdmin -> scope: "global" (All branches, all users, self)
+ * 2. Admin -> scope: "branch" (Own branch associates ONLY. Excludes current Admin user from staff monitoring view)
+ * 3. Associate -> scope: "self" (Self data only via self endpoints)
+ */
+export async function resolveAssociateLogScope(session) {
+  if (!session?.user?.id) {
+    return {
+      scope: "none",
+      isSuperAdmin: false,
+      isAdmin: false,
+      userId: null,
+      excludeUserId: null,
+      userBranchIds: [],
+      userBranchObjectIds: [],
+      query: { _id: null }
+    };
+  }
+
+  const userId = session.user.id.toString();
+  const role = session.user.role;
+  const department = session.user.department;
+
+  const isSuper = checkSuperAdmin(role);
+  const isAdmin = isAdminAuthorized(role, department);
+
+  if (isSuper) {
+    return {
+      scope: "global",
+      isSuperAdmin: true,
+      isAdmin: true,
+      userId,
+      excludeUserId: null,
+      userBranchIds: [],
+      userBranchObjectIds: [],
+      query: {}
+    };
+  }
+
+  if (isAdmin) {
+    const branchFilter = await getBranchFilterForUser(session);
+    const { userBranchIds, userBranchObjectIds } = branchFilter;
+    const userObjId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : null;
+
+    const query = {
+      associateId: { $ne: userObjId },
+      $or: [
+        { branchId: { $in: [...userBranchObjectIds, ...userBranchIds] } },
+        { branchId: null },
+        { branchId: { $exists: false } }
+      ]
+    };
+
+    return {
+      scope: "branch",
+      isSuperAdmin: false,
+      isAdmin: true,
+      userId,
+      excludeUserId: userId,
+      userBranchIds,
+      userBranchObjectIds,
+      query
+    };
+  }
+
+  // Normal Associate -> self scope ONLY
+  const userObjId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : null;
+  return {
+    scope: "self",
+    isSuperAdmin: false,
+    isAdmin: false,
+    userId,
+    excludeUserId: null,
+    userBranchIds: [],
+    userBranchObjectIds: [],
+    query: {
+      associateId: { $in: [userObjId, userId].filter(Boolean) }
+    }
   };
 }

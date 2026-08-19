@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
-import connectDB from "@/shared/lib/db/mongodb";
-import Message from "@/shared/models/Message";
-import redis from "@/shared/lib/db/redis";
+import { NextResponse } from "next/server.js";
+import connectDB from "../../../../shared/lib/db/mongodb.js";
+import Message from "../../../../shared/models/Message.js";
+import redis from "../../../../shared/lib/db/redis.js";
 
 // All Twilio Outbound Statuses
 const TWILIO_STATUSES = [
@@ -91,5 +91,31 @@ export async function POST(req) {
   } catch (error) {
     console.error("Status Webhook Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function GET() {
+  try {
+    await connectDB();
+    const { getQueueMetrics } = await import("../../../../server/queues/queueManager.js");
+    const queueMetrics = await getQueueMetrics();
+
+    return NextResponse.json({
+      status: "healthy",
+      timestamp: new Date().toISOString(),
+      database: {
+        mongodb: "connected",
+        redis: redis && redis.status !== "disabled" ? "connected" : "standalone/fallback",
+      },
+      queues: queueMetrics,
+    });
+  } catch (err) {
+    return NextResponse.json(
+      {
+        status: "unhealthy",
+        error: err.message,
+      },
+      { status: 500 }
+    );
   }
 }

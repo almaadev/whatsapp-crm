@@ -20,10 +20,12 @@ export const NAVIGATION_CONFIG = [
       "/crm/admin/performance-monitor",
       "/crm/admin/reports",
       "/crm/admin/associate-management",
+      "/crm/admin/branches",
+      "/crm/admin/associate-logs",
+      "/crm/templates",
       "/crm/admin/template-manager",
       "/crm/admin/twilio",
       "/crm/admin/keyword-automation",
-      "/crm/admin/branches",
       "/crm/admin/twillio-numbers"
     ],
     items: [
@@ -31,6 +33,8 @@ export const NAVIGATION_CONFIG = [
       { label: "Reports & Export", href: "/crm/admin/reports" },
       { label: "Manage Associates", href: "/crm/admin/associate-management" },
       { label: "Manage Branches", href: "/crm/admin/branches", superAdminAndAdminDeptOnly: true },
+      { label: "Associate Logs", href: "/crm/admin/associate-logs" },
+      { label: "CRM Templates", href: "/crm/templates" },
       { label: "Template Manager", href: "/crm/admin/template-manager" },
       { label: "Automatic Reply", href: "/crm/admin/keyword-automation" },
       { label: "Twilio Center", href: "/crm/admin/twilio" },

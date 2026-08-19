@@ -11,6 +11,8 @@ import { connectSocket } from "@/features/chat/services/socketService";
 import { useQueryClient } from "@tanstack/react-query";
 import { realtimeService } from "@/shared/services/realtimeService";
 
+import { useAssociateSession } from "@/shared/hooks/useAssociateSession";
+
 const CrmLayoutContext = createContext(null);
 
 export function useCrmLayout() {
@@ -26,6 +28,8 @@ export default function CrmShell({ children }) {
   const queryClient = useQueryClient();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isDesktopExpanded, setIsDesktopExpanded] = useState(false);
+
+  const associateSessionState = useAssociateSession();
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -53,10 +57,11 @@ export default function CrmShell({ children }) {
   const user = useUserStore((state) => state.user);
 
   useEffect(() => {
-    if (user && status === "authenticated") {
-      realtimeService.init(queryClient, user);
+    const effectiveUser = user || session?.user;
+    if (effectiveUser && status === "authenticated") {
+      realtimeService.init(queryClient, effectiveUser);
     }
-  }, [user, status, queryClient]);
+  }, [user, session?.user, status, queryClient]);
 
   useEffect(() => {
     if (session && status === "authenticated") {
@@ -128,6 +133,7 @@ export default function CrmShell({ children }) {
         setIsDesktopExpanded,
         isDesktopExpanded,
         toggleDesktopSidebar,
+        associateSession: associateSessionState,
       }}
     >
       <div className="flex h-[100dvh] bg-[var(--background)] font-sans overflow-hidden">

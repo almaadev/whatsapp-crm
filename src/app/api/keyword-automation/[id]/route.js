@@ -8,7 +8,7 @@ export async function PUT(req, { params }) {
     // 🚀 Unwrap the params promise before destructuring
     const { id } = await params; 
     const body = await req.json();
-    const { templateSid, isActive } = body;
+    const { templateType = "whatsapp", templateId, templateSid, isActive } = body;
     
     let rawKeywords = body.keywords;
     if (!Array.isArray(rawKeywords)) {
@@ -30,8 +30,14 @@ export async function PUT(req, { params }) {
       return NextResponse.json({ success: false, error: "At least one valid keyword is required." }, { status: 400 });
     }
 
-    if (!templateSid) {
-      return NextResponse.json({ success: false, error: "Template SID is required." }, { status: 400 });
+    if (templateType === "crm") {
+      if (!templateId) {
+        return NextResponse.json({ success: false, error: "CRM Template is required when template type is CRM." }, { status: 400 });
+      }
+    } else {
+      if (!templateSid || !templateSid.trim()) {
+        return NextResponse.json({ success: false, error: "WhatsApp Template SID is required." }, { status: 400 });
+      }
     }
 
     // Ensure uniqueness except for self
@@ -50,11 +56,14 @@ export async function PUT(req, { params }) {
     const updateBody = {
       keywords: normalizedKeywords,
       key: normalizedKeywords[0], // backward compatibility
-      templateSid: templateSid.trim(),
+      templateType: templateType === "crm" ? "crm" : "whatsapp",
+      templateId: templateType === "crm" ? templateId : null,
+      templateSid: templateType === "whatsapp" ? (templateSid ? templateSid.trim() : "") : "",
       isActive: isActive !== false
     };
 
-    const updated = await KeywordAutomation.findByIdAndUpdate(id, updateBody, { returnDocument: "after" });
+    const updated = await KeywordAutomation.findByIdAndUpdate(id, updateBody, { returnDocument: "after" })
+      .populate("templateId", "name body category isActive");
     return NextResponse.json({ success: true, data: updated });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

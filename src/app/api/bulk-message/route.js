@@ -136,6 +136,7 @@ export async function POST(req) {
       bulkRecord = await BulkMessage.findById(campaignId);
       bulkRecord.recipients.push(...finalRecipients);
       if (resolvedSender) bulkRecord.senderNumber = resolvedSender;
+      await bulkRecord.save();
     } else {
       bulkRecord = await BulkMessage.create({
         campaignName,
@@ -147,40 +148,37 @@ export async function POST(req) {
       });
     }
 
-    let successCount = 0;
-    let failedCount = 0;
+    // 6. Enqueue Campaign to BullMQ asynchronously (Zero HTTP Blocking)
+    const { campaignQueue } = await import("@/server/queues/queueManager");
+    const safeJobId = `campaign_${bulkRecord._id.toString()}_${Date.now()}`;
 
-    // 6. Send via Twilio
-    for (const formattedTo of finalRecipients) {
-      const messagePayload = {
-        contentSid: templateId,
-        from: formattedFrom,
-        to: formattedTo,
-      };
-      if (validation.isDynamic && validation.contentVariables)
-        messagePayload.contentVariables = JSON.stringify(validation.contentVariables);
-      try {
-        await client.messages.create(messagePayload);
-        successCount++;
-      } catch (err) {
-        console.error(`Twilio Error sending to ${formattedTo}:`, err.message);
-        failedCount++;
+    await campaignQueue.add(
+      "process-campaign",
+      {
+        campaignId: bulkRecord._id.toString(),
+        campaignName,
+        templateId,
+        recipients: finalRecipients,
+        validation,
+        formattedFrom,
+        resolvedSender,
+        sentBy: session?.user?.name || "System",
+        userId: session?.user?.id || null,
+      },
+      {
+        jobId: safeJobId,
       }
-    }
-
-    bulkRecord.successfulSends += successCount;
-    bulkRecord.failedSends += failedCount;
-    bulkRecord.status = "COMPLETED";
-    await bulkRecord.save();
+    );
 
     return NextResponse.json(
       {
         success: true,
+        queued: true,
         campaignId: bulkRecord._id,
-        successCount,
-        failedCount,
-        skippedCount,
         total: validFormattedNumbers.length,
+        recipientCount: finalRecipients.length,
+        skippedCount,
+        message: "Campaign queued for asynchronous delivery.",
       },
       { status: 200 },
     );

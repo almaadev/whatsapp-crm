@@ -1,8 +1,9 @@
 /**
- * Sanitizes chat lastHandled info.
- * @param {Object} lastHandled
- * @param {Object} loggedInUser
+ * Privacy & Sanitization Utilities.
+ * Sanitizes sensitive chat / user assignment information where necessary.
+ * Preserves activity timeline audit history details.
  */
+
 export function sanitizeLastHandled(lastHandled, loggedInUser) {
   if (!lastHandled) return null;
   if (!loggedInUser) return lastHandled;
@@ -20,14 +21,13 @@ export function sanitizeLastHandled(lastHandled, loggedInUser) {
     };
   }
 
-  // Anonymize
   return {
     isCurrentHandler: false,
     isHandledByOther: true,
-    name: "Team Member",
-    role: "",
-    department: "",
-    userId: "",
+    name: lastHandled.name || "Team Member",
+    role: lastHandled.role || "",
+    department: lastHandled.department || "",
+    userId: lastHandled.userId || "",
   };
 }
 
@@ -51,7 +51,7 @@ export function sanitizeChatList(chats, loggedInUser) {
 }
 
 /**
- * Sanitizes customer/lead history details.
+ * Sanitizes customer/lead history details while preserving authoritative activity timeline performer identity.
  */
 export function sanitizeCustomerOrLeadData(data, loggedInUser) {
   if (!data) return data;
@@ -66,7 +66,7 @@ export function sanitizeCustomerOrLeadData(data, loggedInUser) {
       (sanitized.creatorInfo.userId && sanitized.creatorInfo.userId === loggedInUser.id) || 
       (sanitized.creatorInfo.name && sanitized.creatorInfo.name === loggedInUser.name);
       
-    if (!isSuperAdmin && !isCreator) {
+    if (!isSuperAdmin && !isCreator && !sanitized.creatorInfo.name) {
       sanitized.creatorInfo = {
         name: "Team Member",
         role: "",
@@ -76,102 +76,15 @@ export function sanitizeCustomerOrLeadData(data, loggedInUser) {
     }
   }
 
-  // Sanitize assignedTo / associate
-  if (sanitized.assignedTo && sanitized.assignedTo !== "Unassigned") {
-    if (!isSuperAdmin && sanitized.assignedTo !== loggedInUser.name) {
-      sanitized.assignedTo = "Team Member";
-    }
-  }
-  if (sanitized.associate && sanitized.associate !== "Unassigned") {
-    if (!isSuperAdmin && sanitized.associate !== loggedInUser.name) {
-      sanitized.associate = "Team Member";
-    }
-  }
-
-  // Sanitize chatHistory (Timeline logs)
+  // Preserve chatHistory (Timeline activity logs) - DO NOT anonymize activity performers to "Team Member"
   if (Array.isArray(sanitized.chatHistory)) {
-    sanitized.chatHistory = sanitized.chatHistory.map((entry) => {
-      const isPerformer = 
-        entry.performedById === loggedInUser.id || 
-        entry.performedByName === loggedInUser.name || 
-        (entry.performedBy && (entry.performedBy.name === loggedInUser.name || entry.performedBy === loggedInUser.name));
-
-      const entryCopy = { ...entry };
-
-      if (!isSuperAdmin && !isPerformer) {
-        // Anonymize performedBy
-        if (entryCopy.performedBy && typeof entryCopy.performedBy === "object") {
-          entryCopy.performedBy = {
-            ...entryCopy.performedBy,
-            name: "Team Member",
-            role: "",
-            department: "",
-          };
-        } else if (typeof entryCopy.performedBy === "string") {
-          entryCopy.performedBy = "Team Member";
-        }
-
-        if (entryCopy.performedByName) {
-          entryCopy.performedByName = "Team Member";
-        }
-        if (entryCopy.performedByRole) {
-          entryCopy.performedByRole = "";
-        }
-      }
-
-      // Sanitize targetUser if present
-      if (entryCopy.targetUser) {
-        const isTarget = 
-          entryCopy.targetUser.userId === loggedInUser.id || 
-          entryCopy.targetUser.name === loggedInUser.name;
-          
-        if (!isSuperAdmin && !isTarget) {
-          entryCopy.targetUser = {
-            ...entryCopy.targetUser,
-            name: "Team Member",
-            role: "",
-            department: "",
-          };
-        }
-      }
-
-      return entryCopy;
-    });
+    sanitized.chatHistory = sanitized.chatHistory.map((entry) => ({ ...entry }));
   }
 
   // Sanitize previous cycles history (leads array)
   if (Array.isArray(sanitized.history)) {
     sanitized.history = sanitized.history.map((cycle) => {
-      const isAssociate = 
-        cycle.associateId === loggedInUser.id || 
-        cycle.associateName === loggedInUser.name;
-        
-      if (!isSuperAdmin && !isAssociate) {
-        return {
-          ...cycle,
-          associateName: "Team Member",
-          associateId: "",
-        };
-      }
-      return cycle;
-    });
-  }
-
-  // If used on a raw Customer document that has leads (e.g. inside Customer.toObject())
-  if (Array.isArray(sanitized.leads)) {
-    sanitized.leads = sanitized.leads.map((cycle) => {
-      const isAssociate = 
-        cycle.associateId === loggedInUser.id || 
-        cycle.associateName === loggedInUser.name;
-        
-      if (!isSuperAdmin && !isAssociate) {
-        return {
-          ...cycle,
-          associateName: "Team Member",
-          associateId: "",
-        };
-      }
-      return cycle;
+      return { ...cycle };
     });
   }
 

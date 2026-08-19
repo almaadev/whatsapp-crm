@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { chatService } from "@/features/chat/services/chatService";
 import { useChatStore } from "@/features/chat/stores/chatStore";
+import { isSamePhone } from "@/shared/utils/phoneUtils";
 
 /**
  * Custom hook for managing the main chat interface logic.
@@ -77,7 +78,7 @@ export function useChat(role) {
     };
 
     if (phone) {
-      const targetChat = chats.find((chat) => chat.phone === phone);
+      const targetChat = chats.find((chat) => isSamePhone(chat.phone, phone));
 
       if (targetChat) {
         processChat(targetChat);

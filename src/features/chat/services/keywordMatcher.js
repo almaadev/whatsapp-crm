@@ -4,11 +4,16 @@ import { createMessage, getModelByCategory } from "@/shared/repositories/message
 import { determineConversationRoute } from "@/features/chat/services/chatRoutingService";
 import { 
   sendTemplateMessage, 
+  sendWhatsAppMessage,
   getTemplateDetail, 
   validateTemplatePayload 
 } from "@/features/admin/services/twilioService";
 import { emitNewMessage } from "@/shared/utils/socketPublisher";
 import Message from "@/shared/models/Message";
+import CRMTemplate from "@/shared/models/CRMTemplate";
+import Lead from "@/shared/models/Lead";
+import Branch from "@/shared/models/Branch";
+import { resolveTemplate } from "@/shared/utils/templateResolver";
 
 /**
  * Automatically builds variable values for dynamic templates based on customer attributes.
@@ -55,7 +60,16 @@ function generateContentVariables(templateBody, customer, profileName) {
 /**
  * Saves the automated reply message (whether sent or failed) to MongoDB and triggers socket notifications.
  */
-async function saveAndEmitMessage({ phone, messageText, status, twilioSid, templateSid, targetCategory, senderNumber }) {
+async function saveAndEmitMessage({
+  phone,
+  messageText,
+  status,
+  twilioSid,
+  templateSid = "",
+  templateMetadata = null,
+  targetCategory,
+  senderNumber,
+}) {
   const msgPayload = {
     phone: phone,
     message: messageText,
@@ -67,14 +81,15 @@ async function saveAndEmitMessage({ phone, messageText, status, twilioSid, templ
     isAutomated: true,
     sendBy: null,
     templateSid: templateSid,
+    templateMetadata: templateMetadata,
     source: "Keyword Automation",
-    chatType: "Direct Lead",
+    chatType: targetCategory || "Direct Lead",
     senderNumber: senderNumber,
     timestamp: new Date(),
     read: "TRUE",
     isChatClosed: false,
     mediaUrl: "",
-    mediaType: ""
+    mediaType: "",
   };
 
   const savedMsg = await createMessage(msgPayload, Message);
@@ -95,8 +110,22 @@ function normalizeText(text) {
     .trim();
 }
 
-export async function processKeywordAutoReply(phone, messageText, profileName = "", senderNumber = null) {
+const inFlightAutoReplies = new Set();
+
+export async function processKeywordAutoReply(phone, messageText, profileName = "", senderNumber = null, options = {}) {
   if (!messageText) return false;
+
+  const inboundSid = options?.inboundMessageSid;
+
+  // In-flight concurrency lock: prevent race condition if retry arrives while external Twilio call is pending
+  if (inboundSid && inFlightAutoReplies.has(inboundSid)) {
+    console.log(`[AUTO-REPLY] Reply currently in-flight for inboundMessageSid=${inboundSid}. Skipping concurrent execution.`);
+    return true;
+  }
+
+  if (inboundSid) {
+    inFlightAutoReplies.add(inboundSid);
+  }
 
   try {
     const activeKeywords = await findAllAutomations({ isActive: true });
@@ -105,7 +134,7 @@ export async function processKeywordAutoReply(phone, messageText, profileName = 
     const cleanText = normalizeText(messageText);
     const matchedKeyword = activeKeywords.find((k) => {
       if (Array.isArray(k.keywords) && k.keywords.length > 0) {
-        return k.keywords.some(keyword => {
+        return k.keywords.some((keyword) => {
           const cleanKeyword = normalizeText(keyword);
           return cleanKeyword && cleanText === cleanKeyword;
         });
@@ -119,20 +148,122 @@ export async function processKeywordAutoReply(phone, messageText, profileName = 
     });
 
     if (matchedKeyword) {
-      console.log(`🤖 [AUTO-REPLY] Match found for keyword: "${matchedKeyword.key}" (Sender: ${senderNumber})`);
+      console.log(`🤖 [AUTO-REPLY] Match found for keyword: "${matchedKeyword.key || matchedKeyword.keywords?.[0]}" (Sender: ${senderNumber})`);
 
-      // 1. Fetch template detail (MongoDB first, then Twilio Content API)
-      const template = await getTemplateDetail(matchedKeyword.templateSid);
-      const templateBody = template?.body || `Automated Template: ${matchedKeyword.templateSid}`;
+      // Outbound Idempotency Check: prevent duplicate Twilio send if retry occurs
+      if (inboundSid) {
+        const alreadySent = await Message.findOne({
+          phone,
+          direction: "OUTBOUND",
+          "templateMetadata.sourceMessageSid": inboundSid,
+        }).lean();
 
-      // 2. Fetch customer details and determine route category
+        if (alreadySent) {
+          console.log(`[AUTO-REPLY] Outbound reply already sent for inboundMessageSid=${inboundSid}. Skipping duplicate dispatch.`);
+          return true;
+        }
+      }
+
+      // 1. Fetch customer details and determine route category
       let customer = await findCustomerByPhone(phone);
       let targetCategory = customer?.activeRouteCategory || "Direct Lead";
       if (!customer) {
         targetCategory = await determineConversationRoute(phone, messageText, null);
       }
 
-      // 3. Extract placeholders and generate content variables if needed
+      if (customer?.isOptedOut) {
+        console.log(`[AUTO-REPLY] Customer ${phone} is opted out. Cancelling auto reply.`);
+        return false;
+      }
+
+      // ==========================================
+      // BRANCH A: CRM TEMPLATE AUTO-REPLY
+      // ==========================================
+      if (matchedKeyword.templateType === "crm" || (matchedKeyword.templateId && !matchedKeyword.templateSid)) {
+        const crmTemplate = await CRMTemplate.findById(matchedKeyword.templateId).lean();
+        if (!crmTemplate || crmTemplate.isArchived || !crmTemplate.isActive) {
+          console.warn(`[AUTO-REPLY] CRM template ${matchedKeyword.templateId} is missing or inactive.`);
+          return false;
+        }
+
+        // Fetch lead and branch context
+        let leadDoc = null;
+        if (customer?._id) {
+          leadDoc = await Lead.findOne({ customerId: customer._id }).lean();
+        }
+
+        let branchDoc = null;
+        if (customer?.branchId) {
+          branchDoc = await Branch.findById(customer.branchId).lean();
+        }
+
+        const customerAddress = customer?.currentAddressId || {};
+
+        // Resolve variables server-side
+        const { resolvedText, resolvedVariables, missingVariables, isValid } = resolveTemplate({
+          template: crmTemplate,
+          customer,
+          lead: leadDoc,
+          branch: branchDoc,
+          customerAddress,
+        });
+
+        if (!isValid && missingVariables.length > 0) {
+          console.warn(`[AUTO-REPLY] Missing required variables for CRM template: ${missingVariables.join(", ")}`);
+        }
+
+        try {
+          const sent = await sendWhatsAppMessage(phone, resolvedText, { senderNumber });
+          await saveAndEmitMessage({
+            phone,
+            messageText: resolvedText,
+            status: sent.status || "SENT",
+            twilioSid: sent.sid || `crm_auto_${Date.now()}`,
+            templateMetadata: {
+              type: "crm",
+              templateId: crmTemplate._id,
+              templateName: crmTemplate.name,
+              version: crmTemplate.version || 1,
+              source: "automation",
+              automationId: matchedKeyword._id,
+              sourceMessageSid: options?.inboundMessageSid || null,
+              variables: resolvedVariables,
+            },
+            targetCategory,
+            senderNumber,
+          });
+          return true;
+        } catch (sendErr) {
+          console.error(`❌ [AUTO-REPLY] Failed to send CRM Template message: ${sendErr.message}`);
+          await saveAndEmitMessage({
+            phone,
+            messageText: resolvedText,
+            status: "failed",
+            twilioSid: `failed_crm_${Date.now()}`,
+            templateMetadata: {
+              type: "crm",
+              templateId: crmTemplate._id,
+              templateName: crmTemplate.name,
+              version: crmTemplate.version || 1,
+              source: "automation",
+              automationId: matchedKeyword._id,
+              sourceMessageSid: options?.inboundMessageSid || null,
+              variables: resolvedVariables,
+            },
+            targetCategory,
+            senderNumber,
+          });
+          return false;
+        }
+      }
+
+      // ==========================================
+      // BRANCH B: WHATSAPP CONTENT API TEMPLATE AUTO-REPLY
+      // ==========================================
+      const template = await getTemplateDetail(matchedKeyword.templateSid);
+      const templateBody = template?.body || `Automated Template: ${matchedKeyword.templateSid}`;
+
+      // Extract placeholders and generate content variables if needed
       const requiredPlaceholders = new Set();
       if (template?.body) {
         const regex = /\{\{([^}]+)\}\}/g;
@@ -148,22 +279,12 @@ export async function processKeywordAutoReply(phone, messageText, profileName = 
         contentVariables = generateContentVariables(template?.body, customer, profileName);
       }
 
-      // 4. Output detailed log start
-      console.log(`\n[AUTO REPLY]\nKeyword: "${matchedKeyword.key}"\nSender: "${senderNumber}"\n`);
-      console.log(`Automation:\n- Rule ID: ${matchedKeyword._id}\n- Template Name: ${template?.name || "Unknown"}\n- Content SID: ${matchedKeyword.templateSid}\n`);
-      console.log(`Template Analysis:\n- Variables Required: ${isDynamic ? "Yes" : "No"}\n- Variables Found: ${contentVariables && Object.keys(contentVariables).length > 0 ? "Yes" : "No"}\n`);
-
-      if (isDynamic && contentVariables) {
-        console.log(`Generated Content Variables:\n${JSON.stringify(contentVariables, null, 2)}\n`);
-      }
-
-      // 5. Validate template payload
+      // Validate template payload
       const validation = validateTemplatePayload(template, contentVariables);
 
       if (!validation.isValid) {
         console.log(`Validation Failed\nReason:\n${validation.reason}\nTwilio request cancelled.\n`);
 
-        // Save failure status to database & notify UI
         const dummySid = `failed_auto_${Date.now()}`;
         await saveAndEmitMessage({
           phone,
@@ -171,36 +292,42 @@ export async function processKeywordAutoReply(phone, messageText, profileName = 
           status: "failed",
           twilioSid: dummySid,
           templateSid: matchedKeyword.templateSid,
+          templateMetadata: {
+            type: "whatsapp",
+            source: "automation",
+            automationId: matchedKeyword._id,
+          },
           targetCategory,
-          senderNumber
+          senderNumber,
         });
 
         return false;
       }
 
-      // 6. Send template via Twilio using customer's incoming sender number
-      console.log(`Sending Template from ${senderNumber}...`);
+      // Send template via Twilio using customer's incoming sender number
       try {
         const sentMessage = await sendTemplateMessage(phone, matchedKeyword.templateSid, validation.contentVariables, { senderNumber });
-        console.log(`Success\n`);
 
-        // Save success status to database & notify UI
         await saveAndEmitMessage({
           phone,
           messageText: templateBody,
           status: sentMessage.status || "queued",
           twilioSid: sentMessage.sid,
           templateSid: matchedKeyword.templateSid,
+          templateMetadata: {
+            type: "whatsapp",
+            source: "automation",
+            automationId: matchedKeyword._id,
+            sourceMessageSid: options?.inboundMessageSid || null,
+          },
           targetCategory,
-          senderNumber
+          senderNumber,
         });
 
         return true;
       } catch (sendError) {
         console.error(`❌ Twilio Send Error: ${sendError.message}`);
-        console.log(`Validation Failed\nReason:\nTwilio API Error: ${sendError.message}\nTwilio request cancelled.\n`);
 
-        // Save failure status to database & notify UI
         const dummySid = `failed_auto_${Date.now()}`;
         await saveAndEmitMessage({
           phone,
@@ -208,8 +335,14 @@ export async function processKeywordAutoReply(phone, messageText, profileName = 
           status: "failed",
           twilioSid: dummySid,
           templateSid: matchedKeyword.templateSid,
+          templateMetadata: {
+            type: "whatsapp",
+            source: "automation",
+            automationId: matchedKeyword._id,
+            sourceMessageSid: options?.inboundMessageSid || null,
+          },
           targetCategory,
-          senderNumber
+          senderNumber,
         });
 
         return false;
@@ -217,6 +350,10 @@ export async function processKeywordAutoReply(phone, messageText, profileName = 
     }
   } catch (error) {
     console.error("❌ [AUTO-REPLY] Fatal Error processing keyword match:", error);
+  } finally {
+    if (inboundSid) {
+      inFlightAutoReplies.delete(inboundSid);
+    }
   }
   return false;
 }

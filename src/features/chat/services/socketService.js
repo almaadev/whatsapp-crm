@@ -16,7 +16,7 @@ export const connectSocket = () => {
 
   const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
 
-  console.log(`[SocketService] Initializing single socket connection to: ${socketUrl}`);
+  console.log(`[SOCKET DEBUG] connecting to ${socketUrl}...`);
 
   socket = io(socketUrl, {
     path: "/socket.io/",
@@ -30,19 +30,21 @@ export const connectSocket = () => {
   });
 
   socket.on("connect", () => {
-    console.log(`🟢 [SocketService] Connected | ID: ${socket.id}`);
+    const transport = socket.io?.engine?.transport?.name || "unknown";
+    console.log(`[SOCKET DEBUG] connected | socketId=${socket.id} | transport=${transport}`);
   });
 
   socket.on("disconnect", (reason) => {
-    console.warn(`🔴 [SocketService] Disconnected | Reason: ${reason}`);
+    console.warn(`[SOCKET DEBUG] disconnected | reason=${reason}`);
   });
 
   socket.on("connect_error", (err) => {
-    console.error(`🚨 [SocketService] Connection Error:`, err.message);
+    console.error(`[SOCKET DEBUG] connection error:`, err.message);
   });
 
   socket.on("reconnect", (attemptNumber) => {
-    console.log(`🔄 [SocketService] Reconnected on attempt #${attemptNumber}`);
+    const transport = socket.io?.engine?.transport?.name || "unknown";
+    console.log(`[SOCKET DEBUG] reconnected on attempt #${attemptNumber} | transport=${transport}`);
   });
 
   return socket;

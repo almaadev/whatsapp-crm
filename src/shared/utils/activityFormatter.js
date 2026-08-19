@@ -22,73 +22,142 @@ import {
 import { ActivityEvents } from "@/shared/constants/activityConstants";
 
 /**
- * Returns a human-readable title for an activity event.
+ * Authoritative Display Name Resolver for Activity Performers / Actors.
+ * Business Rules:
+ * - SuperAdmin / System -> "System Admin"
+ * - Admin -> "<Admin Name> (Admin)"  (e.g., "John (Admin)")
+ * - Associate / Sales / Doctor -> "<User Name>" (e.g., "Mani", "Dr. Kumar")
+ * - Unresolved fallback -> "Team Member" (ONLY when actor identity genuinely cannot be resolved)
  */
-export const getActivityTitle = (eventType, performerName, metadata = {}) => {
-  const user = performerName || metadata.performedByName || "System Admin";
+export function formatActorDisplayName(actor) {
+  if (!actor) return "Team Member";
+
+  if (typeof actor === "string") {
+    const trimmed = actor.trim();
+    if (!trimmed || trimmed.toLowerCase() === "unknown") return "Team Member";
+    if (trimmed === "System Admin" || trimmed.endsWith("(Admin)")) return trimmed;
+    if (trimmed.toLowerCase() === "system" || trimmed.toLowerCase() === "system admin") return "System Admin";
+    return trimmed;
+  }
+
+  const role = actor.role || actor.performedByRole || "";
+  const dept = actor.department || actor.performedByDept || "";
+  const name = actor.name || actor.performedBy || actor.performedByName || actor.preferredName || "";
+
+  if (role === "superAdmin" || role === "system") {
+    return "System Admin";
+  }
+
+  const isAdmin = role === "admin" || (role === "sales" && dept === "admin") || (role === "doctor" && dept === "admin");
+
+  if (isAdmin) {
+    if (!name || name === "System Admin") return "Admin";
+    if (name.endsWith("(Admin)")) return name;
+    return `${name} (Admin)`;
+  }
+
+  if (name && name !== "System Admin") {
+    return name;
+  }
+
+  return "Team Member";
+}
+
+/**
+ * Returns a standardized human-readable title for an activity event.
+ */
+export const getActivityTitle = (eventType, performerInput, metadata = {}) => {
+  const actorObj = typeof performerInput === "object" ? performerInput : {
+    name: performerInput || metadata.performedByName || metadata.performedBy,
+    role: metadata.performedByRole,
+    department: metadata.performedByDept
+  };
+
+  const actorLabel = formatActorDisplayName(actorObj);
   const type = (eventType || "").toUpperCase();
-  // Use this for if  you show user name; 
-  // by ${user}
+
   switch (type) {
     case ActivityEvents.CUSTOMER_CREATED:
-      return `Customer Created `;
+      return `Customer Created`;
     case ActivityEvents.LEAD_CREATED:
       return `New Lead Created`;
     case ActivityEvents.CHAT_STARTED:
-      return `Chat Started `;
+      return `Chat Started`;
     case ActivityEvents.CHAT_CLOSED:
       return `Chat Closed `;
     case ActivityEvents.CHAT_REOPENED:
       return `Chat Reopened `;
-    case ActivityEvents.LEAD_ASSIGNED:
+    case ActivityEvents.CHAT_LOCKED:
+      return `Chat Locked `;
+    case ActivityEvents.CHAT_UNLOCKED:
+      return `Chat Unlocked `;
+    case ActivityEvents.LEAD_ASSIGNED: {
+      const isTransfer = metadata.isTransfer || metadata.isForwarded || (metadata.oldOwner && metadata.oldOwner.toLowerCase() !== "unassigned" && metadata.newOwner && metadata.oldOwner !== metadata.newOwner);
       const targetUser = metadata.newOwner || metadata.targetUserName || (metadata.targetUser?.name);
-      return targetUser ? `Lead Assigned to ${targetUser} by ${user}` : `Lead Assigned by ${user}`;
-    case ActivityEvents.CUSTOMER_ASSIGNED:
+      if (isTransfer) {
+        return metadata.oldOwner && metadata.oldOwner.toLowerCase() !== "unassigned" && targetUser
+          ? `Lead Transferred from ${metadata.oldOwner} to ${targetUser} by ${actorLabel}`
+          : targetUser
+            ? `Lead Transferred to ${targetUser} by ${actorLabel}`
+            : `Lead Transferred by ${actorLabel}`;
+      }
+      return targetUser ? `Lead Assigned to ${targetUser} by ${actorLabel}` : `Lead Assigned by ${actorLabel}`;
+    }
+    case ActivityEvents.CUSTOMER_ASSIGNED: {
+      const isTransfer = metadata.isTransfer || metadata.isForwarded || (metadata.oldOwner && metadata.oldOwner.toLowerCase() !== "unassigned" && metadata.newOwner && metadata.oldOwner !== metadata.newOwner);
       const targetCust = metadata.newOwner || metadata.targetUserName || (metadata.targetUser?.name);
-      return targetCust ? `Customer Assigned to ${targetCust} ` : `Customer Assigned by ${user}`;
+      if (isTransfer) {
+        return metadata.oldOwner && metadata.oldOwner.toLowerCase() !== "unassigned" && targetCust
+          ? `Customer Transferred from ${metadata.oldOwner} to ${targetCust} by ${actorLabel}`
+          : targetCust
+            ? `Customer Transferred to ${targetCust} by ${actorLabel}`
+            : `Customer Transferred by ${actorLabel}`;
+      }
+      return targetCust ? `Customer Assigned to ${targetCust} by ${actorLabel}` : `Customer Assigned by ${actorLabel}`;
+    }
     case ActivityEvents.FOLLOWUP_CREATED:
       return `Follow Up Created `;
     case ActivityEvents.FOLLOWUP_COMPLETED:
       return `Lead Closed `;
-    // case ActivityEvents.LEAD_STATUS_CHANGED:
-    //   const newStatus = metadata.newStatus || metadata.status;
-    //   return newStatus ? `Lead Status Changed to ${newStatus} ` : `Lead Status Changed `;
+    case ActivityEvents.LEAD_STATUS_CHANGED: {
+      const newStatus = metadata.newStatus || metadata.status;
+      return newStatus ? `Lead Status Changed to ${newStatus} by ${actorLabel}` : `Lead Status Changed by ${actorLabel}`;
+    }
     case ActivityEvents.CUSTOMER_UPDATED:
-      return `Customer Profile Updated by ${user}`;
     case ActivityEvents.PROFILE_UPDATED:
-      return `Customer Profile Updated by ${user}`;
+      return `Customer Profile Updated by ${actorLabel}`;
     case ActivityEvents.NAME_UPDATED:
-      return `Name changed by ${user}`;
+      return `Name changed by ${actorLabel}`;
     case ActivityEvents.ADDRESS_UPDATED:
     case ActivityEvents.ADDRESS_CHANGED:
-      return `Address changed by ${user}`;
+      return `Address changed by ${actorLabel}`;
     case ActivityEvents.CITY_UPDATED:
-      return `City changed by ${user}`;
+      return `City changed by ${actorLabel}`;
     case ActivityEvents.SOURCE_UPDATED:
-      return `Source changed by ${user}`;
+      return `Source changed by ${actorLabel}`;
     case ActivityEvents.ENQUIRED_FOR_UPDATED:
-      return `Enquired For changed by ${user}`;
+      return `Enquired For changed by ${actorLabel}`;
     case ActivityEvents.LEAD_TYPE_UPDATED:
-      return `Lead Type changed by ${user}`;
+      return `Lead Type changed by ${actorLabel}`;
     case ActivityEvents.BRANCH_UPDATED:
-      return `Branch changed by ${user}`;
+      return `Branch changed by ${actorLabel}`;
     case ActivityEvents.OVERALL_REMARKS_UPDATED:
-      return `Overall Remarks changed by ${user}`;
+      return `Overall Remarks changed `;
     case ActivityEvents.FOLLOWUP_REMARK_UPDATED:
-      if (metadata.field === "day1Remarks") return `Day 1 Remarks changed by ${user}`;
-      if (metadata.field === "day2Remarks") return `Day 2 Remarks changed by ${user}`;
-      if (metadata.field === "day3Remarks") return `Day 3 Remarks changed by ${user}`;
-      return `Follow-up Remarks changed by ${user}`;
+      if (metadata.field === "day1Remarks") return `Day 1 Remarks changed by ${actorLabel}`;
+      if (metadata.field === "day2Remarks") return `Day 2 Remarks changed by ${actorLabel}`;
+      if (metadata.field === "day3Remarks") return `Day 3 Remarks changed by ${actorLabel}`;
+      return `Follow-up Remarks changed by ${actorLabel}`;
     case ActivityEvents.TEMPLATE_SENT:
-      return `Template Sent by ${user}`;
+      return `Template Sent`;
     case ActivityEvents.MESSAGE_RECEIVED:
       return `Message Received`;
     case ActivityEvents.MESSAGE_SENT:
-      return `Message Sent by ${user}`;
+      return `Message Sent `;
     default:
       if (metadata.action) return metadata.action;
       const cleanType = eventType ? eventType.replace(/_/g, " ") : "System Action";
-      return cleanType.replace(/\b\w/g, c => c.toUpperCase());
+      return `${cleanType.replace(/\b\w/g, c => c.toUpperCase())} by ${actorLabel}`;
   }
 };
 
@@ -101,53 +170,52 @@ export const getActivityIcon = (eventType) => {
 
   switch (type) {
     case ActivityEvents.CUSTOMER_CREATED:
-      return <PlusCircle size={size} className="text-blue-500 shrink-0" />;
+      return React.createElement(PlusCircle, { size, className: "text-blue-500 shrink-0" });
     case ActivityEvents.LEAD_CREATED:
-      return <Tag size={size} className="text-blue-500 shrink-0" />;
+      return React.createElement(Tag, { size, className: "text-blue-500 shrink-0" });
     case ActivityEvents.CHAT_STARTED:
-      return <MessageSquare size={size} className="text-blue-500 shrink-0" />;
+      return React.createElement(MessageSquare, { size, className: "text-blue-500 shrink-0" });
     case ActivityEvents.CHAT_CLOSED:
-      return <Lock size={size} className="text-rose-500 shrink-0" />;
+      return React.createElement(Lock, { size, className: "text-rose-500 shrink-0" });
     case ActivityEvents.CHAT_REOPENED:
-      return <Unlock size={size} className="text-emerald-500 shrink-0" />;
+      return React.createElement(Unlock, { size, className: "text-emerald-500 shrink-0" });
     case ActivityEvents.LEAD_ASSIGNED:
-      return <UserCheck size={size} className="text-indigo-500 shrink-0" />;
     case ActivityEvents.CUSTOMER_ASSIGNED:
-      return <UserCheck size={size} className="text-indigo-500 shrink-0" />;
+      return React.createElement(UserCheck, { size, className: "text-indigo-500 shrink-0" });
     case ActivityEvents.FOLLOWUP_CREATED:
-      return <Clock size={size} className="text-amber-500 shrink-0" />;
+      return React.createElement(Clock, { size, className: "text-amber-500 shrink-0" });
     case ActivityEvents.FOLLOWUP_COMPLETED:
-      return <Check size={size} className="text-emerald-500 shrink-0" />;
+      return React.createElement(Check, { size, className: "text-emerald-500 shrink-0" });
     case ActivityEvents.LEAD_STATUS_CHANGED:
-      return <RefreshCw size={size} className="text-violet-500 shrink-0" />;
+      return React.createElement(RefreshCw, { size, className: "text-violet-500 shrink-0" });
     case ActivityEvents.CUSTOMER_UPDATED:
     case ActivityEvents.PROFILE_UPDATED:
     case ActivityEvents.NAME_UPDATED:
-      return <User size={size} className="text-indigo-500 shrink-0" />;
+      return React.createElement(User, { size, className: "text-indigo-500 shrink-0" });
     case ActivityEvents.ADDRESS_UPDATED:
     case ActivityEvents.ADDRESS_CHANGED:
     case ActivityEvents.CITY_UPDATED:
-      return <MapPin size={size} className="text-slate-500 shrink-0" />;
+      return React.createElement(MapPin, { size, className: "text-slate-500 shrink-0" });
     case ActivityEvents.SOURCE_UPDATED:
-      return <Globe size={size} className="text-blue-500 shrink-0" />;
+      return React.createElement(Globe, { size, className: "text-blue-500 shrink-0" });
     case ActivityEvents.ENQUIRED_FOR_UPDATED:
-      return <HelpCircle size={size} className="text-amber-500 shrink-0" />;
+      return React.createElement(HelpCircle, { size, className: "text-amber-500 shrink-0" });
     case ActivityEvents.LEAD_TYPE_UPDATED:
-      return <Tag size={size} className="text-violet-500 shrink-0" />;
+      return React.createElement(Tag, { size, className: "text-violet-500 shrink-0" });
     case ActivityEvents.BRANCH_UPDATED:
-      return <Building2 size={size} className="text-teal-500 shrink-0" />;
+      return React.createElement(Building2, { size, className: "text-teal-500 shrink-0" });
     case ActivityEvents.OVERALL_REMARKS_UPDATED:
-      return <FileText size={size} className="text-indigo-500 shrink-0" />;
+      return React.createElement(FileText, { size, className: "text-indigo-500 shrink-0" });
     case ActivityEvents.FOLLOWUP_REMARK_UPDATED:
-      return <Clock size={size} className="text-amber-500 shrink-0" />;
+      return React.createElement(Clock, { size, className: "text-amber-500 shrink-0" });
     case ActivityEvents.TEMPLATE_SENT:
-      return <FileText size={size} className="text-violet-500 shrink-0" />;
+      return React.createElement(FileText, { size, className: "text-violet-500 shrink-0" });
     case ActivityEvents.MESSAGE_RECEIVED:
-      return <CornerDownRight size={size} className="text-slate-400 shrink-0" />;
+      return React.createElement(CornerDownRight, { size, className: "text-slate-400 shrink-0" });
     case ActivityEvents.MESSAGE_SENT:
-      return <Send size={size} className="text-slate-500 shrink-0" />;
+      return React.createElement(Send, { size, className: "text-slate-500 shrink-0" });
     default:
-      return <Cog size={size} className="text-slate-500 shrink-0" />;
+      return React.createElement(Cog, { size, className: "text-slate-500 shrink-0" });
   }
 };
 
@@ -208,6 +276,10 @@ export const getActivityDescription = (eventType, metadata = {}) => {
   }
   const type = (eventType || "").toUpperCase();
   switch (type) {
+    case ActivityEvents.CUSTOMER_CREATED:
+      return metadata.notes || metadata.remarks || "Customer profile created";
+    case ActivityEvents.LEAD_CREATED:
+      return metadata.notes || metadata.remarks || "New lead created";
     case ActivityEvents.LEAD_STATUS_CHANGED:
       return metadata.oldStatus && metadata.newStatus ? `${metadata.oldStatus} → ${metadata.newStatus}` : "Lead status updated";
     case ActivityEvents.ADDRESS_UPDATED:

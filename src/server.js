@@ -1,8 +1,43 @@
+import nextEnv from "@next/env";
+const { loadEnvConfig } = nextEnv;
+loadEnvConfig(process.cwd());
+
 import { createServer } from "http";
 import { parse } from "url"; 
 import next from "next";
 import { Server } from "socket.io";
+import mongoose from "mongoose";
 import { publishPerformanceEvent } from "./shared/utils/socketPublisher.js";
+import connectDB from "./shared/lib/db/mongodb.js";
+import ChatWorkspace from "./shared/models/ChatWorkspace.js";
+import Customer from "./shared/models/Customer.js";
+
+function validateEnvironmentVariables() {
+  const isProd = process.env.NODE_ENV === "production";
+  const required = [
+    "MONGODB_URI",
+    "TWILIO_ACCOUNT_SID",
+    "TWILIO_AUTH_TOKEN",
+  ];
+
+  if (isProd) {
+    required.push("REDIS_URL");
+  }
+
+  const missing = required.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    console.error(`🚨 [STARTUP FATAL] Missing required environment variables: ${missing.join(", ")}`);
+    if (isProd) {
+      process.exit(1);
+    }
+  }
+
+  if (isProd && process.env.TWILIO_VALIDATE_SIGNATURE === "false") {
+    console.warn("⚠️ [SECURITY WARNING] TWILIO_VALIDATE_SIGNATURE is set to false in production mode!");
+  }
+}
+
+validateEnvironmentVariables();
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOST || "localhost";
@@ -79,7 +114,7 @@ app.prepare().then(() => {
   global.io = io;
 
   io.on("connection", (socket) => {
-    console.log("🟢 Client Connected:", socket.id);
+    console.log(`[SOCKET DEBUG] client connected socket=${socket.id}`);
 
     // Sync current active handlers and online users on connection
     socket.emit("sync_active_handlers", Array.from(activeChatHandlers.entries()));
@@ -87,9 +122,11 @@ app.prepare().then(() => {
 
     socket.on("register_user", (userData) => {
       if (userData && (userData.userId || userData.id)) {
-        const uId = userData.userId || userData.id;
+        const uId = (userData.userId || userData.id).toString();
         const branchId = userData.branchId || userData.branch || null;
         
+        console.log(`[SOCKET DEBUG] register_user received | userId=${uId} | role=${userData.role} | branchId=${branchId} | socketId=${socket.id}`);
+
         socket.userData = { ...userData, userId: uId, branchId };
         onlineUsers.set(socket.id, {
           ...userData,
@@ -101,12 +138,15 @@ app.prepare().then(() => {
 
         // 🎯 Join Authoritative Scoped Rooms
         socket.join(`user:${uId}`);
-        if (branchId) socket.join(`branch:${branchId.toString()}`);
+        console.log(`[SOCKET DEBUG] joined user:${uId}`);
+        if (branchId) {
+          socket.join(`branch:${branchId.toString()}`);
+          console.log(`[SOCKET DEBUG] joined branch:${branchId}`);
+        }
         if (userData.role) socket.join(`role:${userData.role}`);
         if (userData.department) socket.join(`dept:${userData.department}`);
 
         io.emit("presence_change", Array.from(onlineUsers.values()));
-        console.log(`👤 User registered: ${userData.name} (${userData.role}) | Joined rooms: user:${uId}, branch:${branchId}, role:${userData.role}`);
 
         // Scope performance monitor events by role & branch
         if (userData.role === "superAdmin") {
@@ -118,6 +158,12 @@ app.prepare().then(() => {
             console.log(`🔌 Admin socket ${socket.id} joined performance-monitor:branch:${branchId}`);
           }
         }
+
+        // Verification test event sent to authoritative user room
+        io.to(`user:${uId}`).emit("crm_realtime_test", {
+          timestamp: Date.now(),
+          userId: uId
+        });
 
         // Publish presence online event
         publishPerformanceEvent("associate_online", {
@@ -208,6 +254,27 @@ app.prepare().then(() => {
         handler: handlerInfo,
         branchId: userBranch
       }, userBranch);
+
+      // Persist active chat state to MongoDB ChatWorkspace
+      if (incomingUserId && mongoose.Types.ObjectId.isValid(incomingUserId.toString())) {
+        connectDB().then(async () => {
+          const { getPhoneVariations } = await import("./shared/utils/phoneUtils.js");
+          const variations = getPhoneVariations(data.phone);
+          const cust = await Customer.findOne({ phone: { $in: variations } }).select("_id").lean();
+          await ChatWorkspace.findOneAndUpdate(
+            { userId: incomingUserId },
+            {
+              $set: {
+                activePhone: data.phone,
+                activeCustomerId: cust?._id || null,
+                ownerTabId: socket.id,
+                lastActiveAt: new Date()
+              }
+            },
+            { upsert: true }
+          );
+        }).catch(err => console.error("ChatWorkspace update error on join_chat:", err));
+      }
     });
 
     socket.on("leave_chat", (data) => {
@@ -222,6 +289,16 @@ app.prepare().then(() => {
           phone: data.phone,
           branchId: userBranch
         }, userBranch);
+      }
+
+      const uId = handler?.userId || socket.userData?.userId || socket.userData?.id;
+      if (uId && mongoose.Types.ObjectId.isValid(uId.toString())) {
+        connectDB().then(async () => {
+          await ChatWorkspace.findOneAndUpdate(
+            { userId: uId },
+            { $set: { activePhone: null, activeCustomerId: null, ownerTabId: null } }
+          );
+        }).catch(err => console.error("ChatWorkspace update error on leave_chat:", err));
       }
     });
 
@@ -259,6 +336,14 @@ app.prepare().then(() => {
           }, userBranch);
         }
       }
+
+      // Clean up ChatWorkspace if this socket owned an active chat
+      connectDB().then(async () => {
+        await ChatWorkspace.updateMany(
+          { ownerTabId: socket.id },
+          { $set: { activePhone: null, activeCustomerId: null, ownerTabId: null } }
+        );
+      }).catch(err => console.error("ChatWorkspace cleanup error on disconnect:", err));
     });
     
     socket.on("error", (err) => console.error("Socket Error:", err));
@@ -276,6 +361,15 @@ app.prepare().then(() => {
   httpServer.listen(port, (err) => {
     if (err) throw err;
     console.log(`> 🚀 Ready on http://${hostname}:${port}`);
+
+    // 🚀 Start BullMQ Background Workers
+    import("./server/queues/workerRunner.js").then((m) => {
+      m.startWorkerRunner().catch((wErr) => {
+        console.warn("⚠️ [Server] WorkerRunner start notice:", wErr.message);
+      });
+    }).catch((impErr) => {
+      console.warn("⚠️ [Server] WorkerRunner import notice:", impErr.message);
+    });
   });
 }).catch((ex) => {
   console.error("🚨 Next.js preparation failed:", ex.stack);

@@ -4,10 +4,13 @@ import User from "@/shared/models/User";
 import CustomerAddress from "@/shared/models/CustomerAddress";
 import Lead from "@/shared/models/Lead";
 import { activityService } from "@/server/services/activityService";
-import { ActivityEvents, ActivitySources } from "@/shared/constants/activityConstants";
-import { 
+import {
+  ActivityEvents,
+  ActivitySources,
+} from "@/shared/constants/activityConstants";
+import {
   emitCustomerBranchUpdated,
-  emitCustomerUpdated
+  emitCustomerUpdated,
 } from "@/shared/utils/socketPublisher";
 import { normalizePhone } from "@/shared/utils/phoneUtils";
 
@@ -18,15 +21,20 @@ export const serverCustomerService = {
       throw new Error("Phone number is required and must be valid.");
     }
 
-    const { getBranchFilterForUser } = await import("@/shared/utils/serverAuth");
+    const { getBranchFilterForUser } =
+      await import("@/shared/utils/serverAuth");
     const { branchQuery } = await getBranchFilterForUser(session);
 
     // Safe legacy phone lookup:
     // 1. Search canonical phone
     // 2. If not found, search legacy representations
-    let existingCustomer = await Customer.findOne({ phone: canonicalPhone }).lean();
+    let existingCustomer = await Customer.findOne({
+      phone: canonicalPhone,
+    }).lean();
     if (!existingCustomer) {
-      const cleanDigits = canonicalPhone.replace("whatsapp:", "").replace("+", "");
+      const cleanDigits = canonicalPhone
+        .replace("whatsapp:", "")
+        .replace("+", "");
       const tenDigit = cleanDigits.substring(cleanDigits.length - 10);
       const variations = [
         `whatsapp:${cleanDigits}`,
@@ -36,23 +44,25 @@ export const serverCustomerService = {
         `whatsapp:${tenDigit}`,
         `whatsapp:+${tenDigit}`,
         `+${tenDigit}`,
-        tenDigit
+        tenDigit,
       ];
-      
+
       const findQuery = { phone: { $in: variations } };
       if (session?.user?.role !== "superAdmin" && branchQuery?.branchId) {
         findQuery.$or = [
           branchQuery,
           { branchId: null },
-          { branchId: { $exists: false } }
+          { branchId: { $exists: false } },
         ];
       }
       existingCustomer = await Customer.findOne(findQuery).lean();
     } else {
       // Check branch permissions even if found by canonical
       if (session?.user?.role !== "superAdmin" && branchQuery?.branchId) {
-        const hasAccess = !existingCustomer.branchId || 
-                          existingCustomer.branchId.toString() === branchQuery.branchId.toString();
+        const hasAccess =
+          !existingCustomer.branchId ||
+          existingCustomer.branchId.toString() ===
+            branchQuery.branchId.toString();
         if (!hasAccess) {
           throw new Error("Access Denied: Customer belongs to another branch.");
         }
@@ -66,7 +76,10 @@ export const serverCustomerService = {
 
     if (body.branchId !== undefined) {
       if (body.branchId) {
-        const branchDoc = await Branch.findOne({ _id: body.branchId, status: "active" }).lean();
+        const branchDoc = await Branch.findOne({
+          _id: body.branchId,
+          status: "active",
+        }).lean();
         if (!branchDoc) {
           throw new Error("Invalid or inactive branch selected.");
         }
@@ -78,7 +91,9 @@ export const serverCustomerService = {
       }
     }
 
-    const oldBranchId = existingCustomer?.branchId ? existingCustomer.branchId.toString() : null;
+    const oldBranchId = existingCustomer?.branchId
+      ? existingCustomer.branchId.toString()
+      : null;
     const newBranchId = body.branchId ? body.branchId.toString() : null;
 
     // Resolve Owner/Associate fields
@@ -86,7 +101,11 @@ export const serverCustomerService = {
     let assignedTo = undefined;
     if (body.associate !== undefined || body.assignedTo !== undefined) {
       const assignedName = body.associate || body.assignedTo;
-      if (assignedName && assignedName !== "unassigned" && assignedName !== "Unassigned") {
+      if (
+        assignedName &&
+        assignedName !== "unassigned" &&
+        assignedName !== "Unassigned"
+      ) {
         const userDoc = await User.findOne({ name: assignedName }).lean();
         if (userDoc) {
           assignedUserId = userDoc._id;
@@ -102,17 +121,24 @@ export const serverCustomerService = {
 
     // Construct customer set payload
     const setPayload = {
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
     if (body.name?.trim() !== undefined) setPayload.name = body.name.trim();
-    if (body.source?.trim() !== undefined) setPayload.source = body.source.trim();
-    if (body.enquiredFor?.trim() !== undefined) setPayload.enquiredFor = body.enquiredFor.trim();
-    if (body.status?.trim() !== undefined) setPayload.status = body.status.trim();
-    if (body.saleAmount !== undefined) setPayload.saleAmount = body.saleAmount.toString();
-    if (body.remarks?.trim() !== undefined) setPayload.remarks = body.remarks.trim();
+    if (body.source?.trim() !== undefined)
+      setPayload.source = body.source.trim();
+    if (body.enquiredFor?.trim() !== undefined)
+      setPayload.enquiredFor = body.enquiredFor.trim();
+    if (body.status?.trim() !== undefined)
+      setPayload.status = body.status.trim();
+    if (body.saleAmount !== undefined)
+      setPayload.saleAmount = body.saleAmount.toString();
+    if (body.remarks?.trim() !== undefined)
+      setPayload.remarks = body.remarks.trim();
     if (resolvedBranchId !== undefined) setPayload.branchId = resolvedBranchId;
-    if (body.assignedTwilioNumber !== undefined) setPayload.assignedTwilioNumber = body.assignedTwilioNumber || null;
-    if (assignedUserId !== undefined) setPayload.assignedUserId = assignedUserId;
+    if (body.assignedTwilioNumber !== undefined)
+      setPayload.assignedTwilioNumber = body.assignedTwilioNumber || null;
+    if (assignedUserId !== undefined)
+      setPayload.assignedUserId = assignedUserId;
     if (assignedTo !== undefined) setPayload.assignedTo = assignedTo;
 
     let customerDoc;
@@ -124,7 +150,7 @@ export const serverCustomerService = {
         phone: canonicalPhone,
         createdBy: session.user.id,
         isClosed: true,
-        ...setPayload
+        ...setPayload,
       });
       await customerDoc.save();
     } else {
@@ -134,40 +160,50 @@ export const serverCustomerService = {
     }
 
     // Handle Address change checks and updates
-    const incomingAddress = body.address?.trim() !== undefined ? body.address.trim() : null;
-    const incomingCity = body.city?.trim() !== undefined ? body.city.trim() : null;
+    const incomingAddress =
+      body.address?.trim() !== undefined ? body.address.trim() : null;
+    const incomingCity =
+      body.city?.trim() !== undefined ? body.city.trim() : null;
 
-    const currentAddress = !isNewCustomer 
-      ? await CustomerAddress.findOne({ customerId: customerDoc._id, isCurrent: true })
+    const currentAddress = !isNewCustomer
+      ? await CustomerAddress.findOne({
+          customerId: customerDoc._id,
+          isCurrent: true,
+        })
       : null;
 
-    const addressChanged = isNewCustomer || 
-      (incomingAddress !== null && incomingAddress !== (currentAddress?.address || "")) ||
+    const addressChanged =
+      isNewCustomer ||
+      (incomingAddress !== null &&
+        incomingAddress !== (currentAddress?.address || "")) ||
       (incomingCity !== null && incomingCity !== (currentAddress?.city || ""));
 
     if (addressChanged) {
       // Create new address
       const newAddress = await CustomerAddress.create({
         customerId: customerDoc._id,
-        city: incomingCity !== null ? incomingCity : (currentAddress?.city || ""),
-        address: incomingAddress !== null ? incomingAddress : (currentAddress?.address || ""),
+        city: incomingCity !== null ? incomingCity : currentAddress?.city || "",
+        address:
+          incomingAddress !== null
+            ? incomingAddress
+            : currentAddress?.address || "",
         isCurrent: true,
         validFrom: new Date(),
-        createdBy: session.user.id
+        createdBy: session.user.id,
       });
 
       // Mark other addresses as not current
       if (!isNewCustomer) {
         await CustomerAddress.updateMany(
           { customerId: customerDoc._id, _id: { $ne: newAddress._id } },
-          { $set: { isCurrent: false, validTo: new Date() } }
+          { $set: { isCurrent: false, validTo: new Date() } },
         );
       }
 
       // Link to Customer
       customerDoc.currentAddressId = newAddress._id;
       await customerDoc.save();
-      
+
       // Log activity
       // await Activity.create({
       //   customerId: customerDoc._id,
@@ -192,21 +228,29 @@ export const serverCustomerService = {
         actorId: session.user.id,
         source: ActivitySources.WEB,
         metadata: {
-          notes: `Branch updated to ${resolvedBranchName} by ${session.user.name}`
-        }
+          notes: `Branch updated to ${resolvedBranchName} by ${session.user.name}`,
+        },
       });
 
-      emitCustomerBranchUpdated({
-        phone: customerDoc.phone,
-        branchId: customerDoc.branchId ? customerDoc.branchId.toString() : null,
-        branchName: resolvedBranchName,
-        updatedBy: { id: session.user.id, name: session.user.name }
-      }, customerDoc.branchId);
+      emitCustomerBranchUpdated(
+        {
+          phone: customerDoc.phone,
+          branchId: customerDoc.branchId
+            ? customerDoc.branchId.toString()
+            : null,
+          branchName: resolvedBranchName,
+          updatedBy: { id: session.user.id, name: session.user.name },
+        },
+        customerDoc.branchId,
+      );
     }
 
     // Log priority / status / owner change Activities
     if (!isNewCustomer && existingCustomer) {
-      if (body.status !== undefined && existingCustomer.status !== body.status) {
+      if (
+        body.status !== undefined &&
+        existingCustomer.status !== body.status
+      ) {
         await activityService.log({
           eventType: ActivityEvents.LEAD_STATUS_CHANGED,
           entityType: "Customer",
@@ -216,12 +260,15 @@ export const serverCustomerService = {
           metadata: {
             oldStatus: existingCustomer.status,
             newStatus: body.status,
-            notes: body.remarks || `Status changed to ${body.status}`
-          }
+            notes: body.remarks || `Status changed to ${body.status}`,
+          },
         });
       }
 
-      if (body.priority !== undefined && existingCustomer.priority !== body.priority) {
+      if (
+        body.priority !== undefined &&
+        existingCustomer.priority !== body.priority
+      ) {
         await activityService.log({
           eventType: ActivityEvents.CUSTOMER_UPDATED,
           entityType: "Customer",
@@ -229,12 +276,19 @@ export const serverCustomerService = {
           actorId: session.user.id,
           source: ActivitySources.WEB,
           metadata: {
-            notes: `Priority changed from ${existingCustomer.priority || "Medium"} to ${body.priority}`
-          }
+            notes: `Priority changed from ${existingCustomer.priority || "Medium"} to ${body.priority}`,
+          },
         });
       }
 
-      if (assignedTo !== undefined && existingCustomer.assignedTo !== assignedTo) {
+      if (
+        assignedTo !== undefined &&
+        existingCustomer.assignedTo !== assignedTo
+      ) {
+        const wasPreviouslyAssigned =
+          existingCustomer.assignedTo &&
+          existingCustomer.assignedTo.toLowerCase() !== "unassigned";
+        const isTransfer = wasPreviouslyAssigned && assignedTo !== "unassigned";
         await activityService.log({
           eventType: ActivityEvents.LEAD_ASSIGNED,
           entityType: "Lead",
@@ -242,29 +296,41 @@ export const serverCustomerService = {
           actorId: session.user.id,
           source: ActivitySources.WEB,
           metadata: {
-            oldOwner: existingCustomer.assignedTo,
+            oldOwner: existingCustomer.assignedTo || "unassigned",
             newOwner: assignedTo,
-            notes: `Reassigned to ${assignedTo}`
-          }
+            isTransfer,
+            notes: isTransfer
+              ? `Transferred to ${assignedTo} by ${session.user.name}`
+              : `Assigned to ${assignedTo} by ${session.user.name}`,
+            targetUserName: assignedTo,
+          },
         });
       }
     } else if (isNewCustomer) {
+      const initialAssignedTo = customerDoc.assignedTo || "unassigned";
+      const initialAssignedUserId = customerDoc.assignedUserId || "";
+
       // Create corresponding Lead
       const lead = new Lead({
         customerId: customerDoc._id,
-        assignedTo: customerDoc.assignedTo || "unassigned",
-        associateId: customerDoc.assignedUserId || "",
+        assignedTo: initialAssignedTo,
+        associateId: initialAssignedUserId,
         isClosed: false,
-        leads: [{
-          date: new Date(),
-          enquiredFor: customerDoc.enquiredFor || "",
-          associateId: customerDoc.assignedUserId || "",
-          associateName: customerDoc.assignedTo || "unassigned",
-          priority: customerDoc.priority || "Medium",
-          status: customerDoc.status || "New",
-          leadType: "Direct Lead",
-          overAllRemarks: "Customer record manually created by associate"
-        }]
+        leads: [
+          {
+            date: new Date(),
+            enquiredFor: customerDoc.enquiredFor || "",
+            associateId: initialAssignedUserId,
+            associateName: initialAssignedTo,
+            priority: customerDoc.priority || "Medium",
+            status: customerDoc.status || "New",
+            leadType: "Direct Lead",
+            overAllRemarks:
+              body.remarks ||
+              body.overallRemarks ||
+              `Lead created by ${session.user.name}`,
+          },
+        ],
       });
       await lead.save();
 
@@ -280,8 +346,8 @@ export const serverCustomerService = {
         actorId: session.user.id,
         source: ActivitySources.WEB,
         metadata: {
-          notes: `Customer record manually created by ${session.user.name}`
-        }
+          notes: `Customer record manually created by ${session.user.name}`,
+        },
       });
 
       // Log LEAD_CREATED
@@ -294,26 +360,54 @@ export const serverCustomerService = {
         actorId: session.user.id,
         source: ActivitySources.WEB,
         metadata: {
-          notes: `Lead record manually created by ${session.user.name}`
-        }
+          notes: `Lead record manually created by ${session.user.name}`,
+        },
       });
+
+      // Log initial LEAD_ASSIGNED only if explicitly assigned to a user upon creation
+      if (
+        initialAssignedTo &&
+        initialAssignedTo.toLowerCase() !== "unassigned"
+      ) {
+        await activityService.log({
+          eventType: ActivityEvents.LEAD_ASSIGNED,
+          entityType: "Lead",
+          entityId: lead._id,
+          customerId: customerDoc._id,
+          leadId: lead._id,
+          actorId: session.user.id,
+          source: ActivitySources.WEB,
+          metadata: {
+            oldOwner: "unassigned",
+            newOwner: initialAssignedTo,
+            isTransfer: false,
+            notes: `Lead assigned to ${initialAssignedTo} by ${session.user.name}`,
+            targetUserName: initialAssignedTo,
+          },
+        });
+      }
     }
 
     // Trigger general update / assign telemetry + legacy events
-    emitCustomerUpdated({
-      phone: customerDoc.phone,
-      assignedTo: customerDoc.assignedTo || "Unassigned",
-      status: customerDoc.status,
-      name: customerDoc.name
-    }, customerDoc.branchId);
+    emitCustomerUpdated(
+      {
+        phone: customerDoc.phone,
+        assignedTo: customerDoc.assignedTo || "Unassigned",
+        status: customerDoc.status,
+        name: customerDoc.name,
+      },
+      customerDoc.branchId,
+    );
 
     // Fetch the updated document with address populated to return it fully
-    const finalCustomer = await Customer.findById(customerDoc._id).populate("currentAddressId").lean();
+    const finalCustomer = await Customer.findById(customerDoc._id)
+      .populate("currentAddressId")
+      .lean();
 
     return {
       customer: finalCustomer,
       branchName: resolvedBranchName,
-      branchCode: resolvedBranchCode
+      branchCode: resolvedBranchCode,
     };
-  }
+  },
 };

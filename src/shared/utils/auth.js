@@ -60,6 +60,7 @@ const ROUTE_RULES = [
   { path: "/crm/associate", hideForAdmin: true },
   { path: "/crm/chat/new-customer", moduleName: "Chat Inbox" },
   { path: "/crm/chat", moduleName: "Chat Inbox" },
+  { path: "/crm/templates", moduleName: "Chat Inbox" },
   { path: "/crm/bulk-message", moduleName: "Bulk Messages" },
   { path: "/crm/message-logs", moduleName: "Messages log" },
   { path: "/crm/leads", moduleName: "Leads" },
@@ -80,7 +81,7 @@ export function isRouteAuthorized(session, pathname) {
   return checkPermissions(session, rule);
 }
 
-const API_RULES = [
+const API_RULES = [ 
   { prefix: "/api/admin/twilio", accessRequirements: ["Chat Inbox", "Bulk Messages"] },
   { prefix: "/api/admin", adminOnly: true },
   { prefix: "/api/users", adminOnly: true },
@@ -92,6 +93,7 @@ const API_RULES = [
   { prefix: "/api/customers", moduleName: "Customers" },
   { prefix: "/api/chats", moduleName: "Chat Inbox" },
   { prefix: "/api/send-template", moduleName: "Chat Inbox" },
+  { prefix: "/api/crm-templates", moduleName: "Chat Inbox" },
   { prefix: "/api/keyword-automation", adminOnly: true },
   { prefix: "/api/templates", moduleName: "Chat Inbox" },
   { prefix: "/api/branches", accessRequirements: ["Chat Inbox", "Customers", "Leads"] },

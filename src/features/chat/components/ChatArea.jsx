@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, memo, useCallback, useMemo, useLayoutEffec
 import api from "@/shared/lib/axios";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { useChatStore } from "@/features/chat/stores/chatStore";
+import { useChatStore, isSameConversation } from "@/features/chat/stores/chatStore";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { chatService } from "@/features/chat/services/chatService";
 import dynamic from "next/dynamic";
@@ -72,7 +72,7 @@ export default function ChatArea({
 
   // --- Derived Data ---
   const activeChat =
-    allMessages.find((c) => c.phone === selectedChat?.phone) || selectedChat;
+    allMessages.find((c) => isSameConversation(c, selectedChat)) || selectedChat;
   const messages = activeChat?.history || [];
   const lastMessage =
     messages.length > 0 ? messages[messages.length - 1] : null;
@@ -308,7 +308,9 @@ export default function ChatArea({
     if (!text.trim() || !activeChat) return;
     const tempId = Date.now().toString();
     const newMessage = {
+      customerId: activeChat.customerId,
       phone: activeChat.phone,
+      canonicalPhone: activeChat.canonicalPhone,
       message: text,
       direction: "OUTBOUND",
       timestamp: new Date().toISOString(),
@@ -385,6 +387,70 @@ export default function ChatArea({
       }
     },
     [activeChat, userName, userRole, addMessage, updateMessageStatus, selectedSender],
+  );
+
+  const handleSendCRMTemplate = useCallback(
+    async (crmTemplate, resolvedPreview) => {
+      if (!activeChat || sending) return;
+
+      const tempId = Date.now().toString();
+      const initialMessageText = (resolvedPreview && resolvedPreview.trim()) || `CRM Template: ${crmTemplate.name}`;
+      const newMessage = {
+        customerId: activeChat.customerId,
+        phone: activeChat.phone,
+        canonicalPhone: activeChat.canonicalPhone,
+        message: initialMessageText,
+        direction: "OUTBOUND",
+        timestamp: new Date().toISOString(),
+        name: activeChat.name,
+        status: "Sending",
+        role: userRole,
+        tempId: tempId,
+        senderNumber: selectedSender,
+        isChatClosed: false,
+        isTemplate: true,
+        templateMetadata: {
+          type: "crm",
+          templateId: crmTemplate._id,
+          templateName: crmTemplate.name,
+          version: crmTemplate.version || 1,
+          source: "manual",
+        },
+        sendBy: {
+          _id: session?.user?.id || session?.user?._id,
+          name: session?.user?.name || userName,
+        },
+      };
+
+      addMessage(newMessage);
+      setSending(true);
+      setTimeout(scrollToBottom, 100);
+
+      try {
+        const { crmTemplateRepository } = await import("@/shared/api/repositories/crmTemplateRepository");
+        const res = await crmTemplateRepository.sendCRMTemplate({
+          phone: activeChat.phone,
+          templateId: crmTemplate._id,
+          senderNumber: selectedSender,
+          chatType: activeChat.leadType || "Direct Lead",
+        });
+
+        const twilioSid = res?.data?.data?.twilioSid || res?.data?.twilioSid;
+        const resolvedText = res?.data?.data?.resolvedText || res?.data?.resolvedText;
+        if (resolvedText) {
+          newMessage.message = resolvedText;
+        }
+        updateMessageStatus(activeChat.phone, tempId, "SENT", twilioSid);
+        toast.success("CRM Template sent successfully!");
+      } catch (error) {
+        updateMessageStatus(activeChat.phone, tempId, "FAILED");
+        const errMsg = error.response?.data?.error || error.message || "Failed to send CRM template.";
+        toast.error(errMsg);
+      } finally {
+        setSending(false);
+      }
+    },
+    [activeChat, userName, userRole, addMessage, updateMessageStatus, selectedSender, session, sending]
   );
 
   if (!activeChat) {
@@ -482,6 +548,9 @@ export default function ChatArea({
         <ChatInput
           onSendMessage={handleSend}
           onSendTemplate={handleSendTemplate}
+          onSendCRMTemplate={handleSendCRMTemplate}
+          activeChat={activeChat}
+          customerContext={detailedCustomer}
           sending={sending}
           disabled={isLockedByOther || (availableNumbers.length === 0 && session?.user?.role !== "superAdmin" && session?.user?.department !== "admin")}
           isLockedByOther={isLockedByOther}

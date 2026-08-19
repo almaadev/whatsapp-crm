@@ -11,10 +11,20 @@ const KeywordAutomationSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    templateType: {
+      type: String,
+      enum: ["whatsapp", "crm"],
+      default: "whatsapp",
+    },
+    templateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "CRMTemplate",
+      default: null,
+    },
     templateSid: {
       type: String,
-      required: [true, "Template SID is required"],
       trim: true,
+      default: "",
     },
     isActive: {
       type: Boolean,
