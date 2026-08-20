@@ -47,8 +47,6 @@ class RealtimeServiceManager {
    * Handle socket connect/reconnect events: always re-register user into room subscriptions
    */
   _handleConnect() {
-    const uId = (this.user?.userId || this.user?.id || this.user?._id);
-    console.log(`[SOCKET DEBUG] connected | socketId=${this.socket?.id} | userId=${uId}`);
     this.registerUser();
   }
 
@@ -129,8 +127,6 @@ class RealtimeServiceManager {
 
     // --- 1. INCOMING & OUTGOING MESSAGES ---
     const handleMessage = (msg) => {
-      console.log(`[REALTIME DEBUG] EVENT RECEIVED | event=new_message | customerId=${msg?.customerId} | canonicalPhone=${msg?.canonicalPhone || msg?.phone} | messageId=${msg?.messageId || msg?._id}`);
-
       // 1. Trigger Audio & Browser Notification IMMEDIATELY on socket event arrival
       notificationAudioService.handleMessageNotification(msg);
 
@@ -260,12 +256,10 @@ class RealtimeServiceManager {
 
     // --- 7. PERSISTENT NOTIFICATION CENTER EVENTS ---
     this.socket.on("notification_created", (data) => {
-      console.log("🔔 [REALTIME] notification_created received:", data?.title);
       useNotificationStore.getState().handleNotificationCreated(data);
     });
 
     this.socket.on("notification_updated", (data) => {
-      console.log("🔔 [REALTIME] notification_updated received:", data?.title);
       useNotificationStore.getState().handleNotificationUpdated(data);
     });
 

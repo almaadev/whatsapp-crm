@@ -1,9 +1,8 @@
 import twilio from "twilio";
 import connectDB from "@/shared/lib/db/mongodb";
 import TwilioNumber from "@/shared/models/TwilioNumber";
-import Branch from "@/shared/models/Branch";
 import User from "@/shared/models/User";
-import { findTemplateBySid } from "@/shared/repositories/templateRepository";
+import Template from "@/shared/models/Template";
 
 let twilioClientInstance = null;
 
@@ -221,7 +220,7 @@ export async function resolveSenderNumber(user, requestedSender = null) {
  */
 export async function getTemplateDetail(templateSid) {
   try {
-    const dbTpl = await findTemplateBySid(templateSid);
+    const dbTpl = await Template.findOne({ sid: templateSid }).lean();
     if (dbTpl) return dbTpl;
   } catch (e) {
     console.error("Error finding template in DB:", e);
@@ -397,4 +396,17 @@ export async function sendTemplateMessage(to, templateSid, contentVariables = nu
     ...sent,
     senderNumber: resolvedSender,
   };
+}
+
+/**
+ * Filter Twilio messages based on UI status categories (delivered, undelivered, sent, etc.)
+ */
+export function filterByGroupedStatus(msgStatus, targetStatus) {
+  if (!targetStatus || targetStatus === "all") return true;
+  const s = (msgStatus || "").toLowerCase();
+  const t = targetStatus.toLowerCase();
+  if (t === "delivered") return s === "delivered" || s === "read";
+  if (t === "undelivered") return s === "undelivered" || s === "failed";
+  if (t === "sent") return s === "sent" || s === "queued" || s === "sending";
+  return s === t;
 }

@@ -16,7 +16,6 @@ import {
   Calendar,
   User,
   Phone,
-  ArrowRight,
   Menu,
   ChevronLeft,
   ChevronRight,

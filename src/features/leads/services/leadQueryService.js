@@ -1,9 +1,8 @@
-import { aggregateLeads, findLeadByPhone } from "@/shared/repositories/leadRepository";
-import { findCustomerByPhone } from "@/shared/repositories/customerRepository";
-import { normalizePhone } from "@/shared/utils/phoneUtils";
+import { normalizePhone, getPhoneVariations } from "@/shared/utils/phoneUtils";
 import mongoose from "mongoose";
+import Lead from "@/shared/models/Lead";
+import Customer from "@/shared/models/Customer";
 import Branch from "@/shared/models/Branch";
-import User from "@/shared/models/User";
 
 function mapKeys(obj, fromKey, toKey) {
   if (!obj || typeof obj !== "object") return obj;
@@ -20,7 +19,6 @@ function mapKeys(obj, fromKey, toKey) {
 
 export const leadQueryService = {
   async getLeads(params, session = null) {
-    console.log("Fetching leads with params:", params);
     const { from, to, month, year, today, associate, isClosed, view, search, page = 1, limit = 10 } = params;
     const match = {};
 
@@ -250,7 +248,7 @@ export const leadQueryService = {
       ];
     }
     
-    const result = await aggregateLeads(pipeline);
+    const result = await Lead.aggregate(pipeline);
     
     const rawLeads = view === "activities" ? result : (result[0]?.data || []);
     const phones = rawLeads.map((l) => l.phone).filter(Boolean);
@@ -303,11 +301,10 @@ export const leadQueryService = {
 
   async getLeadByPhone(phone) {
     const cleanPhone = normalizePhone(decodeURIComponent(phone));
+    const phoneVars = getPhoneVariations(cleanPhone);
     
-    const [lead, customer] = await Promise.all([
-      findLeadByPhone(cleanPhone).then(l => l?.toJSON ? l.toJSON() : l),
-      findCustomerByPhone(cleanPhone)
-    ]);
+    const customer = await Customer.findOne({ phone: { $in: phoneVars } }).lean();
+    const lead = customer ? await Lead.findOne({ customerId: customer._id }).lean() : null;
 
     if (!lead && !customer) return {};
     

@@ -5,7 +5,6 @@ import {
   List,
   Send,
   History,
-  FileBarChart,
 } from "lucide-react";
 
 export const NAVIGATION_CONFIG = [

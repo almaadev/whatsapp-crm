@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Search, X, Star, Heart, Bookmark, Trash, Folder, FolderOpen, ChevronDown, ChevronRight } from "lucide-react";
+import { Search, X, Star, Heart, Trash, ChevronDown, ChevronRight } from "lucide-react";
+import { toast } from "react-toastify";
 
 const EMOJI_CATEGORIES = [
   {

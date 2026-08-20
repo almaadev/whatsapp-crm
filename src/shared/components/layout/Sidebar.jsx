@@ -8,7 +8,7 @@ import { usePathname } from "next/navigation";
 import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png";
 import SignOutModal from "@/shared/components/modals/SignOutModal";
 import { authRepository } from "@/shared/api/repositories/authRepository";
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { checkPermissions } from "@/shared/utils/auth";
 import { NAVIGATION_CONFIG } from "@/shared/config/navigation";
 import { useUserStore } from "@/features/user/stores/userStore";

@@ -16,12 +16,10 @@ import {
   History,
   Tag,
   ChevronDown,
-  ChevronUp,
   Clock,
   BadgeCheck,
   AlertCircle,
   RefreshCw,
-  Filter,
   Lock,
   Paperclip,
   Share2,
@@ -30,7 +28,7 @@ import {
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { getAvailableLeadStatuses, resolveLeadStatus } from "@/shared/utils/leadStatusResolver";
+import { getAvailableLeadStatuses } from "@/shared/utils/leadStatusResolver";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { toast } from "react-toastify";
 import {

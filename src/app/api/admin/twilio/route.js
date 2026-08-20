@@ -6,8 +6,7 @@ import mongoose from "mongoose";
 import twilio from "twilio";
 import TwilioNumber from "@/shared/models/TwilioNumber";
 import Branch from "@/shared/models/Branch";
-import User from "@/shared/models/User";
-import { getAvailableNumbers, formatPhoneNumber } from "@/features/admin/services/twilioService";
+import { getAvailableNumbers, formatPhoneNumber, filterByGroupedStatus } from "@/features/admin/services/twilioService";
 
 export const dynamic = "force-dynamic";
 
@@ -84,17 +83,6 @@ export async function GET(req) {
         }
 
         const messages = await client.messages.list(fetchOptions);
-
-        const filterByGroupedStatus = (msgStatus, targetStatus) => {
-          if (!targetStatus || targetStatus === "all") return true;
-          const s = msgStatus?.toLowerCase() || "";
-          const t = targetStatus.toLowerCase();
-          if (t === "delivered") return s === "delivered";
-          if (t === "read") return s === "read";
-          if (t === "failed") return ["failed", "undelivered"].includes(s);
-          if (t === "sent" || t === "queued") return ["queued", "accepted", "scheduled", "sending", "sent"].includes(s);
-          return s === t;
-        };
 
         messages.forEach((msg) => {
           const msgStatus = msg.status?.toLowerCase() || "";

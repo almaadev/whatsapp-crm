@@ -6,7 +6,6 @@ import Sidebar from "@/shared/components/layout/Sidebar";
 import Topbar from "@/shared/components/layout/Topbar";
 import { useUserStore } from "@/features/user/stores/userStore";
 import { authRepository } from "@/shared/api/repositories/authRepository";
-import { connectSocket } from "@/features/chat/services/socketService";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { realtimeService } from "@/shared/services/realtimeService";

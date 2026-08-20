@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import { connectSocket } from "@/features/chat/services/socketService";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { useSession } from "next-auth/react";
-import { toast } from "react-toastify";
 
 export function useChatPresence(selectedChatPhone) {
   const { data: session } = useSession();

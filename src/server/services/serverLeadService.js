@@ -14,13 +14,7 @@ import {
   emitFollowUpAdded
 } from "@/shared/utils/socketPublisher";
 import { resolveLeadStatus } from "@/shared/utils/leadStatusResolver";
-
-
-function normalisePhone(raw = "") {
-  let p = raw.toString().trim();
-  if (!p.startsWith("whatsapp:")) p = `whatsapp:${p}`;
-  return p;
-}
+import { normalizePhone, getPhoneVariations } from "@/shared/utils/phoneUtils";
 
 const buildFollowUp = async (body, session, fallbackAssignedTo = "unassigned") => {
   let associateId = body.associateId || "";
@@ -68,7 +62,7 @@ export const serverLeadService = {
       throw new Error("Validation Error: Mobile number is required");
     }
 
-    const cleanPhone = normalisePhone(mobileRaw);
+    const cleanPhone = normalizePhone(mobileRaw);
     const currentUser = session.user.id ? await getUserNameById(session.user.id, session.user.name) : "Unknown";
     const userDoc = await User.findOne({ name: currentUser }).lean();
     const associateId = userDoc ? userDoc._id.toString() : session.user.id;
@@ -79,7 +73,7 @@ export const serverLeadService = {
       customerDoc = await Customer.findById(body.customerId);
     }
     if (!customerDoc) {
-      customerDoc = await Customer.findOne({ phone: cleanPhone });
+      customerDoc = await Customer.findOne({ phone: { $in: getPhoneVariations(cleanPhone) } });
     }
 
     let existingLead = null;

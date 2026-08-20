@@ -19,7 +19,7 @@ import { useSession } from "next-auth/react";
 import { leadRepository } from "@/shared/api/repositories/leadRepository";
 import { useAuth } from "@/shared/hooks/useAuth";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
-import { getActivityTitle } from "@/shared/utils/activityFormatter";
+import { getActivityTitle, formatActorDisplayName } from "@/shared/utils/activityFormatter";
 import { resolveLeadStatus, isLeadLifecycleActivity, getClosedLeadCount } from "@/shared/utils/leadStatusResolver";
 // ─────────────────────────────────────────────────────────────────────────────
 //  MODERN ENTERPRISE STATUS BADGES

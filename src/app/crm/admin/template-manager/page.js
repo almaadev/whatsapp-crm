@@ -8,8 +8,8 @@ import { twilioTemplateService } from "@/features/templates/services/twilioTempl
 import Link from "next/link";
 import {
   LayoutTemplate, ShieldAlert, Loader2, Menu, CheckCircle2,
-  Clock, AlertCircle, ExternalLink, PhoneCall, FastForward, Database,
-  RefreshCw, Info, XCircle, Search, ChevronLeft, ChevronRight, Signal, PauseCircle, Trash2, Plus, ImageIcon
+  Clock, AlertCircle, ExternalLink, Database,
+  RefreshCw, Info, XCircle, Search, ChevronLeft, ChevronRight, Signal, PauseCircle, Trash2, Plus
 } from "lucide-react";
 
 const normalizeStatus = (rawStatus) => {

@@ -4,7 +4,6 @@ import { authOptions } from "@/shared/lib/auth";
 import connectDB from "@/shared/lib/db/mongodb";
 import Customer from "@/shared/models/Customer";
 import Branch from "@/shared/models/Branch";
-import User from "@/shared/models/User";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 import { serverCustomerService } from "@/server/services/serverCustomerService";
 

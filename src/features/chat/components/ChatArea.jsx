@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, memo, useCallback, useMemo, useLayoutEffect } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import api from "@/shared/lib/axios";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -21,7 +21,6 @@ import { toast } from "react-toastify";
 import {
   MessageSquare,
   ArrowDown,
-  Lock,
 } from "lucide-react";
 
 import ChatLockOverlay from "@/features/chat/components/ChatLockOverlay";

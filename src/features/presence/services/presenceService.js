@@ -1,4 +1,4 @@
-import { connectSocket, disconnectSocket } from "@/features/chat/services/socketService";
+import { connectSocket } from "@/features/chat/services/socketService";
 import { usePresenceStore } from "../stores/presenceStore";
 
 let heartbeatInterval = null;

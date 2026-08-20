@@ -127,3 +127,36 @@ export function getOperationalDateBounds(dateRange, customStart, customEnd) {
 
   return { startDate, endDate };
 }
+
+/**
+ * Format timestamp to IST Time (e.g., 04:30:15 PM)
+ */
+export function formatISTTime(dateInput) {
+  if (!dateInput) return "-";
+  const date = new Date(dateInput);
+  if (isNaN(date.getTime())) return "-";
+
+  return date.toLocaleTimeString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+}
+
+/**
+ * Format timestamp to IST Date (e.g., 19 Aug 2026)
+ */
+export function formatISTDate(dateInput) {
+  if (!dateInput) return "-";
+  const date = new Date(dateInput);
+  if (isNaN(date.getTime())) return "-";
+
+  return date.toLocaleDateString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}

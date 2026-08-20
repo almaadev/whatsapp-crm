@@ -18,7 +18,6 @@ import EmptyState from "@/shared/components/ui/EmptyState";
 import {
   User,
   MapPin,
-  Eye,
   Loader2,
   Plus,
   ArrowRight,
@@ -29,6 +28,7 @@ import {
 } from "lucide-react";
 import { getStatusColor } from "@/shared/utils/colorUtils";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
+import { normalizePhone } from "@/shared/utils/phoneUtils";
 import { toast } from "react-toastify";
 
 export default function CustomersPage() {
@@ -76,7 +76,7 @@ export default function CustomersPage() {
   const { filteredCustomers, paginatedCustomers, totalPages } = useMemo(() => {
     const uniqueCustomersMap = {};
     rawCustomers.forEach((customerData) => {
-      const cleanPhone = customerData.phone?.replace(/\D/g, "") || "unknown";
+      const cleanPhone = normalizePhone(customerData.phone || "") || "unknown";
       if (!uniqueCustomersMap[cleanPhone]) {
         uniqueCustomersMap[cleanPhone] = customerData;
       }
@@ -118,7 +118,7 @@ export default function CustomersPage() {
   const handleCustomerClick = (phone) => {
     if (!phone) return;
     setPath(pathname);
-    router.push(`/crm/customers/${phone.replace(/\D/g, "")}`);
+    router.push(`/crm/customers/${encodeURIComponent(normalizePhone(phone))}`);
   };
 
   const handleAddCustomerOptimistic = (newCustomer) => {

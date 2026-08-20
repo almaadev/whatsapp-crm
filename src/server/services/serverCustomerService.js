@@ -204,18 +204,18 @@ export const serverCustomerService = {
       customerDoc.currentAddressId = newAddress._id;
       await customerDoc.save();
 
-      // Log activity
-      // await Activity.create({
-      //   customerId: customerDoc._id,
-      //   actorId: session.user.id,
-      //   eventType: "ADDRESS_CHANGED",
-      //   before: currentAddress ? { address: currentAddress.address, city: currentAddress.city } : {},
-      //   after: { address: newAddress.address, city: newAddress.city },
-      //   metadata: {
-      //     action: "Address Changed",
-      //     notes: isNewCustomer ? "Initial address recorded" : `Address updated to ${newAddress.address}, ${newAddress.city}`
-      //   }
-      // });
+      // Log activity via activityService
+      await activityService.log({
+        eventType: ActivityEvents.ADDRESS_UPDATED || "ADDRESS_UPDATED",
+        entityType: "Customer",
+        entityId: customerDoc._id,
+        customerId: customerDoc._id,
+        actorId: session.user.id,
+        source: ActivitySources.WEB,
+        metadata: {
+          notes: isNewCustomer ? "Initial address recorded" : `Address updated to ${newAddress.address}, ${newAddress.city}`
+        }
+      });
     }
 
     // Log Branch Reassignment Activity

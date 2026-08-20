@@ -12,7 +12,6 @@ import {
   LogOut,
   Check,
   RotateCcw,
-  Sparkles,
   Trash2
 } from "lucide-react";
 import { useNotificationStore } from "@/features/notifications/stores/notificationStore";

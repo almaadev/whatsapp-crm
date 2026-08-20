@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import DashboardPage from "@/shared/components/layout/DashboardPage";
 import LoadingScreen from "@/shared/components/ui/LoadingScreen";
@@ -10,12 +9,10 @@ import { AnimatedCount } from "@/shared/hooks/useCountUp";
 import { useAuth } from "@/shared/hooks/useAuth";
 import { useDashboardState } from "@/features/admin/hooks/useDashboardState";
 import DashboardTabs from "@/shared/components/ui/DashboardTabs";
-import { connectSocket } from "@/features/chat/services/socketService";
 
 import {
   Users,
   TrendingUp,
-  Briefcase,
   Edit2,
   Save,
   XCircle,

@@ -9,11 +9,12 @@ import { usePathStore } from "@/features/chat/stores/pathStore";
 import {
     Users, Clock, CheckCircle2, Target, Calendar,
     Filter, Search, ArrowRight, UserCircle,
-    Activity, Tag, MessageSquare, Menu, AlertCircle, RefreshCw, X, History, ChevronRight
+    Activity, Tag, MessageSquare, Menu, AlertCircle, RefreshCw, X, History
 } from "lucide-react";
 import { useCountUp } from "@/shared/hooks/useCountUp";
 import { reportRepository } from "@/shared/api/repositories/reportRepository";
 import { formatDurationHuman } from "@/shared/hooks/useAssociateSession";
+import { formatISTTime, formatISTDate } from "@/shared/utils/dateRangeResolver";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  ROUTING & NAVIGATION UTILITIES
@@ -26,31 +27,7 @@ function navigateToLead(router, setPath, currentPath, phone) {
     router.push(`/crm/leads/${encodeURIComponent(safePhone)}`);
 }
 
-function formatISTTime(dateInput) {
-  if (!dateInput) return "-";
-  const date = new Date(dateInput);
-  if (isNaN(date.getTime())) return "-";
 
-  return date.toLocaleTimeString("en-IN", {
-    timeZone: "Asia/Kolkata",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true
-  });
-}
-
-function formatISTDate(dateInput) {
-  if (!dateInput) return "-";
-  const date = new Date(dateInput);
-  if (isNaN(date.getTime())) return "-";
-
-  return date.toLocaleDateString("en-IN", {
-    timeZone: "Asia/Kolkata",
-    day: "numeric",
-    month: "short",
-    year: "numeric"
-  });
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  UI UTILITIES & COMPONENTS

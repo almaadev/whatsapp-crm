@@ -5,7 +5,6 @@ import { useSession } from "next-auth/react";
 import { X, Send, User, Phone, MessageSquare, Share2, CheckCircle2, RotateCcw } from "lucide-react";
 import { useChatStore } from "@/features/chat/stores/chatStore";
 import { toast } from "react-toastify";
-import { leadRepository } from "@/shared/api/repositories/leadRepository";
 import { resolveCustomerDisplayName, cleanPhoneNumber } from "@/shared/utils/customerResolver";
 
 export default function ForwardLeadModal({ isOpen, onClose, customer, onConfirm }) {

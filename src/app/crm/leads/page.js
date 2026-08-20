@@ -30,23 +30,11 @@ import {
   Plus,
   RefreshCcw,
   Flag,
-  ChevronDown,
-  ChevronUp,
   History,
-  UserCircle,
-  Clock,
-  TrendingUp,
-  CornerDownRight,
   Copy,
   Check,
-  MoreVertical,
   Paperclip,
-  Calendar,
-  Building,
   Activity,
-  Layers,
-  FileSpreadsheet,
-  Settings,
   ChevronRight
 } from "lucide-react";
 import { toast } from "react-toastify";

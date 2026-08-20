@@ -2,22 +2,17 @@ import nextEnv from "@next/env";
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
 
-import mongoose from "mongoose";
 import connectDB from "../src/shared/lib/db/mongodb.js";
 import Customer from "../src/shared/models/Customer.js";
-import Lead from "../src/shared/models/Lead.js";
 import Message from "../src/shared/models/Message.js";
 import WebhookEvent from "../src/shared/models/WebhookEvent.js";
 import Notification from "../src/shared/models/Notification.js";
-import Activity from "../src/shared/models/Activity.js";
 import KeywordAutomation from "../src/shared/models/KeywordAutomation.js";
 import CRMTemplate from "../src/shared/models/CRMTemplate.js";
 import inboundMessageService from "../src/server/services/inboundMessageService.js";
 import { processKeywordAutoReply } from "../src/features/chat/services/keywordMatcher.js";
 import { notificationService } from "../src/server/services/notificationService.js";
-import { activityService } from "../src/server/services/activityService.js";
 import { GET as getHealthHandler } from "../src/app/api/webhook/status/route.js";
-import { POST as webhookPostHandler } from "../src/app/api/webhook/route.js";
 import { validateTwilioWebhookSignature } from "../src/shared/utils/twilioValidator.js";
 
 function createMockTwilioRequest(body, headers = {}) {

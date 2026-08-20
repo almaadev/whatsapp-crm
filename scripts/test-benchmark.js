@@ -2,7 +2,6 @@ import nextEnv from "@next/env";
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
 
-import mongoose from "mongoose";
 import connectDB from "../src/shared/lib/db/mongodb.js";
 import Customer from "../src/shared/models/Customer.js";
 import Lead from "../src/shared/models/Lead.js";

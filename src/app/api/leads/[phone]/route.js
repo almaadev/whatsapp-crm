@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import connectDB from "@/shared/lib/db/mongodb";
 import Lead from "@/shared/models/Lead";
 import Customer from "@/shared/models/Customer";
-import CustomerAddress from "@/shared/models/CustomerAddress";
 import Activity from "@/shared/models/Activity";
 import { requireSession } from "@/shared/lib/session";
 import mongoose from "mongoose";
@@ -12,6 +11,7 @@ import { sanitizeCustomerOrLeadData } from "@/shared/utils/privacy";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 import { resolveLeadStatus } from "@/shared/utils/leadStatusResolver";
 import { getActivityTitle, formatActorDisplayName } from "@/shared/utils/activityFormatter";
+import { normalizePhone, getPhoneVariations } from "@/shared/utils/phoneUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -24,31 +24,9 @@ export async function GET(req, { params }) {
 
     const resolvedParams = await params;
     const rawPhone = decodeURIComponent(resolvedParams.phone || "");
-    const cleanDigits = rawPhone.replace(/\D/g, "");
-
-    const variations = [
-      rawPhone,
-      `whatsapp:${rawPhone}`,
-      cleanDigits,
-      `whatsapp:${cleanDigits}`,
-      `whatsapp:+${cleanDigits}`,
-      `+${cleanDigits}`,
-    ];
-
-    if (cleanDigits.startsWith("91") && cleanDigits.length === 12) {
-      const tenDigit = cleanDigits.substring(2);
-      variations.push(tenDigit);
-      variations.push(`whatsapp:${tenDigit}`);
-      variations.push(`whatsapp:+91${tenDigit}`);
-      variations.push(`+91${tenDigit}`);
-    } else if (cleanDigits.length === 10) {
-      variations.push(`91${cleanDigits}`);
-      variations.push(`whatsapp:91${cleanDigits}`);
-      variations.push(`whatsapp:+91${cleanDigits}`);
-      variations.push(`+91${cleanDigits}`);
-    }
-
-    const primaryPhone = variations[0]?.startsWith("whatsapp:") ? variations[0] : `whatsapp:${cleanDigits || rawPhone}`;
+    const cleanPhone = normalizePhone(rawPhone);
+    const variations = getPhoneVariations(cleanPhone);
+    const primaryPhone = cleanPhone;
 
     // Fetch customer record across all phone variations and populate address
     const customer = await Customer.findOne({ phone: { $in: variations } })

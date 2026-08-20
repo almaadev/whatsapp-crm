@@ -1,5 +1,5 @@
 import React, { useState, memo } from "react";
-import { ChevronLeft,ChevronDown, Bell, Share2, Info, Tag, MapPin, MoreVertical, Smartphone, Building2 } from "lucide-react";
+import { ChevronLeft, Bell, Share2, Info, Tag, MapPin, MoreVertical, Smartphone, Building2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";

@@ -7,7 +7,7 @@ import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import { branchService } from "@/features/branches/services/branchService";
 import { 
     User, Mail, Lock, Shield, Phone, Briefcase, Tag, 
-    ArrowLeft, Save, ShieldAlert, Building, LayoutGrid, 
+    ArrowLeft, Save, Building, LayoutGrid, 
     Menu, Loader2, ChevronDown
 } from "lucide-react";
 import { userRepository } from "@/shared/api/repositories/userRepository";

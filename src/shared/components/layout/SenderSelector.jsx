@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Smartphone, ChevronDown, Search } from "lucide-react";
+import { Smartphone, ChevronDown } from "lucide-react";
 import { useChatStore } from "@/features/chat/stores/chatStore";
 
 /**

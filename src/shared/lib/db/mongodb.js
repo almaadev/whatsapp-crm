@@ -7,7 +7,10 @@ if (!cached) {
 }
 
 async function connectDB() {
-  const MONGODB_URI = process.env.MONGODB_URI;
+  const MONGODB_URI =
+    process.env.NODE_ENV === "test" && process.env.MONGODB_TEST_URI
+      ? process.env.MONGODB_TEST_URI
+      : process.env.MONGODB_URI;
 
   if (!MONGODB_URI) {
     throw new Error(

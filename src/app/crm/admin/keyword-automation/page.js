@@ -2,8 +2,8 @@
 import { useState, useEffect } from "react";
 import { 
   Search, Plus, Edit2, Trash2, Zap, 
-  Loader2, MessageSquareCode, Check, X, 
-  AlertCircle, Activity, FileText, Layers, Variable
+  Loader2, MessageSquareCode, X, 
+  AlertCircle, Activity, FileText, Layers
 } from "lucide-react";
 import { automationRepository } from "@/shared/api/repositories/automationRepository";
 import { crmTemplateRepository } from "@/shared/api/repositories/crmTemplateRepository";

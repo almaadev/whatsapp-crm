@@ -20,8 +20,6 @@ import {
   Search,
   RefreshCw,
   Download,
-  ChevronLeft,
-  ChevronRight,
   ExternalLink,
   ChevronDown,
   ChevronUp,

@@ -7,13 +7,9 @@ import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import { getSocket } from "@/features/chat/services/socketService";
 import { isAdminAuthorized, isSuperAdmin as checkSuperAdmin } from "@/shared/utils/auth";
 import {
-  Users,
   Clock,
-  CheckCircle2,
-  Calendar,
   Filter,
   Search,
-  UserCircle,
   Activity,
   Menu,
   AlertCircle,
@@ -26,36 +22,12 @@ import {
   WifiOff,
   History,
   TrendingUp,
-  FileText
 } from "lucide-react";
 import { branchService } from "@/features/branches/services/branchService";
-import { formatDurationHuman, formatDurationHHMMSS } from "@/shared/hooks/useAssociateSession";
+import { formatDurationHuman } from "@/shared/hooks/useAssociateSession";
+import { formatISTTime, formatISTDate } from "@/shared/utils/dateRangeResolver";
 
-function formatISTTime(dateInput) {
-  if (!dateInput) return "-";
-  const date = new Date(dateInput);
-  if (isNaN(date.getTime())) return "-";
 
-  return date.toLocaleTimeString("en-IN", {
-    timeZone: "Asia/Kolkata",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true
-  });
-}
-
-function formatISTDate(dateInput) {
-  if (!dateInput) return "-";
-  const date = new Date(dateInput);
-  if (isNaN(date.getTime())) return "-";
-
-  return date.toLocaleDateString("en-IN", {
-    timeZone: "Asia/Kolkata",
-    day: "numeric",
-    month: "short",
-    year: "numeric"
-  });
-}
 
 const StatusBadge = ({ status }) => {
   if (status === "online") {

@@ -11,7 +11,7 @@ import BranchFilters from "./BranchFilters";
 import BranchSearch from "./BranchSearch";
 import BranchPagination from "./BranchPagination";
 import BranchSkeleton from "./BranchSkeleton";
-import EmptyState from "./EmptyState";
+import BranchEmptyState from "./BranchEmptyState";
 import BranchFormModal from "./BranchFormModal";
 import DeleteBranchDialog from "./DeleteBranchDialog";
 
@@ -159,7 +159,7 @@ export default function BranchTableWrapper() {
             </button>
           </div>
         ) : branches.length === 0 ? (
-          <EmptyState onCreateClick={handleOpenCreate} />
+          <BranchEmptyState onCreateClick={handleOpenCreate} />
         ) : (
           <div className="space-y-4">
             {/* Desktop Table View */}

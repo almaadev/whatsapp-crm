@@ -8,9 +8,9 @@ import { resolveTemplate } from "@/shared/utils/templateResolver";
 import { toast } from "react-toastify";
 import Link from "next/link";
 import {
-  FileText, Plus, Search, Edit3, Trash2, CheckCircle2, XCircle,
-  Copy, Layers, ArrowRight, Eye, Sparkles, Variable,
-  HelpCircle, RefreshCw, X, ShieldAlert, Bold, Italic, Strikethrough, Code2
+  FileText, Plus, Search, Edit3, Trash2,
+  Layers, Eye, Variable,
+  X, Bold, Italic, Strikethrough, Code2
 } from "lucide-react";
 
 export default function CRMTemplatesPage() {

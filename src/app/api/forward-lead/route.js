@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/shared/lib/auth";
-import twilio from "twilio";
 import connectDB from "@/shared/lib/db/mongodb";
 import Customer from "@/shared/models/Customer";
 import Message from "@/shared/models/Message";
@@ -9,6 +8,7 @@ import redis from "@/shared/lib/db/redis";
 import User from "@/shared/models/User";
 import { activityService } from "@/server/services/activityService";
 import { ActivityEvents, ActivitySources } from "@/shared/constants/activityConstants";
+import { sendWhatsAppMessage } from "@/features/admin/services/twilioService";
 
 export async function POST(req) {
   try {
@@ -19,14 +19,8 @@ export async function POST(req) {
     if (!customerPhone || !targetPhone) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
 
     // 1. Send WhatsApp to the Associate via Twilio
-    const myTwilioNumber = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER;
     try {
-      const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-      await client.messages.create({
-        body: message, 
-        from: myTwilioNumber, 
-        to: targetPhone.startsWith("whatsapp:") ? targetPhone : `whatsapp:${targetPhone}`,
-      });
+      await sendWhatsAppMessage(targetPhone, message);
     } catch (e) { console.error("Twilio Error", e); }
 
     // 2. Update MongoDB

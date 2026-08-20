@@ -6,8 +6,7 @@ import { useCRMTemplates } from "@/features/templates/hooks/useCRMTemplates";
 import { resolveTemplate } from "@/shared/utils/templateResolver";
 import { useDebounce } from "@/shared/hooks/useDebounce";
 import {
-  Search, X, Loader2, Layers, FileText, CheckCircle2,
-  Clock, AlertCircle, Variable, Send, ExternalLink, Sparkles
+  Search, X, Loader2, Layers, FileText, Variable, Sparkles
 } from "lucide-react";
 
 export const ChatTemplatePanel = memo(function ChatTemplatePanel({

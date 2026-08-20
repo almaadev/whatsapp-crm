@@ -6,15 +6,13 @@ import Customer from "../src/shared/models/Customer.js";
 import Lead from "../src/shared/models/Lead.js";
 import Message from "../src/shared/models/Message.js";
 import WebhookEvent from "../src/shared/models/WebhookEvent.js";
-import Notification from "../src/shared/models/Notification.js";
-import Activity from "../src/shared/models/Activity.js";
 import BulkMessage from "../src/shared/models/BulkMessage.js";
 import CRMTemplate from "../src/shared/models/CRMTemplate.js";
 import { inboundMessageService } from "../src/server/services/inboundMessageService.js";
 import { processKeywordAutoReply } from "../src/features/chat/services/keywordMatcher.js";
 import { processCampaignBatch } from "../src/server/queues/workers/campaignWorker.js";
 import { serverLeadService } from "../src/server/services/serverLeadService.js";
-import { normalizePhone, getPhoneVariations } from "../src/shared/utils/phoneUtils.js";
+import { normalizePhone } from "../src/shared/utils/phoneUtils.js";
 import { resolveTemplate } from "../src/shared/utils/templateResolver.js";
 import { runSerializedPerCustomer } from "../src/server/queues/workers/inboundMessageWorker.js";
 

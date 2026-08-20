@@ -5,7 +5,7 @@ import ChatWorkspace from "@/shared/models/ChatWorkspace";
 import Branch from "@/shared/models/Branch";
 import mongoose from "mongoose";
 import { NotificationTypes } from "@/shared/constants/notificationConstants";
-import { isAdminAuthorized, isSuperAdmin } from "@/shared/utils/auth";
+import { isSuperAdmin } from "@/shared/utils/auth";
 import { normalizePhone } from "@/shared/utils/phoneUtils";
 import {
   emitNotificationCreated,

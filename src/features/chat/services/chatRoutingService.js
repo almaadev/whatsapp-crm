@@ -1,28 +1,19 @@
-import { findLastMessageByPhone, getModelByCategory } from "@/shared/repositories/messageRepository";
 import Message from "@/shared/models/Message";
 import Customer from "@/shared/models/Customer";
+import { getPhoneVariations } from "@/shared/utils/phoneUtils";
 
 export const KEYWORD_ROUTES = [];
 
-export { getModelByCategory };
+export const getModelByCategory = (category) => Message;
+
+export const findLastMessageByPhone = async (phone, Model = Message) => {
+  const variations = getPhoneVariations(phone);
+  return await Model.findOne({ phone: { $in: variations } }).sort({ timestamp: -1 }).lean();
+};
 
 export const checkIsChatClosed = async (phone, category) => {
-  let customer = await Customer.findOne({ phone }).lean();
-  if (!customer) {
-    const cleanDigits = phone.replace("whatsapp:", "").replace("+", "");
-    const tenDigit = cleanDigits.substring(cleanDigits.length - 10);
-    const variations = [
-      `whatsapp:${cleanDigits}`,
-      `whatsapp:+${cleanDigits}`,
-      `+${cleanDigits}`,
-      cleanDigits,
-      `whatsapp:${tenDigit}`,
-      `whatsapp:+${tenDigit}`,
-      `+${tenDigit}`,
-      tenDigit
-    ];
-    customer = await Customer.findOne({ phone: { $in: variations } }).lean();
-  }
+  const variations = getPhoneVariations(phone);
+  const customer = await Customer.findOne({ phone: { $in: variations } }).lean();
   if (!customer) return true;
   return customer.isClosed === true;
 };

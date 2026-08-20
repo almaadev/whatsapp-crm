@@ -3,16 +3,13 @@ import { sendTemplateMessage } from "@/features/admin/services/twilioService";
 import connectDB from "@/shared/lib/db/mongodb";
 import Message from "@/shared/models/Message";
 import Customer from "@/shared/models/Customer";
-import User from "@/shared/models/User";
 import { serverCustomerService } from "@/server/services/serverCustomerService";
 import { activityService } from "@/server/services/activityService";
 import { ActivityEvents, ActivitySources } from "@/shared/constants/activityConstants";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/shared/lib/auth";
-const findUserNameById = async (id) => {
-  const user = await User.findById(id).lean();
-  return user ? user.name : "Unknown";
-};
+import { getUserNameById } from "@/shared/utils/userUtils";
+
 export async function POST(req) {
   try {
     const session = await getServerSession(authOptions);
@@ -38,9 +35,10 @@ export async function POST(req) {
       senderNumber,
       user: session.user,
     });
-    console.log(message);
 
     let MsgModel = Message;
+
+    const resolvedAssociateName = associateName || (session.user.id ? await getUserNameById(session.user.id, session.user.name || "Unknown") : "Unknown");
 
     // Store in DB for UI history
     await MsgModel.create({
@@ -51,8 +49,8 @@ export async function POST(req) {
       twilioSid: message.sid,
       senderNumber: message.senderNumber,
       chatType: chatType || "Direct Lead",
-      associateName: associateName || (await findUserNameById(session.user.id)) || "Unknown",
-      senderName: associateName || (await findUserNameById(session.user.id)) || "Unknown",
+      associateName: resolvedAssociateName,
+      senderName: resolvedAssociateName,
       role: session.user.role || "associate",
       isTemplate: true,
       templateSid: templateSid,
@@ -86,7 +84,7 @@ export async function POST(req) {
 
     try {
       const { emitNewMessage } = await import("@/shared/utils/socketPublisher");
-      const resolvedName = associateName || (await findUserNameById(session.user.id)) || "Unknown";
+      const resolvedName = resolvedAssociateName;
       const branchId = custDoc?.branchId ? (custDoc.branchId._id ? custDoc.branchId._id.toString() : custDoc.branchId.toString()) : null;
 
       emitNewMessage({

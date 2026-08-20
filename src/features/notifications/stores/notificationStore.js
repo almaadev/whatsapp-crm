@@ -144,8 +144,6 @@ export const useNotificationStore = create((set, get) => ({
   // Socket Realtime Dispatch Handlers
   handleNotificationCreated: (newNotif) => {
     if (!newNotif || !newNotif._id) return;
-    const notifIdStr = String(newNotif._id);
-    console.log(`[NOTIFICATION DEBUG] RECEIVED | notificationId=${notifIdStr} | title="${newNotif.title}"`);
     set((state) => {
       // Check if a notification for this customer already exists in store
       const existingIdx = state.notifications.findIndex((n) => isSameNotificationConversation(n, newNotif));
@@ -161,7 +159,6 @@ export const useNotificationStore = create((set, get) => ({
         const inc = (wasRead && !nowRead) ? 1 : ( (!wasRead && nowRead) ? -1 : 0 );
         const newUnread = Math.max(0, state.unreadCount + inc);
 
-        console.log(`[NOTIFICATION STORE DEBUG] UPDATED EXISTING | unreadCount=${newUnread}`);
         return { notifications: [merged, ...otherNotifs], unreadCount: newUnread };
       }
 
@@ -174,8 +171,6 @@ export const useNotificationStore = create((set, get) => ({
       const inc = !newNotif.isRead ? 1 : 0;
       const newUnread = state.unreadCount + inc;
 
-      console.log(`[NOTIFICATION STORE DEBUG] INSERTED NEW | unreadCount=${newUnread}`);
-
       return {
         notifications: newList,
         unreadCount: newUnread,
@@ -186,8 +181,6 @@ export const useNotificationStore = create((set, get) => ({
 
   handleNotificationUpdated: (updatedNotif) => {
     if (!updatedNotif || !updatedNotif._id) return;
-    const notifIdStr = String(updatedNotif._id);
-    console.log(`[NOTIFICATION DEBUG] RECEIVED (UPDATE) | notificationId=${notifIdStr} | title="${updatedNotif.title}"`);
     set((state) => {
       // Find matching customer conversation
       const existingIdx = state.notifications.findIndex((n) => isSameNotificationConversation(n, updatedNotif));
@@ -202,7 +195,6 @@ export const useNotificationStore = create((set, get) => ({
         const inc = (wasRead && !nowRead) ? 1 : ( (!wasRead && nowRead) ? -1 : 0 );
         const newUnread = Math.max(0, state.unreadCount + inc);
 
-        console.log(`[NOTIFICATION STORE DEBUG] UPDATED & FLOATED | unreadCount=${newUnread}`);
         return { notifications: [merged, ...otherNotifs], unreadCount: newUnread };
       } else {
         const filterMatches =
@@ -212,7 +204,6 @@ export const useNotificationStore = create((set, get) => ({
 
         const inc = !updatedNotif.isRead ? 1 : 0;
         const newUnread = state.unreadCount + inc;
-        console.log(`[NOTIFICATION STORE DEBUG] INSERTED UPDATED | unreadCount=${newUnread}`);
 
         return filterMatches
           ? { notifications: [updatedNotif, ...state.notifications], unreadCount: newUnread, totalCount: state.totalCount + 1 }

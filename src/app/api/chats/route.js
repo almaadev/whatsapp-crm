@@ -6,8 +6,6 @@ import Customer from "@/shared/models/Customer";
 import Message from "@/shared/models/Message";
 import Lead from "@/shared/models/Lead";
 import redis from "@/shared/lib/db/redis";
-import twilio from "twilio";
-import User from "@/shared/models/User";
 import Activity from "@/shared/models/Activity";
 import { serverCustomerService } from "@/server/services/serverCustomerService";
 import { sanitizeChatList } from "@/shared/utils/privacy";

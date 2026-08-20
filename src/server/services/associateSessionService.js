@@ -493,9 +493,9 @@ export const associateSessionService = {
       await notificationService.createAssociateLogoutNotification({
         associateId: uId,
         actorUserId: uId,
-        associateName: userDoc?.name || user?.name || "Associate",
-        actorName: userDoc?.name || user?.name || "Associate",
-        actorRole: userDoc?.role || user?.role || "associate",
+        associateName: userDoc?.name || "Associate",
+        actorName: userDoc?.name || "Associate",
+        actorRole: userDoc?.role || "associate",
         branchId: session.branchId,
         actorBranchId: session.branchId,
         actorBranchName: session.branchName || "",

@@ -5,14 +5,11 @@ import connectDB from "@/shared/lib/db/mongodb";
 import Customer from "@/shared/models/Customer";
 import Lead from "@/shared/models/Lead";
 import Branch from "@/shared/models/Branch";
-import CustomerAddress from "@/shared/models/CustomerAddress";
 import Message from "@/shared/models/Message";
 import CRMTemplate from "@/shared/models/CRMTemplate";
 import { resolveTemplate } from "@/shared/utils/templateResolver";
 import { sendWhatsAppMessage } from "@/features/admin/services/twilioService";
 import { serverCustomerService } from "@/server/services/serverCustomerService";
-import { activityService } from "@/server/services/activityService";
-import { ActivityEvents, ActivitySources } from "@/shared/constants/activityConstants";
 import { normalizePhone, getPhoneVariations } from "@/shared/utils/phoneUtils";
 import { emitNewMessage } from "@/shared/utils/socketPublisher";
 

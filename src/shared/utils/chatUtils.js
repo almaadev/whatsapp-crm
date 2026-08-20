@@ -1,4 +1,4 @@
-import { Check, CheckCheck, Clock, AlertCircle, Lock, Unlock, MapPin, UserCheck, Stethoscope, RefreshCw, Cog, Share2, Tag, UserPlus, MessageSquare, User, FileText, CornerDownRight, Send, Globe, HelpCircle, Building2 } from "lucide-react";
+import { Check, CheckCheck, Clock, AlertCircle, Lock, Unlock, MapPin, UserCheck, RefreshCw, Cog, Tag, UserPlus, MessageSquare, User, FileText, Globe, HelpCircle, Building2 } from "lucide-react";
 import { formatActorDisplayName } from "@/shared/utils/activityFormatter";
 
 /**

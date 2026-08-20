@@ -17,7 +17,6 @@ import {
   History,
   Users,
   ChevronDown,
-  ChevronUp,
   RefreshCw,
   Trash2,
 } from "lucide-react";

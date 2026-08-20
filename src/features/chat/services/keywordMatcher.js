@@ -1,6 +1,3 @@
-import { findAllAutomations } from "@/shared/repositories/keywordAutomationRepository";
-import { findCustomerByPhone } from "@/shared/repositories/customerRepository";
-import { createMessage, getModelByCategory } from "@/shared/repositories/messageRepository";
 import { determineConversationRoute } from "@/features/chat/services/chatRoutingService";
 import { 
   sendTemplateMessage, 
@@ -10,10 +7,13 @@ import {
 } from "@/features/admin/services/twilioService";
 import { emitNewMessage } from "@/shared/utils/socketPublisher";
 import Message from "@/shared/models/Message";
+import Customer from "@/shared/models/Customer";
+import KeywordAutomation from "@/shared/models/KeywordAutomation";
 import CRMTemplate from "@/shared/models/CRMTemplate";
 import Lead from "@/shared/models/Lead";
 import Branch from "@/shared/models/Branch";
 import { resolveTemplate } from "@/shared/utils/templateResolver";
+import { getPhoneVariations } from "@/shared/utils/phoneUtils";
 
 /**
  * Automatically builds variable values for dynamic templates based on customer attributes.
@@ -92,7 +92,7 @@ async function saveAndEmitMessage({
     mediaType: "",
   };
 
-  const savedMsg = await createMessage(msgPayload, Message);
+  const savedMsg = await Message.create(msgPayload);
   const socketEmitObj = { ...msgPayload, _id: savedMsg._id };
 
   emitNewMessage(socketEmitObj);
@@ -128,7 +128,7 @@ export async function processKeywordAutoReply(phone, messageText, profileName = 
   }
 
   try {
-    const activeKeywords = await findAllAutomations({ isActive: true });
+    const activeKeywords = await KeywordAutomation.find({ isActive: true }).sort({ createdAt: -1 }).lean();
     if (!activeKeywords.length) return false;
 
     const cleanText = normalizeText(messageText);
@@ -165,14 +165,13 @@ export async function processKeywordAutoReply(phone, messageText, profileName = 
       }
 
       // 1. Fetch customer details and determine route category
-      let customer = await findCustomerByPhone(phone);
+      let customer = await Customer.findOne({ phone: { $in: getPhoneVariations(phone) } }).lean();
       let targetCategory = customer?.activeRouteCategory || "Direct Lead";
       if (!customer) {
         targetCategory = await determineConversationRoute(phone, messageText, null);
       }
 
       if (customer?.isOptedOut) {
-        console.log(`[AUTO-REPLY] Customer ${phone} is opted out. Cancelling auto reply.`);
         return false;
       }
 

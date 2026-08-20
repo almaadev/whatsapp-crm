@@ -29,22 +29,8 @@ export const connectSocket = () => {
     autoConnect: true,
   });
 
-  socket.on("connect", () => {
-    const transport = socket.io?.engine?.transport?.name || "unknown";
-    console.log(`[SOCKET DEBUG] connected | socketId=${socket.id} | transport=${transport}`);
-  });
-
-  socket.on("disconnect", (reason) => {
-    console.warn(`[SOCKET DEBUG] disconnected | reason=${reason}`);
-  });
-
   socket.on("connect_error", (err) => {
-    console.error(`[SOCKET DEBUG] connection error:`, err.message);
-  });
-
-  socket.on("reconnect", (attemptNumber) => {
-    const transport = socket.io?.engine?.transport?.name || "unknown";
-    console.log(`[SOCKET DEBUG] reconnected on attempt #${attemptNumber} | transport=${transport}`);
+    console.error(`[SocketService] Connection error:`, err?.message || err);
   });
 
   return socket;

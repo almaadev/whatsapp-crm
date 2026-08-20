@@ -3,16 +3,14 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/shared/lib/auth";
 import connectDB from "@/shared/lib/db/mongodb";
 import Customer from "@/shared/models/Customer";
-import mongoose from "mongoose";
 import Branch from "@/shared/models/Branch";
-import User from "@/shared/models/User";
-import CustomerAddress from "@/shared/models/CustomerAddress";
 import Activity from "@/shared/models/Activity";
 import Lead from "@/shared/models/Lead";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
 import { sanitizeCustomerOrLeadData } from "@/shared/utils/privacy";
 import { serverCustomerService } from "@/server/services/serverCustomerService";
 import { getActivityTitle, formatActorDisplayName } from "@/shared/utils/activityFormatter";
+import { normalizePhone, getPhoneVariations } from "@/shared/utils/phoneUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -26,22 +24,8 @@ export async function GET(req, { params }) {
         
         const resolvedParams = await params;
         const rawPhone = decodeURIComponent(resolvedParams.phone || "");
-        
-        const cleanPhone = rawPhone.replace(/\D/g, '');
-        const variations = [
-            cleanPhone, 
-            `whatsapp:${cleanPhone}`, 
-            `whatsapp:+${cleanPhone}`, 
-            `+${cleanPhone}` 
-        ];
-
-        if (cleanPhone.startsWith('91') && cleanPhone.length === 12) {
-            const tenDigit = cleanPhone.substring(2);
-            variations.push(tenDigit);
-            variations.push(`whatsapp:${tenDigit}`);
-            variations.push(`whatsapp:+91${tenDigit}`);
-            variations.push(`+91${tenDigit}`);
-        }
+        const cleanPhone = normalizePhone(rawPhone);
+        const variations = getPhoneVariations(cleanPhone);
 
         const { getBranchFilterForUser } = await import("@/shared/utils/serverAuth");
         const { branchQuery } = await getBranchFilterForUser(session);
@@ -55,7 +39,6 @@ export async function GET(req, { params }) {
         }).lean();
 
         if (!customer) {
-            console.warn(`Customer not found for phone variations: ${variations.join(", ")}`);
             return NextResponse.json({ error: "Customer not found" }, { status: 404 });
         }
 

@@ -1,11 +1,11 @@
 "use client";
-import api from "@/shared/lib/axios";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useChatStore, isSameConversation } from "@/features/chat/stores/chatStore";
 import { usePresenceStore } from "@/features/chat/stores/presenceStore";
 import { useSession } from "next-auth/react";
 import { resolveCustomerDisplayName } from "@/shared/utils/customerResolver";
+import { normalizePhone } from "@/shared/utils/phoneUtils";
 
 import Link from "next/link";
 import {
@@ -167,10 +167,7 @@ export default function ChatList({ role, loading }) {
   };
 
   const handleCustomerClick = (customer) => {
-    let cleanPhone = customer.phone || "";
-    if (!cleanPhone.startsWith("whatsapp:")) {
-      cleanPhone = `whatsapp:${cleanPhone.replace(/\D/g, "")}`;
-    }
+    const cleanPhone = normalizePhone(customer.phone || "");
 
     setSelectedChat({
       phone: cleanPhone,
@@ -323,11 +320,11 @@ export default function ChatList({ role, loading }) {
     const term = searchTerm.toLowerCase();
 
     const existingPhones = new Set(
-      messages.map((m) => m.phone?.replace(/\D/g, "") || ""),
+      messages.map((m) => normalizePhone(m.phone || "")),
     );
 
     return allCustomers.filter((c) => {
-      const phoneStr = c.phone?.replace(/\D/g, "") || "";
+      const phoneStr = normalizePhone(c.phone || "");
       const nameStr = (c.name || "").toLowerCase();
 
       const matches = nameStr.includes(term) || phoneStr.includes(term);

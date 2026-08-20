@@ -4,9 +4,10 @@ import { authOptions } from "@/shared/lib/auth";
 import connectDB from "@/shared/lib/db/mongodb";
 import Reminder from "@/shared/models/Reminder";
 import Message from "@/shared/models/Message";
-import User from "@/shared/models/User";
-import twilio from "twilio";
 import redis from "@/shared/lib/db/redis";
+import { sendWhatsAppMessage } from "@/features/admin/services/twilioService";
+import { emitNewMessage } from "@/shared/utils/socketPublisher";
+import { getUserNameById } from "@/shared/utils/userUtils";
 
 export async function POST(req) {
   try {
@@ -16,10 +17,7 @@ export async function POST(req) {
 
     await connectDB();
     const body = await req.json();
-    const findUserNameById = async (id) => {
-      const user = await User.findById(id).lean();
-      return user ? user.name : "Unknown";
-    };
+
     // --- 1. SET NEW REMINDER ---
     if (body.action === "SET") {
       const { phone, message, date, time } = body;
@@ -30,8 +28,10 @@ export async function POST(req) {
         { status: "CANCELLED" },
       );
 
+      const associateName = session.user.id ? await getUserNameById(session.user.id, session.user.name || "Unknown") : "Unknown";
+
       await Reminder.create({
-        associate: session.user.id && await findUserNameById(session.user.id) || "Unknown",
+        associate: associateName,
         phone: phone,
         message: message,
         scheduledTime: scheduledTime,
@@ -89,47 +89,38 @@ export async function POST(req) {
       if (dueReminders.length === 0)
         return NextResponse.json({ success: true, processed: [] });
 
-      const client = twilio(
-        process.env.TWILIO_ACCOUNT_SID,
-        process.env.TWILIO_AUTH_TOKEN,
-      );
-      const myTwilioNumber = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER;
       const processed = [];
 
       for (const reminder of dueReminders) {
         try {
-          const formattedPhone = reminder.phone.startsWith("whatsapp:")
-            ? reminder.phone
-            : `whatsapp:${reminder.phone}`;
+          const sent = await sendWhatsAppMessage(
+            reminder.phone,
+            `[Reminder]: ${reminder.message}`
+          );
 
-          const sent = await client.messages.create({
-            body: `[Reminder]: ${reminder.message}`,
-            from: myTwilioNumber,
-            to: formattedPhone,
-          });
-
-          // Message DB-ல் சேவ் செய்
-          await Message.create({
+          // Save Message to DB
+          const newMsg = await Message.create({
             phone: reminder.phone,
             message: `[Reminder]: ${reminder.message}`,
             direction: "OUTBOUND",
             status: "SENT",
             twilioSid: sent.sid,
             senderName: reminder.associate,
+            timestamp: new Date(),
+            source: "Reminder"
           });
 
-          // UI-க்கு லைவ்வாக அனுப்பு
-          if (global.io) {
-            global.io.emit("new_message", {
-              phone: reminder.phone,
-              message: `[Reminder]: ${reminder.message}`,
-              direction: "OUTBOUND",
-              timestamp: new Date().toISOString(),
-              status: "SENT",
-              role: "sales",
-              name: reminder.associate,
-            });
-          }
+          // Emit to UI live via socketPublisher
+          emitNewMessage({
+            _id: newMsg._id,
+            phone: reminder.phone,
+            message: `[Reminder]: ${reminder.message}`,
+            direction: "OUTBOUND",
+            timestamp: new Date().toISOString(),
+            status: "SENT",
+            role: "sales",
+            name: reminder.associate,
+          });
 
           reminder.status = "DONE";
           await reminder.save();
