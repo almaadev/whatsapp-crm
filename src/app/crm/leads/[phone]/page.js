@@ -99,7 +99,8 @@ export default function LeadDetailsPage({ params }) {
       const followups = lead.history || [];
       const activities = (lead.chatHistory || [])
         .map((act, index) => {
-          let performerName = "System Admin";
+          const isWebhookOrAuto = act.source === "WEBHOOK" || act.metadata?.source === "WEBHOOK" || act.metadata?.isAutomatic === true || (!act.actorId && (!act.performedByName || act.performedByName === "System Admin") && act.eventType === "LEAD_CREATED");
+          let performerName = "";
           if (act.performedBy) {
             if (typeof act.performedBy === "object" && act.performedBy.name) {
               performerName = act.performedBy.name;
@@ -107,17 +108,22 @@ export default function LeadDetailsPage({ params }) {
               performerName = act.performedBy;
             }
           }
-          const actorLabel = act.performedByLabel || formatActorDisplayName(act.performedBy || {
-            name: performerName,
-            role: act.performedByRole,
-            department: act.performedByDept
-          });
+          let actorLabel = "";
+          if (!isWebhookOrAuto && (performerName || act.performedByRole || act.actorId)) {
+            actorLabel = act.performedByLabel || formatActorDisplayName(act.performedBy || {
+              name: performerName || "System Admin",
+              role: act.performedByRole,
+              department: act.performedByDept
+            });
+          }
 
-          const formattedTitle = act.action || getActivityTitle(act.eventType, act.performedBy || {
-            name: performerName,
-            role: act.performedByRole,
-            department: act.performedByDept
-          }, act.metadata || {});
+          const formattedTitle = (isWebhookOrAuto && act.eventType === "LEAD_CREATED")
+            ? "New Lead"
+            : (act.action || getActivityTitle(act.eventType, actorLabel ? {
+                name: performerName,
+                role: act.performedByRole,
+                department: act.performedByDept
+              } : null, act.metadata || {}));
 
           let mappedStatus = "Active";
           if (act.eventType === "LEAD_STATUS_CHANGED") {
@@ -499,10 +505,12 @@ export default function LeadDetailsPage({ params }) {
                                           </div>
 
                                           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                                              <div className={`text-[12px] font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-lg border w-max shadow-sm ${fu.leadTransferred ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-slate-50 border-slate-200 text-slate-700"}`}>
-                                                  <UserCircle size={14} className={fu.leadTransferred ? "text-blue-500" : "text-slate-400"} />
-                                                  {fu.associateName || "Unknown"}
-                                              </div>
+                                              {fu.associateName && (
+                                                <div className={`text-[12px] font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-lg border w-max shadow-sm ${fu.leadTransferred ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-slate-50 border-slate-200 text-slate-700"}`}>
+                                                    <UserCircle size={14} className={fu.leadTransferred ? "text-blue-500" : "text-slate-400"} />
+                                                    {fu.associateName}
+                                                </div>
+                                              )}
                                               {fu.leadTransferred && (
                                                   <span className="text-[11px] font-bold uppercase tracking-widest text-blue-600 flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-md">
                                                       <RefreshCcw size={12}/>Transferred

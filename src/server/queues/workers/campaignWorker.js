@@ -2,19 +2,17 @@ import { Worker } from "bullmq";
 import { QUEUE_NAMES, getRedisConnectionOptions } from "../queueManager.js";
 import connectDB from "../../../shared/lib/db/mongodb.js";
 import BulkMessage from "../../../shared/models/BulkMessage.js";
+import CampaignRecipient from "../../../shared/models/CampaignRecipient.js";
 import Message from "../../../shared/models/Message.js";
 import Customer from "../../../shared/models/Customer.js";
-import twilio from "twilio";
 import { emitBulkMessageStatus, emitNewMessage } from "../../../shared/utils/socketPublisher.js";
 import { normalizePhone } from "../../../shared/utils/phoneUtils.js";
-
-const client = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-);
+import { getTwilioClient, getStatusCallbackUrl } from "../../../features/admin/services/twilioService.js";
+import { syncCampaignCounts } from "../../services/campaignService.js";
 
 /**
  * Core business function to process a campaign batch safely and idempotently.
+ * Processes each recipient individually and guarantees recipient-level visibility.
  */
 export async function processCampaignBatch(jobData) {
   await connectDB();
@@ -38,52 +36,99 @@ export async function processCampaignBatch(jobData) {
 
   console.log(`[CampaignWorker] Processing campaign "${bulkRecord.campaignName}" (${campaignId}) with ${recipients.length} recipients...`);
 
-  let successCount = 0;
-  let failedCount = 0;
+  const client = getTwilioClient();
+  const statusCallback = getStatusCallbackUrl();
 
-  for (const formattedTo of recipients) {
+  for (const rawTo of recipients) {
+    const canonicalPhone = normalizePhone(rawTo);
+    if (!canonicalPhone) continue;
+
+    // 1. Find or create CampaignRecipient document
+    let recipientDoc = await CampaignRecipient.findOne({
+      campaignId: bulkRecord._id,
+      normalizedPhone: canonicalPhone,
+    });
+
+    if (!recipientDoc) {
+      recipientDoc = await CampaignRecipient.create({
+        campaignId: bulkRecord._id,
+        phone: rawTo,
+        normalizedPhone: canonicalPhone,
+        status: "QUEUED",
+      });
+    }
+
+    // 2. Outbound Idempotency Check: Do not send if already processed or SID exists
+    if (
+      ["SENT", "DELIVERED", "READ", "SKIPPED"].includes(recipientDoc.status) ||
+      recipientDoc.twilioMessageSid
+    ) {
+      console.log(`[CampaignWorker] Already processed ${canonicalPhone} for campaign ${campaignId} (status: ${recipientDoc.status}). Skipping.`);
+      continue;
+    }
+
+    // 3. Check opt-out status
+    const customerDoc = await Customer.findOne({ phone: canonicalPhone }).lean();
+    if (customerDoc?.isOptedOut) {
+      console.log(`[CampaignWorker] Recipient ${canonicalPhone} is opted out. Marking SKIPPED.`);
+      recipientDoc.status = "SKIPPED";
+      recipientDoc.errorMessage = "Customer opted out";
+      await recipientDoc.save();
+      continue;
+    }
+
+    // 4. Construct Twilio payload with status callback
+    const messagePayload = {
+      contentSid: templateId,
+      from: formattedFrom,
+      to: canonicalPhone,
+      statusCallback,
+    };
+
+    if (validation.isDynamic && validation.contentVariables) {
+      messagePayload.contentVariables = JSON.stringify(validation.contentVariables);
+    }
+
+    // 5. Send via Twilio API
+    let sentTwilioMessage = null;
     try {
-      // 1. Check opt-out status
-      const customerDoc = await Customer.findOne({ phone: formattedTo }).lean();
-      if (customerDoc?.isOptedOut) {
-        console.log(`[CampaignWorker] Recipient ${formattedTo} is opted out. Skipping.`);
-        continue;
-      }
+      sentTwilioMessage = await client.messages.create(messagePayload);
+    } catch (sendErr) {
+      console.error(`[CampaignWorker] Twilio send error for ${canonicalPhone}:`, sendErr.message);
+      recipientDoc.status = "FAILED";
+      recipientDoc.errorCode = String(sendErr.code || sendErr.status || "TWILIO_SEND_ERROR");
+      recipientDoc.errorMessage = sendErr.message || "Twilio send failed";
+      recipientDoc.failedAt = new Date();
+      await recipientDoc.save().catch(() => {});
+      continue;
+    }
 
-      // 2. Outbound Idempotency Check: Prevent duplicate sends for the same campaign
-      const existingSent = await Message.findOne({
-        phone: formattedTo,
-        "templateMetadata.campaignId": String(campaignId),
-      }).lean();
+    // 6. Twilio Send SUCCESS -> Update CampaignRecipient record immediately
+    const now = new Date();
+    recipientDoc.twilioMessageSid = sentTwilioMessage.sid;
+    recipientDoc.twilioStatus = sentTwilioMessage.status || "queued";
+    recipientDoc.status = "SENT"; // Twilio accepted the outbound request
+    recipientDoc.initialApiAcceptedAt = now;
+    recipientDoc.sentAt = now;
+    recipientDoc.errorCode = null;
+    recipientDoc.errorMessage = null;
 
-      if (existingSent) {
-        console.log(`[CampaignWorker] Already sent to ${formattedTo} for campaign ${campaignId}. Skipping.`);
-        successCount++;
-        continue;
-      }
+    try {
+      await recipientDoc.save();
+    } catch (dbSaveErr) {
+      console.error(`[CampaignWorker] DB error updating recipientDoc for ${canonicalPhone}:`, dbSaveErr.message);
+    }
 
-      // 3. Construct Twilio payload
-      const messagePayload = {
-        contentSid: templateId,
-        from: formattedFrom,
-        to: formattedTo,
-      };
-
-      if (validation.isDynamic && validation.contentVariables) {
-        messagePayload.contentVariables = JSON.stringify(validation.contentVariables);
-      }
-
-      // 4. Send via Twilio
-      const sent = await client.messages.create(messagePayload);
-
-      // 5. Persist outbound Message record in MongoDB
-      const isoTimestamp = new Date().toISOString();
-      const savedMsg = await Message.create({
-        phone: formattedTo,
+    // 7. Persist outbound Message record in MongoDB (non-blocking ledger)
+    let savedMsg = null;
+    try {
+      savedMsg = await Message.create({
+        phone: canonicalPhone,
         message: `Campaign: ${bulkRecord.campaignName}`,
         direction: "OUTBOUND",
         status: "SENT",
-        twilioSid: sent.sid,
+        twilioSid: sentTwilioMessage.sid,
+        templateSid: templateId,
         senderNumber: resolvedSender,
         senderName: sentBy,
         role: "admin",
@@ -91,75 +136,93 @@ export async function processCampaignBatch(jobData) {
         templateMetadata: {
           type: "whatsapp",
           campaignId: String(campaignId),
-          templateId,
+          recipientId: recipientDoc._id,
+          templateId: templateId,
+          templateName: bulkRecord.campaignName,
+          source: "campaign",
+          variables: validation?.contentVariables || null,
         },
-        timestamp: new Date(isoTimestamp),
+        timestamp: now,
       });
+    } catch (msgCreateErr) {
+      console.error(`[CampaignWorker] Message persistence error for ${canonicalPhone} (Twilio SID: ${sentTwilioMessage.sid}):`, msgCreateErr.message);
+    }
 
-      // 6. Update Customer last interaction
-      if (customerDoc?._id) {
+    // 8. Update Customer last interaction
+    if (customerDoc?._id) {
+      try {
         await Customer.updateOne(
           { _id: customerDoc._id },
-          { $set: { lastInteractionAt: new Date() } }
+          { $set: { lastInteractionAt: now } }
         );
+      } catch (custErr) {
+        console.warn(`[CampaignWorker] Customer lastInteractionAt update notice for ${canonicalPhone}:`, custErr.message);
       }
+    }
 
-      // 7. Emit realtime message update to CRM UI
-      try {
-        const branchId = customerDoc?.branchId
-          ? (customerDoc.branchId._id ? customerDoc.branchId._id.toString() : customerDoc.branchId.toString())
-          : null;
+    // 9. Emit realtime new message event to CRM chat
+    try {
+      const branchId = customerDoc?.branchId
+        ? (customerDoc.branchId._id ? customerDoc.branchId._id.toString() : customerDoc.branchId.toString())
+        : null;
 
-        emitNewMessage(
-          {
-            _id: savedMsg._id.toString(),
-            customerId: customerDoc?._id ? customerDoc._id.toString() : undefined,
-            phone: formattedTo,
-            canonicalPhone: normalizePhone(formattedTo),
-            name: customerDoc?.name || formattedTo,
-            message: `Campaign: ${bulkRecord.campaignName}`,
-            direction: "OUTBOUND",
-            timestamp: isoTimestamp,
-            status: "SENT",
-            role: "admin",
-            sendBy: userId ? { _id: userId, name: sentBy } : null,
-            twilioSid: sent.sid,
-            branchId,
-            isTemplate: true,
+      emitNewMessage(
+        {
+          _id: savedMsg?._id ? savedMsg._id.toString() : `camp_${sentTwilioMessage.sid}`,
+          customerId: customerDoc?._id ? customerDoc._id.toString() : undefined,
+          phone: canonicalPhone,
+          canonicalPhone,
+          name: customerDoc?.name || canonicalPhone,
+          message: `Campaign: ${bulkRecord.campaignName}`,
+          direction: "OUTBOUND",
+          timestamp: now.toISOString(),
+          status: "SENT",
+          role: "admin",
+          sendBy: userId ? { _id: userId, name: sentBy } : null,
+          twilioSid: sentTwilioMessage.sid,
+          branchId,
+          isTemplate: true,
+          templateMetadata: {
+            type: "whatsapp",
+            campaignId: String(campaignId),
+            recipientId: recipientDoc._id.toString(),
+            templateId,
+            templateName: bulkRecord.campaignName,
+            source: "campaign",
           },
-          branchId
-        );
-      } catch (socketErr) {
-        console.error("[CampaignWorker] Socket emit error:", socketErr.message);
-      }
-
-      successCount++;
-    } catch (sendErr) {
-      console.error(`[CampaignWorker] Error sending to ${formattedTo}:`, sendErr.message);
-      failedCount++;
+        },
+        branchId
+      );
+    } catch (socketErr) {
+      console.warn("[CampaignWorker] Realtime socket emit notice:", socketErr.message);
     }
   }
 
-  // Update BulkMessage state in MongoDB
-  bulkRecord.successfulSends = (bulkRecord.successfulSends || 0) + successCount;
-  bulkRecord.failedSends = (bulkRecord.failedSends || 0) + failedCount;
-  bulkRecord.status = "COMPLETED";
-  await bulkRecord.save();
+  // 10. Recompute and sync atomic counts to BulkMessage
+  const syncSummary = await syncCampaignCounts(campaignId);
 
-  // Broadcast overall bulk message status
+  // 11. Broadcast comprehensive campaign status update
   try {
     emitBulkMessageStatus({
       campaignId: bulkRecord._id.toString(),
       campaignName: bulkRecord.campaignName,
-      status: "COMPLETED",
-      successfulSends: bulkRecord.successfulSends,
-      failedSends: bulkRecord.failedSends,
-      total: recipients.length,
+      status: syncSummary?.isCompleted ? "COMPLETED" : "processing",
+      counts: syncSummary?.counts || {},
+      successfulSends: syncSummary?.successfulSends || 0,
+      failedSends: syncSummary?.failedSends || 0,
+      deliveredCount: syncSummary?.deliveredCount || 0,
+      readCount: syncSummary?.readCount || 0,
+      undeliveredCount: syncSummary?.undeliveredCount || 0,
+      skippedCount: syncSummary?.skippedCount || 0,
+      total: syncSummary?.total || recipients.length,
+      progress: syncSummary?.progress || 0,
     });
-  } catch (e) {}
+  } catch (e) {
+    console.warn("[CampaignWorker] Socket status broadcast notice:", e.message);
+  }
 
-  console.log(`[CampaignWorker] Campaign "${bulkRecord.campaignName}" completed: ${successCount} successful, ${failedCount} failed.`);
-  return { success: true, campaignId, successCount, failedCount };
+  console.log(`[CampaignWorker] Campaign "${bulkRecord.campaignName}" (${campaignId}) batch synced:`, syncSummary?.counts);
+  return { success: true, campaignId, syncSummary };
 }
 
 export function createCampaignWorker() {

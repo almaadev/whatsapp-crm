@@ -103,7 +103,7 @@ export const leadQueryService = {
           as: "customerInfo"
         }
       },
-      { $unwind: { path: "$customerInfo", preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: "$customerInfo", preserveNullAndEmptyArrays: false } },
       {
         $lookup: {
           from: "customeraddresses",
@@ -199,9 +199,9 @@ export const leadQueryService = {
             day3Remarks: { $ifNull: ["$latest.day3Remarks", ""] }, 
             saleAmount: { $ifNull: ["$latest.saleAmount", "0"] },
             leadType: { $ifNull: ["$latest.leadType", "$leadType", "Direct Lead"] }, 
-            associate: { $ifNull: ["$assignedTo", "Admin"] },
-            firstHandler: { $ifNull: ["$first.associateName", "$assignedTo", "Admin"] },
-            currentHandler: { $ifNull: ["$assignedTo", "Admin"] },
+            associate: { $ifNull: ["$assignedTo", "Unassigned"] },
+            firstHandler: { $ifNull: ["$first.associateName", "$assignedTo", "Unassigned"] },
+            currentHandler: { $ifNull: ["$assignedTo", "Unassigned"] },
             revenueAttribution: { $toInt: { $ifNull: ["$latest.saleAmount", 0] } },
             isClosed: { $eq: [{ $ifNull: ["$latest.status", "$status", "New"] }, "Closed"] },
             closedByRaw: {
@@ -304,7 +304,13 @@ export const leadQueryService = {
     const phoneVars = getPhoneVariations(cleanPhone);
     
     const customer = await Customer.findOne({ phone: { $in: phoneVars } }).lean();
-    const lead = customer ? await Lead.findOne({ customerId: customer._id }).lean() : null;
+    let lead = null;
+    if (customer) {
+      lead = await Lead.findOne({ customerId: customer._id }).lean();
+      if (!lead && customer.activeLeadId) {
+        lead = await Lead.findById(customer.activeLeadId).lean();
+      }
+    }
 
     if (!lead && !customer) return {};
     
@@ -345,8 +351,9 @@ export const leadQueryService = {
       city: customer?.currentAddressId?.city || customer?.city || lead?.city || "",
       phone: customer?.phone || lead?.phone || cleanPhone,
       address: customer?.currentAddressId?.address || customer?.address || lead?.address || "",
-      source: customer?.source || lead?.source || "Whatsapp",
-      assignedTo: customer?.assignedTo || lead?.assignedTo || "Unassigned",
+      assignedTo: (lead?.assignedTo && lead.assignedTo.toLowerCase() !== "unassigned")
+        ? lead.assignedTo
+        : (customer?.assignedTo && customer.assignedTo.toLowerCase() !== "unassigned" ? customer.assignedTo : "Unassigned"),
       enquiredFor: latest?.enquiredFor || customer?.enquiredFor || "",
       status: latest?.status || customer?.status || "New",
       priority: latest?.priority || customer?.priority || "Medium",

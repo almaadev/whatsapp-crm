@@ -1,31 +1,12 @@
-import { NextResponse } from "next/server";
-import twilio from "twilio";
-
+import { NextResponse } from "next/server.js";
 import connectDB from "@/shared/lib/db/mongodb";
 import Customer from "@/shared/models/Customer";
 import BulkMessage from "@/shared/models/BulkMessage";
+import CampaignRecipient from "@/shared/models/CampaignRecipient";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/shared/lib/auth";
 import { getTemplateDetail, validateTemplatePayload } from "@/features/admin/services/twilioService";
-
-const client = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN,
-);
-
-// Existing formatWhatsAppNumber function...
-const formatWhatsAppNumber = (rawNumber) => {
-  let cleanNumber = rawNumber.replace(/[^\d+]/g, "");
-  if (cleanNumber.startsWith("whatsapp:"))
-    cleanNumber = cleanNumber.replace("whatsapp:", "");
-  if (cleanNumber.length === 10) cleanNumber = `+91${cleanNumber}`;
-  else if (cleanNumber.length === 12 && cleanNumber.startsWith("91"))
-    cleanNumber = `+${cleanNumber}`;
-  else if (cleanNumber.length === 11 && cleanNumber.startsWith("0"))
-    cleanNumber = `+91${cleanNumber.substring(1)}`;
-  else if (!cleanNumber.startsWith("+")) cleanNumber = `+${cleanNumber}`;
-  return `whatsapp:${cleanNumber}`;
-};
+import { normalizePhone } from "@/shared/utils/phoneUtils";
 
 export async function POST(req) {
   try {
@@ -35,9 +16,17 @@ export async function POST(req) {
 
     await connectDB();
 
-    // Accept campaignName, campaignId, numbers, templateId, contentVariables, senderNumber
-    const { campaignName, campaignId, numbers, templateId, contentVariables, senderNumber } =
-      await req.json();
+    const {
+      campaignName,
+      campaignId,
+      numbers,
+      templateId,
+      contentVariables,
+      senderNumber,
+      sourceCampaignId = null,
+      sourceCampaignName = null,
+      recallType = null,
+    } = await req.json();
 
     if (!campaignName)
       return NextResponse.json(
@@ -55,7 +44,7 @@ export async function POST(req) {
         { status: 400 },
       );
 
-    // Fast Pre-Validation: Fetch and validate template once before sending bulk messages
+    // Fast Pre-Validation: Fetch and validate template once before queuing
     const template = await getTemplateDetail(templateId);
     if (!template) {
       return NextResponse.json(
@@ -75,47 +64,43 @@ export async function POST(req) {
     const resolvedSender = await resolveSenderNumber(session.user, senderNumber);
     const formattedFrom = formatWhatsAppAddress(resolvedSender);
 
-    // 1. Clean & Format
+    // 1. Clean & Normalize phone numbers
     const validFormattedNumbers = [
       ...new Set(
         numbers
-          .filter((n) => typeof n === "string" && n.trim() !== "")
-          .map(formatWhatsAppNumber),
+          .map((n) => normalizePhone(n))
+          .filter((n) => Boolean(n) && n.length > 5)
       ),
     ];
 
-    // 2. Fetch existing to check Opt-Outs
+    if (validFormattedNumbers.length === 0) {
+      return NextResponse.json(
+        { error: "No valid phone numbers provided." },
+        { status: 400 }
+      );
+    }
+
+    // 2. Fetch existing customers to identify Opt-Outs
     const existingCustomers = await Customer.find({
       phone: { $in: validFormattedNumbers },
     }).lean();
     const optedOutPhones = new Set(
-      existingCustomers.filter((c) => c.isOptedOut).map((c) => c.phone),
+      existingCustomers.filter((c) => c.isOptedOut).map((c) => c.phone)
     );
 
-    // 3. Filter Opt-Outs
-    const finalRecipients = validFormattedNumbers.filter(
-      (phone) => !optedOutPhones.has(phone),
+    // 3. Separate eligible vs opted-out recipients
+    const eligibleRecipients = validFormattedNumbers.filter(
+      (phone) => !optedOutPhones.has(phone)
     );
-    const skippedCount = validFormattedNumbers.length - finalRecipients.length;
+    const optOutRecipients = validFormattedNumbers.filter(
+      (phone) => optedOutPhones.has(phone)
+    );
+    const skippedCount = optOutRecipients.length;
 
-    if (finalRecipients.length === 0) {
-      return NextResponse.json(
-        {
-          success: true,
-          successCount: 0,
-          failedCount: 0,
-          skippedCount,
-          total: validFormattedNumbers.length,
-          message: "All recipients opted out.",
-        },
-        { status: 200 },
-      );
-    }
-
-    // 4. Upsert unknown customers
+    // 4. Upsert unknown customers for new numbers
     const existingPhonesSet = new Set(existingCustomers.map((c) => c.phone));
-    const missingNumbers = finalRecipients.filter(
-      (phone) => !existingPhonesSet.has(phone),
+    const missingNumbers = eligibleRecipients.filter(
+      (phone) => !existingPhonesSet.has(phone)
     );
 
     if (missingNumbers.length > 0) {
@@ -127,66 +112,104 @@ export async function POST(req) {
         activeRouteCategory: "Direct Lead",
         lastInteractionAt: new Date(),
       }));
-      await Customer.insertMany(newCustomers);
+      await Customer.insertMany(newCustomers).catch(() => {});
     }
 
-    // 5. Create or Find BulkMessage Campaign Record
+    // 5. Create or Find BulkMessage Record
     let bulkRecord;
     if (campaignId) {
       bulkRecord = await BulkMessage.findById(campaignId);
-      bulkRecord.recipients.push(...finalRecipients);
+      bulkRecord.recipients.push(...validFormattedNumbers);
       if (resolvedSender) bulkRecord.senderNumber = resolvedSender;
       await bulkRecord.save();
     } else {
       bulkRecord = await BulkMessage.create({
         campaignName,
         templateId,
-        recipients: finalRecipients,
-        status: "processing",
+        recipients: validFormattedNumbers,
+        status: eligibleRecipients.length === 0 ? "COMPLETED" : "processing",
         senderNumber: resolvedSender,
         sentBy: session?.user?.name || "System",
+        sourceCampaignId: sourceCampaignId || null,
+        sourceCampaignName: sourceCampaignName || null,
+        recallType: recallType || null,
+        totalRecipients: validFormattedNumbers.length,
+        skippedCount,
       });
     }
 
-    // 6. Enqueue Campaign to BullMQ asynchronously (Zero HTTP Blocking)
-    const { campaignQueue } = await import("@/server/queues/queueManager");
-    const safeJobId = `campaign_${bulkRecord._id.toString()}_${Date.now()}`;
+    // 6. Create CampaignRecipient records for every recipient
+    const recipientOperations = validFormattedNumbers.map((phone) => {
+      const isOptedOut = optedOutPhones.has(phone);
+      return {
+        updateOne: {
+          filter: { campaignId: bulkRecord._id, normalizedPhone: phone },
+          update: {
+            $setOnInsert: {
+              campaignId: bulkRecord._id,
+              phone,
+              normalizedPhone: phone,
+              status: isOptedOut ? "SKIPPED" : "QUEUED",
+              errorMessage: isOptedOut ? "Customer opted out" : null,
+            },
+          },
+          upsert: true,
+        },
+      };
+    });
 
-    await campaignQueue.add(
-      "process-campaign",
-      {
-        campaignId: bulkRecord._id.toString(),
-        campaignName,
-        templateId,
-        recipients: finalRecipients,
-        validation,
-        formattedFrom,
-        resolvedSender,
-        sentBy: session?.user?.name || "System",
-        userId: session?.user?.id || null,
-      },
-      {
-        jobId: safeJobId,
-      }
-    );
+    if (recipientOperations.length > 0) {
+      await CampaignRecipient.bulkWrite(recipientOperations);
+    }
+
+    // 7. Enqueue to BullMQ if eligible recipients exist
+    if (eligibleRecipients.length > 0) {
+      const { campaignQueue } = await import("@/server/queues/queueManager");
+      const safeJobId = `campaign_${bulkRecord._id.toString()}_${Date.now()}`;
+
+      await campaignQueue.add(
+        "process-campaign",
+        {
+          campaignId: bulkRecord._id.toString(),
+          campaignName,
+          templateId,
+          recipients: eligibleRecipients,
+          validation,
+          formattedFrom,
+          resolvedSender,
+          sentBy: session?.user?.name || "System",
+          userId: session?.user?.id || null,
+        },
+        {
+          jobId: safeJobId,
+        }
+      );
+    } else {
+      // All opted out
+      const { syncCampaignCounts } = await import("@/server/services/campaignService");
+      await syncCampaignCounts(bulkRecord._id);
+    }
 
     return NextResponse.json(
       {
         success: true,
-        queued: true,
+        queued: eligibleRecipients.length > 0,
         campaignId: bulkRecord._id,
         total: validFormattedNumbers.length,
-        recipientCount: finalRecipients.length,
+        recipientCount: eligibleRecipients.length,
+        eligibleCount: eligibleRecipients.length,
         skippedCount,
-        message: "Campaign queued for asynchronous delivery.",
+        message: eligibleRecipients.length > 0
+          ? "Campaign queued for asynchronous delivery."
+          : "All recipients were opted out.",
       },
-      { status: 200 },
+      { status: 200 }
     );
   } catch (error) {
     console.error("Bulk Send Error:", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
@@ -196,53 +219,51 @@ export async function GET() {
     await connectDB();
     const campaigns = await BulkMessage.find()
       .sort({ createdAt: -1 })
-      .limit(50)
+      .limit(100)
       .lean();
     return NextResponse.json({ success: true, campaigns });
   } catch (error) {
     return NextResponse.json(
       { error: "Failed to fetch campaigns" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
 
 export async function DELETE(req) {
   try {
-    // 🔒 SECURITY: Verify the user is a superAdmin on the server side
     const session = await getServerSession(authOptions);
     if (!session || session.user.role !== "superAdmin") {
       return NextResponse.json(
         { error: "Unauthorized. Super Admin access required to delete." },
-        { status: 403 },
+        { status: 403 }
       );
     }
 
     await connectDB();
 
-    // Extract the ID from the URL search params (e.g., ?id=...)
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
 
     if (!id) {
       return NextResponse.json(
         { error: "Campaign ID is required" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
-    // Delete the record from the database
     await BulkMessage.findByIdAndDelete(id);
+    await CampaignRecipient.deleteMany({ campaignId: id });
 
     return NextResponse.json(
-      { success: true, message: "Campaign deleted successfully" },
-      { status: 200 },
+      { success: true, message: "Campaign and recipients deleted successfully" },
+      { status: 200 }
     );
   } catch (error) {
     console.error("Delete Campaign Error:", error);
     return NextResponse.json(
       { error: "Failed to delete campaign" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

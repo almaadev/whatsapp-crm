@@ -121,6 +121,8 @@ export async function GET(req, { params }) {
         }
 
         const resolvedChatHistory = uniqueActivities.map(entry => {
+            const isWebhookOrAuto = entry.source === "WEBHOOK" || entry.metadata?.source === "WEBHOOK" || entry.metadata?.isAutomatic === true || (!entry.actorId && (!entry.metadata?.performedByName || entry.metadata?.performedByName === "System Admin") && entry.eventType === "LEAD_CREATED");
+
             let performedByResolved = null;
             if (entry.actorId) {
                 const branchVal = entry.actorId.branch?.toString() || "";
@@ -132,7 +134,7 @@ export async function GET(req, { params }) {
                     department: entry.actorId.department || "",
                     branchName: branchName
                 };
-            } else {
+            } else if (!isWebhookOrAuto) {
                 performedByResolved = {
                     name: entry.metadata?.performedByName || "System Admin",
                     role: entry.metadata?.performedByRole || "superAdmin",
@@ -155,7 +157,9 @@ export async function GET(req, { params }) {
 
             const performedAtVal = entry.createdAt;
             const performedByIdVal = entry.actorId?._id?.toString() || entry.actorId || null;
-            const actionName = getActivityTitle(entry.eventType, performedByResolved, entry.metadata || {});
+            const actionName = (isWebhookOrAuto && entry.eventType === "LEAD_CREATED")
+                ? "New Lead"
+                : (entry.metadata?.action || getActivityTitle(entry.eventType, performedByResolved, entry.metadata || {}));
 
             return {
                 ...entry,
@@ -169,18 +173,18 @@ export async function GET(req, { params }) {
                 conversationId: entry.conversationId || entry.leadId?.toString() || null,
                 actorId: performedByIdVal,
                 performedBy: performedByResolved,
-                performedByName: performedByResolved.name,
-                performedByRole: performedByResolved.role,
-                performedByDept: performedByResolved.department,
-                performedByLabel: formatActorDisplayName(performedByResolved),
+                performedByName: performedByResolved?.name || null,
+                performedByRole: performedByResolved?.role || null,
+                performedByDept: performedByResolved?.department || null,
+                performedByLabel: performedByResolved ? formatActorDisplayName(performedByResolved) : null,
                 performedById: performedByIdVal,
                 targetUser: targetUserResolved,
                 metadata: {
                     ...entry.metadata,
                     action: actionName,
-                    performedByName: performedByResolved.name,
-                    performedByRole: performedByResolved.role,
-                    performedByDept: performedByResolved.department
+                    performedByName: performedByResolved?.name || null,
+                    performedByRole: performedByResolved?.role || null,
+                    performedByDept: performedByResolved?.department || null
                 },
                 timestamp: performedAtVal,
                 performedAt: performedAtVal,

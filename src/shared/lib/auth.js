@@ -6,9 +6,11 @@ import bcrypt from "bcryptjs";
 import redis from "@/shared/lib/db/redis";
 import crypto from "crypto";
 
+const credentialsProviderFn = typeof CredentialsProvider === "function" ? CredentialsProvider : (CredentialsProvider?.default || CredentialsProvider);
+
 export const authOptions = {
   providers: [
-    CredentialsProvider({
+    credentialsProviderFn({
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "email" },

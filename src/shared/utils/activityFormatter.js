@@ -19,7 +19,7 @@ import {
   HelpCircle,
   Building2
 } from "lucide-react";
-import { ActivityEvents } from "@/shared/constants/activityConstants";
+import { ActivityEvents, ActivitySources } from "@/shared/constants/activityConstants";
 
 /**
  * Authoritative Display Name Resolver for Activity Performers / Actors.
@@ -73,6 +73,8 @@ export const getActivityTitle = (eventType, performerInput, metadata = {}) => {
     department: metadata.performedByDept
   };
 
+  const isWebhookOrAuto = metadata.source === "WEBHOOK" || metadata.source === ActivitySources.WEBHOOK || metadata.isAutomatic === true || (!actorObj?.name && !metadata.performedByName);
+
   const actorLabel = formatActorDisplayName(actorObj);
   const type = (eventType || "").toUpperCase();
 
@@ -80,7 +82,7 @@ export const getActivityTitle = (eventType, performerInput, metadata = {}) => {
     case ActivityEvents.CUSTOMER_CREATED:
       return `Customer Created`;
     case ActivityEvents.LEAD_CREATED:
-      return `New Lead Created`;
+      return isWebhookOrAuto ? `New Lead` : `New Lead Created`;
     case ActivityEvents.CHAT_STARTED:
       return `Chat Started`;
     case ActivityEvents.CHAT_CLOSED:

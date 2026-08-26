@@ -214,22 +214,14 @@ async function runAuditSuite() {
 
     // Directly execute activityService for each queued activity
     await activityService.log({
-      eventType: ActivityEvents.CUSTOMER_CREATED,
-      entityType: "Customer",
-      entityId: customer._id.toString(),
-      customerId: customer._id.toString(),
-      source: ActivitySources.WEBHOOK,
-      metadata: { notes: "Customer record created via inbound message", phone },
-    });
-
-    await activityService.log({
       eventType: ActivityEvents.LEAD_CREATED,
       entityType: "Lead",
       entityId: lead._id.toString(),
       customerId: customer._id.toString(),
       leadId: lead._id.toString(),
+      actorId: null,
       source: ActivitySources.WEBHOOK,
-      metadata: { notes: "WhatsApp Lead created", phone },
+      metadata: { action: "New Lead", isAutomatic: true, notes: "WhatsApp Lead created", phone },
     });
 
     await activityService.log({
@@ -254,7 +246,7 @@ async function runAuditSuite() {
       eventType: ActivityEvents.MESSAGE_RECEIVED,
     });
 
-    if (custCreatedCount !== 1) throw new Error(`Expected 1 CUSTOMER_CREATED, got ${custCreatedCount}`);
+    if (custCreatedCount !== 0) throw new Error(`Expected 0 CUSTOMER_CREATED for inbound webhook, got ${custCreatedCount}`);
     if (leadCreatedCount !== 1) throw new Error(`Expected 1 LEAD_CREATED, got ${leadCreatedCount}`);
     if (msgRecvCount !== 1) throw new Error(`Expected 1 MESSAGE_RECEIVED, got ${msgRecvCount}`);
   });

@@ -22,5 +22,8 @@ export async function resolve(specifier, context, nextResolve) {
       shortCircuit: true,
     };
   }
+  if (specifier === "next/server") {
+    return nextResolve("next/server.js", context);
+  }
   return nextResolve(specifier, context);
 }

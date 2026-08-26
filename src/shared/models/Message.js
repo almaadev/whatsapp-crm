@@ -47,8 +47,17 @@ const MessageSchema = new mongoose.Schema(
         default: null,
       },
       templateId: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null,
+      },
+      campaignId: {
+        type: String,
+        default: null,
+        index: true,
+      },
+      recipientId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "CRMTemplate",
+        ref: "CampaignRecipient",
         default: null,
       },
       templateName: {
@@ -61,7 +70,7 @@ const MessageSchema = new mongoose.Schema(
       },
       source: {
         type: String,
-        enum: ["manual", "automation", null],
+        enum: ["manual", "automation", "campaign", null],
         default: null,
       },
       automationId: {

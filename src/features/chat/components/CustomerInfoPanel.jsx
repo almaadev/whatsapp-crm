@@ -607,6 +607,7 @@ export default function CustomerInfoPanel({
                   onChange={handleChange}
                   icon={<Tag size={12} />}
                   options={[
+                    "WhatsApp Lead",
                     "Direct Lead",
                   ]}
                 />
@@ -741,9 +742,11 @@ export default function CustomerInfoPanel({
                               Handled By:{" "}
                             </span>
                             <span className="font-extrabold text-slate-800">
-                              {cycle.associateName ||
-                                leadData?.assignedTo ||
-                                "Unassigned"}
+                              {cycle.associateName && cycle.associateName.toLowerCase() !== "unassigned"
+                                ? cycle.associateName
+                                : (leadData?.assignedTo && leadData.assignedTo.toLowerCase() !== "unassigned"
+                                    ? leadData.assignedTo
+                                    : "Unassigned")}
                             </span>
                           </div>
                         </div>
@@ -802,12 +805,14 @@ export default function CustomerInfoPanel({
                           <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                             {evt.title}
                           </span>
-                          <span className="text-[11px] text-slate-600 mt-0.5 font-medium">
-                            by{" "}
-                            <strong className="font-semibold text-slate-700">
-                              {evt.performedBy}
-                            </strong>
-                          </span>
+                          {evt.performedBy && !evt.hidePerformer && (
+                            <span className="text-[11px] text-slate-600 mt-0.5 font-medium">
+                              by{" "}
+                              <strong className="font-semibold text-slate-700">
+                                {evt.performedBy}
+                              </strong>
+                            </span>
+                          )}
                           {audit.notes && (
                             <span className="text-[10px] text-slate-400 italic mt-0.5">
                               "{audit.notes}"

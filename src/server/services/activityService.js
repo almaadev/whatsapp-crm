@@ -22,12 +22,22 @@ export const activityService = {
   /**
    * Automatically resolves actor user information if actorId is provided.
    * Business Rules:
+   * - Webhook / Automatic events -> performedBy: null
    * - SuperAdmin -> "System Admin"
    * - Admin -> "John (Admin)"
    * - Associate / Doctor / Sales -> "Mani" or "Dr. Kumar"
    */
-  async resolveActor(actorId) {
+  async resolveActor(actorId, source = null, isAutomatic = false) {
     if (!actorId) {
+      if (source === ActivitySources.WEBHOOK || source === "WEBHOOK" || isAutomatic) {
+        return {
+          performedBy: null,
+          performedById: null,
+          role: null,
+          department: null,
+          branch: null
+        };
+      }
       return {
         performedBy: "System Admin",
         performedById: null,
@@ -114,20 +124,29 @@ export const activityService = {
    */
   async buildPayload({ eventType, entityType, entityId, customerId, leadId, conversationId, actorId, targetUserId, metadata = {}, source = ActivitySources.SYSTEM, ipAddress = null, requestId = null }) {
     this.validate(eventType);
-    const actorInfo = await this.resolveActor(actorId);
+    const isWebhookOrAuto = source === ActivitySources.WEBHOOK || source === "WEBHOOK" || metadata.isAutomatic === true;
+    const actorInfo = await this.resolveActor(actorId, source, isWebhookOrAuto);
     const entityInfo = this.resolveEntity(entityType, entityId);
     const normalizedMetadata = this.formatMetadata(metadata);
 
-    const title = getActivityTitle(eventType, {
-      name: actorInfo.performedBy,
-      role: actorInfo.role,
-      department: actorInfo.department
-    }, normalizedMetadata);
+    const title = normalizedMetadata.action || (isWebhookOrAuto && eventType === ActivityEvents.LEAD_CREATED
+      ? "New Lead"
+      : getActivityTitle(eventType, actorInfo.performedBy ? {
+          name: actorInfo.performedBy,
+          role: actorInfo.role,
+          department: actorInfo.department
+        } : null, { ...normalizedMetadata, source }));
 
     normalizedMetadata.action = title;
-    normalizedMetadata.performedByName = actorInfo.performedBy;
-    normalizedMetadata.performedByRole = actorInfo.role;
-    normalizedMetadata.performedByDept = actorInfo.department;
+    if (actorInfo.performedBy) {
+      normalizedMetadata.performedByName = actorInfo.performedBy;
+      normalizedMetadata.performedByRole = actorInfo.role;
+      normalizedMetadata.performedByDept = actorInfo.department;
+    } else {
+      normalizedMetadata.performedByName = null;
+      normalizedMetadata.performedByRole = null;
+      normalizedMetadata.performedByDept = null;
+    }
 
     return {
       customerId: customerId || null,
@@ -176,24 +195,36 @@ export const activityService = {
       }
     }
 
-    const actorInfo = await this.resolveActor(actorUser || obj.actorId);
+    const isWebhookOrAuto = obj.source === ActivitySources.WEBHOOK || obj.source === "WEBHOOK" || obj.metadata?.isAutomatic === true || obj.metadata?.source === "WEBHOOK";
+
+    const actorInfo = await this.resolveActor(actorUser || obj.actorId, obj.source, isWebhookOrAuto);
 
     const metadata = obj.metadata || {};
-    metadata.performedByName = actorInfo.performedBy;
-    metadata.performedByRole = actorInfo.role;
-    metadata.performedByDept = actorInfo.department;
+    if (actorInfo.performedBy) {
+      metadata.performedByName = actorInfo.performedBy;
+      metadata.performedByRole = actorInfo.role;
+      metadata.performedByDept = actorInfo.department;
+    } else {
+      metadata.performedByName = null;
+      metadata.performedByRole = null;
+      metadata.performedByDept = null;
+    }
 
-    const formattedLabel = formatActorDisplayName({
+    const formattedLabel = actorInfo.performedBy ? formatActorDisplayName({
       name: actorInfo.performedBy,
       role: actorInfo.role,
       department: actorInfo.department
-    });
+    }) : null;
 
-    metadata.action = getActivityTitle(obj.eventType, {
-      name: actorInfo.performedBy,
-      role: actorInfo.role,
-      department: actorInfo.department
-    }, metadata);
+    const actionTitle = (isWebhookOrAuto && obj.eventType === ActivityEvents.LEAD_CREATED)
+      ? "New Lead"
+      : (metadata.action || getActivityTitle(obj.eventType, actorInfo.performedBy ? {
+          name: actorInfo.performedBy,
+          role: actorInfo.role,
+          department: actorInfo.department
+        } : null, metadata));
+
+    metadata.action = actionTitle;
 
     return {
       ...obj,
@@ -202,11 +233,11 @@ export const activityService = {
       performedByRole: actorInfo.role,
       performedByDept: actorInfo.department,
       performedByLabel: formattedLabel,
-      performedBy: {
+      performedBy: actorInfo.performedBy ? {
         name: actorInfo.performedBy,
         role: actorInfo.role,
         department: actorInfo.department
-      },
+      } : null,
       metadata
     };
   },

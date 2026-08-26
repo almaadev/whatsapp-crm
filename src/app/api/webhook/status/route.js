@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server.js";
 import connectDB from "../../../../shared/lib/db/mongodb.js";
 import Message from "../../../../shared/models/Message.js";
+import CampaignRecipient from "../../../../shared/models/CampaignRecipient.js";
 import redis from "../../../../shared/lib/db/redis.js";
+import { syncCampaignCounts } from "../../../../server/services/campaignService.js";
 
 // All Twilio Outbound Statuses
 const TWILIO_STATUSES = [
@@ -32,41 +34,105 @@ export async function POST(req) {
 
     const twilioSID = body.MessageSid || body.SmsSid || body.sid || "";
     const messageStatus = body.MessageStatus || body.SmsStatus || body.status || "";
+    const errorCode = body.ErrorCode || body.errorCode || null;
+    const errorMessage = body.ErrorMessage || body.errorMessage || null;
 
     if (messageStatus && TWILIO_STATUSES.includes(messageStatus.toLowerCase())) {
       const formattedStatus = messageStatus.toUpperCase();
       let targetPhone = body.To || body.to || null; 
       let updatedDoc = null;
 
-      // A. Retry Mechanism
+      // A. Update individual Message ledger in MongoDB
       if (twilioSID) {
-        let retries = 8; 
+        let retries = 5; 
         while (retries > 0 && !updatedDoc) {
-          updatedDoc = await Message.findOneAndUpdate({ twilioSid: twilioSID }, { $set: { status: formattedStatus } }, { returnDocument: "after" });
+          const updateFields = { status: formattedStatus };
+          if (formattedStatus === "READ") {
+            updateFields.read = "TRUE";
+          }
+
+          updatedDoc = await Message.findOneAndUpdate(
+            { twilioSid: twilioSID },
+            { $set: updateFields },
+            { returnDocument: "after" }
+          );
 
           if (updatedDoc) {
             targetPhone = updatedDoc.phone;
             break;
           }
 
-          await new Promise((resolve) => setTimeout(resolve, 500));
+          const hasCampaignRec = await CampaignRecipient.exists({ twilioMessageSid: twilioSID });
+          if (hasCampaignRec) break;
+
+          await new Promise((resolve) => setTimeout(resolve, 200));
           retries--;
         }
       }
 
-      // B. Extreme Fallback
+      // B. Fallback Message lookup
       if (!updatedDoc && targetPhone) {
-         if (!targetPhone.startsWith("whatsapp:")) targetPhone = `whatsapp:${targetPhone}`;
-         const latest = await Message.findOne({ phone: targetPhone, direction: "OUTBOUND" }).sort({ createdAt: -1 });
-         if (latest) {
-             latest.status = formattedStatus;
-             if (!latest.twilioSid) latest.twilioSid = twilioSID; 
-             await latest.save();
-             updatedDoc = latest;
-         }
+        if (!targetPhone.startsWith("whatsapp:")) targetPhone = `whatsapp:${targetPhone}`;
+        const latest = await Message.findOne({ phone: targetPhone, direction: "OUTBOUND" }).sort({ createdAt: -1 });
+        if (latest) {
+          latest.status = formattedStatus;
+          if (!latest.twilioSid) latest.twilioSid = twilioSID;
+          if (formattedStatus === "READ") latest.read = "TRUE";
+          await latest.save();
+          updatedDoc = latest;
+        }
       }
 
-      // C. Push instant UI update via Socket
+      // C. Update CampaignRecipient & Sync Campaign Aggregate Counters
+      let syncSummary = null;
+      if (twilioSID) {
+        const recipientDoc = await CampaignRecipient.findOne({ twilioMessageSid: twilioSID });
+        if (recipientDoc) {
+          recipientDoc.status = formattedStatus;
+          recipientDoc.twilioStatus = messageStatus;
+          const now = new Date();
+
+          if (formattedStatus === "SENT") {
+            recipientDoc.sentAt = recipientDoc.sentAt || now;
+          } else if (formattedStatus === "DELIVERED") {
+            recipientDoc.deliveredAt = now;
+            recipientDoc.sentAt = recipientDoc.sentAt || now;
+          } else if (formattedStatus === "READ") {
+            recipientDoc.readAt = now;
+            recipientDoc.deliveredAt = recipientDoc.deliveredAt || now;
+            recipientDoc.sentAt = recipientDoc.sentAt || now;
+          } else if (formattedStatus === "FAILED" || formattedStatus === "UNDELIVERED") {
+            recipientDoc.failedAt = now;
+            if (errorCode) recipientDoc.errorCode = String(errorCode);
+            if (errorMessage) recipientDoc.errorMessage = errorMessage;
+          }
+
+          await recipientDoc.save();
+          syncSummary = await syncCampaignCounts(recipientDoc.campaignId);
+
+          // Emit real-time campaign status event
+          if (global.io) {
+            global.io.emit("bulk_message_status", {
+              campaignId: recipientDoc.campaignId.toString(),
+              recipientId: recipientDoc._id.toString(),
+              phone: recipientDoc.phone,
+              status: formattedStatus,
+              twilioMessageSid: twilioSID,
+              counts: syncSummary?.counts || {},
+              successfulSends: syncSummary?.successfulSends || 0,
+              failedSends: syncSummary?.failedSends || 0,
+              deliveredCount: syncSummary?.deliveredCount || 0,
+              readCount: syncSummary?.readCount || 0,
+              undeliveredCount: syncSummary?.undeliveredCount || 0,
+              skippedCount: syncSummary?.skippedCount || 0,
+              total: syncSummary?.total || 0,
+              progress: syncSummary?.progress || 0,
+            });
+          }
+        }
+      }
+
+      // D. Push instant chat UI update via Socket
       if (global.io) {
         global.io.emit("message_status_update", {
           sid: twilioSID,
@@ -75,7 +141,7 @@ export async function POST(req) {
         });
       }
 
-      // D. Force Clear Redis
+      // E. Clear Redis Cache
       if (redis && redis.status !== "disabled") {
         try {
           await redis.del("chats:all_data");
@@ -83,7 +149,12 @@ export async function POST(req) {
         } catch (e) {}
       }
 
-      return NextResponse.json({ success: true, statusUpdated: !!updatedDoc, finalStatus: formattedStatus });
+      return NextResponse.json({
+        success: true,
+        statusUpdated: !!updatedDoc,
+        finalStatus: formattedStatus,
+        campaignSynced: !!syncSummary,
+      });
     }
 
     return NextResponse.json({ success: true, ignored: true, reason: "Not a valid status update" });

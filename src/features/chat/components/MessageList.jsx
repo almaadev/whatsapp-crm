@@ -66,10 +66,14 @@ const MessageList = memo(function MessageList({ messages, activeChat, userName, 
 
                     {/* Second Line: "by {User Name} • {Date & Time}" */}
                     <div className="flex items-center justify-center gap-1 text-[11px] sm:text-xs  leading-tight flex-wrap text-center">
-                      <span className="text-slate-700 font-medium">
-                        by {eventDetails.performedBy}
-                      </span>
-                      <span className="text-slate-400 font-normal mx-0.5">•</span>
+                      {eventDetails.performedBy && !eventDetails.hidePerformer && (
+                        <>
+                          <span className="text-slate-700 font-medium">
+                            by {eventDetails.performedBy}
+                          </span>
+                          <span className="text-slate-400 font-normal mx-0.5">•</span>
+                        </>
+                      )}
                       <span className="text-slate-500 font-normal">
                         {formattedDateTime}
                       </span>

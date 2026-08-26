@@ -176,121 +176,18 @@ export const inboundMessageService = {
       targetCategory = "Direct Lead";
     }
 
-    const isNewCustomer = !customer;
-    let resolvedLead = null;
+    // 5. Resolve or Create Customer & Lead atomically
+    const { customer: resolvedCustomer, isNewCustomer } = await this.findOrCreateCustomer(
+      phone,
+      profileName,
+      { branchId, receivedOnNumber, targetCategory }
+    );
+    customer = resolvedCustomer;
 
-    // 5. Resolve or Create Customer & Lead
-    if (!customer) {
-      try {
-        customer = await Customer.create({
-          phone,
-          name: isValidDisplayName(profileName, phone) ? profileName : "Unknown",
-          status: "New",
-          activeRouteCategory: targetCategory,
-          lastInteractionAt: new Date(),
-          unreadCount: 1,
-          source: "Whatsapp",
-          lastIncomingNumber: receivedOnNumber,
-          isClosed: false,
-        });
+    const { lead: resolvedLead, isNewLead } = await this.findOrCreateWhatsAppLead(phone, customer);
 
-        const newAddress = await CustomerAddress.create({
-          customerId: customer._id,
-          city: "",
-          address: "",
-          isCurrent: true,
-          validFrom: new Date(),
-        });
-
-        customer.currentAddressId = newAddress._id;
-
-        resolvedLead = new Lead({
-          customerId: customer._id,
-          assignedTo: "unassigned",
-          associateId: "",
-          isClosed: false,
-          leads: [
-            {
-              date: new Date(),
-              enquiredFor: "",
-              associateId: "",
-              associateName: "unassigned",
-              priority: "Medium",
-              status: "New",
-              leadType: "WhatsApp Lead",
-              overAllRemarks: "Customer record created via inbound message",
-            },
-          ],
-        });
-        await resolvedLead.save().catch(() => {});
-
-        customer.activeLeadId = resolvedLead._id;
-        await customer.save();
-      } catch (custCreateErr) {
-        if (custCreateErr.code === 11000 || custCreateErr.message?.includes("E11000")) {
-          customer = await Customer.findOne({ phone: { $in: getPhoneVariations(phone) } });
-          if (!customer) customer = await Customer.findOne({ phone });
-        } else {
-          throw custCreateErr;
-        }
-      }
-
-      // Enqueue audit activities
-      try {
-        await activityQueue.add(
-          "log-activity",
-          {
-            eventType: ActivityEvents.CUSTOMER_CREATED,
-            entityType: "Customer",
-            entityId: customer._id.toString(),
-            customerId: customer._id.toString(),
-            source: ActivitySources.WEBHOOK,
-            metadata: { notes: "Customer record created via inbound message" },
-          },
-          { jobId: `act-cust-created_${customer._id.toString()}` }
-        );
-
-        await activityQueue.add(
-          "log-activity",
-          {
-            eventType: ActivityEvents.LEAD_CREATED,
-            entityType: "Lead",
-            entityId: resolvedLead._id.toString(),
-            customerId: customer._id.toString(),
-            leadId: resolvedLead._id.toString(),
-            source: ActivitySources.WEBHOOK,
-            metadata: { notes: "WhatsApp Lead created" },
-          },
-          { jobId: `act-lead-created_${resolvedLead._id.toString()}` }
-        );
-
-        const safeSid = (twilioSid || String(Date.now())).replace(/[:]/g, "_");
-        await activityQueue.add(
-          "log-activity",
-          {
-            eventType: ActivityEvents.MESSAGE_RECEIVED,
-            entityType: "Message",
-            customerId: customer._id.toString(),
-            leadId: resolvedLead._id.toString(),
-            source: ActivitySources.WEBHOOK,
-            metadata: { notes: messageText || "" },
-          },
-          { jobId: `act-msg-recv_${safeSid}` }
-        );
-      } catch (actErr) {
-        console.error("[InboundMessageService] Error enqueuing activity jobs:", actErr.message);
-      }
-    } else {
-      // Existing Customer
-      try {
-        resolvedLead = await Lead.findOne({ customerId: customer._id });
-        if (!resolvedLead && customer.activeLeadId) {
-          resolvedLead = await Lead.findById(customer.activeLeadId);
-        }
-      } catch (err) {
-        console.error("[InboundMessageService] Lead lookup error:", err.message);
-      }
-
+    // Update customer interaction metrics on existing or newly created customer
+    if (!isNewCustomer) {
       customer.activeRouteCategory = targetCategory;
       customer.lastInteractionAt = new Date();
       customer.unreadCount = (customer.unreadCount || 0) + 1;
@@ -301,25 +198,56 @@ export const inboundMessageService = {
       if (!isValidDisplayName(customer.name, phone) && isValidDisplayName(profileName, phone)) {
         customer.name = profileName;
       }
+      if (!customer.activeLeadId && resolvedLead?._id) {
+        customer.activeLeadId = resolvedLead._id;
+      }
       await customer.save();
+    }
 
+    // 5.1 Enqueue single LEAD_CREATED audit activity ONLY on initial automatic lead creation
+    if (isNewLead && resolvedLead) {
       try {
-        const safeSid = (twilioSid || String(Date.now())).replace(/[:]/g, "_");
         await activityQueue.add(
           "log-activity",
           {
-            eventType: ActivityEvents.MESSAGE_RECEIVED,
-            entityType: "Message",
+            eventType: ActivityEvents.LEAD_CREATED,
+            entityType: "Lead",
+            entityId: resolvedLead._id.toString(),
             customerId: customer._id.toString(),
-            leadId: resolvedLead?._id ? resolvedLead._id.toString() : null,
+            leadId: resolvedLead._id.toString(),
+            actorId: null,
             source: ActivitySources.WEBHOOK,
-            metadata: { notes: messageText || "" },
+            metadata: {
+              action: "New Lead",
+              notes: "WhatsApp Lead created",
+              isAutomatic: true,
+              source: ActivitySources.WEBHOOK,
+            },
           },
-          { jobId: `act-msg-recv_${safeSid}` }
+          { jobId: `act-lead-created_${resolvedLead._id.toString()}` }
         );
       } catch (actErr) {
-        console.error("[InboundMessageService] Error enqueuing activity job:", actErr.message);
+        console.error("[InboundMessageService] Error enqueuing LEAD_CREATED activity job:", actErr.message);
       }
+    }
+
+    // 5.2 Enqueue MESSAGE_RECEIVED audit activity for all incoming messages
+    try {
+      const safeSid = (twilioSid || String(Date.now())).replace(/[:]/g, "_");
+      await activityQueue.add(
+        "log-activity",
+        {
+          eventType: ActivityEvents.MESSAGE_RECEIVED,
+          entityType: "Message",
+          customerId: customer._id.toString(),
+          leadId: resolvedLead?._id ? resolvedLead._id.toString() : null,
+          source: ActivitySources.WEBHOOK,
+          metadata: { notes: messageText || "" },
+        },
+        { jobId: `act-msg-recv_${safeSid}` }
+      );
+    } catch (actErr) {
+      console.error("[InboundMessageService] Error enqueuing MESSAGE_RECEIVED activity job:", actErr.message);
     }
 
     const resolvedLeadId = resolvedLead?._id
@@ -497,6 +425,135 @@ export const inboundMessageService = {
       leadId: resolvedLeadId,
       messageId: lastSaved?._id,
     };
+  },
+
+  /**
+   * Idempotently finds or creates a Customer document for an incoming phone number.
+   * Handles race conditions gracefully via E11000 duplicate key recovery.
+   */
+  async findOrCreateCustomer(phone, profileName, { branchId = null, receivedOnNumber = null, targetCategory = "Direct Lead" } = {}) {
+    const phoneVariations = getPhoneVariations(phone);
+    let customer = await Customer.findOne({ phone: { $in: phoneVariations } });
+
+    if (customer) {
+      return { customer, isNewCustomer: false };
+    }
+
+    try {
+      customer = await Customer.create({
+        phone,
+        name: isValidDisplayName(profileName, phone) ? profileName : "Unknown",
+        status: "New",
+        priority: "Medium",
+        assignedTo: "unassigned",
+        assignedUserId: null,
+        branchId: branchId || null,
+        activeRouteCategory: targetCategory,
+        lastInteractionAt: new Date(),
+        unreadCount: 1,
+        source: "Whatsapp",
+        lastIncomingNumber: receivedOnNumber,
+        isClosed: false,
+        createdBy: null,
+      });
+
+      const newAddress = await CustomerAddress.create({
+        customerId: customer._id,
+        city: "",
+        address: "",
+        isCurrent: true,
+        validFrom: new Date(),
+      });
+
+      customer.currentAddressId = newAddress._id;
+      await customer.save();
+
+      return { customer, isNewCustomer: true };
+    } catch (custCreateErr) {
+      if (custCreateErr.code === 11000 || custCreateErr.message?.includes("E11000")) {
+        customer = await Customer.findOne({ phone: { $in: phoneVariations } });
+        if (!customer) customer = await Customer.findOne({ phone });
+        if (customer) {
+          return { customer, isNewCustomer: false };
+        }
+      }
+      throw custCreateErr;
+    }
+  },
+
+  /**
+   * Idempotently finds or creates a Lead document for a Customer.
+   * Ensures exactly ONE Lead document per Customer/phone even under concurrent webhooks.
+   */
+  async findOrCreateWhatsAppLead(normalizedPhone, customer) {
+    if (!customer?._id) {
+      throw new Error("[findOrCreateWhatsAppLead] Customer document with _id is required.");
+    }
+
+    // 1. Check if Lead already exists for this customerId
+    let existingLead = await Lead.findOne({ customerId: customer._id });
+    if (!existingLead && customer.activeLeadId) {
+      existingLead = await Lead.findById(customer.activeLeadId);
+    }
+
+    // Check if lead exists for any phone variation associated with customer
+    if (!existingLead && normalizedPhone) {
+      const variations = getPhoneVariations(normalizedPhone);
+      const relatedCustomers = await Customer.find({ phone: { $in: variations } }).select("_id").lean();
+      if (relatedCustomers.length > 0) {
+        const relatedIds = relatedCustomers.map((c) => c._id);
+        existingLead = await Lead.findOne({ customerId: { $in: relatedIds } });
+      }
+    }
+
+    // If found, ensure customer.activeLeadId is linked and return existing lead
+    if (existingLead) {
+      if (!customer.activeLeadId || customer.activeLeadId.toString() !== existingLead._id.toString()) {
+        customer.activeLeadId = existingLead._id;
+        await customer.save().catch(() => {});
+      }
+      return { lead: existingLead, isNewLead: false };
+    }
+
+    // 2. Not found: Atomically create Lead with customerId
+    const initialCycle = {
+      date: new Date(),
+      enquiredFor: "",
+      associateId: "",
+      associateName: "unassigned",
+      priority: customer.priority || "Medium",
+      status: "New",
+      leadType: "WhatsApp Lead",
+      overAllRemarks: "Customer record created via inbound message",
+    };
+
+    try {
+      const newLead = await Lead.create({
+        customerId: customer._id,
+        assignedTo: null,
+        associateId: "",
+        isClosed: false,
+        leads: [initialCycle],
+      });
+
+      customer.activeLeadId = newLead._id;
+      await customer.save().catch(() => {});
+
+      return { lead: newLead, isNewLead: true };
+    } catch (createErr) {
+      // Concurrent webhook request created the Lead simultaneously (E11000 duplicate key on customerId)
+      if (createErr.code === 11000 || createErr.message?.includes("E11000")) {
+        const raceLead = await Lead.findOne({ customerId: customer._id });
+        if (raceLead) {
+          if (!customer.activeLeadId || customer.activeLeadId.toString() !== raceLead._id.toString()) {
+            customer.activeLeadId = raceLead._id;
+            await customer.save().catch(() => {});
+          }
+          return { lead: raceLead, isNewLead: false };
+        }
+      }
+      throw createErr;
+    }
   },
 };
 

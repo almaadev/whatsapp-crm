@@ -112,9 +112,12 @@ export const getSystemEventDetails = (audit) => {
         return {
             title: "Admin Action",
             icon: <Cog size={14} className="text-slate-500 shrink-0" />,
-            performedBy: "Team Member"
+            performedBy: null,
+            hidePerformer: true
         };
     }
+
+    const isWebhookOrAuto = audit.source === "WEBHOOK" || audit.metadata?.source === "WEBHOOK" || audit.metadata?.isAutomatic === true || (!audit.actorId && !audit.performedById && (!audit.performedByName || audit.performedByName === "System Admin") && audit.eventType === "LEAD_CREATED");
 
     const action = audit.eventType || audit.action || "System Action";
 
@@ -124,7 +127,13 @@ export const getSystemEventDetails = (audit) => {
         department: audit.performedByDept || (typeof audit.performedBy === "object" ? audit.performedBy?.department : audit.department) || ""
     };
 
-    const performedBy = formatActorDisplayName(actorObj);
+    let performedBy = formatActorDisplayName(actorObj);
+    let hidePerformer = false;
+
+    if (isWebhookOrAuto || !actorObj.name) {
+      performedBy = null;
+      hidePerformer = true;
+    }
 
     const actionLower = action.toLowerCase();
     const eventTypeUpper = audit.eventType ? audit.eventType.toUpperCase() : "";
@@ -134,10 +143,10 @@ export const getSystemEventDetails = (audit) => {
 
     if (eventTypeUpper) {
       if (eventTypeUpper === "CUSTOMER_CREATED") {
-        title = audit.action || "Customer Created";
+        title = isWebhookOrAuto ? "Customer Created" : (audit.action || "Customer Created");
         icon = <UserPlus size={14} className="text-[#00a884] shrink-0" />;
       } else if (eventTypeUpper === "LEAD_CREATED") {
-        title = audit.action || "Lead Created";
+        title = isWebhookOrAuto ? "New Lead" : (audit.action || "New Lead Created");
         icon = <Tag size={14} className="text-blue-500 shrink-0" />;
       } else if (eventTypeUpper === "CHAT_STARTED") {
         title = audit.action || "Chat Started";
