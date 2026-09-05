@@ -1,8 +1,11 @@
+import mongoose from "mongoose";
 import twilio from "twilio";
 import connectDB from "@/shared/lib/db/mongodb";
 import TwilioNumber from "@/shared/models/TwilioNumber";
+import Branch from "@/shared/models/Branch";
 import User from "@/shared/models/User";
 import Template from "@/shared/models/Template";
+import { isAdminAuthorized } from "@/shared/utils/auth";
 
 let twilioClientInstance = null;
 
@@ -76,16 +79,43 @@ export async function bootstrapTwilioNumbersFromEnv() {
 }
 
 /**
+ * Explicit scoped helper: get WhatsApp numbers assigned to a specific Admin.
+ * Used for authorization-bound workflows.
+ */
+export async function getNumbersAssignedToAdmin(adminId) {
+  await connectDB();
+  if (!adminId) return [];
+  const adminObjId = mongoose.Types.ObjectId.isValid(adminId)
+    ? new mongoose.Types.ObjectId(adminId)
+    : adminId;
+
+  return await TwilioNumber.find({
+    assignedAdmins: adminObjId,
+    status: { $ne: "inactive" },
+    isActive: { $ne: false },
+  })
+    .populate("assignedAssociates", "name preferredName email")
+    .lean();
+}
+
+/**
  * Get available Twilio numbers based on 3-tier ownership hierarchy:
  * - Super Admin: all active numbers
- * - Admin: numbers assigned directly to Admin (assignedAdmins array / assignedSenderNumbers)
- * - Associate: numbers assigned to Associate that belong to their Admin (assignedSenderNumbers / assignedSenderNumber)
+ * - Branch Admin: numbers assigned to Admin (strictly TwilioNumber.assignedAdmins)
+ * - Associate: strictly numbers where TwilioNumber.assignedAssociates includes the associate
  */
 export async function getAvailableNumbers(user = null) {
   await connectDB();
   await bootstrapTwilioNumbersFromEnv();
 
-  const allNumbers = await TwilioNumber.find().lean();
+  const allNumbers = await TwilioNumber.find({
+    status: { $ne: "inactive" },
+    isActive: { $ne: false },
+  })
+    .populate("assignedAssociates", "name preferredName email department branch")
+    .populate("branchId", "name code address phone")
+    .populate("assignedAdmins", "name email")
+    .lean();
 
   if (!user) return allNumbers;
 
@@ -93,56 +123,31 @@ export async function getAvailableNumbers(user = null) {
   const department = user.department;
   const userId = (user.id || user._id)?.toString();
 
-  // 1. Super Admin: full access to every sender
+  // 1. Super Admin: full access to every active sender
   if (role === "superAdmin") {
     return allNumbers;
   }
 
-  // Fetch full User document if user object is lightweight session user
-  let fullUserDoc = null;
-  if (userId) {
-    fullUserDoc = await User.findById(userId).lean();
-  }
-  const activeUser = fullUserDoc || user;
-
-  const assignedSenderIds = new Set(
-    [
-      ...(activeUser.assignedSenderNumbers || []),
-      ...(activeUser.assignedTwilioNumbers || []),
-      activeUser.assignedSenderNumber,
-    ]
-      .filter(Boolean)
-      .map((id) => (id._id || id).toString())
-  );
-
-  // 2. Admin (Department is admin OR role is admin/superAdmin): access numbers assigned directly to this Admin
-  const isAdmin = department === "admin" || role === "admin" || activeUser.isAdmin;
+  // 2. Branch Admin: Strictly numbers authorized through TwilioNumber.assignedAdmins
+  const isAdmin = isAdminAuthorized(role, department);
   if (isAdmin) {
     const adminNumbers = allNumbers.filter((num) => {
-      const isDirectAdmin = (num.assignedAdmins || []).some((id) => id.toString() === userId);
-      const isUserAssigned = assignedSenderIds.has(num._id.toString());
-      return isDirectAdmin || isUserAssigned;
+      const isDirectAdmin = (num.assignedAdmins || []).some(
+        (id) => (id?._id || id)?.toString() === userId
+      );
+      return isDirectAdmin;
     });
 
     return adminNumbers;
   }
 
-  // 3. Associate (Telecaller / Support): strictly assigned sender numbers owned by their Admin
+  // 3. Normal Associate: TwilioNumber.assignedAssociates is the CANONICAL source of truth.
+  // Associate must see ONLY the numbers where assignedAssociates contains their user ID.
   const associateNumbers = allNumbers.filter((num) => {
-    const isAssignedToAssociate = assignedSenderIds.has(num._id.toString());
-    if (!isAssignedToAssociate) return false;
-
-    // Check if the number is assigned to Associate's Admin
-    if (activeUser.createdBy || activeUser.assignedBy) {
-      const adminId = (activeUser.assignedBy || activeUser.createdBy)?.toString();
-      const isAdminAssigned = (num.assignedAdmins || []).some((id) => id.toString() === adminId);
-      // If adminId exists, enforce that Admin owns this number
-      if (adminId && !isAdminAssigned) {
-        return false;
-      }
-    }
-
-    return true;
+    const isDirectAssociate = (num.assignedAssociates || []).some(
+      (assoc) => (assoc?._id || assoc)?.toString() === userId
+    );
+    return isDirectAssociate;
   });
 
   return associateNumbers;
@@ -335,19 +340,38 @@ export function validateTemplatePayload(template, contentVariables) {
  * Centralized WhatsApp message dispatch.
  */
 export async function sendWhatsAppMessage(to, body, options = {}) {
-  const { senderNumber = null, user = null } = options;
+  const { senderNumber = null, user = null, mediaUrl = null } = options;
   const resolvedSender = await resolveSenderNumber(user, senderNumber);
   const client = getTwilioClient();
 
   const formattedTo = formatWhatsAppAddress(to);
   const formattedFrom = formatWhatsAppAddress(resolvedSender);
 
-  const sent = await client.messages.create({
-    body,
+  const payload = {
     from: formattedFrom,
     to: formattedTo,
     statusCallback: getStatusCallbackUrl(),
-  });
+  };
+
+  if (body) {
+    payload.body = body;
+  }
+
+  if (mediaUrl) {
+    const urls = Array.isArray(mediaUrl) ? mediaUrl : [mediaUrl];
+    for (const u of urls) {
+      if (!u || typeof u !== "string" || u.startsWith("blob:") || u.startsWith("file:") || u.startsWith("data:") || u.includes("localhost") || u.includes("127.0.0.1")) {
+        throw new Error(`Invalid media URL: "${u}". Only permanent public HTTPS URLs (e.g. Cloudinary) are supported.`);
+      }
+      const { validateMediaUrl } = await import("@/server/services/cloudinaryService.js");
+      await validateMediaUrl(u).catch((valErr) => {
+        console.warn("[sendWhatsAppMessage] Pre-flight media validation warning:", valErr.message);
+      });
+    }
+    payload.mediaUrl = urls;
+  }
+
+  const sent = await client.messages.create(payload);
 
   return {
     ...sent,

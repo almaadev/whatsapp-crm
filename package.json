@@ -20,6 +20,7 @@
     "axios": "^1.13.4",
     "bcryptjs": "^3.0.3",
     "bullmq": "^6.1.2",
+    "cloudinary": "^2.10.1",
     "framer-motion": "^12.38.0",
     "ioredis": "^5.9.2",
     "lucide-react": "^0.563.0",

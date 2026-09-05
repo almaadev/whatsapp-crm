@@ -142,6 +142,32 @@ const MessageSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    messageType: {
+      type: String,
+      enum: ["text", "image", "video", "audio", "document"],
+      default: "text",
+      index: true,
+    },
+    media: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    uploadedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    senderPhone: {
+      type: String,
+      index: true,
+    },
+    recipientPhone: {
+      type: String,
+      index: true,
+    },
+    expiresAt: {
+      type: Date,
+      index: true,
+    },
     timestamp: {
       type: Date,
       default: Date.now,

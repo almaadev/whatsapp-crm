@@ -213,8 +213,8 @@ export default function TemplateManager() {
           <div className="flex items-center gap-3">
             <button onClick={() => setMobileOpen(true)} className="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg"><Menu size={24} /></button>
             <div>
-              <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2"><Database className="text-[#00a884]" size={24} /> Template Library</h1>
-              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mt-0.5 ml-1">WhatsApp Campaign Manager</p>
+              <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2"><Database className="text-[#00a884]" size={24} /> WhatsApp Template Library</h1>
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mt-0.5 ml-1">Create and manage your WhatsApp templates</p>
             </div>
           </div>
         </header>
@@ -245,7 +245,7 @@ export default function TemplateManager() {
                 </button>
 
                 {/* NEW ROUTING BUTTON */}
-                <Link href="/crm/admin/template-manager/create" className="py-2.5 px-4 bg-[#00a884] rounded-xl shadow-md hover:bg-[#008f6f] transition active:scale-95 text-sm font-bold text-white flex items-center gap-2 shrink-0">
+                <Link href="/crm/admin/automation&templates/whatsapp-templates/create" className="py-2.5 px-4 bg-[#00a884] rounded-xl shadow-md hover:bg-[#008f6f] transition active:scale-95 text-sm font-bold text-white flex items-center gap-2 shrink-0">
                     <Plus size={18} />
                     <span className="hidden sm:inline">Create Template</span>
                 </Link>
@@ -282,7 +282,7 @@ export default function TemplateManager() {
               ) : templates.length === 0 ? (
                 <div className="flex flex-col items-center justify-center p-16 md:p-24 text-center">
                     <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-5 border border-slate-100 shadow-sm"><Database size={32} className="text-slate-300" /></div>
-                    <h4 className="text-xl font-bold text-slate-800 mb-2">Your Template Library is Empty</h4>
+                    <h4 className="text-xl font-bold text-slate-800 mb-2">Your WhatsApp Template Library is Empty</h4>
                     <p className="text-sm text-slate-500 max-w-md mx-auto leading-relaxed mb-6">Your Twilio Content Library is completely empty. Create a template to get started.</p>
                 </div>
               ) : currentTemplates.length === 0 ? (

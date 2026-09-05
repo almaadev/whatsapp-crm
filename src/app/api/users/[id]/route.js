@@ -78,20 +78,21 @@ export async function PUT(req, { params }) {
         ? rawSenderNumbers.map((id) => (id._id || id).toString())
         : rawSenderNumbers ? [(rawSenderNumbers._id || rawSenderNumbers).toString()] : [];
 
-      const targetIsAdmin = existingUser.department === "admin" || body.department === "admin" || existingUser.isAdmin;
+      const targetRole = body.role !== undefined ? body.role : existingUser.role;
+      const targetDept = body.department !== undefined ? body.department : existingUser.department;
+      const targetIsAdmin = isAdminAuthorized(targetRole, targetDept);
       const isSuperAdminUser = session.user.role === "superAdmin";
 
-      // If updating Associate (non-Admin) by Admin user (non-SuperAdmin), ensure all requested sender numbers belong to Admin
+      // If updating Associate (non-Admin) by Admin user (non-SuperAdmin), ensure all requested sender numbers belong to Admin's canonical pool
       if (!targetIsAdmin && !isSuperAdminUser) {
-        const adminUserDoc = await User.findById(session.user.id).lean();
+        const adminNumbers = await TwilioNumber.find({
+          assignedAdmins: session.user.id,
+          status: { $ne: "inactive" },
+          isActive: { $ne: false },
+        }).select("_id").lean();
+
         const adminAllowedSenderIds = new Set(
-          [
-            ...(adminUserDoc?.assignedSenderNumbers || []),
-            ...(adminUserDoc?.assignedTwilioNumbers || []),
-            adminUserDoc?.assignedSenderNumber,
-          ]
-            .filter(Boolean)
-            .map((id) => id.toString())
+          adminNumbers.map((doc) => doc._id.toString())
         );
 
         for (const sendId of requestedSenderIds) {
@@ -134,6 +135,11 @@ export async function PUT(req, { params }) {
             { $addToSet: { assignedAdmins: id } }
           );
         }
+        // Ensure admin is removed from assignedAssociates
+        await TwilioNumber.updateMany(
+          { assignedAssociates: id },
+          { $pull: { assignedAssociates: id } }
+        );
       } else {
         // Sync assignedAssociates array on TwilioNumbers
         await TwilioNumber.updateMany(
@@ -146,6 +152,11 @@ export async function PUT(req, { params }) {
             { $addToSet: { assignedAssociates: id } }
           );
         }
+        // Ensure associate is never in assignedAdmins
+        await TwilioNumber.updateMany(
+          { assignedAdmins: id },
+          { $pull: { assignedAdmins: id } }
+        );
       }
     }
 

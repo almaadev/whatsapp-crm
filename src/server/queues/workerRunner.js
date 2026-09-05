@@ -98,6 +98,15 @@ export async function startWorkerRunner() {
     // Drain any pending unhandled webhook events in the background
     recoverPendingWebhookEvents().catch(() => {});
 
+    // Schedule periodic 60-day media expiration cleanup
+    import("../services/mediaCleanupService.js").then((m) => {
+      m.mediaCleanupService.runCleanup().catch(() => {});
+      // Run every 12 hours
+      setInterval(() => {
+        m.mediaCleanupService.runCleanup().catch(() => {});
+      }, 12 * 60 * 60 * 1000);
+    }).catch(() => {});
+
     return workers;
   } catch (err) {
     console.error("❌ [WORKER-BOOT] Failed to initialize BullMQ workers:", err.message);

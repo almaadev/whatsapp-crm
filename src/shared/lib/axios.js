@@ -19,6 +19,20 @@ api.interceptors.request.use(
       config.signal = controller.signal;
       // We could store the controller somewhere to cancel it, but usually callers pass their own
     }
+
+    // Preserve browser-generated multipart/form-data boundary when sending FormData
+    if (typeof FormData !== "undefined" && config.data instanceof FormData) {
+      if (config.headers) {
+        if (typeof config.headers.delete === "function") {
+          config.headers.delete("Content-Type");
+          config.headers.delete("content-type");
+        } else {
+          delete config.headers["Content-Type"];
+          delete config.headers["content-type"];
+        }
+      }
+    }
+
     return config;
   },
   (error) => {

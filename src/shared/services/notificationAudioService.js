@@ -25,8 +25,7 @@ class NotificationAudioService {
     const unlock = () => {
       if (this.isUnlocked) return;
       this.isUnlocked = true;
-      console.log("🔓 [NotificationAudioService] Audio unlocked via first user gesture.");
-
+      
       if (this.incomingAudio) {
         this.incomingAudio.play().then(() => {
           this.incomingAudio.pause();
@@ -65,7 +64,7 @@ class NotificationAudioService {
 
       this.isPreloaded = true;
       this.unlockAudioOnFirstInteraction();
-      console.log("🔊 [NotificationAudioService] Preloaded audio files into memory.");
+      
     } catch (err) {
       console.error("[NotificationAudioService] Error preloading audio:", err);
     }
@@ -137,7 +136,6 @@ class NotificationAudioService {
 
     // Strict check: if CRM tab is visible and focused, NEVER show OS/browser notification
     if (this.isTabVisibleAndActive()) {
-      console.log("ℹ️ [NotificationAudioService] Tab is visible and active; suppressing OS browser notification.");
       return;
     }
 
@@ -180,7 +178,6 @@ class NotificationAudioService {
     }
 
     if (this.processedMessageIds.has(id)) {
-      console.log(`🔇 [NotificationAudioService] Duplicate message suppressed: ${id}`);
       return false;
     }
 

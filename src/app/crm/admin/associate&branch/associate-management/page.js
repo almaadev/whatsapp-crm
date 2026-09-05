@@ -253,7 +253,7 @@ export default function AssociateManagement() {
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-2">
                               <Link
-                                href={`/crm/admin/associate-management/${associate.id}`}
+                                href={`/crm/admin/associate&branch/associate-management/${associate.id}`}
                               >
                                 <button
                                   className="p-1.5 text-[#00a884] hover:bg-emerald-50 rounded-lg transition-colors border border-transparent hover:border-emerald-200"
@@ -340,7 +340,7 @@ export default function AssociateManagement() {
                       </div>
                       <div className="flex items-center gap-2 mt-2 pt-3 border-t border-slate-50">
                         <Link
-                          href={`/crm/admin/associate-management/${associate.id}`}
+                          href={`/crm/admin/associate&branch/associate-management/${associate.id}`}
                           className="flex-1"
                         >
                           <button className="w-full py-2 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-100 flex items-center justify-center gap-1.5">

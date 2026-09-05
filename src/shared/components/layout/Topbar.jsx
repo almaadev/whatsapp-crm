@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { signOut } from "next-auth/react";
 import { LayoutGrid, Bell, Menu, LogOut, ChevronDown } from "lucide-react";
 import { useCrmLayout } from "@/shared/components/layout/CrmShell";
@@ -45,16 +45,29 @@ export default function Topbar() {
   const [sendersLoading, setSendersLoading] = useState(false);
 
   const userId = user?._id || user?.id;
+  const hasLoadedSendersRef = useRef(null);
+  const isLoadingSendersRef = useRef(false);
 
   useEffect(() => {
     fetchUnreadCount();
   }, [fetchUnreadCount]);
 
-  useEffect(() => {
-    if (userId) {
+  const loadSenders = useCallback(
+    (force = false) => {
+      if (!userId) return;
+      if (
+        !force &&
+        (hasLoadedSendersRef.current === userId || isLoadingSendersRef.current)
+      ) {
+        return;
+      }
+      if (isLoadingSendersRef.current) return;
+      hasLoadedSendersRef.current = userId;
+      isLoadingSendersRef.current = true;
       setSendersLoading(true);
+
       api
-        .get("/api/admin/twilio")
+        .get("/api/admin/twilio?mode=senders_only")
         .then(({ data }) => {
           if (data?.numbers && Array.isArray(data.numbers)) {
             setAvailableNumbers(data.numbers);
@@ -71,15 +84,40 @@ export default function Topbar() {
               setSelectedSender(match.phoneNumber);
             } else if (data.numbers.length > 0) {
               setSelectedSender(data.numbers[0].phoneNumber);
+            } else {
+              setSelectedSender("");
             }
           }
         })
         .catch((err) =>
           console.error("Failed to load twilio senders in Topbar:", err),
         )
-        .finally(() => setSendersLoading(false));
+        .finally(() => {
+          isLoadingSendersRef.current = false;
+          setSendersLoading(false);
+        });
+    },
+    [userId, setAvailableNumbers, setSelectedSender],
+  );
+
+  useEffect(() => {
+    loadSenders(false);
+  }, [loadSenders]);
+
+  useEffect(() => {
+    const handleSendersUpdated = () => {
+      loadSenders(true);
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("whatsapp_senders_updated", handleSendersUpdated);
+      return () => {
+        window.removeEventListener(
+          "whatsapp_senders_updated",
+          handleSendersUpdated,
+        );
+      };
     }
-  }, [userId, setAvailableNumbers, setSelectedSender]);
+  }, [loadSenders]);
   const dropdownRef = useRef(null);
 
   const userName = user?.name || "User";

@@ -140,8 +140,8 @@ export default function CreateTemplate() {
                 <ChevronLeft size={20} />
             </button>
             <div>
-              <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2"><LayoutTemplate className="text-[#00a884]" size={24} /> Create Template</h1>
-              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mt-0.5 ml-1">WhatsApp Campaign Builder</p>
+              <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2"><LayoutTemplate className="text-[#00a884]" size={24} /> Create WhatsApp Template</h1>
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mt-0.5 ml-1">Fill in the details to create a new WhatsApp template</p>
             </div>
           </div>
         </header>

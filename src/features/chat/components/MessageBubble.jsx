@@ -1,6 +1,11 @@
 import React, { memo } from "react";
-import { Layers, FileText, Bot } from "lucide-react";
+import { Layers, Bot } from "lucide-react";
 import { MessageStatusIcon, formatBubbleTime } from "@/shared/utils/chatUtils";
+
+import ImageMessage from "@/features/chat/components/media/ImageMessage";
+import VideoMessage from "@/features/chat/components/media/VideoMessage";
+import AudioMessage from "@/features/chat/components/media/AudioMessage";
+import DocumentMessage from "@/features/chat/components/media/DocumentMessage";
 
 const MessageBubble = memo(function MessageBubble({
   msg,
@@ -19,6 +24,14 @@ const MessageBubble = memo(function MessageBubble({
     msg.isAutomated === true ||
     msg.senderName === "System Automation" ||
     (msg.message && msg.message.includes("Automated Template:"));
+
+  const hasMedia = Boolean(msg.mediaUrl || msg.media?.url || msg.messageType === "image" || msg.messageType === "video" || msg.messageType === "audio" || msg.messageType === "document");
+  const rawMediaType = (msg.messageType || msg.mediaType || msg.media?.mimeType || "").toLowerCase();
+
+  const isVideo = rawMediaType.includes("video");
+  const isAudio = rawMediaType.includes("audio");
+  const isDoc = rawMediaType.includes("pdf") || rawMediaType.includes("document");
+  const isImage = hasMedia && !isVideo && !isAudio && !isDoc;
 
   return (
     <div className={`flex w-full ${isMe ? "justify-end" : "justify-start"} group mb-2 min-w-0`}>
@@ -48,54 +61,44 @@ const MessageBubble = memo(function MessageBubble({
         )}
 
         {/* Media Attachments */}
-        {msg.mediaUrl && msg.mediaUrl.startsWith("http") && (
-          <div
-            className="mb-2 rounded-xl overflow-hidden cursor-pointer border border-slate-100/60 shadow-sm max-w-[300px]"
-            onClick={() =>
-              onMediaClick({ url: msg.mediaUrl, type: msg.mediaType })
-            }
-          >
-            {msg.mediaType?.includes("video") ? (
-              <video
-                src={msg.mediaUrl}
-                className="w-full h-auto rounded-xl pointer-events-none"
-                onError={(e) => {
-                  e.currentTarget.style.display = "none";
-                }}
+        {hasMedia && (
+          <div className="mb-1">
+            {isImage && (
+              <ImageMessage
+                msg={msg}
+                currentMsgDate={currentMsgDate}
+                isMe={isMe}
+                onClick={onMediaClick}
               />
-            ) : msg.mediaType?.includes("audio") ? (
-              <audio
-                src={msg.mediaUrl}
-                controls
-                className="w-full h-10 mt-1 scale-95"
-                onClick={(e) => e.stopPropagation()}
-                onError={(e) => {
-                  console.warn("Audio element media load error:", e);
-                }}
+            )}
+            {isVideo && (
+              <VideoMessage
+                msg={msg}
+                currentMsgDate={currentMsgDate}
+                isMe={isMe}
+                onClick={onMediaClick}
               />
-            ) : msg.mediaType?.includes("pdf") ||
-              msg.mediaType?.includes("document") ? (
-              <div className="flex items-center gap-3 p-3.5 bg-slate-50 border border-slate-200/60 rounded-xl hover:bg-slate-100 transition-colors">
-                <div className="p-2.5 bg-rose-50 text-rose-500 rounded-lg border border-rose-100">
-                  <FileText size={18} />
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold text-slate-700">Document File</span>
-                  <span className="text-[10px] text-slate-400 font-semibold font-mono uppercase">PDF</span>
-                </div>
-              </div>
-            ) : (
-              <img
-                src={msg.mediaUrl}
-                alt="Attachment"
-                className="w-full h-auto object-cover rounded-xl transition-transform hover:scale-[1.01]"
+            )}
+            {isAudio && (
+              <AudioMessage
+                msg={msg}
+                currentMsgDate={currentMsgDate}
+                isMe={isMe}
+              />
+            )}
+            {isDoc && (
+              <DocumentMessage
+                msg={msg}
+                currentMsgDate={currentMsgDate}
+                isMe={isMe}
+                onClick={onMediaClick}
               />
             )}
           </div>
         )}
 
-        {/* Message Text */}
-        {msg.message ? (
+        {/* Regular Text Message (when no media is attached) */}
+        {!hasMedia && msg.message && (
           <div
             className="whitespace-pre-wrap text-left"
             style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
@@ -112,7 +115,10 @@ const MessageBubble = memo(function MessageBubble({
               )}
             </span>
           </div>
-        ) : (
+        )}
+
+        {/* Fallback empty message time ticker */}
+        {!hasMedia && !msg.message && (
           <div className="flex justify-end items-center gap-1 mt-1.5">
             <span className="text-[9px] text-slate-400 font-semibold font-mono tracking-tight select-none uppercase">
               {formatBubbleTime(currentMsgDate)}

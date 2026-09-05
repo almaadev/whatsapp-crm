@@ -97,10 +97,10 @@ export const associateSessionService = {
     try {
       await connectDB();
       const now = new Date();
-      const offlineThreshold = new Date(now.getTime() - 30 * 1000); // 30 seconds grace period
+      const offlineThreshold = new Date(now.getTime() - 150 * 1000); // 150 seconds (2.5m) tolerance for 60s heartbeats
       const timeoutThreshold = new Date(now.getTime() - 12 * 60 * 60 * 1000); // 12 hours max session inactivity
 
-      // 1. Mark online sessions missing heartbeat > 30s as offline
+      // 1. Mark online sessions missing heartbeat > 150s as offline
       const staleOnline = await AssociateSession.find({
         status: "online",
         lastHeartbeatAt: { $lt: offlineThreshold }
@@ -314,7 +314,7 @@ export const associateSessionService = {
   },
 
   /**
-   * Process frontend heartbeat signal every 10s.
+   * Process frontend heartbeat signal (optimized with 20s write throttling).
    */
   async heartbeatSession(userId, sessionId) {
     await connectDB();
@@ -344,6 +344,7 @@ export const associateSessionService = {
 
     const now = new Date();
 
+    // 1. If session was offline, immediately transition to online, record segment, and emit update
     if (session.status === "offline") {
       session.status = "online";
       if (session.segments && session.segments.length > 0) {
@@ -358,8 +359,36 @@ export const associateSessionService = {
         onlineAt: null,
         durationSeconds: 0
       });
+      session.lastHeartbeatAt = now;
+
+      const durations = calculateOnlineDuration(session, now);
+      session.totalOnlineSeconds = durations.totalOnlineSeconds;
+      session.totalOfflineSeconds = durations.totalOfflineSeconds;
+
+      await session.save();
+
+      emitAssociateSessionUpdated({
+        sessionId: session._id,
+        associateId: session.associateId,
+        status: session.status,
+        loginAt: session.loginAt,
+        lastHeartbeatAt: session.lastHeartbeatAt,
+        totalOnlineSeconds: session.totalOnlineSeconds,
+        totalOfflineSeconds: session.totalOfflineSeconds
+      }, session.branchId);
+
+      return session;
     }
 
+    // 2. Server-side write throttling: If already online and last heartbeat was within 20 seconds, return without DB write
+    if (session.status === "online" && session.lastHeartbeatAt) {
+      const timeSinceLastHeartbeat = now.getTime() - new Date(session.lastHeartbeatAt).getTime();
+      if (timeSinceLastHeartbeat < 20000) {
+        return session;
+      }
+    }
+
+    // 3. Regular heartbeat update (>20s since last heartbeat)
     session.lastHeartbeatAt = now;
 
     const durations = calculateOnlineDuration(session, now);

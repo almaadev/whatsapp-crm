@@ -1,11 +1,16 @@
 import React, { useState, useRef, useEffect, memo } from "react";
-import { Send, Layers, X, Variable, Paperclip, Smile } from "lucide-react";
+import { Send, Layers, Variable, Paperclip, Smile, X } from "lucide-react";
 import { ChatTemplatePanel } from "@/features/chat/components/ChatTemplatePanel";
 import { toast } from "react-toastify";
-
 import EmojiPicker from "@/features/chat/components/EmojiPicker";
-
 import ChatStatusBanner from "@/features/chat/components/ChatStatusBanner";
+
+// Media Components
+import AttachmentMenu from "@/features/chat/components/media/AttachmentMenu";
+import MediaPicker from "@/features/chat/components/media/MediaPicker";
+import MediaPreview from "@/features/chat/components/media/MediaPreview";
+import UploadProgress from "@/features/chat/components/media/UploadProgress";
+import { mediaService } from "@/features/chat/services/mediaService";
 
 const ChatInput = memo(function ChatInput({
   onSendMessage,
@@ -25,10 +30,16 @@ const ChatInput = memo(function ChatInput({
   const [text, setText] = useState("");
   const [showBubble, setShowBubble] = useState(false);
   const [showEmojis, setShowEmojis] = useState(false);
-  
-  // File upload state
-  const [selectedFile, setSelectedFile] = useState(null);
-  const fileInputRef = useRef(null);
+
+  // Attachment & Media states
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [previewItem, setPreviewItem] = useState(null); // { file, mediaType, previewUrl, originalSize, compressedSize, savingsPercent, wasCompressed, isCompressing, compressionProgress, error }
+  const [mediaCaption, setMediaCaption] = useState("");
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [uploadPercent, setUploadPercent] = useState(0);
+  const [uploadStageText, setUploadStageText] = useState("");
+
+  const mediaPickerRef = useRef(null);
 
   // Variable Modal State
   const [varTemplate, setVarTemplate] = useState(null);
@@ -77,19 +88,14 @@ const ChatInput = memo(function ChatInput({
   };
 
   const handleSendClick = () => {
-    if (disabled || isClosed) return;
-    
-    if (selectedFile) {
-      // Simulate sending file as a message with attachment representation
-      const fileRepText = `[Attachment File: ${selectedFile.name}] ${text.trim()}`;
-      onSendMessage(fileRepText);
-      setSelectedFile(null);
-      setText("");
-    } else if (text.trim() && !sending) {
+    if (disabled || isClosed || isUploadingMedia) return;
+
+    if (text.trim() && !sending) {
       onSendMessage(text);
       setText("");
     }
     setShowEmojis(false);
+    setShowAttachmentMenu(false);
   };
 
   const handleKeyDown = (e) => {
@@ -103,20 +109,155 @@ const ChatInput = memo(function ChatInput({
     }
   };
 
-  const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-    }
-  };
-
   const handleEmojiSelect = (emoji) => {
     setText((prev) => prev + emoji);
     textareaRef.current?.focus();
   };
 
+  // Attachment Menu Selection Handler
+  const handleAttachmentOption = (optionId) => {
+    if (optionId === "photos_videos") {
+      mediaPickerRef.current?.openPhotosVideos();
+    } else if (optionId === "document") {
+      mediaPickerRef.current?.openDocument();
+    } else if (optionId === "audio") {
+      mediaPickerRef.current?.openAudio();
+    }
+  };
+
+  // File Picker Selected Callback
+  const handleFilePicked = async (file, expectedCategory) => {
+    const mime = (file.type || "").toLowerCase();
+    const isVideo = mime.startsWith("video/") || (expectedCategory === "photos_videos" && ["mp4", "mov", "webm", "3gp"].includes(file.name.split(".").pop()?.toLowerCase()));
+    const isAudio = mime.startsWith("audio/") || expectedCategory === "audio";
+    const isPdf = mime === "application/pdf" || expectedCategory === "document";
+    const mediaType = isVideo ? "video" : isAudio ? "audio" : isPdf ? "document" : "image";
+
+    const initialItem = {
+      file,
+      mediaType,
+      previewUrl: URL.createObjectURL(file),
+      originalSize: file.size,
+      compressedSize: file.size,
+      savingsPercent: 0,
+      wasCompressed: false,
+      isCompressing: false,
+      compressionProgress: 0,
+      error: null,
+    };
+
+    setPreviewItem(initialItem);
+    setMediaCaption("");
+
+    // 1. Image compression if > 3MB
+    if (mediaType === "image" && file.size > 3 * 1024 * 1024) {
+      try {
+        setPreviewItem((prev) => ({ ...prev, isCompressing: true, compressionProgress: 10 }));
+        const compressed = await mediaService.compressImage(file, (p) => {
+          setPreviewItem((prev) => ({ ...prev, compressionProgress: p }));
+        });
+        setPreviewItem((prev) => ({
+          ...prev,
+          file: compressed.file,
+          previewUrl: compressed.previewUrl,
+          compressedSize: compressed.compressedSize,
+          savingsPercent: compressed.savingsPercent,
+          wasCompressed: true,
+          isCompressing: false,
+        }));
+      } catch (err) {
+        setPreviewItem((prev) => ({
+          ...prev,
+          isCompressing: false,
+          error: "Image compression failed: " + err.message,
+        }));
+      }
+    }
+
+    // 2. Video compression if > 10MB
+    if (mediaType === "video" && file.size > 10 * 1024 * 1024) {
+      try {
+        setPreviewItem((prev) => ({ ...prev, isCompressing: true, compressionProgress: 10 }));
+        const compressed = await mediaService.compressVideo(file, (p) => {
+          setPreviewItem((prev) => ({ ...prev, compressionProgress: p }));
+        });
+        setPreviewItem((prev) => ({
+          ...prev,
+          file: compressed.file,
+          compressedSize: compressed.compressedSize,
+          savingsPercent: compressed.savingsPercent,
+          wasCompressed: true,
+          isCompressing: false,
+        }));
+      } catch (err) {
+        setPreviewItem((prev) => ({
+          ...prev,
+          isCompressing: false,
+          error: "Video could not be compressed below 10MB.",
+        }));
+      }
+    }
+  };
+
+  // Send Media from Preview Modal
+  const handleSendMediaPreview = async () => {
+    if (!previewItem || !previewItem.file || isUploadingMedia) return;
+
+    setIsUploadingMedia(true);
+    setUploadStageText("Uploading to server...");
+    setUploadPercent(5);
+
+    try {
+      // 1. Upload to Cloudinary backend API
+      const uploadedData = await mediaService.uploadMedia(
+        previewItem.file,
+        previewItem.mediaType,
+        (p) => {
+          setUploadPercent(p);
+          if (p >= 90) setUploadStageText("Finalizing message...");
+        },
+        {
+          caption: mediaCaption || "",
+          chatId: activeChat?._id || "",
+          customerId: activeChat?.customerId || activeChat?.customer?._id || "",
+        }
+      );
+
+      // 2. Send via ChatArea / API
+      setUploadStageText("Sending via WhatsApp...");
+      await onSendMessage(mediaCaption || "", {
+        mediaId: uploadedData.id || uploadedData._id,
+        mediaUrl: uploadedData.secureUrl || uploadedData.cloudinaryUrl || uploadedData.url,
+        mediaType: uploadedData.mediaType,
+        media: uploadedData,
+        messageType: uploadedData.mediaType,
+      });
+
+      // Cleanup on verified success only
+      setPreviewItem(null);
+      setMediaCaption("");
+      toast.success("Media sent successfully!");
+    } catch (err) {
+      console.error("Media send error:", err);
+      const errMsg = err.response?.data?.message || err.message || "Upload failed. Please try again.";
+      toast.error(errMsg);
+      setPreviewItem((prev) => (prev ? { ...prev, error: errMsg } : null));
+    } finally {
+      setIsUploadingMedia(false);
+      setUploadPercent(0);
+      setUploadStageText("");
+    }
+  };
+
   return (
     <div className="relative bg-white border-t border-slate-200/80 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] flex flex-col gap-2.5 z-20 select-none shrink-0">
-      
+      {/* Hidden Native File Inputs */}
+      <MediaPicker
+        ref={mediaPickerRef}
+        onFileSelected={handleFilePicked}
+        disabled={isClosed || disabled}
+      />
+
       {/* Closed Chat Banner */}
       {isClosed && <ChatStatusBanner isClosed={isClosed} />}
 
@@ -140,6 +281,32 @@ const ChatInput = memo(function ChatInput({
         </div>
       )}
 
+      {/* Non-blocking Upload Progress Bar */}
+      {isUploadingMedia && !previewItem && (
+        <UploadProgress stageText={uploadStageText} percent={uploadPercent} />
+      )}
+
+      {/* Floating Attachment Menu (Desktop Popover / Mobile Bottom Sheet) */}
+      <AttachmentMenu
+        isOpen={showAttachmentMenu}
+        onClose={() => setShowAttachmentMenu(false)}
+        onSelectOption={handleAttachmentOption}
+      />
+
+      {/* Media Preview Modal */}
+      {previewItem && (
+        <MediaPreview
+          mediaItem={previewItem}
+          caption={mediaCaption}
+          setCaption={setMediaCaption}
+          onCancel={() => setPreviewItem(null)}
+          onSend={handleSendMediaPreview}
+          isSending={isUploadingMedia}
+          uploadProgress={uploadPercent}
+          stageText={uploadStageText}
+        />
+      )}
+
       {/* Floating Two-Tab Template Picker Panel */}
       {showBubble && (
         <ChatTemplatePanel
@@ -149,20 +316,6 @@ const ChatInput = memo(function ChatInput({
           onSelectCRM={handleCRMSelect}
           onClose={() => setShowBubble(false)}
         />
-      )}
-
-      {/* Local File Attachment Preview Queue */}
-      {selectedFile && (
-        <div className="flex items-center justify-between bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-2 text-xs text-slate-700 animate-in slide-in-from-bottom-2 duration-200">
-          <div className="flex items-center gap-2 font-semibold">
-            <Paperclip size={12} className="text-[#00a884]" />
-            <span className="truncate max-w-[200px]">{selectedFile.name}</span>
-            <span className="text-slate-400 font-mono text-[10px]">({Math.round(selectedFile.size / 1024)} KB)</span>
-          </div>
-          <button onClick={() => setSelectedFile(null)} className="text-slate-400 hover:text-rose-500 hover:bg-slate-100 p-1 rounded-md transition-colors">
-            <X size={14} />
-          </button>
-        </div>
       )}
 
       {/* Redesigned Floating Emoji Picker */}
@@ -228,22 +381,22 @@ const ChatInput = memo(function ChatInput({
 
       {/* Main Composer Row */}
       <div className="flex items-end gap-3 w-full">
-        {/* Hidden attachment trigger */}
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          className="hidden"
-          disabled={disabled}
-        />
-        
-        {/* Paperclip Button */}
+        {/* Paperclip / Attachment Button */}
         <button
           type="button"
           disabled={isClosed || disabled}
-          onClick={() => fileInputRef.current?.click()}
-          className="p-2.5 rounded-xl border border-slate-200 text-slate-500 hover:text-[#00a884] hover:bg-slate-50 transition-all shadow-sm shrink-0 mb-0.5"
-          title="Attach File"
+          onClick={() => {
+            setShowAttachmentMenu(!showAttachmentMenu);
+            setShowEmojis(false);
+            setShowBubble(false);
+          }}
+          className={`p-2.5 rounded-xl border transition-all shadow-sm shrink-0 mb-0.5
+            ${showAttachmentMenu
+              ? "border-[#00a884] bg-emerald-50 text-[#00a884]"
+              : "border-slate-200 text-slate-500 hover:text-[#00a884] hover:bg-slate-50"
+            }
+          `}
+          title="Attach Media (Photos, Videos, Documents, Audio)"
         >
           <Paperclip size={18} />
         </button>
@@ -252,7 +405,11 @@ const ChatInput = memo(function ChatInput({
         <button
           type="button"
           disabled={isClosed || disabled}
-          onClick={() => setShowEmojis(!showEmojis)}
+          onClick={() => {
+            setShowEmojis(!showEmojis);
+            setShowAttachmentMenu(false);
+            setShowBubble(false);
+          }}
           className={`p-2.5 rounded-xl border transition-all shadow-sm shrink-0 mb-0.5
             ${showEmojis 
               ? "border-[#00a884] bg-emerald-50 text-[#00a884]" 
@@ -266,8 +423,13 @@ const ChatInput = memo(function ChatInput({
 
         {/* Templates Button */}
         <button
+          type="button"
           disabled={isClosed || disabled}
-          onClick={() => setShowBubble(!showBubble)}
+          onClick={() => {
+            setShowBubble(!showBubble);
+            setShowEmojis(false);
+            setShowAttachmentMenu(false);
+          }}
           className={`p-2.5 rounded-xl border transition-all shadow-sm shrink-0 mb-0.5
             ${showBubble 
               ? "border-emerald-500 bg-emerald-50 text-emerald-600" 
@@ -304,19 +466,21 @@ const ChatInput = memo(function ChatInput({
 
         {/* Send Button */}
         <button
+          type="button"
           onClick={handleSendClick}
-          disabled={ sending || (!text.trim() && !selectedFile) || disabled || isClosed }
+          disabled={sending || !text.trim() || disabled || isClosed || isUploadingMedia}
           className={`p-3 rounded-xl shadow-md transition-all shrink-0 mb-0.5 flex items-center justify-center
-            ${(text.trim() || selectedFile) && !disabled
+            ${text.trim() && !disabled && !isUploadingMedia && !sending
               ? "bg-[#00a884] text-white hover:bg-emerald-600 active:scale-95 shadow-emerald-200"
               : "bg-slate-100 text-slate-400 border border-slate-200 shadow-none cursor-not-allowed"
             }
           `}
+          title="Send Message"
         >
           {sending ? (
             <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
           ) : (
-            <Send size={18} className={(text.trim() || selectedFile) ? "translate-x-[0.5px]" : ""} />
+            <Send size={18} className={text.trim() ? "translate-x-[0.5px]" : ""} />
           )}
         </button>
       </div>

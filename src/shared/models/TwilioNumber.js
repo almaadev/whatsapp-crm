@@ -17,7 +17,9 @@ const TwilioNumberSchema = new mongoose.Schema(
 );
 
 TwilioNumberSchema.index({ assignedAdmins: 1 });
+TwilioNumberSchema.index({ assignedAssociates: 1 });
 TwilioNumberSchema.index({ status: 1 });
+TwilioNumberSchema.index({ isActive: 1 });
 
 if (process.env.NODE_ENV === "development" && mongoose.models.TwilioNumber) {
   delete mongoose.models.TwilioNumber;

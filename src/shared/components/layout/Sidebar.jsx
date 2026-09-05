@@ -28,20 +28,55 @@ export default function Sidebar({
   const [showSignOut, setShowSignOut] = useState(false);
   const [hoveredNav, setHoveredNav] = useState(null);
 
-  // Manage dropdown states
-  const [dropdowns, setDropdowns] = useState(() => {
-    const initialState = {};
-    NAVIGATION_CONFIG.forEach((nav) => {
-      if (nav.type === "dropdown" && nav.stateKey) {
-        initialState[nav.stateKey] =
-          nav.paths?.some((p) => pathname === p || pathname.startsWith(p + "/")) || false;
-      }
-    });
-    return initialState;
-  });
+  // Helper to determine active dropdown menu based on current route
+  const isPathMatchingNav = (path, nav) => {
+    if (!nav || !path) return false;
+    if (nav.paths?.includes(path)) return true;
+    if (nav.items?.some((item) => item.href === path)) return true;
+    // Specific sub-path match without greedy root prefix matching
+    if (
+      nav.items?.some(
+        (item) =>
+          item.href !== "/crm/admin" && path.startsWith(item.href + "/"),
+      )
+    ) {
+      return true;
+    }
+    if (
+      nav.paths?.some((p) => p !== "/crm/admin" && path.startsWith(p + "/"))
+    ) {
+      return true;
+    }
+    return false;
+  };
 
-  const toggleDropdown = (key) => {
-    setDropdowns((prev) => ({ ...prev, [key]: !prev[key] }));
+  const getActiveMenuFromPath = (path) => {
+    for (const nav of NAVIGATION_CONFIG) {
+      if (nav.type === "dropdown") {
+        const menuKey = nav.id || nav.stateKey || nav.label;
+        if (isPathMatchingNav(path, nav)) {
+          return menuKey;
+        }
+      }
+    }
+    return null;
+  };
+
+  // Accordion state: only one parent menu key can be open at a time (or null if all closed)
+  const [openMenu, setOpenMenu] = useState(() =>
+    getActiveMenuFromPath(pathname),
+  );
+
+  // Keep accordion open for the active route when navigating
+  useEffect(() => {
+    const active = getActiveMenuFromPath(pathname);
+    if (active) {
+      setOpenMenu(active);
+    }
+  }, [pathname]);
+
+  const toggleMenu = (menuKey) => {
+    setOpenMenu((current) => (current === menuKey ? null : menuKey));
   };
 
   useEffect(() => {
@@ -93,8 +128,6 @@ export default function Sidebar({
           ${isExpanded ? "md:w-[272px]" : "md:w-[70px]"}
         `}
       >
-    
-
         {/* Header / Logo Section */}
         <div
           className={`flex items-center h-16 shrink-0 border-b border-white/10 transition-all duration-300 ${
@@ -140,15 +173,14 @@ export default function Sidebar({
         <nav className="flex-1 flex flex-col gap-1.5 p-2.5 overflow-y-auto custom-scrollbar overflow-x-hidden">
           {NAVIGATION_CONFIG.map((nav, index) => {
             if (!checkPermissions(user || session, nav)) return null;
-
+            if (nav.hideForAdmin && (user?.role === "superAdmin" || user?.department === "admin")) return null;
             const Icon = nav.icon;
             const isHovered = hoveredNav === index;
 
             if (nav.type === "dropdown") {
-              const isOpen = dropdowns[nav.stateKey];
-              const isActiveRoute = nav.paths?.some(
-                (p) => pathname === p || pathname.startsWith(p + "/"),
-              );
+              const menuKey = nav.id || nav.stateKey || nav.label;
+              const isOpen = openMenu === menuKey;
+              const isActiveRoute = isPathMatchingNav(pathname, nav);
 
               return (
                 <div
@@ -161,17 +193,15 @@ export default function Sidebar({
                     type="button"
                     tabIndex={0}
                     aria-label={nav.label}
+                    aria-expanded={isOpen}
                     onClick={() => {
                       if (!isExpanded) {
                         if (window.innerWidth < 768) setMobileOpen(true);
                         else if (toggleDesktopSidebar) toggleDesktopSidebar();
                         else setIsDesktopExpanded(true);
-                        setDropdowns((prev) => ({
-                          ...prev,
-                          [nav.stateKey]: true,
-                        }));
+                        setOpenMenu(menuKey);
                       } else {
-                        toggleDropdown(nav.stateKey);
+                        toggleMenu(menuKey);
                       }
                     }}
                     className={`
@@ -215,12 +245,17 @@ export default function Sidebar({
                   {isExpanded && isOpen && (
                     <div className="flex flex-col gap-1 ml-4 pl-3.5 border-l-2 border-white/15 my-1 crm-slide-in-top">
                       {nav.items.map((item, i) => {
-                        if (!checkPermissions(user || session, item)) return null;
+                        if (!checkPermissions(user || session, item))
+                          return null;
                         const ItemIcon = item.icon;
                         const isItemActive = pathname === item.href;
 
                         return (
-                          <Link key={i} href={item.href} className="outline-none">
+                          <Link
+                            key={i}
+                            href={item.href}
+                            className="outline-none"
+                          >
                             <div
                               tabIndex={0}
                               className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center gap-2.5 ${
@@ -229,7 +264,12 @@ export default function Sidebar({
                                   : "text-white/75 hover:text-white hover:bg-white/10 hover:translate-x-1"
                               }`}
                             >
-                              {ItemIcon && <ItemIcon size={item.iconSize || 14} className="shrink-0" />}
+                              {ItemIcon && (
+                                <ItemIcon
+                                  size={item.iconSize || 14}
+                                  className="shrink-0"
+                                />
+                              )}
                               <span className="truncate">{item.label}</span>
                             </div>
                           </Link>
@@ -293,13 +333,20 @@ export default function Sidebar({
         {isExpanded ? (
           <div className="border-t border-white/10 px-4 py-3.5 shrink-0 bg-white/5">
             <div className="space-y-0.5 text-white/80 text-xs">
-              <p className="font-extrabold text-white truncate">Almaa Whatsapp CRM</p>
-              <p className="text-[10px] text-white/60 truncate">Enterprise Management System</p>
+              <p className="font-extrabold text-white truncate">
+                Almaa Whatsapp CRM
+              </p>
+              <p className="text-[10px] text-white/60 truncate">
+                Enterprise Management System
+              </p>
             </div>
           </div>
         ) : (
           <div className="border-t border-white/10 py-3 flex justify-center shrink-0">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="System Online" />
+            <span
+              className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"
+              title="System Online"
+            />
           </div>
         )}
       </aside>

@@ -16,7 +16,7 @@ const isAuthorized = (session) => {
 
 
 
-export async function GET() {
+export async function GET(req) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -51,9 +51,22 @@ export async function GET() {
     const loggedInUser = await User.findById(session.user.id).lean();
     if (!loggedInUser) return NextResponse.json([]);
 
-    const query = { active: true };
+    const { searchParams } = new URL(req.url);
+    const branchParam = searchParams.get("branch");
+
+    const query = {};
     if (session.user.role !== 'superAdmin') {
       query.branch = loggedInUser.branch;
+    } else if (branchParam && branchParam !== "all") {
+      // Support matching branch by ObjectId or name
+      const matchedBranch = branches.find(
+        (b) => b._id.toString() === branchParam || b.name === branchParam
+      );
+      if (matchedBranch) {
+        query.branch = { $in: [matchedBranch._id.toString(), matchedBranch._id, matchedBranch.name] };
+      } else {
+        query.branch = branchParam;
+      }
     }
 
     const users = await User.find(query).lean();
@@ -70,10 +83,14 @@ export async function GET() {
         role: u.role,
         department: u.department,
         branch: branchName,
+        branchId: branchVal,
         active: u.active,
         leads: u.leads || 0,
         target: u.target || 0,
         achieved: u.achieved || 0,
+        assignedSenderNumbers: (u.assignedSenderNumbers || []).map((id) => (id._id || id).toString()),
+        assignedTwilioNumbers: (u.assignedTwilioNumbers || []).map((id) => (id._id || id).toString()),
+        assignedSenderNumber: u.assignedSenderNumber ? (u.assignedSenderNumber._id || u.assignedSenderNumber).toString() : null,
       };
     });
 

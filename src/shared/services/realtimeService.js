@@ -12,11 +12,16 @@ class RealtimeServiceManager {
     this.queryClient = null;
     this.socket = null;
     this.user = null;
+    this._lastRegisteredKey = null;
+    this._heartbeatInterval = null;
+    this._visibilityAttached = false;
     this._handleConnect = this._handleConnect.bind(this);
+    this._handleDisconnect = this._handleDisconnect.bind(this);
   }
 
   /**
    * Register the authenticated user into server rooms (user:<userId>, branch:<branchId>, etc.)
+   * Fully idempotent: will NOT emit redundant register_user if already registered on this socket instance.
    */
   registerUser() {
     if (!this.socket || !this.socket.connected) return;
@@ -26,28 +31,60 @@ class RealtimeServiceManager {
     const uId = (user.userId || user.id || user._id)?.toString();
     if (!uId) return;
 
-    const branchId = user.branchId || user.branch || null;
+    let branchId = null;
+    if (user.branchId) {
+      branchId = typeof user.branchId === "object" ? (user.branchId._id || user.branchId.id || "").toString() : user.branchId.toString();
+    } else if (user.branch) {
+      branchId = typeof user.branch === "object" ? (user.branch._id || user.branch.id || "").toString() : user.branch.toString();
+    }
+    if (branchId === "[object Object]" || !branchId) branchId = "";
+
+    const branchStr = branchId;
+    const role = user.role || "associate";
+    const department = user.department || "";
+
+    const registrationKey = `${this.socket.id || "sock"}:${uId}:${branchStr}:${role}:${department}`;
+    if (this._lastRegisteredKey === registrationKey) {
+      return; // Already registered with this exact payload on this socket connection
+    }
+    this._lastRegisteredKey = registrationKey;
+
     const registrationPayload = {
       userId: uId,
       id: uId,
       name: user.name || "User",
       email: user.email || "",
-      role: user.role || "associate",
-      department: user.department || "",
-      branch: branchId ? branchId.toString() : null,
-      branchId: branchId ? branchId.toString() : null,
+      role,
+      department,
+      branch: branchStr || null,
+      branchId: branchStr || null,
     };
 
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[SOCKET] register_user | userId=${uId} | role=${role} | branchId=${branchStr || "none"}`);
+    }
     this.socket.emit("register_user", registrationPayload);
-    console.log(`[SOCKET DEBUG] userId=${uId}`);
-    console.log(`[SOCKET CLIENT] registered user ${registrationPayload.name} (${registrationPayload.role}) | userId: ${uId} | branchId: ${branchId}`);
   }
 
   /**
    * Handle socket connect/reconnect events: always re-register user into room subscriptions
    */
   _handleConnect() {
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[SOCKET] connected (${this.socket?.id})`);
+    }
+    this._lastRegisteredKey = null;
     this.registerUser();
+  }
+
+  /**
+   * Handle socket disconnect event
+   */
+  _handleDisconnect(reason) {
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[SOCKET] disconnected reason=${reason}`);
+    }
+    this._lastRegisteredKey = null;
   }
 
   /**
@@ -64,22 +101,47 @@ class RealtimeServiceManager {
 
     this.socket = connectSocket();
 
-    // Ensure connect/reconnect listeners are cleanly attached without duplicate handlers
+    // Ensure connect/reconnect/disconnect listeners are cleanly attached without duplicate handlers
     this.socket.off("connect", this._handleConnect);
     this.socket.off("reconnect", this._handleConnect);
+    this.socket.off("disconnect", this._handleDisconnect);
     this.socket.on("connect", this._handleConnect);
     this.socket.on("reconnect", this._handleConnect);
+    this.socket.on("disconnect", this._handleDisconnect);
 
-    // If socket is already connected when init() is called or user updates, register immediately
+    // If socket is already connected when init() is called or user updates, register (if not already registered)
     if (this.socket.connected) {
       this.registerUser();
+    }
+
+    // Start single central heartbeat interval (every 12 seconds)
+    if (!this._heartbeatInterval) {
+      this._heartbeatInterval = setInterval(() => {
+        if (this.socket && this.socket.connected) {
+          this.socket.emit("heartbeat");
+        }
+      }, 12000);
+    }
+
+    // Attach visibility handler once to wake up socket on tab focus
+    if (!this._visibilityAttached && typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          if (this.socket && !this.socket.connected) {
+            this.socket.connect();
+          } else {
+            this.registerUser();
+          }
+        }
+      });
+      this._visibilityAttached = true;
     }
 
     // Attach business event listeners ONLY ONCE for the application lifetime
     if (!this.listenersAttached) {
       this.attachEventListeners();
       this.listenersAttached = true;
-      console.log("⚡ [RealtimeService] Central Realtime Event Bus Initialized.");
+      
     }
 
     // Initial unread notification count synchronization
@@ -88,6 +150,14 @@ class RealtimeServiceManager {
     } catch (e) {
       console.error("[RealtimeService] Error fetching unread count:", e);
     }
+  }
+
+  destroy() {
+    if (this._heartbeatInterval) {
+      clearInterval(this._heartbeatInterval);
+      this._heartbeatInterval = null;
+    }
+    this._lastRegisteredKey = null;
   }
 
   attachEventListeners() {
@@ -122,7 +192,7 @@ class RealtimeServiceManager {
 
     // --- 0. REALTIME PIPELINE TEST EVENT ---
     this.socket.on("crm_realtime_test", (data) => {
-      console.log(`[REALTIME TEST] RECEIVED | userId: ${data?.userId} | timestamp: ${data?.timestamp}`);
+      
     });
 
     // --- 1. INCOMING & OUTGOING MESSAGES ---
@@ -142,7 +212,7 @@ class RealtimeServiceManager {
 
     // --- 2. MESSAGE STATUS UPDATES ---
     this.socket.on("message_status_update", (update) => {
-      console.log(`[RealtimeService] Message status update for SID: ${update.sid} -> ${update.status}`);
+      
       try {
         const state = useChatStore.getState();
         if (update.phone && state.updateMessageStatus) {
@@ -157,7 +227,7 @@ class RealtimeServiceManager {
 
     // --- 3. LEAD & CUSTOMER UPDATES ---
     const handleCustomerOrLeadUpdate = (data) => {
-      console.log(`[RealtimeService] Customer/Lead update event:`, data);
+      
       if (this.queryClient) {
         this.queryClient.invalidateQueries({ queryKey: ["leads"] });
         this.queryClient.invalidateQueries({ queryKey: ["customers"] });
@@ -179,7 +249,7 @@ class RealtimeServiceManager {
 
     // --- 3.1 CHAT / CUSTOMER DELETED ---
     this.socket.on("chat_deleted", (data) => {
-      console.log("[RealtimeService] chat_deleted received:", data);
+      
       const customerIds = data?.customerIds || (data?.customerId ? [data.customerId] : []);
       const phones = data?.phones || (data?.phone ? [data.phone] : []);
 
@@ -200,7 +270,7 @@ class RealtimeServiceManager {
 
     // --- 4. PRESENCE & HANDLERS ---
     this.socket.on("presence_change", (onlineUsers) => {
-      console.log(`[RealtimeService] Presence update: ${onlineUsers.length} online users`);
+      
       try {
         useOnlineUsersStore.getState().setOnlineUsers(onlineUsers);
       } catch (e) {}
@@ -235,7 +305,7 @@ class RealtimeServiceManager {
 
     // --- 5. PERFORMANCE MONITOR TELEMETRY ---
     this.socket.on("performance_monitor_event", (eventData) => {
-      console.log(`[RealtimeService] Telemetry event: ${eventData.eventType}`);
+      
       try {
         usePerformanceMonitorStore.getState().mergeSocketEvent(eventData);
       } catch (e) {}

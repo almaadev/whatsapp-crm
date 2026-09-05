@@ -109,12 +109,15 @@ app.prepare().then(() => {
     },
     transports: ["websocket", "polling"],
     allowEIO3: true,
+    destroyUpgrade: false, // Do not terminate non-Socket.IO upgrades (allows Next.js HMR WebSockets)
   });
 
   global.io = io;
 
   io.on("connection", (socket) => {
-    console.log(`[SOCKET DEBUG] client connected socket=${socket.id}`);
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[SOCKET] connected socket=${socket.id}`);
+    }
 
     // Sync current active handlers and online users on connection
     socket.emit("sync_active_handlers", Array.from(activeChatHandlers.entries()));
@@ -123,39 +126,63 @@ app.prepare().then(() => {
     socket.on("register_user", (userData) => {
       if (userData && (userData.userId || userData.id)) {
         const uId = (userData.userId || userData.id).toString();
-        const branchId = userData.branchId || userData.branch || null;
-        
-        console.log(`[SOCKET DEBUG] register_user received | userId=${uId} | role=${userData.role} | branchId=${branchId} | socketId=${socket.id}`);
+        let branchId = null;
+        if (userData.branchId) {
+          branchId = typeof userData.branchId === "object" ? (userData.branchId._id || userData.branchId.id || "").toString() : userData.branchId.toString();
+        } else if (userData.branch) {
+          branchId = typeof userData.branch === "object" ? (userData.branch._id || userData.branch.id || "").toString() : userData.branch.toString();
+        }
+        if (branchId === "[object Object]" || !branchId) branchId = null;
 
-        socket.userData = { ...userData, userId: uId, branchId };
+        const role = userData.role || "associate";
+        const department = userData.department || "";
+
+        // Check if this socket is already registered with identical credentials
+        const existing = onlineUsers.get(socket.id);
+        const isIdentical = existing &&
+          existing.userId === uId &&
+          (existing.branchId || null) === branchId &&
+          (existing.role || "") === role &&
+          (existing.department || "") === department;
+
+        if (isIdentical) {
+          // Socket is already active and registered with identical information.
+          // Refresh heartbeat timestamp without re-broadcasting redundant events or re-joining rooms.
+          existing.timestamp = Date.now();
+          return;
+        }
+
+        if (process.env.NODE_ENV === "development") {
+          console.log(`[SOCKET] register_user | userId=${uId} | role=${role} | branchId=${branchId} | socketId=${socket.id}`);
+        }
+
+        socket.userData = { ...userData, userId: uId, branchId, role, department };
         onlineUsers.set(socket.id, {
           ...userData,
           userId: uId,
           branchId,
+          role,
+          department,
           socketId: socket.id,
           timestamp: Date.now()
         });
 
         // 🎯 Join Authoritative Scoped Rooms
         socket.join(`user:${uId}`);
-        console.log(`[SOCKET DEBUG] joined user:${uId}`);
         if (branchId) {
-          socket.join(`branch:${branchId.toString()}`);
-          console.log(`[SOCKET DEBUG] joined branch:${branchId}`);
+          socket.join(`branch:${branchId}`);
         }
-        if (userData.role) socket.join(`role:${userData.role}`);
-        if (userData.department) socket.join(`dept:${userData.department}`);
+        if (role) socket.join(`role:${role}`);
+        if (department) socket.join(`dept:${department}`);
 
         io.emit("presence_change", Array.from(onlineUsers.values()));
 
         // Scope performance monitor events by role & branch
-        if (userData.role === "superAdmin") {
+        if (role === "superAdmin") {
           socket.join("performance-monitor:all");
-          console.log(`🔌 Super Admin socket ${socket.id} joined performance-monitor:all`);
-        } else if (userData.role === "admin") {
+        } else if (role === "admin") {
           if (branchId) {
             socket.join(`performance-monitor:branch:${branchId}`);
-            console.log(`🔌 Admin socket ${socket.id} joined performance-monitor:branch:${branchId}`);
           }
         }
 
@@ -309,13 +336,17 @@ app.prepare().then(() => {
       }
     });
 
-    socket.on("disconnect", () => {
-      console.log("🔴 Client Disconnected", socket.id);
+    socket.on("disconnect", (reason) => {
+      if (process.env.NODE_ENV === "development") {
+        console.log(`[SOCKET] disconnected socket=${socket.id} reason=${reason}`);
+      }
       if (onlineUsers.has(socket.id)) {
         const u = onlineUsers.get(socket.id);
         onlineUsers.delete(socket.id);
         io.emit("presence_change", Array.from(onlineUsers.values()));
-        console.log(`👤 User deregistered: ${u?.name}`);
+        if (process.env.NODE_ENV === "development") {
+          console.log(`👤 User deregistered: ${u?.name}`);
+        }
 
         const branchId = u?.branchId || u?.branch;
         publishPerformanceEvent("associate_offline", {
@@ -353,8 +384,14 @@ app.prepare().then(() => {
 
   
   httpServer.on('upgrade', (req, socket, head) => {
-    if (req.url.startsWith('/_next/')) {
-      upgradeHandler(req, socket, head);
+    try {
+      const parsedUrl = parse(req.url || "", true);
+      if (parsedUrl.pathname?.startsWith('/_next/')) {
+        upgradeHandler(req, socket, head);
+      }
+    } catch (err) {
+      console.error("Upgrade handler error:", err);
+      socket.destroy();
     }
   });
 

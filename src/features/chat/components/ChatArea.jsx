@@ -28,7 +28,7 @@ import ChatInput from "@/features/chat/components/ChatInput";
 import ChatHeader from "@/features/chat/components/ChatHeader";
 import MessageList from "@/features/chat/components/MessageList";
 import ClosingModal from "@/shared/components/modals/ClosingModal";
-import MediaViewer from "@/features/chat/components/MediaViewer";
+import MediaViewer from "@/features/chat/components/media/MediaViewer";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  MAIN CHAT AREA ORCHESTRATOR
@@ -303,14 +303,14 @@ export default function ChatArea({
     }
   };
 
-  const handleSend = async (text) => {
-    if (!text.trim() || !activeChat) return;
+  const handleSend = async (text, mediaPayload = null) => {
+    if ((!text?.trim() && !mediaPayload) || !activeChat) return;
     const tempId = Date.now().toString();
     const newMessage = {
       customerId: activeChat.customerId,
       phone: activeChat.phone,
       canonicalPhone: activeChat.canonicalPhone,
-      message: text,
+      message: text || "",
       direction: "OUTBOUND",
       timestamp: new Date().toISOString(),
       name: activeChat.name,
@@ -319,6 +319,11 @@ export default function ChatArea({
       tempId: tempId,
       senderNumber: selectedSender,
       isChatClosed: false,
+      mediaId: mediaPayload?.mediaId || mediaPayload?.media?.id || mediaPayload?.media?._id || "",
+      mediaUrl: mediaPayload?.mediaUrl || "",
+      mediaType: mediaPayload?.mediaType || "",
+      media: mediaPayload?.media || null,
+      messageType: mediaPayload?.messageType || (mediaPayload?.mediaUrl ? "image" : "text"),
       sendBy: {
         _id: session?.user?.id || session?.user?._id,
         name: session?.user?.name || userName,
@@ -331,12 +336,15 @@ export default function ChatArea({
 
     try {
       const res = await chatService.sendMessage(newMessage);
-      // API now returns { success, message, data: { twilioSid, ... } }
+      // API returns { success, message, data: { twilioSid, ... } }
       const twilioSid = res?.data?.twilioSid || res?.twilioSid;
       updateMessageStatus(activeChat.phone, tempId, "SENT", twilioSid);
+      return res;
     } catch (error) {
       updateMessageStatus(activeChat.phone, tempId, "FAILED");
-      toast.error("Message failed to send.");
+      const errMsg = error?.response?.data?.message || error?.message || "Message failed to send.";
+      toast.error(errMsg);
+      throw error;
     } finally {
       setSending(false);
     }

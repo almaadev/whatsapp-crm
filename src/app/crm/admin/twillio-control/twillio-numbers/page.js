@@ -321,7 +321,7 @@ export default function TwilioNumbersPage() {
   const fetchNumbers = useCallback(async () => {
     try {
       setError(null);
-      const res = await fetch("/api/admin/twilio");
+      const res = await fetch("/api/admin/twilio?mode=senders_only");
       const data = await res.json();
       if (data.success && data.numbers) {
         setNumbers(data.numbers);

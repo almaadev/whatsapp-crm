@@ -7,6 +7,7 @@ import twilio from "twilio";
 import TwilioNumber from "@/shared/models/TwilioNumber";
 import Branch from "@/shared/models/Branch";
 import { getAvailableNumbers, formatPhoneNumber, filterByGroupedStatus } from "@/features/admin/services/twilioService";
+import { isAdminAuthorized } from "@/shared/utils/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export async function GET(req) {
     }
 
     const isSuperAdmin = session.user.role === "superAdmin";
-    const isAdmin = session.user.department === "admin";
+    const isAdmin = isAdminAuthorized(session.user.role, session.user.department);
 
     // Non-admin associates (e.g. sales/doctor telecallers) fetching active senders for chat/bulk messaging
     if (!isSuperAdmin && !isAdmin) {
@@ -38,6 +39,17 @@ export async function GET(req) {
     const endDate = searchParams.get("endDate");
     const status = searchParams.get("status");
     const mode = searchParams.get("mode");
+
+    // Fast path: UI only requests available sender numbers and active branches
+    if (mode === "senders_only") {
+      const numbers = await getAvailableNumbers(session.user);
+      const branches = await Branch.find({ status: "active" }).select("name code address phone").lean();
+      return NextResponse.json({
+        success: true,
+        numbers,
+        branches,
+      });
+    }
 
     let fetchLimit = limitParam === "all" ? undefined : parseInt(limitParam, 10);
 
@@ -169,12 +181,11 @@ export async function POST(req) {
     await connectDB();
     const session = await getServerSession(authOptions);
 
-    const isSuperAdmin = session?.user?.role === "superAdmin";
-    const isAdmin = session?.user?.department === "admin";
-
-    if (!session || (!isSuperAdmin && !isAdmin)) {
+    if (!session || !isAdminAuthorized(session?.user?.role, session?.user?.department)) {
       return NextResponse.json({ error: "Forbidden: Admin access required." }, { status: 403 });
     }
+
+    const isSuperAdmin = session?.user?.role === "superAdmin";
 
     const body = await req.json();
 

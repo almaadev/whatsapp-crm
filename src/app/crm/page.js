@@ -19,7 +19,7 @@ export default function DashboardRoot() {
       const department = activeUser.department;
       if (department === "admin" || role === "superAdmin") {
         // Admin goes to Admin Panel by default
-        router.replace("/crm/admin");
+        router.replace("/crm/admin/dashboard/overview");
       } else {
         // Associates go straight to Chat
         router.replace("/crm/associate");

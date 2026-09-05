@@ -8,19 +8,19 @@ export default function DashboardTabs({ activeTab }) {
     {
       id: "general overview",
       label: "General Overview",
-      href: "/crm/admin",
+      href: "/crm/admin/dashboard/overview",
       icon: LayoutDashboard,
     },
     {
       id: "performance",
       label: "Performance Monitor",
-      href: "/crm/admin/performance-monitor",
+      href: "/crm/admin/dashboard/performance-monitor",
       icon: TrendingUp,
     },
     {
       id: "reports",
       label: "Reports & Export",
-      href: "/crm/admin/reports",
+      href: "/crm/admin/dashboard/reports",
       icon: FileBarChart,
     },
   ];

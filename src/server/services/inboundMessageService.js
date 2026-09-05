@@ -2,6 +2,7 @@ import connectDB from "../../shared/lib/db/mongodb.js";
 import Customer from "../../shared/models/Customer.js";
 import CustomerAddress from "../../shared/models/CustomerAddress.js";
 import Message from "../../shared/models/Message.js";
+import Media from "../../shared/models/Media.js";
 import Lead from "../../shared/models/Lead.js";
 import TwilioNumber from "../../shared/models/TwilioNumber.js";
 import redis from "../../shared/lib/db/redis.js";
@@ -12,13 +13,23 @@ import { ActivityEvents, ActivitySources } from "../../shared/constants/activity
 import { normalizePhone, getPhoneVariations } from "../../shared/utils/phoneUtils.js";
 import { determineConversationRoute, getModelByCategory } from "../../features/chat/services/chatRoutingService.js";
 import { automationQueue, notificationQueue, activityQueue } from "../queues/queueManager.js";
+import cloudinaryService from "../services/cloudinaryService.js";
 
 const STOP_MESSAGE =
   "You have successfully unsubscribed from our WhatsApp updates.\nYou will no longer receive promotional messages from us.\nIf you wish to receive updates again, simply reply *START*.\nThank you!";
 const START_MESSAGE =
   "Welcome back! \nYou have successfully subscribed to our WhatsApp updates.\nYou'll now receive our latest updates and promotional messages.\nThank you for staying connected with us!";
 
-function buildInboundMessages({
+function detectMediaType(contentType = "") {
+  const ct = contentType.toLowerCase();
+  if (ct.startsWith("image/")) return "image";
+  if (ct.startsWith("video/")) return "video";
+  if (ct.startsWith("audio/")) return "audio";
+  if (ct.includes("pdf") || ct.includes("document") || ct.includes("msword")) return "document";
+  return "image";
+}
+
+async function processInboundMediaItems({
   phone,
   messageText,
   twilioSid,
@@ -26,6 +37,7 @@ function buildInboundMessages({
   body = {},
   numMedia = 0,
 }) {
+  const sixtyDaysFromNow = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
   const base = {
     phone,
     direction: "INBOUND",
@@ -34,25 +46,72 @@ function buildInboundMessages({
     isChatClosed: false,
     senderName: profileName,
     timestamp: new Date(),
+    expiresAt: sixtyDaysFromNow,
   };
 
   if (numMedia > 0) {
-    return Array.from({ length: numMedia }, (_, i) => ({
-      ...base,
-      message: messageText,
-      twilioSid: numMedia > 1 ? `${twilioSid}_${i}` : twilioSid,
-      mediaUrl: body[`MediaUrl${i}`] || "",
-      mediaType: body[`MediaContentType${i}`] || "",
-    }));
+    const processedMessages = [];
+    for (let i = 0; i < numMedia; i++) {
+      const rawMediaUrl = body[`MediaUrl${i}`] || "";
+      const rawContentType = body[`MediaContentType${i}`] || "image/jpeg";
+      const mediaType = detectMediaType(rawContentType);
+      const passedName = body[`MediaFileName${i}`] || body[`FileName${i}`] || body[`Filename${i}`] || "";
+      const defaultName = mediaType === "document" ? "Document.pdf" : mediaType === "video" ? "video.mp4" : mediaType === "audio" ? "voice_message.mp3" : "photo.jpg";
+      const resolvedFileName = passedName || defaultName;
+
+      let permanentUrl = rawMediaUrl;
+      let publicId = "";
+      let resourceType = "image";
+      let fileSize = 0;
+
+      if (rawMediaUrl) {
+        try {
+          const uploadRes = await cloudinaryService.downloadAndUploadTwilioMedia(rawMediaUrl, {
+            mediaType,
+            mimeType: rawContentType,
+            originalFileName: resolvedFileName,
+          });
+          if (uploadRes) {
+            permanentUrl = uploadRes.secure_url || uploadRes.url || rawMediaUrl;
+            publicId = uploadRes.public_id || "";
+            resourceType = uploadRes.resource_type || "auto";
+            fileSize = uploadRes.bytes || 0;
+          }
+        } catch (uploadErr) {
+          console.error(`[InboundMessageService] Cloudinary upload error for MediaUrl${i}:`, uploadErr.message);
+        }
+      }
+
+      processedMessages.push({
+        ...base,
+        message: messageText,
+        messageType: mediaType,
+        twilioSid: numMedia > 1 ? `${twilioSid}_${i}` : twilioSid,
+        mediaUrl: permanentUrl,
+        mediaType: rawContentType,
+        media: {
+          url: permanentUrl,
+          publicId,
+          resourceType,
+          mimeType: rawContentType,
+          originalFileName: resolvedFileName,
+          fileSize,
+          status: "ACTIVE",
+        },
+      });
+    }
+    return processedMessages;
   }
 
   return [
     {
       ...base,
       message: messageText,
+      messageType: "text",
       twilioSid,
       mediaUrl: "",
       mediaType: "",
+      media: null,
     },
   ];
 }
@@ -258,14 +317,16 @@ export const inboundMessageService = {
 
     // 6. Build Inbound Message Document(s)
     const TargetModel = getModelByCategory(targetCategory);
-    const inboundMessages = buildInboundMessages({
+    const rawInboundMessages = await processInboundMediaItems({
       phone,
       messageText,
       twilioSid,
       profileName,
       body,
       numMedia,
-    }).map((msg) => ({
+    });
+
+    const inboundMessages = rawInboundMessages.map((msg) => ({
       ...msg,
       chatType: targetCategory,
       receivedOnNumber,
@@ -285,6 +346,41 @@ export const inboundMessageService = {
     let savedMessages;
     try {
       savedMessages = await TargetModel.insertMany(inboundMessages);
+      
+      // Save corresponding Media records for admin tracking & 60-day cleanup
+      for (const savedMsg of savedMessages) {
+        if (savedMsg.media && savedMsg.media.url) {
+          const resolvedName = savedMsg.media.originalFileName || savedMsg.media.originalFilename || (savedMsg.messageType === "document" ? "document.pdf" : "whatsapp_media");
+          await Media.create({
+            messageId: savedMsg._id,
+            customerId: customer?._id || null,
+            leadId: resolvedLeadId || null,
+            phone: savedMsg.phone,
+            senderPhone: savedMsg.senderNumber || receivedOnNumber,
+            recipientPhone: receivedOnNumber,
+            uploadedBy: null,
+            direction: "INBOUND",
+            mediaType: savedMsg.messageType || "image",
+            fileType: savedMsg.messageType || "image",
+            mimeType: savedMsg.media.mimeType || (savedMsg.messageType === "document" ? "application/pdf" : "image/jpeg"),
+            extension: savedMsg.messageType === "document" ? ".pdf" : "",
+            originalFileName: resolvedName,
+            originalFilename: resolvedName,
+            filename: resolvedName,
+            cloudinaryUrl: savedMsg.media.url,
+            secureUrl: savedMsg.media.url,
+            cloudinaryPublicId: savedMsg.media.publicId || "",
+            publicId: savedMsg.media.publicId || "",
+            resourceType: savedMsg.media.resourceType || (savedMsg.messageType === "document" ? "raw" : "image"),
+            fileSize: savedMsg.media.fileSize || 0,
+            status: "ACTIVE",
+            createdAt: savedMsg.timestamp || new Date(),
+            expiresAt: savedMsg.expiresAt || new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+          }).catch((mediaErr) => {
+            console.warn("[InboundMessageService] Media record creation warning:", mediaErr.message);
+          });
+        }
+      }
     } catch (insertErr) {
       if (
         insertErr.code === 11000 ||

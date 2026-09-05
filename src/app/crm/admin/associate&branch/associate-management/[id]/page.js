@@ -1,24 +1,24 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
+
 import { toast } from "react-toastify";
 import { useCrmLayout } from "@/shared/components/layout/CrmShell";
 import { branchService } from "@/features/branches/services/branchService";
 import { 
     User, Mail, Lock, Shield, Phone, Briefcase, Tag, 
     ArrowLeft, Save, Building, LayoutGrid, 
-    Menu, Loader2, ChevronDown
+    Menu, Loader2, ChevronDown, Smartphone
 } from "lucide-react";
 import { userRepository } from "@/shared/api/repositories/userRepository";
 import { useAuth } from "@/shared/hooks/useAuth";
 import AccessDenied from "@/shared/components/ui/AccessDenied";
-import AssignedNumbersSelector from "@/shared/components/ui/AssignedNumbersSelector";
 
 
 export default function EditAssociatePage() {
   const { data: session, status } = useSession();
-  const { user, isLoading, isAdmin } = useAuth();
+  const { isLoading, isAdmin } = useAuth();
   const { id } = useParams();
   const router = useRouter();
 
@@ -55,7 +55,7 @@ export default function EditAssociatePage() {
 
     async function loadTwilioNumbers() {
       try {
-        const res = await fetch("/api/admin/twilio");
+        const res = await fetch("/api/admin/twilio?mode=senders_only");
         const data = await res.json();
         if (data?.numbers && Array.isArray(data.numbers)) {
           setTwilioNumbers(data.numbers);
@@ -103,7 +103,7 @@ export default function EditAssociatePage() {
       });
     } catch (error) {
       toast.error("Error connecting to server");
-      router.push("/crm/admin/associate-management");
+      router.push("/crm/admin/associate&branch/associate-management");
     } finally {
       setLoading(false);
     }
@@ -127,14 +127,22 @@ export default function EditAssociatePage() {
     }
   };
 
+  const assignedNumberDetails = useMemo(() => {
+    if (!formData.assignedSenderNumbers || formData.assignedSenderNumbers.length === 0) return [];
+    const set = new Set(formData.assignedSenderNumbers.map((n) => (n._id || n).toString()));
+    return twilioNumbers.filter((tn) => set.has((tn._id || tn.id || tn).toString()));
+  }, [formData.assignedSenderNumbers, twilioNumbers]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
 
     try {
-      await userRepository.updateUser(id, formData);
+      // Exclude number assignments from profile payload - assignments are managed strictly from dedicated page
+      const { assignedSenderNumbers, assignedTwilioNumbers, assignedSenderNumber, ...updatePayload } = formData;
+      await userRepository.updateUser(id, updatePayload);
       toast.success("Profile updated successfully!");
-      router.push("/crm/admin/associate-management");
+      router.push("/crm/admin/associate&branch/associate-management");
     } catch (err) {
       const errorMessage = err.response?.data?.error || "An unexpected error occurred.";
       toast.error(errorMessage);
@@ -343,27 +351,31 @@ export default function EditAssociatePage() {
                             </div>
                         </div>
 
-                        {/* Assigned WhatsApp Sender Numbers (Hierarchical Multi-Select) */}
-                        <div className="sm:col-span-2 border-t border-slate-100 pt-4 mt-2">
-                          <AssignedNumbersSelector
-                            availableNumbers={twilioNumbers}
-                            selectedIds={formData.assignedSenderNumbers || []}
-                            onChange={(selectedIds) =>
-                              setFormData({ ...formData, assignedSenderNumbers: selectedIds })
-                            }
-                            label={formData.department === "admin" ? "Assigned WhatsApp Numbers (Admin)" : "Assigned WhatsApp Numbers (Associate)"}
-                            subtitle={
-                              formData.department === "admin"
-                                ? "Assign sender numbers to this Admin directly from system inventory."
-                                : "Select sender numbers already assigned to this Associate's Admin."
-                            }
-                            emptyMessage={
-                              formData.department === "admin"
-                                ? "No active sender numbers found in system."
-                                : "No sender numbers are assigned to this Admin yet."
-                            }
-                          />
+                        {/* Read-Only Assigned WhatsApp Numbers Info */}
+                        <div className="sm:col-span-2 pt-2 border-t border-slate-100">
+                            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-extrabold text-slate-800">Assigned WhatsApp Numbers</span>
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
+                                            {formData.assignedSenderNumbers?.length || 0} assigned
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-slate-500 font-medium">
+                                        WhatsApp numbers are managed through the dedicated Number Assignment center.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => router.push(`/crm/admin/whatsapp-number-assignment?associate=${id}`)}
+                                    className="px-4 py-2 rounded-lg bg-white border border-slate-200 hover:border-[#00a884] text-slate-700 hover:text-[#00a884] text-xs font-bold transition-all shadow-2xs shrink-0"
+                                >
+                                    Manage Assignments
+                                </button>
+                            </div>
                         </div>
+
+
                     </div>
                 </div>
 
