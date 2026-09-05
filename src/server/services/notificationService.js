@@ -794,8 +794,60 @@ export const notificationService = {
       .limit(l)
       .lean();
 
+    const actorUserIds = new Set();
+    notifications.forEach((n) => {
+      const aId = n.metadata?.actorUserId;
+      if (aId && mongoose.Types.ObjectId.isValid(aId.toString())) {
+        actorUserIds.add(aId.toString());
+      }
+    });
+
+    const actorMap = {};
+    if (actorUserIds.size > 0) {
+      const users = await User.find({ _id: { $in: Array.from(actorUserIds) } }).select("name preferredName role department").lean();
+      users.forEach((u) => {
+        actorMap[u._id.toString()] = {
+          name: u.name || u.preferredName,
+          role: u.role,
+          department: u.department
+        };
+      });
+    }
+
+    const resolvedNotifications = notifications.map((n) => {
+      const aId = n.metadata?.actorUserId;
+      const actorUser = aId ? actorMap[aId.toString()] : null;
+      if (actorUser) {
+        const oldActorName = n.metadata?.actorName;
+        const currentActorName = actorUser.name;
+        let updatedTitle = n.title;
+        let updatedMessage = n.message;
+
+        if (oldActorName && currentActorName && oldActorName !== currentActorName) {
+          if (updatedTitle.includes(oldActorName)) {
+            updatedTitle = updatedTitle.replaceAll(oldActorName, currentActorName);
+          }
+          if (updatedMessage.includes(oldActorName)) {
+            updatedMessage = updatedMessage.replaceAll(oldActorName, currentActorName);
+          }
+        }
+
+        return {
+          ...n,
+          title: updatedTitle,
+          message: updatedMessage,
+          metadata: {
+            ...n.metadata,
+            actorName: currentActorName,
+            actorRole: actorUser.role || n.metadata?.actorRole
+          }
+        };
+      }
+      return n;
+    });
+
     return {
-      notifications,
+      notifications: resolvedNotifications,
       totalCount,
       unreadCount,
       page: p,

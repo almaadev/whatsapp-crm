@@ -171,10 +171,30 @@ export async function PUT(req, { params }) {
       updateData.$set.password = await bcrypt.hash(body.password, salt);
     }
 
-    await User.findByIdAndUpdate(id, updateData, { returnDocument: 'after', runValidators: true });
-    if (redis && redis.status === 'ready') await redis.del("users:all");
+    const updatedUser = await User.findByIdAndUpdate(id, updateData, { returnDocument: 'after', runValidators: true });
+    if (redis && redis.status === 'ready') {
+      await redis.del("users:all");
+      await redis.del("chats:main_inbox_data");
+      await redis.del("chats:all_data");
+    }
 
-    return NextResponse.json({ success: true });
+    try {
+      const { emitUserUpdated } = await import("@/shared/utils/socketPublisher");
+      if (updatedUser) {
+        emitUserUpdated({
+          userId: id,
+          name: updatedUser.name,
+          preferredName: updatedUser.preferredName || null,
+          role: updatedUser.role,
+          department: updatedUser.department,
+          branch: updatedUser.branch
+        });
+      }
+    } catch (socketErr) {
+      console.error("[PUT /api/users/[id]] Socket emit error:", socketErr.message);
+    }
+
+    return NextResponse.json({ success: true, user: updatedUser });
   } catch (error) {
    if (error.code === 11000 && error.keyValue) {
         

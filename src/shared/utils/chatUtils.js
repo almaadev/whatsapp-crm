@@ -1,3 +1,4 @@
+import React from "react";
 import { Check, CheckCheck, Clock, AlertCircle, Lock, Unlock, MapPin, UserCheck, RefreshCw, Cog, Tag, UserPlus, MessageSquare, User, FileText, Globe, HelpCircle, Building2 } from "lucide-react";
 import { formatActorDisplayName } from "@/shared/utils/activityFormatter";
 
@@ -39,21 +40,32 @@ export const parseMessageDate = (dateString) => {
  * @returns {string} The formatted header string.
  */
 export const getDayHeader = (date) => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const msgDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const diffTime = today - msgDate;
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Yesterday";
-    if (diffDays > 1 && diffDays < 7) return date.toLocaleDateString([], { weekday: 'long' });
-    
-    const d = String(date.getDate()).padStart(2, '0');
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const y = date.getFullYear();
-    const dayName = date.toLocaleDateString([], { weekday: 'long' });
-    return `${d} ${m} ${y} ${dayName}`;
+    if (!date || isNaN(date.getTime())) return "Unknown Date";
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const targetDay = new Date(date);
+    targetDay.setHours(0, 0, 0, 0);
+
+    if (targetDay.getTime() === today.getTime()) {
+        return "Today";
+    } else if (targetDay.getTime() === yesterday.getTime()) {
+        return "Yesterday";
+    } else {
+        const diffTime = today.getTime() - targetDay.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays < 7 && diffDays > 0) {
+            return targetDay.toLocaleDateString("en-US", { weekday: "long" });
+        } else {
+            const day = String(date.getDate()).padStart(2, "0");
+            const month = String(date.getMonth() + 1).padStart(2, "0");
+            const year = date.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+    }
 };
 
 /**
@@ -111,7 +123,7 @@ export const getSystemEventDetails = (audit) => {
     if (!audit) {
         return {
             title: "Admin Action",
-            icon: <Cog size={14} className="text-slate-500 shrink-0" />,
+            icon: React.createElement(Cog, { size: 14, className: "text-slate-500 shrink-0" }),
             performedBy: null,
             hidePerformer: true
         };
@@ -119,12 +131,40 @@ export const getSystemEventDetails = (audit) => {
 
     const isWebhookOrAuto = audit.source === "WEBHOOK" || audit.metadata?.source === "WEBHOOK" || audit.metadata?.isAutomatic === true || (!audit.actorId && !audit.performedById && (!audit.performedByName || audit.performedByName === "System Admin") && audit.eventType === "LEAD_CREATED");
 
-    const action = audit.eventType || audit.action || "System Action";
+    const actorUserObj = typeof audit.actorId === "object" && audit.actorId !== null ? audit.actorId : null;
+    const performedByObj = typeof audit.performedBy === "object" && audit.performedBy !== null ? audit.performedBy : null;
+
+    const resolvedName =
+        actorUserObj?.name ||
+        actorUserObj?.preferredName ||
+        performedByObj?.name ||
+        performedByObj?.preferredName ||
+        (typeof audit.performedBy === "string" && audit.performedBy ? audit.performedBy : null) ||
+        audit.performedByName ||
+        audit.metadata?.performedByName ||
+        audit.metadata?.performedBy ||
+        "";
+
+    const resolvedRole =
+        actorUserObj?.role ||
+        performedByObj?.role ||
+        audit.performedByRole ||
+        audit.role ||
+        audit.metadata?.performedByRole ||
+        "";
+
+    const resolvedDept =
+        actorUserObj?.department ||
+        performedByObj?.department ||
+        audit.performedByDept ||
+        audit.department ||
+        audit.metadata?.performedByDept ||
+        "";
 
     const actorObj = {
-        name: audit.performedByName || (typeof audit.performedBy === "object" ? audit.performedBy?.name : audit.performedBy) || "",
-        role: audit.performedByRole || (typeof audit.performedBy === "object" ? audit.performedBy?.role : audit.role) || "",
-        department: audit.performedByDept || (typeof audit.performedBy === "object" ? audit.performedBy?.department : audit.department) || ""
+        name: resolvedName,
+        role: resolvedRole,
+        department: resolvedDept
     };
 
     let performedBy = formatActorDisplayName(actorObj);
@@ -135,90 +175,94 @@ export const getSystemEventDetails = (audit) => {
       hidePerformer = true;
     }
 
+    const action = audit.eventType || audit.action || "System Action";
     const actionLower = action.toLowerCase();
     const eventTypeUpper = audit.eventType ? audit.eventType.toUpperCase() : "";
 
     let title = action;
-    let icon = <Cog size={14} className="text-slate-500 shrink-0" />;
+    let icon = React.createElement(Cog, { size: 14, className: "text-slate-500 shrink-0" });
 
     if (eventTypeUpper) {
       if (eventTypeUpper === "CUSTOMER_CREATED") {
-        title = isWebhookOrAuto ? "Customer Created" : (audit.action || "Customer Created");
-        icon = <UserPlus size={14} className="text-[#00a884] shrink-0" />;
+        title = "Customer Created";
+        icon = React.createElement(UserPlus, { size: 14, className: "text-[#00a884] shrink-0" });
       } else if (eventTypeUpper === "LEAD_CREATED") {
-        title = isWebhookOrAuto ? "New Lead" : (audit.action || "New Lead Created");
-        icon = <Tag size={14} className="text-blue-500 shrink-0" />;
+        title = isWebhookOrAuto ? "New Lead" : "New Lead Created";
+        icon = React.createElement(Tag, { size: 14, className: "text-blue-500 shrink-0" });
       } else if (eventTypeUpper === "CHAT_STARTED") {
-        title = audit.action || "Chat Started";
-        icon = <MessageSquare size={14} className="text-blue-500 shrink-0" />;
+        title = "Chat Started";
+        icon = React.createElement(MessageSquare, { size: 14, className: "text-blue-500 shrink-0" });
       } else if (eventTypeUpper === "CHAT_CLOSED") {
-        title = audit.action || "Chat Closed";
-        icon = <Lock size={14} className="text-rose-500 shrink-0" />;
+        title = "Chat Closed";
+        icon = React.createElement(Lock, { size: 14, className: "text-rose-500 shrink-0" });
       } else if (eventTypeUpper === "CHAT_REOPENED") {
-        title = audit.action || "Chat Reopened";
-        icon = <Unlock size={14} className="text-emerald-500 shrink-0" />;
+        title = "Chat Reopened";
+        icon = React.createElement(Unlock, { size: 14, className: "text-emerald-500 shrink-0" });
       } else if (eventTypeUpper === "LEAD_ASSIGNED") {
-        title = audit.action || "Lead Assigned";
-        icon = <UserCheck size={14} className="text-indigo-500 shrink-0" />;
+        const target = audit.targetUser?.name || audit.metadata?.targetUserName || audit.metadata?.newOwner;
+        title = target ? `Lead Assigned to ${target}` : "Lead Assigned";
+        icon = React.createElement(UserCheck, { size: 14, className: "text-indigo-500 shrink-0" });
       } else if (eventTypeUpper === "CUSTOMER_ASSIGNED") {
-        title = audit.action || "Customer Assigned";
-        icon = <UserCheck size={14} className="text-indigo-500 shrink-0" />;
+        const target = audit.targetUser?.name || audit.metadata?.targetUserName || audit.metadata?.newOwner;
+        title = target ? `Customer Assigned to ${target}` : "Customer Assigned";
+        icon = React.createElement(UserCheck, { size: 14, className: "text-indigo-500 shrink-0" });
       } else if (eventTypeUpper === "FOLLOWUP_CREATED") {
-        title = audit.action || "Follow Up Created";
-        icon = <Clock size={14} className="text-amber-500 shrink-0" />;
+        title = "Follow Up Created";
+        icon = React.createElement(Clock, { size: 14, className: "text-amber-500 shrink-0" });
       } else if (eventTypeUpper === "FOLLOWUP_COMPLETED") {
-        title = audit.action || "Follow Up Completed";
-        icon = <Check size={14} className="text-emerald-500 shrink-0" />;
+        title = "Follow Up Completed";
+        icon = React.createElement(Check, { size: 14, className: "text-emerald-500 shrink-0" });
       } else if (eventTypeUpper === "LEAD_STATUS_CHANGED") {
-        title = audit.action || "Lead Status Changed";
-        icon = <RefreshCw size={14} className="text-violet-500 shrink-0" />;
+        const newSt = audit.metadata?.newStatus || audit.metadata?.status;
+        title = newSt ? `Lead Status Changed to ${newSt}` : "Lead Status Changed";
+        icon = React.createElement(RefreshCw, { size: 14, className: "text-violet-500 shrink-0" });
       } else if (eventTypeUpper === "CUSTOMER_UPDATED" || eventTypeUpper === "PROFILE_UPDATED") {
-        title = audit.action || "Customer Profile Updated";
-        icon = <User size={14} className="text-indigo-500 shrink-0" />;
+        title = "Customer Profile Updated";
+        icon = React.createElement(User, { size: 14, className: "text-indigo-500 shrink-0" });
       } else if (eventTypeUpper === "NAME_UPDATED") {
         title = "Name changed";
-        icon = <User size={14} className="text-indigo-500 shrink-0" />;
+        icon = React.createElement(User, { size: 14, className: "text-indigo-500 shrink-0" });
       } else if (eventTypeUpper === "ADDRESS_UPDATED" || eventTypeUpper === "ADDRESS_CHANGED") {
         title = "Address changed";
-        icon = <MapPin size={14} className="text-slate-500 shrink-0" />;
+        icon = React.createElement(MapPin, { size: 14, className: "text-slate-500 shrink-0" });
       } else if (eventTypeUpper === "CITY_UPDATED") {
         title = "City changed";
-        icon = <MapPin size={14} className="text-slate-500 shrink-0" />;
+        icon = React.createElement(MapPin, { size: 14, className: "text-slate-500 shrink-0" });
       } else if (eventTypeUpper === "SOURCE_UPDATED") {
         title = "Source changed";
-        icon = <Globe size={14} className="text-blue-500 shrink-0" />;
+        icon = React.createElement(Globe, { size: 14, className: "text-blue-500 shrink-0" });
       } else if (eventTypeUpper === "ENQUIRED_FOR_UPDATED") {
         title = "Enquired For changed";
-        icon = <HelpCircle size={14} className="text-amber-500 shrink-0" />;
+        icon = React.createElement(HelpCircle, { size: 14, className: "text-amber-500 shrink-0" });
       } else if (eventTypeUpper === "LEAD_TYPE_UPDATED") {
         title = "Lead Type changed";
-        icon = <Tag size={14} className="text-violet-500 shrink-0" />;
+        icon = React.createElement(Tag, { size: 14, className: "text-violet-500 shrink-0" });
       } else if (eventTypeUpper === "BRANCH_UPDATED") {
         title = "Branch changed";
-        icon = <Building2 size={14} className="text-teal-500 shrink-0" />;
+        icon = React.createElement(Building2, { size: 14, className: "text-teal-500 shrink-0" });
       } else if (eventTypeUpper === "OVERALL_REMARKS_UPDATED") {
         title = "Overall Remarks changed";
-        icon = <FileText size={14} className="text-indigo-500 shrink-0" />;
+        icon = React.createElement(FileText, { size: 14, className: "text-indigo-500 shrink-0" });
       } else if (eventTypeUpper === "FOLLOWUP_REMARK_UPDATED") {
         const field = audit.metadata?.field;
         if (field === "day1Remarks") title = "Day 1 Remarks changed";
         else if (field === "day2Remarks") title = "Day 2 Remarks changed";
         else if (field === "day3Remarks") title = "Day 3 Remarks changed";
         else title = "Follow-up Remarks changed";
-        icon = <Clock size={14} className="text-amber-500 shrink-0" />;
+        icon = React.createElement(Clock, { size: 14, className: "text-amber-500 shrink-0" });
       } else if (eventTypeUpper === "TEMPLATE_SENT") {
-        title = audit.action || "Template Sent";
-        icon = <FileText size={14} className="text-violet-500 shrink-0" />;
+        title = "Template Sent";
+        icon = React.createElement(FileText, { size: 14, className: "text-violet-500 shrink-0" });
       }
     } else if (actionLower.includes("closed")) {
         title = "Chat Closed";
-        icon = <Lock size={14} className="text-rose-500 shrink-0" />;
+        icon = React.createElement(Lock, { size: 14, className: "text-rose-500 shrink-0" });
     } else if (actionLower.includes("reopened")) {
         title = "Chat Reopened";
-        icon = <Unlock size={14} className="text-emerald-500 shrink-0" />;
+        icon = React.createElement(Unlock, { size: 14, className: "text-emerald-500 shrink-0" });
     } else if (actionLower.includes("assigned")) {
         title = "Lead Assigned";
-        icon = <UserCheck size={14} className="text-[#00a884] shrink-0" />;
+        icon = React.createElement(UserCheck, { size: 14, className: "text-[#00a884] shrink-0" });
     }
 
     return {
@@ -241,14 +285,14 @@ export const mutateLastMessage = (history, updates) => {
 export const MessageStatusIcon = ({ status }) => {
     const msgStat = (status || "").toUpperCase();
     switch (msgStat) {
-        case "SENDING": return <Clock size={12} className="text-slate-400 shrink-0" />;
-        case "SENT": return <Check size={14} className="text-slate-400 shrink-0" />;
-        case "DELIVERED": return <CheckCheck size={14} className="text-slate-400 shrink-0" />;
-        case "UNDELIVERED": return <AlertCircle size={12} className="text-red-500 shrink-0" />;
-        case "QUEUED" : return <Clock size={12} className="text-yellow-500 shrink-0" />;
-        case "READ": return <CheckCheck size={14} className="text-blue-500 shrink-0" />;
-        case "PENDING": return <Clock size={12} className="text-yellow-500 shrink-0" />;
-        case "FAILED": return <AlertCircle size={12} className="text-red-500 shrink-0" />;
+        case "SENDING": return React.createElement(Clock, { size: 12, className: "text-slate-400 shrink-0" });
+        case "SENT": return React.createElement(Check, { size: 14, className: "text-slate-400 shrink-0" });
+        case "DELIVERED": return React.createElement(CheckCheck, { size: 14, className: "text-slate-400 shrink-0" });
+        case "UNDELIVERED": return React.createElement(AlertCircle, { size: 12, className: "text-red-500 shrink-0" });
+        case "QUEUED" : return React.createElement(Clock, { size: 12, className: "text-yellow-500 shrink-0" });
+        case "READ": return React.createElement(CheckCheck, { size: 14, className: "text-blue-500 shrink-0" });
+        case "PENDING": return React.createElement(Clock, { size: 12, className: "text-yellow-500 shrink-0" });
+        case "FAILED": return React.createElement(AlertCircle, { size: 12, className: "text-red-500 shrink-0" });
         default: return null;
     }
 };

@@ -103,27 +103,38 @@ export default function LeadDetailsPage({ params }) {
           let performerName = "";
           if (act.performedBy) {
             if (typeof act.performedBy === "object" && act.performedBy.name) {
-              performerName = act.performedBy.name;
+              performerName = act.performedBy.name || act.performedBy.preferredName;
             } else if (typeof act.performedBy === "string") {
               performerName = act.performedBy;
             }
           }
+          if (!performerName) {
+            performerName = act.performedByName || act.metadata?.performedByName || "";
+          }
+
           let actorLabel = "";
           if (!isWebhookOrAuto && (performerName || act.performedByRole || act.actorId)) {
             actorLabel = act.performedByLabel || formatActorDisplayName(act.performedBy || {
-              name: performerName || "System Admin",
-              role: act.performedByRole,
-              department: act.performedByDept
+              name: performerName || "Unknown User",
+              role: act.performedByRole || act.metadata?.performedByRole,
+              department: act.performedByDept || act.metadata?.performedByDept
             });
           }
 
+          const targetUserName = act.targetUser?.name || act.targetUser?.preferredName || act.metadata?.targetUserName || act.metadata?.newOwner;
+
           const formattedTitle = (isWebhookOrAuto && act.eventType === "LEAD_CREATED")
             ? "New Lead"
-            : (act.action || getActivityTitle(act.eventType, actorLabel ? {
+            : (getActivityTitle(act.eventType, actorLabel ? {
                 name: performerName,
-                role: act.performedByRole,
-                department: act.performedByDept
-              } : null, act.metadata || {}));
+                role: act.performedByRole || act.metadata?.performedByRole,
+                department: act.performedByDept || act.metadata?.performedByDept
+              } : null, {
+                ...act.metadata,
+                newOwner: targetUserName || act.metadata?.newOwner,
+                targetUserName: targetUserName,
+                targetUser: act.targetUser || act.metadata?.targetUser
+              }) || act.action || act.eventType);
 
           let mappedStatus = "Active";
           if (act.eventType === "LEAD_STATUS_CHANGED") {

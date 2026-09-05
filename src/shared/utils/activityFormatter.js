@@ -23,11 +23,11 @@ import { ActivityEvents, ActivitySources } from "@/shared/constants/activityCons
 
 /**
  * Authoritative Display Name Resolver for Activity Performers / Actors.
- * Business Rules:
- * - SuperAdmin / System -> "System Admin"
- * - Admin -> "<Admin Name> (Admin)"  (e.g., "John (Admin)")
- * - Associate / Sales / Doctor -> "<User Name>" (e.g., "Mani", "Dr. Kumar")
- * - Unresolved fallback -> "Team Member" (ONLY when actor identity genuinely cannot be resolved)
+ * Resolution Priority:
+ * 1. Current User Name (actor.name / actor.preferredName)
+ * 2. Historical Snapshot Name (performedBy / performedByName)
+ * 3. System / Admin fallback by role
+ * 4. Fallback -> "Team Member"
  */
 export function formatActorDisplayName(actor) {
   if (!actor) return "Team Member";
@@ -35,29 +35,20 @@ export function formatActorDisplayName(actor) {
   if (typeof actor === "string") {
     const trimmed = actor.trim();
     if (!trimmed || trimmed.toLowerCase() === "unknown") return "Team Member";
-    if (trimmed === "System Admin" || trimmed.endsWith("(Admin)")) return trimmed;
-    if (trimmed.toLowerCase() === "system" || trimmed.toLowerCase() === "system admin") return "System Admin";
     return trimmed;
   }
 
-  const role = actor.role || actor.performedByRole || "";
-  const dept = actor.department || actor.performedByDept || "";
-  const name = actor.name || actor.performedBy || actor.performedByName || actor.preferredName || "";
+  const name = actor.name || actor.preferredName || actor.performedBy || actor.performedByName || "";
+  if (name && name.trim()) {
+    return name.trim();
+  }
 
+  const role = actor.role || actor.performedByRole || "";
   if (role === "superAdmin" || role === "system") {
     return "System Admin";
   }
-
-  const isAdmin = role === "admin" || (role === "sales" && dept === "admin") || (role === "doctor" && dept === "admin");
-
-  if (isAdmin) {
-    if (!name || name === "System Admin") return "Admin";
-    if (name.endsWith("(Admin)")) return name;
-    return `${name} (Admin)`;
-  }
-
-  if (name && name !== "System Admin") {
-    return name;
+  if (role === "admin") {
+    return "Admin";
   }
 
   return "Team Member";
@@ -86,13 +77,13 @@ export const getActivityTitle = (eventType, performerInput, metadata = {}) => {
     case ActivityEvents.CHAT_STARTED:
       return `Chat Started`;
     case ActivityEvents.CHAT_CLOSED:
-      return `Chat Closed `;
+      return actorLabel && actorLabel !== "Team Member" ? `Chat Closed by ${actorLabel}` : `Chat Closed`;
     case ActivityEvents.CHAT_REOPENED:
-      return `Chat Reopened `;
+      return actorLabel && actorLabel !== "Team Member" ? `Chat Reopened by ${actorLabel}` : `Chat Reopened`;
     case ActivityEvents.CHAT_LOCKED:
-      return `Chat Locked `;
+      return actorLabel && actorLabel !== "Team Member" ? `Chat Locked by ${actorLabel}` : `Chat Locked`;
     case ActivityEvents.CHAT_UNLOCKED:
-      return `Chat Unlocked `;
+      return actorLabel && actorLabel !== "Team Member" ? `Chat Unlocked by ${actorLabel}` : `Chat Unlocked`;
     case ActivityEvents.LEAD_ASSIGNED: {
       const isTransfer = metadata.isTransfer || metadata.isForwarded || (metadata.oldOwner && metadata.oldOwner.toLowerCase() !== "unassigned" && metadata.newOwner && metadata.oldOwner !== metadata.newOwner);
       const targetUser = metadata.newOwner || metadata.targetUserName || (metadata.targetUser?.name);
@@ -118,9 +109,9 @@ export const getActivityTitle = (eventType, performerInput, metadata = {}) => {
       return targetCust ? `Customer Assigned to ${targetCust} by ${actorLabel}` : `Customer Assigned by ${actorLabel}`;
     }
     case ActivityEvents.FOLLOWUP_CREATED:
-      return `Follow Up Created `;
+      return actorLabel && actorLabel !== "Team Member" ? `Follow Up Created by ${actorLabel}` : `Follow Up Created`;
     case ActivityEvents.FOLLOWUP_COMPLETED:
-      return `Lead Closed `;
+      return actorLabel && actorLabel !== "Team Member" ? `Lead Closed by ${actorLabel}` : `Lead Closed`;
     case ActivityEvents.LEAD_STATUS_CHANGED: {
       const newStatus = metadata.newStatus || metadata.status;
       return newStatus ? `Lead Status Changed to ${newStatus} by ${actorLabel}` : `Lead Status Changed by ${actorLabel}`;
@@ -144,7 +135,7 @@ export const getActivityTitle = (eventType, performerInput, metadata = {}) => {
     case ActivityEvents.BRANCH_UPDATED:
       return `Branch changed by ${actorLabel}`;
     case ActivityEvents.OVERALL_REMARKS_UPDATED:
-      return `Overall Remarks changed `;
+      return actorLabel && actorLabel !== "Team Member" ? `Overall Remarks changed by ${actorLabel}` : `Overall Remarks changed`;
     case ActivityEvents.FOLLOWUP_REMARK_UPDATED:
       if (metadata.field === "day1Remarks") return `Day 1 Remarks changed by ${actorLabel}`;
       if (metadata.field === "day2Remarks") return `Day 2 Remarks changed by ${actorLabel}`;
@@ -155,10 +146,10 @@ export const getActivityTitle = (eventType, performerInput, metadata = {}) => {
     case ActivityEvents.MESSAGE_RECEIVED:
       return `Message Received`;
     case ActivityEvents.MESSAGE_SENT:
-      return `Message Sent `;
+      return actorLabel && actorLabel !== "Team Member" ? `Message Sent by ${actorLabel}` : `Message Sent`;
     default:
       if (metadata.action) return metadata.action;
-      const cleanType = eventType ? eventType.replace(/_/g, " ") : "System Action";
+      const cleanType = eventType ? eventType.toLowerCase().replace(/_/g, " ") : "system action";
       return `${cleanType.replace(/\b\w/g, c => c.toUpperCase())} by ${actorLabel}`;
   }
 };

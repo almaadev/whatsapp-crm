@@ -33,10 +33,21 @@ export async function GET(req, { params }) {
         const customer = await Customer.findOne({
             phone: { $in: variations },
             ...branchQuery
-        }).populate("currentAddressId").populate({
+        })
+        .populate("currentAddressId")
+        .populate({
             path: 'createdBy',
-            select: 'name role department branch'
-        }).lean();
+            select: 'name preferredName role department branch'
+        })
+        .populate({
+            path: 'assignedUserId',
+            select: 'name preferredName role department branch'
+        })
+        .populate({
+            path: 'closedById',
+            select: 'name preferredName role department branch'
+        })
+        .lean();
 
         if (!customer) {
             return NextResponse.json({ error: "Customer not found" }, { status: 404 });
@@ -124,14 +135,14 @@ export async function GET(req, { params }) {
             const isWebhookOrAuto = entry.source === "WEBHOOK" || entry.metadata?.source === "WEBHOOK" || entry.metadata?.isAutomatic === true || (!entry.actorId && (!entry.metadata?.performedByName || entry.metadata?.performedByName === "System Admin") && entry.eventType === "LEAD_CREATED");
 
             let performedByResolved = null;
-            if (entry.actorId) {
+            if (entry.actorId && typeof entry.actorId === "object") {
                 const branchVal = entry.actorId.branch?.toString() || "";
                 const bObj = branchMap[branchVal];
                 const branchName = bObj ? bObj.name : (entry.actorId.branch || "");
                 performedByResolved = {
-                    name: entry.actorId.name || entry.actorId.preferredName || "Unknown",
-                    role: entry.actorId.role || "associate",
-                    department: entry.actorId.department || "",
+                    name: entry.actorId.name || entry.actorId.preferredName || entry.metadata?.performedByName || "Unknown",
+                    role: entry.actorId.role || entry.metadata?.performedByRole || "associate",
+                    department: entry.actorId.department || entry.metadata?.performedByDept || "",
                     branchName: branchName
                 };
             } else if (!isWebhookOrAuto) {
@@ -143,12 +154,12 @@ export async function GET(req, { params }) {
             }
 
             let targetUserResolved = null;
-            if (entry.metadata?.targetUser) {
+            if (entry.metadata?.targetUser && typeof entry.metadata.targetUser === "object") {
                 const branchVal = entry.metadata.targetUser.branch?.toString() || "";
                 const bObj = branchMap[branchVal];
                 const branchName = bObj ? bObj.name : (entry.metadata.targetUser.branch || "");
                 targetUserResolved = {
-                    name: entry.metadata.targetUser.name || entry.metadata.targetUser.preferredName || "Unknown",
+                    name: entry.metadata.targetUser.name || entry.metadata.targetUser.preferredName || entry.metadata?.targetUserName || "Unknown",
                     role: entry.metadata.targetUser.role || "",
                     department: entry.metadata.targetUser.department || "",
                     branchName: branchName
@@ -159,7 +170,12 @@ export async function GET(req, { params }) {
             const performedByIdVal = entry.actorId?._id?.toString() || entry.actorId || null;
             const actionName = (isWebhookOrAuto && entry.eventType === "LEAD_CREATED")
                 ? "New Lead"
-                : (entry.metadata?.action || getActivityTitle(entry.eventType, performedByResolved, entry.metadata || {}));
+                : (getActivityTitle(entry.eventType, performedByResolved, {
+                    ...entry.metadata,
+                    newOwner: targetUserResolved?.name || entry.metadata?.newOwner,
+                    targetUserName: targetUserResolved?.name || entry.metadata?.targetUserName,
+                    targetUser: targetUserResolved || entry.metadata?.targetUser
+                }) || entry.metadata?.action || entry.eventType);
 
             return {
                 ...entry,
@@ -203,6 +219,8 @@ export async function GET(req, { params }) {
         const custBranchIdStr = customer.branchId ? customer.branchId.toString() : null;
         const custBranchObj = custBranchIdStr ? branchMap[custBranchIdStr] : null;
 
+        const resolvedAssignedTo = customer?.assignedUserId?.name || customer?.assignedUserId?.preferredName || customer?.assignedTo || "Unassigned";
+
         const formattedData = {
             phone: customer.phone,
             name: resolveCustomerDisplayName(customer),
@@ -214,7 +232,7 @@ export async function GET(req, { params }) {
             priority: customer.priority || "Medium", 
             remarks: customer.remarks || "",
             saleAmount: customer.saleAmount || "0",
-            associate: customer.assignedTo || "Unassigned",
+            associate: resolvedAssignedTo,
             branchId: custBranchIdStr,
             branchName: custBranchObj ? custBranchObj.name : "Unassigned Branch",
             branchCode: custBranchObj ? custBranchObj.code : "",

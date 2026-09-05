@@ -244,4 +244,10 @@ export function emitChatDeleted(payload, branchId = null) {
   }
 }
 
+export function emitUserUpdated(payload) {
+  if (!global.io) return;
+  global.io.emit("user_updated", payload);
+}
+
+
 

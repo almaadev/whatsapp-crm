@@ -144,6 +144,20 @@ export async function GET(req) {
       .select("phone name")
       .lean();
 
+    const userIds = new Set();
+    aggregatedLeads.forEach((l) => {
+      if (l.closedById && mongoose.Types.ObjectId.isValid(l.closedById)) userIds.add(l.closedById.toString());
+      if (l.associateId && mongoose.Types.ObjectId.isValid(l.associateId)) userIds.add(l.associateId.toString());
+    });
+
+    const userMap = {};
+    if (userIds.size > 0) {
+      const users = await User.find({ _id: { $in: Array.from(userIds) } }).select("name preferredName").lean();
+      users.forEach((u) => {
+        userMap[u._id.toString()] = u.name || u.preferredName;
+      });
+    }
+
     const formattedLeads = aggregatedLeads.map((lead) => {
       const custData = customers.find((c) => c.phone === lead.phone) || {};
 
@@ -193,9 +207,10 @@ export async function GET(req) {
         }
       }
 
+      const resolvedClosedBy = (lead.closedById && userMap[lead.closedById.toString()]) || lead.closedBy;
       let displayStatus = latest.status || "New";
       if (lead.isClosed) {
-        displayStatus = lead.closedBy === myName ? "Closed" : `Closed by ${lead.closedBy}`;
+        displayStatus = resolvedClosedBy === myName ? "Closed" : (resolvedClosedBy ? `Closed by ${resolvedClosedBy}` : "Closed");
       }
 
       let categoryParam = null;
@@ -212,8 +227,8 @@ export async function GET(req) {
         latestFollowUp: latest,
 
         firstFollowUpUser: lead.firstFollowUp?.associateName || "Unknown",
-        currentHandler: latest.associateName || lead.assignedTo || "Unassigned",
-        closedBy: lead.closedBy || null,
+        currentHandler: (lead.associateId && userMap[lead.associateId.toString()]) || latest.associateName || lead.assignedTo || "Unassigned",
+        closedBy: resolvedClosedBy || null,
         followUpCount: lead.followUpCount || 0, // This is now strictly the "Closed" count
       };
     });

@@ -41,6 +41,18 @@ export async function GET(request) {
 
     const customers = await Customer.find(branchQuery)
       .populate("currentAddressId")
+      .populate({
+        path: "closedById",
+        select: "name preferredName role department"
+      })
+      .populate({
+        path: "reopenedById",
+        select: "name preferredName role department"
+      })
+      .populate({
+        path: "assignedUserId",
+        select: "name preferredName role department"
+      })
       .lean();
 
     const inboxCustomers = customers.filter(
@@ -66,7 +78,7 @@ export async function GET(request) {
           timestamp: { $gte: sixtyDaysAgo },
           chatType: { $in: ["Direct Lead", null, undefined] }
         })
-          .populate({ path: "sendBy", select: "name" })
+          .populate({ path: "sendBy", select: "name preferredName role department" })
           .lean();
       } catch (populateErr) {
         console.error("[GET /api/chats] sendBy populate failed, using fallback:", populateErr.message);
@@ -114,7 +126,7 @@ export async function GET(request) {
     latestActivities.forEach(act => {
       if (act.actor) {
         lastHandledMap.set(act._id.toString(), {
-          name: act.actor.name || "Unknown",
+          name: act.actor.name || act.actor.preferredName || "Unknown",
           role: act.actor.role || "",
           department: act.actor.department || "",
           userId: act.actor._id ? act.actor._id.toString() : ""
@@ -161,6 +173,10 @@ export async function GET(request) {
         senderName: latestMsg ? (latestMsg.senderName || latestMsg.profileName) : ""
       });
 
+      const resolvedAssociate = c.assignedUserId?.name || c.assignedUserId?.preferredName || c.assignedTo || "";
+      const resolvedLastClosedBy = c.closedById?.name || c.closedById?.preferredName || c.closedBy || null;
+      const resolvedLastReopenedBy = c.reopenedById?.name || c.reopenedById?.preferredName || null;
+
       chats.push({
         customerId: custId,
         phone: c.phone,
@@ -177,10 +193,12 @@ export async function GET(request) {
         unreadCount: c.unreadCount || 0,
         timestamp: latestMsg ? new Date(latestMsg.timestamp || latestMsg.createdAt).toISOString() : new Date(c.updatedAt || c.createdAt).toISOString(),
         twilioSid: latestMsg ? (latestMsg.twilioSid || "") : "",
-        associate: c.assignedTo || "",
+        associate: resolvedAssociate,
         role: "sales",
         isClosed: c.isClosed || false,
         isChatClosed: c.isClosed || false,
+        lastClosedBy: resolvedLastClosedBy,
+        lastReopenedBy: resolvedLastReopenedBy,
         mediaUrl: latestMsg ? (latestMsg.mediaUrl || "") : "",
         lastHandled,
         mediaType: latestMsg ? (latestMsg.mediaType || "") : "",

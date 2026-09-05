@@ -27,61 +27,72 @@ export const activityService = {
    * - Admin -> "John (Admin)"
    * - Associate / Doctor / Sales -> "Mani" or "Dr. Kumar"
    */
-  async resolveActor(actorId, source = null, isAutomatic = false) {
-    if (!actorId) {
-      if (source === ActivitySources.WEBHOOK || source === "WEBHOOK" || isAutomatic) {
-        return {
-          performedBy: null,
-          performedById: null,
-          role: null,
-          department: null,
-          branch: null
-        };
-      }
+  async resolveActor(actorId, source = null, isAutomatic = false, snapshotFallback = null) {
+    if (source === ActivitySources.WEBHOOK || source === "WEBHOOK" || isAutomatic) {
       return {
-        performedBy: "System Admin",
+        performedBy: null,
         performedById: null,
-        role: "superAdmin",
-        department: "admin",
+        role: null,
+        department: null,
         branch: null
       };
     }
 
-    try {
-      if (typeof actorId === "object" && actorId._id) {
-        const role = actorId.role || "associate";
-        const dept = actorId.department || "";
-        const name = actorId.name || actorId.preferredName || "System Admin";
-        return {
-          performedBy: name,
-          performedById: actorId._id.toString(),
-          role: role,
-          department: dept,
-          branch: actorId.branch ? actorId.branch.toString() : null
-        };
-      }
-
-      if (mongoose.Types.ObjectId.isValid(actorId.toString())) {
-        const user = await User.findById(actorId).select("name preferredName role department branch").lean();
-        if (user) {
-          const role = user.role || "associate";
-          const dept = user.department || "";
-          const name = user.name || user.preferredName || "System Admin";
+    if (actorId) {
+      try {
+        if (typeof actorId === "object" && actorId.name) {
           return {
-            performedBy: name,
-            performedById: user._id.toString(),
-            role: role,
-            department: dept,
-            branch: user.branch ? user.branch.toString() : null
+            performedBy: actorId.name || actorId.preferredName,
+            performedById: actorId._id ? actorId._id.toString() : null,
+            role: actorId.role || "associate",
+            department: actorId.department || "",
+            branch: actorId.branch ? actorId.branch.toString() : null
           };
         }
+
+        const uId = (typeof actorId === "object" && actorId._id) ? actorId._id : actorId;
+        if (mongoose.Types.ObjectId.isValid(uId.toString())) {
+          const user = await User.findById(uId).select("name preferredName role department branch").lean();
+          if (user) {
+            return {
+              performedBy: user.name || user.preferredName,
+              performedById: user._id.toString(),
+              role: user.role || "associate",
+              department: user.department || "",
+              branch: user.branch ? user.branch.toString() : null
+            };
+          }
+        }
+      } catch (e) {
+        console.error("[activityService] resolveActor error:", e);
       }
-    } catch (e) {
-      console.error("[activityService] resolveActor error:", e);
     }
 
+    // Fallback 1: Historical snapshot name
+    if (snapshotFallback && typeof snapshotFallback === "string" && snapshotFallback.trim()) {
+      return {
+        performedBy: snapshotFallback.trim(),
+        performedById: null,
+        role: "associate",
+        department: "",
+        branch: null
+      };
+    }
+
+    // Fallback 2: String actorId (if passed as name string)
+    if (typeof actorId === "string" && actorId.trim() && !mongoose.Types.ObjectId.isValid(actorId)) {
+      return {
+        performedBy: actorId.trim(),
+        performedById: null,
+        role: "associate",
+        department: "",
+        branch: null
+      };
+    }
+
+    // Fallback 3: "Unknown User"
     return {
-      performedBy: typeof actorId === "string" ? actorId : "Team Member",
+      performedBy: "Unknown User",
       performedById: null,
       role: "associate",
       department: "",
@@ -168,20 +179,94 @@ export const activityService = {
    * The SOLE ENTRY POINT for creating Activity records in the MongoDB database.
    */
   async log(params) {
-    const payload = await this.buildPayload(params);
-    return await Activity.create(payload);
+    try {
+      const {
+        eventType,
+        entityType = "General",
+        entityId = null,
+        customerId = null,
+        leadId = null,
+        actorId = null,
+        source = ActivitySources.WEB,
+        before = null,
+        after = null,
+        metadata = {}
+      } = params;
+
+      this.validate(eventType);
+
+      const isAutomatic = metadata.isAutomatic === true;
+      const snapshotName = metadata.performedByName || metadata.performedBy || null;
+      const actorInfo = await this.resolveActor(actorId, source, isAutomatic, snapshotName);
+      const entityInfo = this.resolveEntity(entityType, entityId);
+      const formattedMeta = this.formatMetadata(metadata);
+
+      if (actorInfo.performedBy) {
+        formattedMeta.performedBy = actorInfo.performedBy;
+        formattedMeta.performedByName = actorInfo.performedBy;
+        formattedMeta.performedByRole = actorInfo.role;
+        formattedMeta.performedByDept = actorInfo.department;
+      }
+
+      const actionTitle = (source === ActivitySources.WEBHOOK && eventType === ActivityEvents.LEAD_CREATED)
+        ? "New Lead"
+        : getActivityTitle(eventType, actorInfo.performedBy ? {
+            name: actorInfo.performedBy,
+            role: actorInfo.role,
+            department: actorInfo.department
+          } : null, formattedMeta);
+
+      formattedMeta.action = actionTitle;
+
+      let validCustomerId = customerId;
+      if (typeof validCustomerId === "string" && !mongoose.Types.ObjectId.isValid(validCustomerId)) {
+        validCustomerId = null;
+      }
+
+      let validActorId = actorInfo.performedById;
+      if (!validActorId && actorId && mongoose.Types.ObjectId.isValid(actorId.toString())) {
+        validActorId = actorId;
+      }
+
+      const activityDoc = await Activity.create({
+        customerId: validCustomerId,
+        leadId: leadId && mongoose.Types.ObjectId.isValid(leadId.toString()) ? leadId : null,
+        actorId: validActorId,
+        eventType: eventType,
+        before: before,
+        after: after,
+        metadata: {
+          ...formattedMeta,
+          entityType: entityInfo.entityType,
+          entityId: entityInfo.entityId,
+          source: source || ActivitySources.WEB
+        }
+      });
+
+      return activityDoc;
+    } catch (err) {
+      console.error("[activityService] Failed to log activity:", err);
+      return null;
+    }
   },
 
   /**
-   * Server-side activity enrichment helper for API endpoints.
-   * Ensures every activity document returns with resolved actor details and display labels.
+   * Dynamically resolves performer names for an activity document.
    */
   async enrichActivity(activity) {
     if (!activity) return activity;
     const obj = typeof activity.toObject === "function" ? activity.toObject() : { ...activity };
 
-    let actorUser = null;
+    const isWebhookOrAuto = obj.source === ActivitySources.WEBHOOK || obj.source === "WEBHOOK" || obj.metadata?.isAutomatic === true || obj.metadata?.source === "WEBHOOK";
 
+    const snapshotFallback =
+      obj.metadata?.performedByName ||
+      obj.metadata?.performedBy ||
+      obj.performedByName ||
+      (typeof obj.performedBy === "string" ? obj.performedBy : null) ||
+      null;
+
+    let actorUser = null;
     if (obj.actorId) {
       if (typeof obj.actorId === "object" && obj.actorId.name) {
         actorUser = obj.actorId;
@@ -195,9 +280,7 @@ export const activityService = {
       }
     }
 
-    const isWebhookOrAuto = obj.source === ActivitySources.WEBHOOK || obj.source === "WEBHOOK" || obj.metadata?.isAutomatic === true || obj.metadata?.source === "WEBHOOK";
-
-    const actorInfo = await this.resolveActor(actorUser || obj.actorId, obj.source, isWebhookOrAuto);
+    const actorInfo = await this.resolveActor(actorUser || obj.actorId, obj.source, isWebhookOrAuto, snapshotFallback);
 
     const metadata = obj.metadata || {};
     if (actorInfo.performedBy) {
@@ -218,11 +301,11 @@ export const activityService = {
 
     const actionTitle = (isWebhookOrAuto && obj.eventType === ActivityEvents.LEAD_CREATED)
       ? "New Lead"
-      : (metadata.action || getActivityTitle(obj.eventType, actorInfo.performedBy ? {
+      : (getActivityTitle(obj.eventType, actorInfo.performedBy ? {
           name: actorInfo.performedBy,
           role: actorInfo.role,
           department: actorInfo.department
-        } : null, metadata));
+        } : null, metadata) || metadata.action || obj.eventType);
 
     metadata.action = actionTitle;
 

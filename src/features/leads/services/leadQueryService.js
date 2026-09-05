@@ -254,9 +254,14 @@ export const leadQueryService = {
     const phones = rawLeads.map((l) => l.phone).filter(Boolean);
 
     let enrichedLeads = rawLeads;
-    if (phones.length > 0) {
+    if (enrichedLeads.length > 0) {
       const Customer = (await import("@/shared/models/Customer")).default;
-      const customers = await Customer.find({ phone: { $in: phones } }).select("phone branchId").lean();
+      const User = (await import("@/shared/models/User")).default;
+      const phones = rawLeads.map((l) => l.phone).filter(Boolean);
+
+      const customers = phones.length > 0
+        ? await Customer.find({ phone: { $in: phones } }).select("phone branchId assignedUserId").populate("assignedUserId", "name preferredName").lean()
+        : [];
       const branches = await Branch.find().select("name code").lean();
       const branchMapObj = {};
       branches.forEach((b) => {
@@ -271,18 +276,48 @@ export const leadQueryService = {
           branchId: bId,
           branchName: bObj ? bObj.name : "Unassigned Branch",
           branchCode: bObj ? bObj.code : "",
+          assignedUserName: c.assignedUserId?.name || c.assignedUserId?.preferredName || null,
         });
       });
+
+      const userIdsToLookup = new Set();
+      enrichedLeads.forEach(l => {
+        if (l.closedById && mongoose.Types.ObjectId.isValid(l.closedById)) userIdsToLookup.add(l.closedById.toString());
+        if (l.associateId && mongoose.Types.ObjectId.isValid(l.associateId)) userIdsToLookup.add(l.associateId.toString());
+      });
+
+      const userMap = {};
+      if (userIdsToLookup.size > 0) {
+        const users = await User.find({ _id: { $in: Array.from(userIdsToLookup) } }).select("name preferredName").lean();
+        users.forEach(u => {
+          userMap[u._id.toString()] = u.name || u.preferredName;
+        });
+      }
 
       enrichedLeads = rawLeads.map((l) => {
         const bInfo = custBranchByPhone.get(l.phone) || {
           branchId: null,
           branchName: "Unassigned Branch",
           branchCode: "",
+          assignedUserName: null,
         };
+
+        const freshClosedBy = (l.closedById && userMap[l.closedById.toString()]) || l.closedBy;
+        const freshAssociate = (l.associateId && userMap[l.associateId.toString()]) || bInfo.assignedUserName || l.associate;
+        const freshCurrentHandler = (l.associateId && userMap[l.associateId.toString()]) || bInfo.assignedUserName || l.currentHandler;
+        const ownershipText = l.isClosed
+          ? (freshClosedBy && freshClosedBy !== l.firstHandler ? `Closed by ${freshClosedBy}` : null)
+          : null;
+
         return {
           ...l,
-          ...bInfo,
+          branchId: bInfo.branchId,
+          branchName: bInfo.branchName,
+          branchCode: bInfo.branchCode,
+          closedBy: freshClosedBy,
+          associate: freshAssociate,
+          currentHandler: freshCurrentHandler,
+          ownershipTransitionText: ownershipText
         };
       });
     }
@@ -303,7 +338,11 @@ export const leadQueryService = {
     const cleanPhone = normalizePhone(decodeURIComponent(phone));
     const phoneVars = getPhoneVariations(cleanPhone);
     
-    const customer = await Customer.findOne({ phone: { $in: phoneVars } }).lean();
+    const customer = await Customer.findOne({ phone: { $in: phoneVars } })
+      .populate("createdBy", "name preferredName role department branch")
+      .populate("assignedUserId", "name preferredName role department branch")
+      .lean();
+
     let lead = null;
     if (customer) {
       lead = await Lead.findOne({ customerId: customer._id }).lean();
@@ -328,7 +367,7 @@ export const leadQueryService = {
         }
       }
       creatorInfo = {
-        name: customer.createdBy.name || "Unknown",
+        name: customer.createdBy.name || customer.createdBy.preferredName || "Unknown",
         role: customer.createdBy.role || "",
         department: customer.createdBy.department || "",
         branchName: branchName || ""
@@ -346,14 +385,16 @@ export const leadQueryService = {
       }
     }
 
+    const resolvedAssignedTo = customer?.assignedUserId?.name || customer?.assignedUserId?.preferredName || ((lead?.assignedTo && lead.assignedTo.toLowerCase() !== "unassigned")
+      ? lead.assignedTo
+      : (customer?.assignedTo && customer.assignedTo.toLowerCase() !== "unassigned" ? customer.assignedTo : "Unassigned"));
+
     return {
       name: customer?.name || lead?.name || "",
       city: customer?.currentAddressId?.city || customer?.city || lead?.city || "",
       phone: customer?.phone || lead?.phone || cleanPhone,
       address: customer?.currentAddressId?.address || customer?.address || lead?.address || "",
-      assignedTo: (lead?.assignedTo && lead.assignedTo.toLowerCase() !== "unassigned")
-        ? lead.assignedTo
-        : (customer?.assignedTo && customer.assignedTo.toLowerCase() !== "unassigned" ? customer.assignedTo : "Unassigned"),
+      assignedTo: resolvedAssignedTo,
       enquiredFor: latest?.enquiredFor || customer?.enquiredFor || "",
       status: latest?.status || customer?.status || "New",
       priority: latest?.priority || customer?.priority || "Medium",

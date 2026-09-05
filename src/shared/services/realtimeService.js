@@ -247,6 +247,24 @@ class RealtimeServiceManager {
     this.socket.on("customer_branch_updated", handleCustomerOrLeadUpdate);
     this.socket.on("chat_status_updated", handleCustomerOrLeadUpdate);
 
+    // --- 3.0 USER RENAMED / UPDATED ---
+    const handleUserUpdate = (data) => {
+      if (this.queryClient) {
+        this.queryClient.invalidateQueries({ queryKey: ["leads"] });
+        this.queryClient.invalidateQueries({ queryKey: ["customers"] });
+        this.queryClient.invalidateQueries({ queryKey: ["chats"] });
+        this.queryClient.invalidateQueries({ queryKey: ["category-chats"] });
+        this.queryClient.invalidateQueries({ queryKey: ["detailed-customer"] });
+        this.queryClient.invalidateQueries({ queryKey: ["users"] });
+        this.queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      }
+      try {
+        usePerformanceMonitorStore.getState().refresh();
+      } catch (e) {}
+    };
+
+    this.socket.on("user_updated", handleUserUpdate);
+
     // --- 3.1 CHAT / CUSTOMER DELETED ---
     this.socket.on("chat_deleted", (data) => {
       

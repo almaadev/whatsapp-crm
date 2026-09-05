@@ -28,11 +28,19 @@ export async function GET(req, { params }) {
     const variations = getPhoneVariations(cleanPhone);
     const primaryPhone = cleanPhone;
 
-    // Fetch customer record across all phone variations and populate address
+    // Fetch customer record across all phone variations and populate address and user references
     const customer = await Customer.findOne({ phone: { $in: variations } })
       .populate("currentAddressId")
       .populate({
         path: 'createdBy',
+        select: 'name preferredName role department branch'
+      })
+      .populate({
+        path: 'assignedUserId',
+        select: 'name preferredName role department branch'
+      })
+      .populate({
+        path: 'closedById',
         select: 'name preferredName role department branch'
       })
       .lean();
@@ -150,13 +158,13 @@ export async function GET(req, { params }) {
         const isWebhookOrAuto = entry.source === "WEBHOOK" || entry.metadata?.source === "WEBHOOK" || entry.metadata?.isAutomatic === true || (!entry.actorId && (!entry.metadata?.performedByName || entry.metadata?.performedByName === "System Admin") && entry.eventType === "LEAD_CREATED");
 
         let performedByResolved = null;
-        if (entry.actorId) {
+        if (entry.actorId && typeof entry.actorId === "object") {
           const branchVal = entry.actorId.branch?.toString() || "";
           const branchName = branchMap[branchVal] || entry.actorId.branch || "";
           performedByResolved = {
-            name: entry.actorId.name || entry.actorId.preferredName || "Unknown",
-            role: entry.actorId.role || "associate",
-            department: entry.actorId.department || "",
+            name: entry.actorId.name || entry.actorId.preferredName || entry.metadata?.performedByName || "Unknown",
+            role: entry.actorId.role || entry.metadata?.performedByRole || "associate",
+            department: entry.actorId.department || entry.metadata?.performedByDept || "",
             branchName: branchName
           };
         } else if (!isWebhookOrAuto) {
@@ -168,11 +176,11 @@ export async function GET(req, { params }) {
         }
 
         let targetUserResolved = null;
-        if (entry.metadata?.targetUser) {
+        if (entry.metadata?.targetUser && typeof entry.metadata.targetUser === "object") {
           const branchVal = entry.metadata.targetUser.branch?.toString() || "";
           const branchName = branchMap[branchVal] || entry.metadata.targetUser.branch || "";
           targetUserResolved = {
-            name: entry.metadata.targetUser.name || entry.metadata.targetUser.preferredName || "Unknown",
+            name: entry.metadata.targetUser.name || entry.metadata.targetUser.preferredName || entry.metadata?.targetUserName || "Unknown",
             role: entry.metadata.targetUser.role || "",
             department: entry.metadata.targetUser.department || "",
             branchName: branchName
@@ -183,7 +191,12 @@ export async function GET(req, { params }) {
         const performedByIdVal = entry.actorId?._id?.toString() || entry.actorId || null;
         const actionName = (isWebhookOrAuto && entry.eventType === "LEAD_CREATED")
           ? "New Lead"
-          : (entry.metadata?.action || getActivityTitle(entry.eventType, performedByResolved, entry.metadata || {}));
+          : (getActivityTitle(entry.eventType, performedByResolved, {
+              ...entry.metadata,
+              newOwner: targetUserResolved?.name || entry.metadata?.newOwner,
+              targetUserName: targetUserResolved?.name || entry.metadata?.targetUserName,
+              targetUser: targetUserResolved || entry.metadata?.targetUser
+            }) || entry.metadata?.action || entry.eventType);
 
         return {
           ...entry,
@@ -224,6 +237,8 @@ export async function GET(req, { params }) {
     const leadCustomerEnquiredFor = customer?.enquiredFor || lead?.enquiredFor || "";
     const leadStatusResolved = resolveLeadStatus(lead, latest);
 
+    const resolvedAssignedTo = customer?.assignedUserId?.name || customer?.assignedUserId?.preferredName || lead?.assignedTo || customer?.assignedTo || "Unassigned";
+
     const formattedResponse = {
       _id: lead?._id?.toString(),
       customerId: customer?._id?.toString(),
@@ -237,10 +252,10 @@ export async function GET(req, { params }) {
       priority: lead?.priority || "Medium",
       remarks: lead?.remarks || "",
       saleAmount: lead?.saleAmount || "0",
-      assignedTo: lead?.assignedTo || customer?.assignedTo || "Unassigned",
+      assignedTo: resolvedAssignedTo,
       branchId: lead?.branchId?.toString() || customer?.branchId?.toString() || null,
       branchName: branchMap[lead?.branchId?.toString() || customer?.branchId?.toString()] || "Unassigned Branch",
-      isClosed: lead?.isClosed || false,
+      isClosed: lead?.isClosed || customer?.isClosed || false,
       followUpStartDate: lead?.followUpStartDate || null,
       creatorInfo,
       history: history,
