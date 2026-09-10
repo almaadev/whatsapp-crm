@@ -248,7 +248,10 @@ export default function Sidebar({
                         if (!checkPermissions(user || session, item))
                           return null;
                         const ItemIcon = item.icon;
-                        const isItemActive = pathname === item.href;
+                        const isItemActive =
+                          pathname === item.href ||
+                          (item.href !== "/crm/admin" &&
+                            pathname.startsWith(item.href + "/"));
 
                         return (
                           <Link
