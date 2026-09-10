@@ -48,11 +48,30 @@ export default function AssociateManagement() {
 
   const isAuthorized = isAdmin;
 
+  const isSuperAdminRole =
+    session?.user?.role === "superAdmin" || user?.role === "superAdmin";
+  const authenticatedSessionUserId =
+    session?.user?.id?.toString() ||
+    user?.id?.toString() ||
+    user?._id?.toString();
+
   const fetchAssociates = async () => {
     setLoading(true);
     try {
-      const { data } = await userRepository.getUsers();
-      setAssociates(data);
+      const { data } = await userRepository.getUsers({
+        params: { context: "associate-management", excludeSelf: "true" },
+      });
+      let list = Array.isArray(data) ? data : [];
+      // Client-side defense-in-depth:
+      // Super Admin is the only role allowed to see their own account inside Associate Management.
+      // Every other logged-in user must be excluded from the Associate Management list using the authenticated session User ID, not the user name.
+      if (!isSuperAdminRole && authenticatedSessionUserId) {
+        list = list.filter((a) => {
+          const associateId = a.id?.toString() || a._id?.toString();
+          return associateId !== authenticatedSessionUserId;
+        });
+      }
+      setAssociates(list);
     } catch (error) {
       toast.error("Error connecting to server");
     } finally {
@@ -62,20 +81,32 @@ export default function AssociateManagement() {
 
   useEffect(() => {
     if (isAuthorized) fetchAssociates();
-  }, [isAuthorized]);
+  }, [isAuthorized, isSuperAdminRole, authenticatedSessionUserId]);
 
   // --- Search & Filter Logic ---
   const filteredAssociates = useMemo(() => {
-    if (!searchQuery) return associates;
+    let list = associates;
+
+    // Client-side defense-in-depth:
+    // Super Admin is the only role allowed to see their own account inside Associate Management.
+    // Every other logged-in user must be excluded from the Associate Management list using the authenticated session User ID, not the user name.
+    if (!isSuperAdminRole && authenticatedSessionUserId) {
+      list = list.filter((a) => {
+        const associateId = a.id?.toString() || a._id?.toString();
+        return associateId !== authenticatedSessionUserId;
+      });
+    }
+
+    if (!searchQuery) return list;
     const lower = searchQuery.toLowerCase();
-    return associates.filter(
+    return list.filter(
       (a) =>
         a.name?.toLowerCase().includes(lower) ||
         a.email?.toLowerCase().includes(lower) ||
         a.branch?.toLowerCase().includes(lower) ||
         a.number?.includes(lower),
     );
-  }, [associates, searchQuery]);
+  }, [associates, searchQuery, isSuperAdminRole, authenticatedSessionUserId]);
 
   const handleDelete = async (id) => {
     try {

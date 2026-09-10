@@ -127,29 +127,29 @@ function NumberCard({
       </td>
 
       {/* Status Column */}
-      <td className="px-4 py-3 align-middle whitespace-nowrap border-b border-slate-100">
-        <button
-          onClick={() =>
-            onToggleStatus(num._id || num.id, isActive ? "inactive" : "active")
-          }
-          disabled={isToggling}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 border cursor-pointer select-none ${
-            isActive
-              ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-              : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
-          } ${isToggling ? "opacity-60 cursor-not-allowed" : ""}`}
-          title={`Click to ${isActive ? "deactivate" : "activate"}`}
-        >
-          {isToggling ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : isActive ? (
-            <ToggleRight size={14} />
-          ) : (
-            <ToggleLeft size={14} />
-          )}
-          {isActive ? "Active" : "Inactive"}
-        </button>
-      </td>
+  {  isSuperAdmin &&   <td className="px-4 py-3 align-middle whitespace-nowrap border-b border-slate-100">
+          <button
+            onClick={() =>
+              onToggleStatus(num._id || num.id, isActive ? "inactive" : "active")
+            }
+            disabled={isToggling}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 border cursor-pointer select-none ${
+              isActive
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
+            } ${isToggling ? "opacity-60 cursor-not-allowed" : ""}`}
+            title={`Click to ${isActive ? "deactivate" : "activate"}`}
+          >
+            {isToggling ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : isActive ? (
+              <ToggleRight size={14} />
+            ) : (
+              <ToggleLeft size={14} />
+            )}
+            {isActive ? "Active" : "Inactive"}
+          </button>
+        </td>}
 
       {/* Assigned Admins Column */}
       <td className="px-4 py-3 align-middle whitespace-nowrap border-b border-slate-100">
@@ -598,9 +598,11 @@ export default function TwilioNumbersPage() {
                       <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                         Phone Number
                       </th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                        Status
-                      </th>
+                      {isSuperAdmin && (
+                        <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                          Status
+                        </th>
+                      )}
                       <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                         Assigned Admins
                       </th>

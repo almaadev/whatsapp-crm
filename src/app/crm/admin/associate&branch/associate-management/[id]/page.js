@@ -20,7 +20,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 export default function EditAssociatePage() {
   const { data: session, status } = useSession();
-  const { isLoading, isAdmin } = useAuth();
+  const { isLoading, isAdmin, user } = useAuth();
   const { id } = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -78,16 +78,30 @@ export default function EditAssociatePage() {
   }, []);
 
   const isAuthorized = isAdmin;
+  const isSuperAdminRole =
+    session?.user?.role === "superAdmin" || user?.role === "superAdmin";
+  const currentSessionUserId =
+    session?.user?.id?.toString() ||
+    user?.id?.toString() ||
+    user?._id?.toString();
 
   useEffect(() => {
     if (status === "loading" || isLoading) return;
 
-    if (isAuthorized) {
-      fetchUser();
-    } else {
+    if (!isAuthorized) {
       setLoading(false);
+      return;
     }
-  }, [session, status, isLoading, id, isAuthorized]);
+
+    // Super Admin is the only role allowed to see or manage their own account inside Associate Management.
+    if (!isSuperAdminRole && currentSessionUserId && id === currentSessionUserId) {
+      toast.error("You cannot view or manage your own account in Associate Management.");
+      router.replace("/crm/admin/associate&branch/associate-management");
+      return;
+    }
+
+    fetchUser();
+  }, [session, status, isLoading, id, isAuthorized, isSuperAdminRole, currentSessionUserId]);
 
   const fetchUser = async () => {
     try {

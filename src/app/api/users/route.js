@@ -53,10 +53,19 @@ export async function GET(req) {
 
     const { searchParams } = new URL(req.url);
     const branchParam = searchParams.get("branch");
+    const contextParam = searchParams.get("context");
+    const excludeSelfParam = searchParams.get("excludeSelf");
+    const isAssociateManagement =
+      contextParam === "associate-management" || excludeSelfParam === "true";
 
     const query = {};
     if (session.user.role !== 'superAdmin') {
       query.branch = loggedInUser.branch;
+      // Super Admin is the only role allowed to see their own account inside Associate Management.
+      // Every other logged-in user must be excluded from the Associate Management list using their authenticated session User ID.
+      if (isAssociateManagement) {
+        query._id = { $ne: session.user.id };
+      }
     } else if (branchParam && branchParam !== "all") {
       // Support matching branch by ObjectId or name
       const matchedBranch = branches.find(
