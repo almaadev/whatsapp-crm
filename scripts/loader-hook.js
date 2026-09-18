@@ -1,8 +1,9 @@
-import { pathToFileURL } from "node:url";
+import { pathToFileURL, fileURLToPath } from "node:url";
 import path from "node:path";
 import fs from "node:fs";
 
-const rootDir = process.cwd();
+const fallbackRoot = fileURLToPath(new URL("..", import.meta.url));
+const rootDir = fs.existsSync(path.join(process.cwd(), "src")) ? process.cwd() : fallbackRoot;
 
 export async function resolve(specifier, context, nextResolve) {
   if (specifier.startsWith("@/")) {
@@ -25,5 +26,28 @@ export async function resolve(specifier, context, nextResolve) {
   if (specifier === "next/server") {
     return nextResolve("next/server.js", context);
   }
-  return nextResolve(specifier, context);
+  try {
+    return await nextResolve(specifier, context);
+  } catch (err) {
+    if (err.code === "ERR_MODULE_NOT_FOUND" && context?.parentURL && (specifier.startsWith("./") || specifier.startsWith("../"))) {
+      try {
+        const parentPath = fileURLToPath(context.parentURL);
+        const parentDir = path.dirname(parentPath);
+        let targetPath = path.resolve(parentDir, specifier);
+        if (!path.extname(targetPath)) {
+          if (fs.existsSync(targetPath + ".js")) {
+            return { url: pathToFileURL(targetPath + ".js").href, shortCircuit: true };
+          } else if (fs.existsSync(targetPath + ".jsx")) {
+            return { url: pathToFileURL(targetPath + ".jsx").href, shortCircuit: true };
+          } else if (fs.existsSync(path.join(targetPath, "index.js"))) {
+            return { url: pathToFileURL(path.join(targetPath, "index.js")).href, shortCircuit: true };
+          }
+        }
+      } catch {
+        // Fall back to re-throwing original error
+      }
+    }
+    throw err;
+  }
 }
+

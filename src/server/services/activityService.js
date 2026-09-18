@@ -1,8 +1,8 @@
-import Activity from "@/shared/models/Activity";
-import User from "@/shared/models/User";
+import Activity from "../../shared/models/Activity.js";
+import User from "../../shared/models/User.js";
 import mongoose from "mongoose";
-import { ActivityEvents, ActivitySources } from "@/shared/constants/activityConstants";
-import { getActivityTitle, formatActorDisplayName } from "@/shared/utils/activityFormatter";
+import { ActivityEvents, ActivitySources } from "../../shared/constants/activityConstants.js";
+import { getActivityTitle, formatActorDisplayName } from "../../shared/utils/activityFormatter.js";
 
 export const activityService = {
   /**

@@ -1,5 +1,5 @@
-import Lead from "@/shared/models/Lead";
-import Branch from "@/shared/models/Branch";
+import Lead from "../models/Lead.js";
+import Branch from "../models/Branch.js";
 
 export async function processRosterMetrics(users, startDate, endDate) {
     // Fetch all active leads for the given timeframe (using indexes for speed)

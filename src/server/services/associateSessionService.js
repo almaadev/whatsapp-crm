@@ -1,12 +1,12 @@
-import connectDB from "@/shared/lib/db/mongodb";
-import AssociateSession from "@/shared/models/AssociateSession";
-import User from "@/shared/models/User";
-import Branch from "@/shared/models/Branch";
+import connectDB from "../../shared/lib/db/mongodb.js";
+import AssociateSession from "../../shared/models/AssociateSession.js";
+import User from "../../shared/models/User.js";
+import Branch from "../../shared/models/Branch.js";
 import mongoose from "mongoose";
-import { emitAssociateSessionUpdated } from "@/shared/utils/socketPublisher";
-import { resolveAssociateLogScope } from "@/shared/utils/serverAuth";
-import { getOperationalDateBounds } from "@/shared/utils/dateRangeResolver";
-import { notificationService } from "@/server/services/notificationService";
+import { emitAssociateSessionUpdated } from "../../shared/utils/socketPublisher.js";
+import { resolveAssociateLogScope } from "../../shared/utils/serverAuth.js";
+import { getOperationalDateBounds } from "../../shared/utils/dateRangeResolver.js";
+import { notificationService } from "./notificationService.js";
 
 /**
  * Calculates realtime online and offline durations across all session segments.

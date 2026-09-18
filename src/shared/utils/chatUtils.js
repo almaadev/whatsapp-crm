@@ -1,6 +1,6 @@
 import React from "react";
 import { Check, CheckCheck, Clock, AlertCircle, Lock, Unlock, MapPin, UserCheck, RefreshCw, Cog, Tag, UserPlus, MessageSquare, User, FileText, Globe, HelpCircle, Building2 } from "lucide-react";
-import { formatActorDisplayName } from "@/shared/utils/activityFormatter";
+import { formatActorDisplayName } from "./activityFormatter.js";
 
 /**
  * Parses a date string into a Date object.

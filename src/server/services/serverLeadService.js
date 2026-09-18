@@ -1,20 +1,20 @@
-import Customer from "@/shared/models/Customer";
-import Lead from "@/shared/models/Lead";
-import User from "@/shared/models/User";
-import Branch from "@/shared/models/Branch";
-import CustomerAddress from "@/shared/models/CustomerAddress";
-import { activityService } from "@/server/services/activityService";
-import { ActivityEvents, ActivitySources } from "@/shared/constants/activityConstants";
-import { getUserNameById } from "@/shared/utils/userUtils";
+import Customer from "../../shared/models/Customer.js";
+import Lead from "../../shared/models/Lead.js";
+import User from "../../shared/models/User.js";
+import Branch from "../../shared/models/Branch.js";
+import CustomerAddress from "../../shared/models/CustomerAddress.js";
+import { activityService } from "./activityService.js";
+import { ActivityEvents, ActivitySources } from "../../shared/constants/activityConstants.js";
+import { getUserNameById } from "../../shared/utils/userUtils.js";
 import { 
   publishPerformanceEvent,
   emitCustomerUpdated,
   emitCustomerBranchUpdated,
   emitLeadStatusUpdate,
   emitFollowUpAdded
-} from "@/shared/utils/socketPublisher";
-import { resolveLeadStatus } from "@/shared/utils/leadStatusResolver";
-import { normalizePhone, getPhoneVariations } from "@/shared/utils/phoneUtils";
+} from "../../shared/utils/socketPublisher.js";
+import { resolveLeadStatus } from "../../shared/utils/leadStatusResolver.js";
+import { normalizePhone, getPhoneVariations } from "../../shared/utils/phoneUtils.js";
 
 const buildFollowUp = async (body, session, fallbackAssignedTo = "unassigned") => {
   let associateId = body.associateId || "";

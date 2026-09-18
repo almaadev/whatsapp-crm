@@ -1,19 +1,19 @@
-import { determineConversationRoute } from "@/features/chat/services/chatRoutingService";
+import { determineConversationRoute } from "./chatRoutingService.js";
 import { 
   sendTemplateMessage, 
   sendWhatsAppMessage,
   getTemplateDetail, 
   validateTemplatePayload 
-} from "@/features/admin/services/twilioService";
-import { emitNewMessage } from "@/shared/utils/socketPublisher";
-import Message from "@/shared/models/Message";
-import Customer from "@/shared/models/Customer";
-import KeywordAutomation from "@/shared/models/KeywordAutomation";
-import CRMTemplate from "@/shared/models/CRMTemplate";
-import Lead from "@/shared/models/Lead";
-import Branch from "@/shared/models/Branch";
-import { resolveTemplate } from "@/shared/utils/templateResolver";
-import { getPhoneVariations } from "@/shared/utils/phoneUtils";
+} from "../../admin/services/twilioService.js";
+import { emitNewMessage } from "../../../shared/utils/socketPublisher.js";
+import Message from "../../../shared/models/Message.js";
+import Customer from "../../../shared/models/Customer.js";
+import KeywordAutomation from "../../../shared/models/KeywordAutomation.js";
+import CRMTemplate from "../../../shared/models/CRMTemplate.js";
+import Lead from "../../../shared/models/Lead.js";
+import Branch from "../../../shared/models/Branch.js";
+import { resolveTemplate } from "../../../shared/utils/templateResolver.js";
+import { getPhoneVariations } from "../../../shared/utils/phoneUtils.js";
 
 /**
  * Automatically builds variable values for dynamic templates based on customer attributes.

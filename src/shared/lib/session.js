@@ -1,9 +1,9 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import { authOptions } from "@/shared/lib/auth";
+import { authOptions } from "./auth.js";
 import { cache } from "react";
-import connectDB from "@/shared/lib/db/mongodb";
-import User from "@/shared/models/User";
+import connectDB from "./db/mongodb.js";
+import User from "../models/User.js";
 
 export const getCurrentUser = cache(async () => {
   const session = await getServerSession(authOptions);

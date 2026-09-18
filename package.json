@@ -6,15 +6,12 @@
     "dev": "node src/server.js",
     "build": "next build",
     "start": "NODE_ENV=production node src/server.js",
-    "test": "node --import ./scripts/loader.js scripts/test-full-crm-audit.js",
-    "test:all": "node --import ./scripts/loader.js scripts/test-full-crm-audit.js && node --import ./scripts/loader.js scripts/test-audit-scenarios.js && node --import ./scripts/loader.js scripts/test-production-hardening.js",
-    "test:hardening": "node --import ./scripts/loader.js scripts/test-production-hardening.js",
-    "test:benchmark": "node --import ./scripts/loader.js scripts/test-benchmark.js"
+    "test": "node scripts/test-full-crm-audit.js",
+    "test:all": "node scripts/test-full-crm-audit.js && node scripts/test-audit-scenarios.js && node scripts/test-production-hardening.js",
+    "test:hardening": "node scripts/test-production-hardening.js",
+    "test:benchmark": "node scripts/test-benchmark.js"
   },
   "type": "module",
-  "imports": {
-    "@/*": "./src/*"
-  },
   "dependencies": {
     "@tanstack/react-query": "^5.101.0",
     "axios": "^1.13.4",

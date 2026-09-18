@@ -1,8 +1,8 @@
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/shared/lib/auth";
+import { authOptions } from "../lib/auth.js";
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { isAdminAuthorized } from "@/shared/utils/auth";
+import { isAdminAuthorized } from "./auth.js";
 
 /**
  * Reusable helper to authorize Branch management APIs.

@@ -1,18 +1,18 @@
-import Customer from "@/shared/models/Customer";
-import Branch from "@/shared/models/Branch";
-import User from "@/shared/models/User";
-import CustomerAddress from "@/shared/models/CustomerAddress";
-import Lead from "@/shared/models/Lead";
-import { activityService } from "@/server/services/activityService";
+import Customer from "../../shared/models/Customer.js";
+import Branch from "../../shared/models/Branch.js";
+import User from "../../shared/models/User.js";
+import CustomerAddress from "../../shared/models/CustomerAddress.js";
+import Lead from "../../shared/models/Lead.js";
+import { activityService } from "./activityService.js";
 import {
   ActivityEvents,
   ActivitySources,
-} from "@/shared/constants/activityConstants";
+} from "../../shared/constants/activityConstants.js";
 import {
   emitCustomerBranchUpdated,
   emitCustomerUpdated,
-} from "@/shared/utils/socketPublisher";
-import { normalizePhone } from "@/shared/utils/phoneUtils";
+} from "../../shared/utils/socketPublisher.js";
+import { normalizePhone } from "../../shared/utils/phoneUtils.js";
 
 export const serverCustomerService = {
   async updateCustomer(phone, body, session) {
@@ -22,7 +22,7 @@ export const serverCustomerService = {
     }
 
     const { getBranchFilterForUser } =
-      await import("@/shared/utils/serverAuth");
+      await import("../../shared/utils/serverAuth.js");
     const { branchQuery } = await getBranchFilterForUser(session);
 
     // Safe legacy phone lookup:

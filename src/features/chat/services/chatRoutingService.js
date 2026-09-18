@@ -1,6 +1,6 @@
-import Message from "@/shared/models/Message";
-import Customer from "@/shared/models/Customer";
-import { getPhoneVariations } from "@/shared/utils/phoneUtils";
+import Message from "../../../shared/models/Message.js";
+import Customer from "../../../shared/models/Customer.js";
+import { getPhoneVariations } from "../../../shared/utils/phoneUtils.js";
 
 export const KEYWORD_ROUTES = [];
 

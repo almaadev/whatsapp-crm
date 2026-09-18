@@ -1,13 +1,13 @@
-import Message from "@/shared/models/Message";
-import Customer from "@/shared/models/Customer";
-import Lead from "@/shared/models/Lead";
-import Activity from "@/shared/models/Activity";
-import { activityService } from "@/server/services/activityService";
-import { ActivityEvents, ActivitySources } from "@/shared/constants/activityConstants";
+import Message from "../../shared/models/Message.js";
+import Customer from "../../shared/models/Customer.js";
+import Lead from "../../shared/models/Lead.js";
+import Activity from "../../shared/models/Activity.js";
+import { activityService } from "./activityService.js";
+import { ActivityEvents, ActivitySources } from "../../shared/constants/activityConstants.js";
 import { 
   emitChatStatusUpdated, 
   publishPerformanceEvent 
-} from "@/shared/utils/socketPublisher";
+} from "../../shared/utils/socketPublisher.js";
 
 export const serverChatService = {
   async updateChatControlStatus(phone, isChatClosed, chatType, session) {

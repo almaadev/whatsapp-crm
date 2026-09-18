@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
-import User from "@/shared/models/User";
-import { isSuperAdmin as checkSuperAdmin, isAdminAuthorized } from "@/shared/utils/auth";
+import User from "../models/User.js";
+import { isSuperAdmin as checkSuperAdmin, isAdminAuthorized } from "./auth.js";
 
 /**
  * Centralized Branch Access Control Helper for Server-Side API Handlers & Services.

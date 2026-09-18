@@ -1,12 +1,12 @@
-import connectDB from "@/shared/lib/db/mongodb";
-import Notification from "@/shared/models/Notification";
-import User from "@/shared/models/User";
-import ChatWorkspace from "@/shared/models/ChatWorkspace";
-import Branch from "@/shared/models/Branch";
+import connectDB from "../../shared/lib/db/mongodb.js";
+import Notification from "../../shared/models/Notification.js";
+import User from "../../shared/models/User.js";
+import ChatWorkspace from "../../shared/models/ChatWorkspace.js";
+import Branch from "../../shared/models/Branch.js";
 import mongoose from "mongoose";
-import { NotificationTypes } from "@/shared/constants/notificationConstants";
-import { isSuperAdmin } from "@/shared/utils/auth";
-import { normalizePhone } from "@/shared/utils/phoneUtils";
+import { NotificationTypes } from "../../shared/constants/notificationConstants.js";
+import { isSuperAdmin } from "../../shared/utils/auth.js";
+import { normalizePhone } from "../../shared/utils/phoneUtils.js";
 import {
   emitNotificationCreated,
   emitNotificationUpdated,
@@ -14,7 +14,7 @@ import {
   emitNotificationUnread,
   emitNotificationDismissed,
   emitNotificationClearedAll
-} from "@/shared/utils/socketPublisher";
+} from "../../shared/utils/socketPublisher.js";
 
 /**
  * Helper to match user's assigned branch against a target branch ID.
@@ -175,7 +175,7 @@ export const notificationService = {
    */
   async isCustomerCurrentlyHandled(customerId = null, canonicalPhone = null) {
     await connectDB();
-    const { getPhoneVariations, normalizePhone } = await import("@/shared/utils/phoneUtils");
+    const { getPhoneVariations, normalizePhone } = await import("../../shared/utils/phoneUtils.js");
 
     const phoneVariations = canonicalPhone ? getPhoneVariations(canonicalPhone) : [];
     const normalizedTargetPhone = canonicalPhone ? normalizePhone(canonicalPhone) : "";
@@ -303,7 +303,7 @@ export const notificationService = {
       const recipientUserId = recipient._id;
 
       // Find existing ACTIVE notification for this recipient + customer (regardless of isRead state!)
-      const { getPhoneVariations } = await import("@/shared/utils/phoneUtils");
+      const { getPhoneVariations } = await import("../../shared/utils/phoneUtils.js");
       const phoneVars = phone ? getPhoneVariations(phone) : [];
 
       const queryOr = [];
@@ -733,7 +733,7 @@ export const notificationService = {
     if (!userId) return;
     try {
       await connectDB();
-      const { normalizePhone } = await import("@/shared/utils/phoneUtils");
+      const { normalizePhone } = await import("../../shared/utils/phoneUtils.js");
       const activeNotifs = await Notification.find({
         recipientUserId: userId,
         isDismissed: false,

@@ -1,5 +1,5 @@
-import connectDB from "@/shared/lib/db/mongodb";
-import User from "@/shared/models/User";
+import connectDB from "../lib/db/mongodb.js";
+import User from "../models/User.js";
 import mongoose from "mongoose";
 
 /**

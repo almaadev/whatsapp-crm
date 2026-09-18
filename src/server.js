@@ -1,3 +1,10 @@
+import { register } from "node:module";
+try {
+  register("../scripts/loader-hook.js", import.meta.url);
+} catch {
+  // Graceful fallback if loader is already registered via --import or unsupported in runtime
+}
+
 import nextEnv from "@next/env";
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());

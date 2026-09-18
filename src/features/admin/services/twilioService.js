@@ -1,11 +1,11 @@
 import mongoose from "mongoose";
 import twilio from "twilio";
-import connectDB from "@/shared/lib/db/mongodb";
-import TwilioNumber from "@/shared/models/TwilioNumber";
-import Branch from "@/shared/models/Branch";
-import User from "@/shared/models/User";
-import Template from "@/shared/models/Template";
-import { isAdminAuthorized } from "@/shared/utils/auth";
+import connectDB from "../../../shared/lib/db/mongodb.js";
+import TwilioNumber from "../../../shared/models/TwilioNumber.js";
+import Branch from "../../../shared/models/Branch.js";
+import User from "../../../shared/models/User.js";
+import Template from "../../../shared/models/Template.js";
+import { isAdminAuthorized } from "../../../shared/utils/auth.js";
 
 let twilioClientInstance = null;
 
@@ -363,7 +363,7 @@ export async function sendWhatsAppMessage(to, body, options = {}) {
       if (!u || typeof u !== "string" || u.startsWith("blob:") || u.startsWith("file:") || u.startsWith("data:") || u.includes("localhost") || u.includes("127.0.0.1")) {
         throw new Error(`Invalid media URL: "${u}". Only permanent public HTTPS URLs (e.g. Cloudinary) are supported.`);
       }
-      const { validateMediaUrl } = await import("@/server/services/cloudinaryService.js");
+      const { validateMediaUrl } = await import("../../../server/services/cloudinaryService.js");
       await validateMediaUrl(u).catch((valErr) => {
         console.warn("[sendWhatsAppMessage] Pre-flight media validation warning:", valErr.message);
       });

@@ -1,9 +1,9 @@
 import CredentialsProvider from "next-auth/providers/credentials";
-import connectDB from "@/shared/lib/db/mongodb";
-import User from "@/shared/models/User";
+import connectDB from "./db/mongodb.js";
+import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 
-import redis from "@/shared/lib/db/redis";
+import redis from "./db/redis.js";
 import crypto from "crypto";
 
 const credentialsProviderFn = typeof CredentialsProvider === "function" ? CredentialsProvider : (CredentialsProvider?.default || CredentialsProvider);

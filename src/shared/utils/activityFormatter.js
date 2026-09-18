@@ -19,7 +19,7 @@ import {
   HelpCircle,
   Building2
 } from "lucide-react";
-import { ActivityEvents, ActivitySources } from "@/shared/constants/activityConstants";
+import { ActivityEvents, ActivitySources } from "../constants/activityConstants.js";
 
 /**
  * Authoritative Display Name Resolver for Activity Performers / Actors.

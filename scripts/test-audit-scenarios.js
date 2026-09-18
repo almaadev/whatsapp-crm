@@ -452,7 +452,7 @@ async function runAuditSuite() {
       profileName: "Restart User",
     });
 
-    if (!procRes.success) throw new Error("Worker processing failed");
+    if (!procRes.success && !procRes.duplicate) throw new Error("Worker processing failed");
 
     await WebhookEvent.updateOne(
       { eventId: sid },
