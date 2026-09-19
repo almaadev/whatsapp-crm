@@ -14,43 +14,33 @@ const TWILIO_STATUSES = [
   "read", "partially_delivered", "canceled"
 ];
 
-// Status precedence rank to prevent out-of-order callback regressions
-const STATUS_RANK = {
-  QUEUED: 1,
-  SENDING: 2,
-  SENT: 3,
-  DELIVERED: 4,
-  READ: 5,
-  UNDELIVERED: 4,
-  FAILED: 4,
-  CANCELED: 4,
+// Explicit State Machine: Strict allowed transitions
+export const ALLOWED_TRANSITIONS = {
+  QUEUED: new Set(["QUEUED", "SENDING", "SENT", "DELIVERED", "READ", "UNDELIVERED", "FAILED", "CANCELED"]),
+  SENDING: new Set(["SENDING", "SENT", "DELIVERED", "READ", "UNDELIVERED", "FAILED", "CANCELED"]),
+  SENT: new Set(["SENT", "DELIVERED", "READ", "UNDELIVERED", "FAILED", "CANCELED"]),
+  DELIVERED: new Set(["DELIVERED", "READ", "UNDELIVERED", "FAILED"]),
+  READ: new Set(["READ"]),
+  UNDELIVERED: new Set(["UNDELIVERED", "FAILED"]),
+  FAILED: new Set(["FAILED", "UNDELIVERED"]),
+  CANCELED: new Set(["CANCELED"]),
 };
 
-function shouldUpdateStatus(currentStatus, newStatus) {
+export function shouldUpdateStatus(currentStatus, newStatus) {
   if (!currentStatus) return true;
-  const curr = (currentStatus || "").toUpperCase();
-  const next = (newStatus || "").toUpperCase();
+  if (!newStatus) return false;
+
+  const curr = currentStatus.toUpperCase().trim();
+  const next = newStatus.toUpperCase().trim();
 
   if (curr === next) return true;
 
-  // Terminal failure states cannot be downgraded to lower progress states
-  if (["FAILED", "UNDELIVERED", "CANCELED"].includes(curr) && ["QUEUED", "SENDING", "SENT"].includes(next)) {
-    return false;
-  }
-
-  // Read state is ultimate progression; cannot be overwritten by sent or delivered
-  if (curr === "READ" && (next === "DELIVERED" || next === "SENT" || next === "QUEUED" || next === "SENDING")) {
-    return false;
-  }
-
-  // Delivered cannot be downgraded to sent or queued
-  if (curr === "DELIVERED" && (next === "SENT" || next === "QUEUED" || next === "SENDING")) {
-    return false;
-  }
-
-  const currentRank = STATUS_RANK[curr] || 0;
-  const nextRank = STATUS_RANK[next] || 0;
-  return nextRank >= currentRank;
+  // Strict transition enforcement from explicit state machine:
+  // - READ cannot regress to DELIVERED/SENT/QUEUED/SENDING
+  // - DELIVERED cannot regress to SENT/QUEUED/SENDING
+  // - FAILED/UNDELIVERED cannot regress to SENT/QUEUED/SENDING
+  const allowed = ALLOWED_TRANSITIONS[curr];
+  return allowed ? allowed.has(next) : true;
 }
 
 export async function POST(req) {
@@ -91,10 +81,11 @@ export async function POST(req) {
     console.log(`[WEBHOOK-STATUS] received | sid=${twilioSID} | status=${messageStatus} | eventType=${eventType || "none"} | to=${body.To || body.to}`);
 
     // Signature Validation via Twilio SDK using canonical URL
+    // In production, signature validation is mandatory and never bypassed
     const isProduction = process.env.NODE_ENV === "production";
-    const validateSignatureEnv = process.env.TWILIO_VALIDATE_SIGNATURE !== "false";
+    const shouldValidate = isProduction || process.env.TWILIO_VALIDATE_SIGNATURE !== "false";
 
-    if (isProduction && validateSignatureEnv) {
+    if (shouldValidate) {
       const isValid = validateTwilioWebhookSignature(req, body);
       if (!isValid) {
         console.warn(`[WEBHOOK-STATUS] signature: INVALID for SID ${twilioSID}`);
@@ -102,7 +93,7 @@ export async function POST(req) {
       }
       console.log(`[WEBHOOK-STATUS] signature: VALID`);
     } else {
-      console.log(`[WEBHOOK-STATUS] signature: SKIPPED (${isProduction ? "disabled by config" : "development mode"})`);
+      console.log(`[WEBHOOK-STATUS] signature: SKIPPED (development mode with explicit bypass)`);
     }
 
     if (messageStatus && TWILIO_STATUSES.includes(messageStatus.toLowerCase())) {
@@ -113,7 +104,7 @@ export async function POST(req) {
 
       // A. Update individual Message ledger in MongoDB
       if (twilioSID) {
-        let retries = 3;
+        let retries = 2;
         while (retries > 0 && !updatedDoc) {
           const existingMsg = await Message.findOne({ twilioSid: twilioSID });
           if (existingMsg) {
@@ -134,7 +125,7 @@ export async function POST(req) {
               await existingMsg.save();
               console.log(`[WEBHOOK-STATUS] message updated | sid=${twilioSID} | status=${formattedStatus}`);
             } else {
-              console.log(`[WEBHOOK-STATUS] status preserved | sid=${twilioSID} | current=${existingMsg.status} | ignored=${formattedStatus}`);
+              console.log(`[WEBHOOK-STATUS] status preserved by state machine | sid=${twilioSID} | current=${existingMsg.status} | ignored=${formattedStatus}`);
             }
             updatedDoc = existingMsg;
             targetPhone = formatForTwilio(existingMsg.phone);
@@ -144,7 +135,7 @@ export async function POST(req) {
           const hasCampaignRec = await CampaignRecipient.exists({ twilioMessageSid: twilioSID });
           if (hasCampaignRec) break;
 
-          await new Promise((resolve) => setTimeout(resolve, 150));
+          await new Promise((resolve) => setTimeout(resolve, 100));
           retries--;
         }
       }
@@ -222,14 +213,13 @@ export async function POST(req) {
       });
       console.log(`[WEBHOOK-STATUS] socket emitted | sid=${twilioSID} | status=${formattedStatus}`);
 
-      // E. Clear Redis Cache
+      // E. Non-blocking Redis Cache Invalidation
       if (redis && redis.status !== "disabled") {
-        try {
-          await redis.del("chats:all_data");
-          await redis.del("chats:main_inbox_data");
-        } catch (e) {}
+        redis.del("chats:all_data").catch(() => {});
+        redis.del("chats:main_inbox_data").catch(() => {});
       }
 
+      // Prompt 200 OK response to Twilio
       return NextResponse.json({
         success: true,
         statusUpdated: !!updatedDoc,

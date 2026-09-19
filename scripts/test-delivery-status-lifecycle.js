@@ -8,11 +8,15 @@ const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
 
 import mongoose from "mongoose";
+import twilioSdk from "twilio";
+import fs from "node:fs";
+import path from "node:path";
 import connectDB from "../src/shared/lib/db/mongodb.js";
 import Message from "../src/shared/models/Message.js";
 import CampaignRecipient from "../src/shared/models/CampaignRecipient.js";
 import BulkMessage from "../src/shared/models/BulkMessage.js";
-import { getStatusCallbackUrl } from "../src/features/admin/services/twilioService.js";
+import { getStatusCallbackUrl, CANONICAL_PRODUCTION_STATUS_CALLBACK_URL } from "../src/features/admin/services/twilioService.js";
+import { validateTwilioWebhookSignature } from "../src/shared/utils/twilioValidator.js";
 import { emitMessageStatusUpdate } from "../src/shared/utils/socketPublisher.js";
 
 async function runTests() {
@@ -56,18 +60,122 @@ async function runTests() {
 
   const testSid1 = `SM_test_${Date.now()}_1`;
   const testSid2 = `SM_test_${Date.now()}_2`;
+  const testCampaignSid = `SM_camp_${Date.now()}`;
+  let testCampaign = null;
   const testPhone = "919876543210";
   const testBranchId = new mongoose.Types.ObjectId();
 
+  const canonicalWebhookUrl = "https://whatsapp.almaaerp.in/api/webhook/status";
+
+  // Helper to create properly signed Twilio webhook requests
+  function createSignedRequest(bodyParams, canonicalUrl = canonicalWebhookUrl) {
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const signature = twilioSdk.getExpectedTwilioSignature(authToken, canonicalUrl, bodyParams);
+    return new Request("http://localhost:3000/api/webhook/status", {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "x-twilio-signature": signature,
+        "x-forwarded-proto": "https",
+        "x-forwarded-host": "whatsapp.almaaerp.in",
+      },
+      body: new URLSearchParams(bodyParams).toString(),
+    });
+  }
+
   try {
     // ----------------------------------------------------
-    // TEST 1: StatusCallback URL Generation
+    // TEST 1: StatusCallback URL Generation & Production Hardening
     // ----------------------------------------------------
-    console.log("\n[TEST 1] Testing Dynamic StatusCallback URL Resolution...");
-    const callbackUrl = getStatusCallbackUrl();
+    console.log("\n[TEST 1] Testing Dynamic StatusCallback URL Resolution & Isolation from NEXTAUTH_URL...");
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalStatusUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
+    const originalNextAuth = process.env.NEXTAUTH_URL;
+
+    // Production mode test: NEXTAUTH_URL must NEVER be used
+    process.env.NODE_ENV = "production";
+    delete process.env.TWILIO_STATUS_CALLBACK_URL;
+    process.env.NEXTAUTH_URL = "https://unrelated-domain.evil.com";
+    const prodDefaultUrl = getStatusCallbackUrl();
     assert(
-      callbackUrl.endsWith("/api/webhook/status") && !callbackUrl.includes("//api"),
-      `Generated StatusCallback URL is clean: ${callbackUrl}`
+      prodDefaultUrl === "https://whatsapp.almaaerp.in/api/webhook/status",
+      `Production defaults strictly to canonical URL and ignores NEXTAUTH_URL: ${prodDefaultUrl}`
+    );
+
+    // Production mode with explicit TWILIO_STATUS_CALLBACK_URL
+    process.env.TWILIO_STATUS_CALLBACK_URL = "https://whatsapp.almaaerp.in/api/webhook/status";
+    const prodConfiguredUrl = getStatusCallbackUrl();
+    assert(
+      prodConfiguredUrl === "https://whatsapp.almaaerp.in/api/webhook/status",
+      `Production respects explicit TWILIO_STATUS_CALLBACK_URL: ${prodConfiguredUrl}`
+    );
+
+    // Development mode resolution: TWILIO_STATUS_CALLBACK_URL -> NEXT_PUBLIC_BASE_URL -> APP_URL
+    process.env.NODE_ENV = "development";
+    delete process.env.TWILIO_STATUS_CALLBACK_URL;
+    process.env.NEXT_PUBLIC_BASE_URL = "https://dev.almaaerp.in";
+    const devUrl = getStatusCallbackUrl();
+    assert(
+      devUrl === "https://dev.almaaerp.in/api/webhook/status",
+      `Development resolution uses NEXT_PUBLIC_BASE_URL: ${devUrl}`
+    );
+
+    // Restore original env vars
+    process.env.NODE_ENV = originalNodeEnv;
+    if (originalStatusUrl) process.env.TWILIO_STATUS_CALLBACK_URL = originalStatusUrl;
+    else delete process.env.TWILIO_STATUS_CALLBACK_URL;
+    if (originalNextAuth) process.env.NEXTAUTH_URL = originalNextAuth;
+    else delete process.env.NEXTAUTH_URL;
+
+    // ----------------------------------------------------
+    // TEST 1B: State Machine Unit Assertions (ALLOWED_TRANSITIONS & shouldUpdateStatus)
+    // ----------------------------------------------------
+    console.log("\n[TEST 1B] Testing Explicit State Machine Allowed Transitions...");
+    const { ALLOWED_TRANSITIONS, shouldUpdateStatus } = await import("../src/app/api/webhook/status/route.js");
+    // READ cannot regress
+    assert(shouldUpdateStatus("READ", "DELIVERED") === false, "READ cannot regress to DELIVERED");
+    assert(shouldUpdateStatus("READ", "SENT") === false, "READ cannot regress to SENT");
+    assert(shouldUpdateStatus("READ", "QUEUED") === false, "READ cannot regress to QUEUED");
+    assert(shouldUpdateStatus("READ", "SENDING") === false, "READ cannot regress to SENDING");
+    assert(shouldUpdateStatus("READ", "FAILED") === false, "READ cannot regress to FAILED");
+    assert(shouldUpdateStatus("READ", "READ") === true, "READ allows idempotency (READ -> READ)");
+
+    // DELIVERED cannot regress to SENT/QUEUED/SENDING
+    assert(shouldUpdateStatus("DELIVERED", "SENT") === false, "DELIVERED cannot regress to SENT");
+    assert(shouldUpdateStatus("DELIVERED", "QUEUED") === false, "DELIVERED cannot regress to QUEUED");
+    assert(shouldUpdateStatus("DELIVERED", "SENDING") === false, "DELIVERED cannot regress to SENDING");
+    assert(shouldUpdateStatus("DELIVERED", "READ") === true, "DELIVERED can advance to READ");
+
+    // FAILED and UNDELIVERED cannot regress to SENT/QUEUED/SENDING
+    assert(shouldUpdateStatus("FAILED", "SENT") === false, "FAILED cannot regress to SENT");
+    assert(shouldUpdateStatus("FAILED", "QUEUED") === false, "FAILED cannot regress to QUEUED");
+    assert(shouldUpdateStatus("UNDELIVERED", "SENT") === false, "UNDELIVERED cannot regress to SENT");
+
+    // SENT and QUEUED can advance
+    assert(shouldUpdateStatus("QUEUED", "SENT") === true, "QUEUED can advance to SENT");
+    assert(shouldUpdateStatus("SENT", "DELIVERED") === true, "SENT can advance to DELIVERED");
+
+    // ----------------------------------------------------
+    // TEST 1C: Verify Outbound Implementations pass getStatusCallbackUrl()
+    // ----------------------------------------------------
+    console.log("\n[TEST 1C] Verifying All Outbound Codebase References pass getStatusCallbackUrl()...");
+    const twilioServiceCode = fs.readFileSync(path.resolve("src/features/admin/services/twilioService.js"), "utf-8");
+    const inboundServiceCode = fs.readFileSync(path.resolve("src/server/services/inboundMessageService.js"), "utf-8");
+    const campaignWorkerCode = fs.readFileSync(path.resolve("src/server/queues/workers/campaignWorker.js"), "utf-8");
+
+    assert(
+      twilioServiceCode.includes("statusCallback: getStatusCallbackUrl()"),
+      "twilioService.js includes statusCallback: getStatusCallbackUrl()"
+    );
+    assert(
+      inboundServiceCode.includes("const callbackUrl = getStatusCallbackUrl()") &&
+      inboundServiceCode.includes("statusCallback: callbackUrl"),
+      "inboundMessageService.js includes statusCallback: getStatusCallbackUrl()"
+    );
+    assert(
+      campaignWorkerCode.includes("const statusCallback = getStatusCallbackUrl()") &&
+      campaignWorkerCode.includes("statusCallback,"),
+      "campaignWorker.js includes statusCallback: getStatusCallbackUrl()"
     );
 
     // ----------------------------------------------------
@@ -91,17 +199,13 @@ async function runTests() {
     // ----------------------------------------------------
     // TEST 3: Status Callback Handling (SENT -> DELIVERED)
     // ----------------------------------------------------
-    console.log("\n[TEST 3] Testing Callback: SENT -> DELIVERED...");
+    console.log("\n[TEST 3] Testing Callback: SENT -> DELIVERED (with authentic Twilio signature)...");
     const { POST: statusHandler } = await import("../src/app/api/webhook/status/route.js");
 
-    const reqDelivered = new Request("http://localhost:3000/api/webhook/status", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        MessageSid: testSid1,
-        MessageStatus: "delivered",
-        To: `whatsapp:+${testPhone}`,
-      }).toString(),
+    const reqDelivered = createSignedRequest({
+      MessageSid: testSid1,
+      MessageStatus: "delivered",
+      To: `whatsapp:+${testPhone}`,
     });
 
     const resDelivered = await statusHandler(reqDelivered);
@@ -120,15 +224,11 @@ async function runTests() {
     // ----------------------------------------------------
     // TEST 4: Status Callback Handling (DELIVERED -> READ)
     // ----------------------------------------------------
-    console.log("\n[TEST 4] Testing Callback: DELIVERED -> READ...");
-    const reqRead = new Request("http://localhost:3000/api/webhook/status", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        MessageSid: testSid1,
-        MessageStatus: "read",
-        To: `whatsapp:+${testPhone}`,
-      }).toString(),
+    console.log("\n[TEST 4] Testing Callback: DELIVERED -> READ (with authentic Twilio signature)...");
+    const reqRead = createSignedRequest({
+      MessageSid: testSid1,
+      MessageStatus: "read",
+      To: `whatsapp:+${testPhone}`,
     });
 
     const resRead = await statusHandler(reqRead);
@@ -156,15 +256,11 @@ async function runTests() {
       timestamp: new Date(),
     });
 
-    const reqEventTypeRead = new Request("http://localhost:3000/api/webhook/status", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        MessageSid: testSidReadEvent,
-        MessageStatus: "delivered", // Twilio may keep MessageStatus as delivered while attaching EventType=READ
-        EventType: "READ",
-        To: `whatsapp:+${testPhone}`,
-      }).toString(),
+    const reqEventTypeRead = createSignedRequest({
+      MessageSid: testSidReadEvent,
+      MessageStatus: "delivered", // Twilio may keep MessageStatus as delivered while attaching EventType=READ
+      EventType: "READ",
+      To: `whatsapp:+${testPhone}`,
     });
 
     const resEventTypeRead = await statusHandler(reqEventTypeRead);
@@ -182,14 +278,10 @@ async function runTests() {
     // TEST 5: Out-of-Order / Delayed Callback Protection (DELIVERED arrives after READ)
     // ----------------------------------------------------
     console.log("\n[TEST 5] Testing Out-of-Order Callback: Delayed 'delivered' arriving after 'read'...");
-    const reqLateDelivered = new Request("http://localhost:3000/api/webhook/status", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        MessageSid: testSid1,
-        MessageStatus: "delivered",
-        To: `whatsapp:+${testPhone}`,
-      }).toString(),
+    const reqLateDelivered = createSignedRequest({
+      MessageSid: testSid1,
+      MessageStatus: "delivered",
+      To: `whatsapp:+${testPhone}`,
     });
 
     await statusHandler(reqLateDelivered);
@@ -200,14 +292,10 @@ async function runTests() {
     // TEST 6: Out-of-Order / Delayed Callback Protection (SENT arrives after READ)
     // ----------------------------------------------------
     console.log("\n[TEST 6] Testing Out-of-Order Callback: Delayed 'sent' arriving after 'read'...");
-    const reqLateSent = new Request("http://localhost:3000/api/webhook/status", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        MessageSid: testSid1,
-        MessageStatus: "sent",
-        To: `whatsapp:+${testPhone}`,
-      }).toString(),
+    const reqLateSent = createSignedRequest({
+      MessageSid: testSid1,
+      MessageStatus: "sent",
+      To: `whatsapp:+${testPhone}`,
     });
 
     await statusHandler(reqLateSent);
@@ -230,16 +318,12 @@ async function runTests() {
       timestamp: new Date(),
     });
 
-    const reqFailed = new Request("http://localhost:3000/api/webhook/status", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        MessageSid: testSid2,
-        MessageStatus: "failed",
-        ErrorCode: "30008",
-        ErrorMessage: "Unknown destination handset error",
-        To: `whatsapp:+${testPhone}`,
-      }).toString(),
+    const reqFailed = createSignedRequest({
+      MessageSid: testSid2,
+      MessageStatus: "failed",
+      ErrorCode: "30008",
+      ErrorMessage: "Unknown destination handset error",
+      To: `whatsapp:+${testPhone}`,
     });
 
     const resFailed = await statusHandler(reqFailed);
@@ -256,14 +340,10 @@ async function runTests() {
     // TEST 8: Terminal Failure State Protection (SENT arriving after FAILED)
     // ----------------------------------------------------
     console.log("\n[TEST 8] Testing Protection against downgrading terminal failure...");
-    const reqLateSentToFailed = new Request("http://localhost:3000/api/webhook/status", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        MessageSid: testSid2,
-        MessageStatus: "sent",
-        To: `whatsapp:+${testPhone}`,
-      }).toString(),
+    const reqLateSentToFailed = createSignedRequest({
+      MessageSid: testSid2,
+      MessageStatus: "sent",
+      To: `whatsapp:+${testPhone}`,
     });
 
     await statusHandler(reqLateSentToFailed);
@@ -274,15 +354,11 @@ async function runTests() {
     // TEST 9: Idempotency / Duplicate Callbacks
     // ----------------------------------------------------
     console.log("\n[TEST 9] Testing Idempotency on repeated duplicate callbacks...");
-    const reqDuplicate = new Request("http://localhost:3000/api/webhook/status", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        MessageSid: testSid2,
-        MessageStatus: "failed",
-        ErrorCode: "30008",
-        To: `whatsapp:+${testPhone}`,
-      }).toString(),
+    const reqDuplicate = createSignedRequest({
+      MessageSid: testSid2,
+      MessageStatus: "failed",
+      ErrorCode: "30008",
+      To: `whatsapp:+${testPhone}`,
     });
 
     const resDup = await statusHandler(reqDuplicate);
@@ -293,14 +369,10 @@ async function runTests() {
     // TEST 10: Unknown SID Callback Handling
     // ----------------------------------------------------
     console.log("\n[TEST 10] Testing Unknown SID Callback Handling...");
-    const reqUnknown = new Request("http://localhost:3000/api/webhook/status", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        MessageSid: `SM_unknown_${Date.now()}`,
-        MessageStatus: "delivered",
-        To: `whatsapp:+919999999999`,
-      }).toString(),
+    const reqUnknown = createSignedRequest({
+      MessageSid: `SM_unknown_${Date.now()}`,
+      MessageStatus: "delivered",
+      To: `whatsapp:+919999999999`,
     });
 
     const resUnknown = await statusHandler(reqUnknown);
@@ -311,14 +383,13 @@ async function runTests() {
     // TEST 11: CampaignRecipient Aggregation & Status Tracking
     // ----------------------------------------------------
     console.log("\n[TEST 11] Testing Campaign Recipient Status Pipeline...");
-    const testCampaign = await BulkMessage.create({
+    testCampaign = await BulkMessage.create({
       campaignName: `Test Campaign ${Date.now()}`,
       templateId: "HXtest123",
       senderNumber: "+14155238886",
       status: "processing",
     });
 
-    const testCampaignSid = `SM_camp_${Date.now()}`;
     const recipient = await CampaignRecipient.create({
       campaignId: testCampaign._id,
       phone: testPhone,
@@ -328,14 +399,10 @@ async function runTests() {
       sentAt: new Date(),
     });
 
-    const reqCampDelivered = new Request("http://localhost:3000/api/webhook/status", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        MessageSid: testCampaignSid,
-        MessageStatus: "delivered",
-        To: `whatsapp:+${testPhone}`,
-      }).toString(),
+    const reqCampDelivered = createSignedRequest({
+      MessageSid: testCampaignSid,
+      MessageStatus: "delivered",
+      To: `whatsapp:+${testPhone}`,
     });
 
     await statusHandler(reqCampDelivered);
@@ -367,10 +434,8 @@ async function runTests() {
     // ----------------------------------------------------
     console.log("\n[TEST 13] Testing Frontend Zustand Chat Store Status Progression...");
     const { useChatStore } = await import("../src/features/chat/stores/chatStore.js");
-    const store = useChatStore.getState();
-
-    const tempMsgId = `temp_${Date.now()}`;
     const storePhone = "919998887777";
+    const tempMsgId = `temp_${Date.now()}`;
     const storeSid = `SM_store_${Date.now()}`;
 
     // Add conversation with optimistic message
@@ -460,9 +525,6 @@ async function runTests() {
     // TEST 16: Canonical Signature Validation with Twilio Official SDK
     // ----------------------------------------------------
     console.log("\n[TEST 16] Testing Official Twilio SDK Signature Validation on Canonical URL...");
-    const { validateTwilioWebhookSignature } = await import("../src/shared/utils/twilioValidator.js");
-    const twilioSdk = (await import("twilio")).default;
-
     const dummyAuthToken = process.env.TWILIO_AUTH_TOKEN || "test_token_for_validation";
     const canonicalUrl = "https://whatsapp.almaaerp.in/api/webhook/status";
     const testPayload = {
@@ -502,10 +564,20 @@ async function runTests() {
     const isTamperedValid = validateTwilioWebhookSignature(mockRequestTampered, testPayload, canonicalUrl);
     assert(isTamperedValid === false, "Tampered/invalid signature was correctly rejected (returned false)");
 
+    // Production mode signature bypass test: In production, TWILIO_VALIDATE_SIGNATURE=false MUST NOT bypass
+    process.env.NODE_ENV = "production";
+    process.env.TWILIO_VALIDATE_SIGNATURE = "false";
+    const isBypassAttempted = validateTwilioWebhookSignature(mockRequestTampered, testPayload, canonicalUrl);
+    assert(isBypassAttempted === false, "In production mode, TWILIO_VALIDATE_SIGNATURE=false is ignored and does NOT bypass validation");
+    process.env.NODE_ENV = originalNodeEnv;
+    process.env.TWILIO_VALIDATE_SIGNATURE = "true";
+
     // Cleanup test data
     await Message.deleteMany({ twilioSid: { $in: [testSid1, testSid2] } });
     await CampaignRecipient.deleteMany({ twilioMessageSid: testCampaignSid });
-    await BulkMessage.deleteOne({ _id: testCampaign._id });
+    if (testCampaign?._id) {
+      await BulkMessage.deleteOne({ _id: testCampaign._id });
+    }
     console.log("🧹 Test records cleaned up");
 
   } catch (err) {

@@ -10,8 +10,9 @@ import { getStatusCallbackUrl } from "../../features/admin/services/twilioServic
  * @returns {boolean} - true if signature is valid according to Twilio SDK
  */
 export function validateTwilioWebhookSignature(req, body = {}, canonicalUrlOverride = null) {
-  // Explicit bypass only if explicitly set to false (e.g. unit tests / local mock)
-  if (process.env.TWILIO_VALIDATE_SIGNATURE === "false") {
+  // In production mode, signature validation is mandatory and NEVER bypassed
+  const isProduction = process.env.NODE_ENV === "production";
+  if (!isProduction && process.env.TWILIO_VALIDATE_SIGNATURE === "false") {
     return true;
   }
 

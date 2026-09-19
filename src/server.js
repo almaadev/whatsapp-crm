@@ -42,6 +42,10 @@ function validateEnvironmentVariables() {
   if (isProd && process.env.TWILIO_VALIDATE_SIGNATURE === "false") {
     console.warn("⚠️ [SECURITY WARNING] TWILIO_VALIDATE_SIGNATURE is set to false in production mode!");
   }
+
+  if (isProd && !process.env.TWILIO_STATUS_CALLBACK_URL) {
+    console.warn("⚠️ [STARTUP WARNING] TWILIO_STATUS_CALLBACK_URL is missing in production! Defaulting to canonical URL: https://whatsapp.almaaerp.in/api/webhook/status");
+  }
 }
 
 validateEnvironmentVariables();

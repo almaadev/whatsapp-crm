@@ -19,14 +19,28 @@ export function getTwilioClient() {
   return twilioClientInstance;
 }
 
+export const CANONICAL_PRODUCTION_STATUS_CALLBACK_URL = "https://whatsapp.almaaerp.in/api/webhook/status";
+
 export function getStatusCallbackUrl() {
-  const defaultProdUrl = "https://whatsapp.almaaerp.in";
+  const isProd = process.env.NODE_ENV === "production";
+
+  if (isProd) {
+    // In production: TWILIO_STATUS_CALLBACK_URL -> canonical production default
+    // NEXTAUTH_URL is NEVER used in production
+    if (process.env.TWILIO_STATUS_CALLBACK_URL) {
+      const clean = process.env.TWILIO_STATUS_CALLBACK_URL.trim().replace(/\/+$/, "");
+      return clean.endsWith("/api/webhook/status") ? clean : `${clean}/api/webhook/status`;
+    }
+    return CANONICAL_PRODUCTION_STATUS_CALLBACK_URL;
+  }
+
+  // Development resolution:
   const baseUrl = (
     process.env.TWILIO_STATUS_CALLBACK_URL ||
     process.env.NEXT_PUBLIC_BASE_URL ||
     process.env.APP_URL ||
     process.env.PUBLIC_URL ||
-    (process.env.NODE_ENV === "production" ? defaultProdUrl : process.env.NEXTAUTH_URL || defaultProdUrl)
+    "http://localhost:3000"
   ).trim();
 
   const cleanBase = baseUrl.replace(/\/+$/, "");

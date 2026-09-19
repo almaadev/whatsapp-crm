@@ -265,28 +265,25 @@ export const useChatStore = create((set, get) => ({
 
   updateMessageStatus: (phone, tempId, newStatus, twilioSid = null) => {
     set((state) => {
-      const STATUS_RANK = {
-        QUEUED: 1,
-        SENDING: 2,
-        SENT: 3,
-        DELIVERED: 4,
-        READ: 5,
-        UNDELIVERED: 4,
-        FAILED: 4,
-        CANCELED: 4,
+      const ALLOWED_TRANSITIONS = {
+        QUEUED: new Set(["QUEUED", "SENDING", "SENT", "DELIVERED", "READ", "UNDELIVERED", "FAILED", "CANCELED"]),
+        SENDING: new Set(["SENDING", "SENT", "DELIVERED", "READ", "UNDELIVERED", "FAILED", "CANCELED"]),
+        SENT: new Set(["SENT", "DELIVERED", "READ", "UNDELIVERED", "FAILED", "CANCELED"]),
+        DELIVERED: new Set(["DELIVERED", "READ", "UNDELIVERED", "FAILED"]),
+        READ: new Set(["READ"]),
+        UNDELIVERED: new Set(["UNDELIVERED", "FAILED"]),
+        FAILED: new Set(["FAILED", "UNDELIVERED"]),
+        CANCELED: new Set(["CANCELED"]),
       };
 
       const shouldUpdate = (curr, next) => {
         if (!curr) return true;
-        const c = (curr || "").toUpperCase();
-        const n = (next || "").toUpperCase();
+        if (!next) return false;
+        const c = (curr || "").toUpperCase().trim();
+        const n = (next || "").toUpperCase().trim();
         if (c === n) return true;
-        if (c === "READ" && (n === "DELIVERED" || n === "SENT" || n === "QUEUED")) return false;
-        if (c === "DELIVERED" && (n === "SENT" || n === "QUEUED")) return false;
-        if (["FAILED", "UNDELIVERED"].includes(c) && ["QUEUED", "SENDING", "SENT"].includes(n)) return false;
-        const cRank = STATUS_RANK[c] || 0;
-        const nRank = STATUS_RANK[n] || 0;
-        return nRank >= cRank;
+        const allowed = ALLOWED_TRANSITIONS[c];
+        return allowed ? allowed.has(n) : true;
       };
 
       const updateHistory = (history) => {
