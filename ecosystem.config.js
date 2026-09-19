@@ -3,8 +3,8 @@ module.exports = {
     {
       name: "whatsapp-crm",
       script: "src/server.js",
-      instances: "max", // Uses all available CPU cores
-      exec_mode: "cluster", // Enables Load Balancing
+      instances: 1, // Crucial: Prevents Socket.IO 400 session ID unknown errors from un-stickied round-robin cluster workers
+      exec_mode: "fork",
       env: {
         NODE_ENV: "production",
       },
