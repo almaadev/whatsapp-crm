@@ -20,9 +20,19 @@ export function getTwilioClient() {
 }
 
 export function getStatusCallbackUrl() {
-  return process.env.NEXT_PUBLIC_BASE_URL
-    ? `${process.env.NEXT_PUBLIC_BASE_URL}/api/webhook/status`
-    : "https://nonarsenic-nonparous-clotilde.ngrok-free.dev/api/webhook/status"; // fallback for local dev
+  const baseUrl = (
+    process.env.TWILIO_STATUS_CALLBACK_URL ||
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    process.env.APP_URL ||
+    process.env.PUBLIC_URL ||
+    process.env.NEXTAUTH_URL ||
+    "https://pediatric-opossum-gambling.ngrok-free.dev"
+  ).trim();
+
+  const cleanBase = baseUrl.replace(/\/+$/, "");
+  return cleanBase.endsWith("/api/webhook/status")
+    ? cleanBase
+    : `${cleanBase}/api/webhook/status`;
 }
 
 export function formatPhoneNumber(rawNumber) {

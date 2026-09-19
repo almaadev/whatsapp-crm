@@ -13,18 +13,20 @@ import { isSamePhone } from "@/shared/utils/phoneUtils";
  * @param {string} role - The role of the user, used for fetching appropriate messages.
  * @returns {Object} An object containing the `loading` state.
  */
-export function useChat(role) {
+export function useChat(optionsOrRole) {
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const isConfigObj = typeof optionsOrRole === "object" && optionsOrRole !== null;
+  const isAuthenticated = isConfigObj ? (optionsOrRole.isAuthenticated ?? true) : true;
+  const isAuthorized = isConfigObj ? (optionsOrRole.isAuthorized ?? true) : true;
+  const role = isConfigObj ? optionsOrRole.role : optionsOrRole;
 
   const setMessages = useChatStore((state) => state.setMessages);
-
   const addMessage = useChatStore((state) => state.addMessage);
-
   const addNotification = useChatStore((state) => state.addNotification);
-
   const selectedChat = useChatStore((state) => state.selectedChat);
-
   const selectedChatRef = useRef(selectedChat);
 
   useEffect(() => {
@@ -32,22 +34,43 @@ export function useChat(role) {
   }, [selectedChat]);
 
   const fetchChats = useCallback(async () => {
+    if (!isAuthenticated || !isAuthorized) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
     try {
       const chats = await chatService.getMessages(role);
 
-      if (!Array.isArray(chats)) return;
+      if (!Array.isArray(chats)) {
+        setMessages([]);
+        setError(null);
+        return;
+      }
 
       const sortedChats = chats.sort(
-        (a, b) => new Date(b.lastSeenAt) - new Date(a.lastSeenAt),
+        (a, b) =>
+          new Date(b.lastSeenAt || b.timestamp || 0) -
+          new Date(a.lastSeenAt || a.timestamp || 0),
       );
 
       setMessages(sortedChats);
-    } catch (error) {
-      console.error("Chat Fetch Error:", error);
+      setError(null);
+    } catch (err) {
+      const errMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "Failed to load chats";
+      console.error("Chat Fetch Error:", errMsg);
+      setError(errMsg);
     } finally {
       setLoading(false);
     }
-  }, [role, setMessages]);
+  }, [isAuthenticated, isAuthorized, role, setMessages]);
 
   const handleStatusUpdate = useCallback(({ sid, status, phone }) => {
     const state = useChatStore.getState();
@@ -101,11 +124,16 @@ export function useChat(role) {
   );
 
   useEffect(() => {
-    if (!role) return;
+    if (!isAuthenticated || !isAuthorized) {
+      setLoading(false);
+      return;
+    }
     fetchChats();
-  }, [role, fetchChats]);
+  }, [isAuthenticated, isAuthorized, fetchChats]);
 
   return {
     loading,
+    error,
+    refreshChats: fetchChats,
   };
 }

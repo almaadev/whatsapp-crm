@@ -265,18 +265,50 @@ export const useChatStore = create((set, get) => ({
 
   updateMessageStatus: (phone, tempId, newStatus, twilioSid = null) => {
     set((state) => {
+      const STATUS_RANK = {
+        QUEUED: 1,
+        SENDING: 2,
+        SENT: 3,
+        DELIVERED: 4,
+        READ: 5,
+        UNDELIVERED: 4,
+        FAILED: 4,
+        CANCELED: 4,
+      };
+
+      const shouldUpdate = (curr, next) => {
+        if (!curr) return true;
+        const c = (curr || "").toUpperCase();
+        const n = (next || "").toUpperCase();
+        if (c === n) return true;
+        if (c === "READ" && (n === "DELIVERED" || n === "SENT" || n === "QUEUED")) return false;
+        if (c === "DELIVERED" && (n === "SENT" || n === "QUEUED")) return false;
+        if (["FAILED", "UNDELIVERED"].includes(c) && ["QUEUED", "SENDING", "SENT"].includes(n)) return false;
+        const cRank = STATUS_RANK[c] || 0;
+        const nRank = STATUS_RANK[n] || 0;
+        return nRank >= cRank;
+      };
+
       const updateHistory = (history) => {
-        if (!history) return [];
+        if (!history || !Array.isArray(history)) return [];
         return history.map((msg) => {
           const isMatch =
-            (tempId && (msg.tempId === tempId || msg.id === tempId || msg._id === tempId || msg.messageId === tempId)) ||
-            (twilioSid && (msg.twilioSid === twilioSid || msg.sid === twilioSid));
+            (twilioSid && (msg.twilioSid === twilioSid || msg.sid === twilioSid)) ||
+            (tempId && (
+              msg.tempId === tempId ||
+              msg.id === tempId ||
+              msg._id === tempId ||
+              msg.messageId === tempId ||
+              msg.twilioSid === tempId
+            ));
 
           if (isMatch) {
+            const currentStat = msg.messageStatus || msg.status || "SENT";
+            const targetStat = shouldUpdate(currentStat, newStatus) ? newStatus : currentStat;
             return {
               ...msg,
-              status: newStatus,
-              messageStatus: newStatus,
+              status: targetStat,
+              messageStatus: targetStat,
               ...(twilioSid && { twilioSid }),
             };
           }
@@ -284,24 +316,43 @@ export const useChatStore = create((set, get) => ({
         });
       };
 
+      // Search across messages: check phone match OR if twilioSid/tempId exists in chat history
       const updatedMessages = state.messages.map((chat) => {
-        if (isSamePhone(chat.phone, phone)) {
+        const isPhoneMatch = phone && isSamePhone(chat.phone, phone);
+        const hasSidInHistory = (twilioSid || tempId) && chat.history?.some((m) =>
+          (twilioSid && (m.twilioSid === twilioSid || m.sid === twilioSid)) ||
+          (tempId && (m.tempId === tempId || m.id === tempId || m._id === tempId || m.messageId === tempId || m.twilioSid === tempId))
+        );
+
+        if (isPhoneMatch || hasSidInHistory) {
+          const updatedHistory = updateHistory(chat.history);
+          const lastMsg = updatedHistory.length > 0 ? updatedHistory[updatedHistory.length - 1] : null;
           return {
             ...chat,
-            messageStatus: newStatus,
-            history: updateHistory(chat.history),
+            messageStatus: lastMsg?.messageStatus || lastMsg?.status || chat.messageStatus,
+            history: updatedHistory,
           };
         }
         return chat;
       });
 
       let updatedSelectedChat = state.selectedChat;
-      if (state.selectedChat && isSamePhone(state.selectedChat.phone, phone)) {
-        updatedSelectedChat = {
-          ...state.selectedChat,
-          messageStatus: newStatus,
-          history: updateHistory(state.selectedChat.history),
-        };
+      if (state.selectedChat) {
+        const isSelectedPhoneMatch = phone && isSamePhone(state.selectedChat.phone, phone);
+        const isSelectedSidMatch = (twilioSid || tempId) && state.selectedChat.history?.some((m) =>
+          (twilioSid && (m.twilioSid === twilioSid || m.sid === twilioSid)) ||
+          (tempId && (m.tempId === tempId || m.id === tempId || m._id === tempId || m.messageId === tempId || m.twilioSid === tempId))
+        );
+
+        if (isSelectedPhoneMatch || isSelectedSidMatch) {
+          const updatedHistory = updateHistory(state.selectedChat.history);
+          const lastMsg = updatedHistory.length > 0 ? updatedHistory[updatedHistory.length - 1] : null;
+          updatedSelectedChat = {
+            ...state.selectedChat,
+            messageStatus: lastMsg?.messageStatus || lastMsg?.status || state.selectedChat.messageStatus,
+            history: updatedHistory,
+          };
+        }
       }
 
       return { messages: updatedMessages, selectedChat: updatedSelectedChat };

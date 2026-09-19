@@ -14,16 +14,28 @@ import ChatList from "@/features/chat/components/ChatList";
 import ChatArea from "@/features/chat/components/ChatArea";
 
 function ChatPageContent() {
-  const { data: session, status } = useSession();
-  const { user, isLoading, hasModuleAccess } = useAuth();
+  const { data: session } = useSession();
+  const {
+    user,
+    isAuthenticated,
+    isUnauthenticated,
+    checkModuleAccessStatus,
+  } = useAuth();
+
   const selectedChat = useChatStore((s) => s.selectedChat);
   const setSelectedChat = useChatStore((s) => s.setSelectedChat);
   const messages = useChatStore((s) => s.messages);
   const searchParams = useSearchParams();
 
   const userRole = user?.role || session?.user?.role;
-  const isAuthorized = hasModuleAccess("Chat Inbox");
-  const { loading } = useChat(userRole);
+  const accessStatus = checkModuleAccessStatus("Chat Inbox");
+  const isAuthorized = accessStatus === "AUTHORIZED";
+
+  const { loading: isChatLoading, error: chatError, refreshChats } = useChat({
+    isAuthenticated,
+    isAuthorized,
+    role: userRole,
+  });
 
   useChatPresence(selectedChat?.phone);
 
@@ -37,18 +49,24 @@ function ChatPageContent() {
     }
   }, [searchParams, messages, selectedChat, setSelectedChat]);
 
-  if (status === "loading" || isLoading) {
+  // State 1 & 3: Authentication is initializing or verifying permissions
+  if (accessStatus === "INITIALIZING_AUTH" || accessStatus === "CHECKING_PERMISSION") {
     return <LoadingScreen message="Loading Chat..." />;
   }
 
-  if (!user && !session) return null;
+  // State 2: Explicitly unauthenticated
+  if (accessStatus === "UNAUTHENTICATED" || isUnauthenticated) {
+    return null;
+  }
 
-  if (!isAuthorized) {
+  // State 8: Unauthorized (only evaluated AFTER authentication and store resolution have fully settled)
+  if (accessStatus === "UNAUTHORIZED" || !isAuthorized) {
     return (
       <AccessDenied message="You do not have permission to access the Chat Inbox." />
     );
   }
 
+  // State 4, 5, 6, 7: Authorized -> Render Chat Workspace (InboxPage)
   return (
     <InboxPage
       listPanel={
@@ -59,7 +77,12 @@ function ChatPageContent() {
               : "flex w-full lg:w-[320px] xl:w-[340px] 2xl:w-[380px]"
           }`}
         >
-          <ChatList role={userRole} loading={loading} />
+          <ChatList
+            role={userRole}
+            loading={isChatLoading}
+            error={chatError}
+            onRetry={refreshChats}
+          />
         </div>
       }
       chatPanel={

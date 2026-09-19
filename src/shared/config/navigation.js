@@ -119,7 +119,6 @@ export const NAVIGATION_CONFIG = [
     icon: Send,
     href: "/crm/bulk-message",
     moduleName: "Bulk Messages",
-    hideForAdmin: true,
   },
   {
     type: "link",
@@ -127,7 +126,6 @@ export const NAVIGATION_CONFIG = [
     icon: History,
     href: "/crm/message-logs",
     moduleName: "Messages log",
-    hideForAdmin: true,
   },
   {
     type: "link",

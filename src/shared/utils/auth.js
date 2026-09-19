@@ -6,11 +6,52 @@ export function isAdminAuthorized(role, department = "") {
   );
 }
 
-export function hasModuleAccess(session, moduleName) {
-  if (!session?.user) return false;
-  const { role, department, accessModules = [] } = session.user;
+export const CANONICAL_MODULES = {
+  CHAT: "Chat Inbox",
+  BULK_MESSAGES: "Bulk Messages",
+  MESSAGES_LOG: "Messages log",
+  LEADS: "Leads",
+  CUSTOMERS: "Customers",
+  REPORTS: "Reports",
+};
+
+const MODULE_ALIASES = {
+  "chat inbox": CANONICAL_MODULES.CHAT,
+  "chat_inbox": CANONICAL_MODULES.CHAT,
+  "chat-inbox": CANONICAL_MODULES.CHAT,
+  "chat": CANONICAL_MODULES.CHAT,
+  "bulk messages": CANONICAL_MODULES.BULK_MESSAGES,
+  "bulk_messages": CANONICAL_MODULES.BULK_MESSAGES,
+  "bulk-messages": CANONICAL_MODULES.BULK_MESSAGES,
+  "messages log": CANONICAL_MODULES.MESSAGES_LOG,
+  "messages_log": CANONICAL_MODULES.MESSAGES_LOG,
+  "messages-log": CANONICAL_MODULES.MESSAGES_LOG,
+  "leads": CANONICAL_MODULES.LEADS,
+  "lead": CANONICAL_MODULES.LEADS,
+  "customers": CANONICAL_MODULES.CUSTOMERS,
+  "customer": CANONICAL_MODULES.CUSTOMERS,
+  "reports": CANONICAL_MODULES.REPORTS,
+  "report": CANONICAL_MODULES.REPORTS,
+};
+
+export function normalizeModuleName(name) {
+  if (!name || typeof name !== "string") return "";
+  const key = name.trim().toLowerCase();
+  return MODULE_ALIASES[key] || name.trim();
+}
+
+export function hasModuleAccess(userOrSession, moduleName) {
+  if (!userOrSession) return false;
+  const user = userOrSession.user ? userOrSession.user : userOrSession;
+  if (!user) return false;
+
+  const { role, department, accessModules = [] } = user;
   if (isAdminAuthorized(role, department)) return true;
-  return accessModules.includes(moduleName);
+
+  const canonicalTarget = normalizeModuleName(moduleName);
+  return accessModules.some(
+    (m) => normalizeModuleName(m) === canonicalTarget || m === moduleName
+  );
 }
 
 export function isSuperAdmin(role) {
@@ -38,15 +79,22 @@ export function checkPermissions(userOrSession, config) {
   if (isAdmin) return true;
 
   // 2. Module verification
-  if (config.moduleName && !accessModules.includes(config.moduleName)) {
-    return false;
+  if (config.moduleName) {
+    const canonicalTarget = normalizeModuleName(config.moduleName);
+    const hasModule = accessModules.some(
+      (m) => normalizeModuleName(m) === canonicalTarget || m === config.moduleName
+    );
+    if (!hasModule) return false;
   }
 
   // 3. Access Requirements (any of the listed modules)
   if (config.accessRequirements) {
-    const hasAny = config.accessRequirements.some((req) =>
-      accessModules.includes(req)
-    );
+    const hasAny = config.accessRequirements.some((req) => {
+      const canonicalReq = normalizeModuleName(req);
+      return accessModules.some(
+        (m) => normalizeModuleName(m) === canonicalReq || m === req
+      );
+    });
     if (!hasAny) return false;
   }
 

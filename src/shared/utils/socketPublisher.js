@@ -72,7 +72,20 @@ export function emitCategoryMessage(category, payload, branchId = null) {
 
 export function emitMessageStatusUpdate(payload, branchId = null) {
   if (!global.io) return;
+  const phone = payload.phone;
+  const sid = payload.sid || payload.twilioSid;
+  const status = payload.status;
+  const targetBranch = branchId || payload.branchId;
+
+  console.log(`[SOCKET PUBLISHER] EMIT STATUS | event=message_status_update | sid=${sid} | status=${status} | phone=${phone}`);
+
+  if (phone) {
+    global.io.to(phone).emit("message_status_update", payload);
+  }
   global.io.emit("message_status_update", payload);
+  if (targetBranch) {
+    global.io.to(`branch:${targetBranch.toString()}`).emit("message_status_update", payload);
+  }
 }
 
 export function emitLeadStatusUpdate(payload, branchId = null) {

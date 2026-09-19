@@ -215,8 +215,13 @@ class RealtimeServiceManager {
       
       try {
         const state = useChatStore.getState();
-        if (update.phone && state.updateMessageStatus) {
-          state.updateMessageStatus(update.phone, update.sid || update.tempId, update.status, update.sid);
+        if (state.updateMessageStatus && update) {
+          state.updateMessageStatus(
+            update.phone || null,
+            update.sid || update.tempId || update.messageId,
+            update.status,
+            update.sid
+          );
         }
       } catch (e) {}
 

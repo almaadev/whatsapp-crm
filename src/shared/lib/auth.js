@@ -60,8 +60,24 @@ export const authOptions = {
         token.role = user.role;
         token.department = user.department;
         token.branch = user.branch;
-        token.accessModules = user.accessModules;
+        token.accessModules = user.accessModules || [];
         token.jti = crypto.randomUUID();
+      }
+
+      // If token is missing accessModules, sync from DB
+      if (token?.id && (!token.accessModules || !Array.isArray(token.accessModules))) {
+        try {
+          await connectDB();
+          const dbUser = await User.findById(token.id).select("role department branch accessModules active").lean();
+          if (dbUser && dbUser.active !== false) {
+            token.role = dbUser.role;
+            token.department = dbUser.department;
+            token.branch = dbUser.branch;
+            token.accessModules = dbUser.accessModules || [];
+          }
+        } catch (dbErr) {
+          console.warn("[NextAuth jwt] DB sync warning:", dbErr.message);
+        }
       }
 
       // SECURITY ENHANCEMENT: Check Token Blacklist in Redis
@@ -81,7 +97,7 @@ export const authOptions = {
         session.user.role = token.role;
         session.user.department = token.department;
         session.user.branch = token.branch;
-        session.user.accessModules = token.accessModules;
+        session.user.accessModules = token.accessModules || [];
       }
       return session;
     },

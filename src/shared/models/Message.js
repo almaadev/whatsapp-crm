@@ -28,6 +28,18 @@ const MessageSchema = new mongoose.Schema(
       type: String,
       index: true,
     },
+    errorCode: {
+      type: String,
+      default: null,
+    },
+    errorMessage: {
+      type: String,
+      default: null,
+    },
+    channelStatusMessage: {
+      type: String,
+      default: null,
+    },
     chatType: {
       type: String,
       default: "Direct Lead",

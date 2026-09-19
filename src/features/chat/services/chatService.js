@@ -18,13 +18,18 @@ export const chatService = {
     try {
       const { data } = await chatRepository.getChats();
 
-      if (!Array.isArray(data)) return [];
+      if (!Array.isArray(data)) {
+        if (data && typeof data === "object" && data.success === false) {
+          throw new Error(data.message || "Failed to load chats");
+        }
+        return [];
+      }
 
       // If backend already grouped conversations (e.g. has history field)
       if (data.length > 0 && data[0].history !== undefined) {
         return data.map((conv) => ({
           ...conv,
-          name: resolveCustomerDisplayName(conv)
+          name: resolveCustomerDisplayName(conv),
         }));
       }
 
@@ -43,7 +48,11 @@ export const chatService = {
           if (!displayText && msg.mediaUrl) {
             if (msg.mediaType?.includes("video")) displayText = "🎥 Video";
             else if (msg.mediaType?.includes("audio")) displayText = "🎵 Audio";
-            else if (msg.mediaType?.includes("pdf") || msg.mediaType?.includes("document")) displayText = "📄 Document";
+            else if (
+              msg.mediaType?.includes("pdf") ||
+              msg.mediaType?.includes("document")
+            )
+              displayText = "📄 Document";
             else displayText = "📷 Photo";
           }
 
@@ -53,7 +62,7 @@ export const chatService = {
           uniqueConversations[msg.phone].status = msg.status;
           uniqueConversations[msg.phone].messageStatus = msg.messageStatus;
 
-           uniqueConversations[msg.phone].direction = msg.direction;
+          uniqueConversations[msg.phone].direction = msg.direction;
           uniqueConversations[msg.phone].read = msg.read;
           uniqueConversations[msg.phone].senderName = msg.senderName;
           uniqueConversations[msg.phone].senderRole = msg.senderRole;
@@ -63,7 +72,8 @@ export const chatService = {
 
           // 🚀 FIX: Prevent Priority and Closed state from being stripped during array grouping!
           uniqueConversations[msg.phone].priority = msg.priority;
-          if (msg.isChatClosed !== undefined) uniqueConversations[msg.phone].isChatClosed = msg.isChatClosed;
+          if (msg.isChatClosed !== undefined)
+            uniqueConversations[msg.phone].isChatClosed = msg.isChatClosed;
 
           if (msg.name && msg.name !== msg.phone) {
             uniqueConversations[msg.phone].name = msg.name;
@@ -77,10 +87,9 @@ export const chatService = {
       });
 
       return result;
-
     } catch (error) {
-      console.error("Chat Service Error:", error);
-      return [];
+      console.error("Chat Service Error:", error?.message || error);
+      throw error;
     }
   },
 

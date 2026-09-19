@@ -26,8 +26,8 @@ import AlmaaLogo from "@/../public/logo/Almaa Herbal Logo.png";
 import { useAuth } from "@/shared/hooks/useAuth";
 
 export default function NewCustomerPage() {
-  const { data: session, status } = useSession();
-  const { user, isLoading, hasModuleAccess } = useAuth();
+  const { data: session } = useSession();
+  const { user, isAuthenticated, isUnauthenticated, checkModuleAccessStatus } = useAuth();
   const router = useRouter();
   const { setMobileOpen } = useCrmLayout();
   const setSelectedChat = useChatStore((s) => s.setSelectedChat);
@@ -48,7 +48,8 @@ export default function NewCustomerPage() {
     source: "Direct",
   });
 
-  const isAuthorized = hasModuleAccess("Chat Inbox");
+  const accessStatus = checkModuleAccessStatus("Chat Inbox");
+  const isAuthorized = accessStatus === "AUTHORIZED";
 
   useEffect(() => {
     const cleanMobile = formData.mobile.replace(/\D/g, "");
@@ -129,15 +130,15 @@ export default function NewCustomerPage() {
     }
   };
 
-  if (status === "loading" || isLoading)
+  if (accessStatus === "INITIALIZING_AUTH" || accessStatus === "CHECKING_PERMISSION")
     return (
       <div className="flex h-[100dvh] items-center justify-center text-slate-500 font-medium">
         Loading CRM...
       </div>
     );
-  if (!user && !session) return null;
+  if (accessStatus === "UNAUTHENTICATED" || isUnauthenticated) return null;
 
-  if (!isAuthorized) {
+  if (accessStatus === "UNAUTHORIZED" || !isAuthorized) {
     return (
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
         <div className="flex flex-1 w-full h-full relative overflow-hidden flex-col">

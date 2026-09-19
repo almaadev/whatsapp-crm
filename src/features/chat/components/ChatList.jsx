@@ -37,7 +37,7 @@ const getAvatarGradient = (name) => {
   return gradients[char % gradients.length];
 };
 
-export default function ChatList({ role, loading }) {
+export default function ChatList({ role, loading, error = null, onRetry = null }) {
   const queryClient = useQueryClient();
   const messages = useChatStore((s) => s.messages);
 
@@ -806,9 +806,24 @@ export default function ChatList({ role, loading }) {
             {renderChatGroup("Older", groupedChats.older)}
 
             {messages.length === 0 && !loading && (
-              <div className="p-8 text-center text-slate-400 text-xs">
-                No chats found.
-              </div>
+              error ? (
+                <div className="p-8 text-center text-rose-500 text-xs flex flex-col items-center gap-2 select-none">
+                  <AlertCircle size={20} className="text-rose-500" />
+                  <span className="font-semibold">{error}</span>
+                  {onRetry && (
+                    <button
+                      onClick={onRetry}
+                      className="mt-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Retry
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="p-8 text-center text-slate-400 text-xs">
+                  No chats found.
+                </div>
+              )
             )}
           </>
         )}
