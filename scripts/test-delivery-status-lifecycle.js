@@ -1,3 +1,8 @@
+import { register } from "node:module";
+try {
+  register("./loader-hook.js", import.meta.url);
+} catch {}
+
 import nextEnv from "@next/env";
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
@@ -132,6 +137,46 @@ async function runTests() {
 
     const updatedReadMsg = await Message.findOne({ twilioSid: testSid1 });
     assert(updatedReadMsg.status === "READ" && updatedReadMsg.read === "TRUE", `Message status updated to 'READ' and read='TRUE' in DB`);
+
+    // ----------------------------------------------------
+    // TEST 4B: WhatsApp Read Receipt via EventType=READ
+    // ----------------------------------------------------
+    console.log("\n[TEST 4B] Testing WhatsApp Callback via EventType=READ...");
+    const testSidReadEvent = `SM_test_eventtype_${Date.now()}`;
+    await Message.create({
+      phone: testPhone,
+      message: "Test EventType=READ message",
+      direction: "OUTBOUND",
+      status: "DELIVERED",
+      twilioSid: testSidReadEvent,
+      branchId: testBranchId,
+      senderName: "Test Associate",
+      senderNumber: "+14155238886",
+      read: "FALSE",
+      timestamp: new Date(),
+    });
+
+    const reqEventTypeRead = new Request("http://localhost:3000/api/webhook/status", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        MessageSid: testSidReadEvent,
+        MessageStatus: "delivered", // Twilio may keep MessageStatus as delivered while attaching EventType=READ
+        EventType: "READ",
+        To: `whatsapp:+${testPhone}`,
+      }).toString(),
+    });
+
+    const resEventTypeRead = await statusHandler(reqEventTypeRead);
+    const jsonEventTypeRead = await resEventTypeRead.json();
+    assert(jsonEventTypeRead.success === true && jsonEventTypeRead.statusUpdated === true, "EventType=READ callback accepted");
+
+    const msgAfterEventTypeRead = await Message.findOne({ twilioSid: testSidReadEvent });
+    assert(
+      msgAfterEventTypeRead.status === "READ" && msgAfterEventTypeRead.read === "TRUE",
+      `Message correctly promoted to 'READ' via EventType=READ (actual: ${msgAfterEventTypeRead.status})`
+    );
+    await Message.deleteOne({ twilioSid: testSidReadEvent });
 
     // ----------------------------------------------------
     // TEST 5: Out-of-Order / Delayed Callback Protection (DELIVERED arrives after READ)
@@ -410,6 +455,52 @@ async function runTests() {
       activeSelected && activeSelected.history[0].status === "DELIVERED" && activeSelected.history[0].twilioSid === activeSid,
       "selectedChat.history was updated directly to 'DELIVERED' with twilioSid in-place without requiring refresh"
     );
+
+    // ----------------------------------------------------
+    // TEST 16: Canonical Signature Validation with Twilio Official SDK
+    // ----------------------------------------------------
+    console.log("\n[TEST 16] Testing Official Twilio SDK Signature Validation on Canonical URL...");
+    const { validateTwilioWebhookSignature } = await import("../src/shared/utils/twilioValidator.js");
+    const twilioSdk = (await import("twilio")).default;
+
+    const dummyAuthToken = process.env.TWILIO_AUTH_TOKEN || "test_token_for_validation";
+    const canonicalUrl = "https://whatsapp.almaaerp.in/api/webhook/status";
+    const testPayload = {
+      MessageSid: "SM_sig_test_123",
+      MessageStatus: "delivered",
+      To: "whatsapp:+919876543210"
+    };
+
+    // Calculate valid signature using Twilio SDK
+    const validSignature = twilioSdk.getExpectedTwilioSignature(dummyAuthToken, canonicalUrl, testPayload);
+
+    // Mock incoming Request arriving behind reverse proxy
+    const mockRequestBehindProxy = new Request("http://localhost:3000/api/webhook/status", {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "x-twilio-signature": validSignature,
+        "x-forwarded-proto": "https",
+        "x-forwarded-host": "whatsapp.almaaerp.in",
+      },
+    });
+
+    const isSigValid = validateTwilioWebhookSignature(mockRequestBehindProxy, testPayload, canonicalUrl);
+    assert(isSigValid === true, "Twilio official SDK signature validated successfully for canonical URL behind reverse proxy");
+
+    // Negative test: Tampered signature must fail
+    const mockRequestTampered = new Request("http://localhost:3000/api/webhook/status", {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "x-twilio-signature": "tampered_signature_xyz",
+        "x-forwarded-proto": "https",
+        "x-forwarded-host": "whatsapp.almaaerp.in",
+      },
+    });
+
+    const isTamperedValid = validateTwilioWebhookSignature(mockRequestTampered, testPayload, canonicalUrl);
+    assert(isTamperedValid === false, "Tampered/invalid signature was correctly rejected (returned false)");
 
     // Cleanup test data
     await Message.deleteMany({ twilioSid: { $in: [testSid1, testSid2] } });

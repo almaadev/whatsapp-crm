@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server.js";
-import twilio from "twilio";
 import connectDB from "../../../../shared/lib/db/mongodb.js";
 import Message from "../../../../shared/models/Message.js";
 import CampaignRecipient from "../../../../shared/models/CampaignRecipient.js";
 import redis from "../../../../shared/lib/db/redis.js";
 import { syncCampaignCounts } from "../../../../server/services/campaignService.js";
 import { emitMessageStatusUpdate } from "../../../../shared/utils/socketPublisher.js";
-import { normalizePhone, formatForTwilio } from "../../../../shared/utils/phoneUtils.js";
+import { formatForTwilio } from "../../../../shared/utils/phoneUtils.js";
+import { validateTwilioWebhookSignature } from "../../../../shared/utils/twilioValidator.js";
 
 // All Twilio Outbound Statuses
 const TWILIO_STATUSES = [
@@ -39,12 +39,12 @@ function shouldUpdateStatus(currentStatus, newStatus) {
   }
 
   // Read state is ultimate progression; cannot be overwritten by sent or delivered
-  if (curr === "READ" && (next === "DELIVERED" || next === "SENT" || next === "QUEUED")) {
+  if (curr === "READ" && (next === "DELIVERED" || next === "SENT" || next === "QUEUED" || next === "SENDING")) {
     return false;
   }
 
   // Delivered cannot be downgraded to sent or queued
-  if (curr === "DELIVERED" && (next === "SENT" || next === "QUEUED")) {
+  if (curr === "DELIVERED" && (next === "SENT" || next === "QUEUED" || next === "SENDING")) {
     return false;
   }
 
@@ -74,22 +74,28 @@ export async function POST(req) {
       body = Object.fromEntries(url.searchParams.entries());
     }
 
-    const twilioSID = body.MessageSid || body.SmsSid || body.sid || "";
-    const messageStatus = body.MessageStatus || body.SmsStatus || body.status || "";
+    const twilioSID = (body.MessageSid || body.SmsSid || body.sid || "").trim();
+    const eventType = (body.EventType || body.eventType || "").trim().toUpperCase();
+    let rawStatus = (body.MessageStatus || body.SmsStatus || body.status || "").trim();
+
+    // WhatsApp read receipts send EventType=READ (or EventType=read)
+    if (eventType === "READ" || rawStatus.toLowerCase() === "read") {
+      rawStatus = "read";
+    }
+
+    const messageStatus = rawStatus;
     const errorCode = body.ErrorCode || body.errorCode || null;
     const errorMessage = body.ErrorMessage || body.errorMessage || body.ChannelStatusMessage || null;
     const channelStatusMessage = body.ChannelStatusMessage || null;
-    const signature = req.headers.get("x-twilio-signature") || "";
 
-    console.log(`[WEBHOOK-STATUS] received | sid=${twilioSID} | status=${messageStatus} | to=${body.To || body.to}`);
+    console.log(`[WEBHOOK-STATUS] received | sid=${twilioSID} | status=${messageStatus} | eventType=${eventType || "none"} | to=${body.To || body.to}`);
 
-    // Signature Validation
+    // Signature Validation via Twilio SDK using canonical URL
     const isProduction = process.env.NODE_ENV === "production";
     const validateSignatureEnv = process.env.TWILIO_VALIDATE_SIGNATURE !== "false";
 
-    if (isProduction && validateSignatureEnv && process.env.TWILIO_AUTH_TOKEN && signature) {
-      const requestUrl = req.url || (process.env.NEXT_PUBLIC_BASE_URL ? `${process.env.NEXT_PUBLIC_BASE_URL}/api/webhook/status` : "");
-      const isValid = twilio.validateRequest(process.env.TWILIO_AUTH_TOKEN, signature, requestUrl, body);
+    if (isProduction && validateSignatureEnv) {
+      const isValid = validateTwilioWebhookSignature(req, body);
       if (!isValid) {
         console.warn(`[WEBHOOK-STATUS] signature: INVALID for SID ${twilioSID}`);
         return NextResponse.json({ success: false, error: "Invalid Twilio Signature" }, { status: 403 });

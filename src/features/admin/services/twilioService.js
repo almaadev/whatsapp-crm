@@ -20,13 +20,13 @@ export function getTwilioClient() {
 }
 
 export function getStatusCallbackUrl() {
+  const defaultProdUrl = "https://whatsapp.almaaerp.in";
   const baseUrl = (
     process.env.TWILIO_STATUS_CALLBACK_URL ||
     process.env.NEXT_PUBLIC_BASE_URL ||
     process.env.APP_URL ||
     process.env.PUBLIC_URL ||
-    process.env.NEXTAUTH_URL ||
-    "https://pediatric-opossum-gambling.ngrok-free.dev"
+    (process.env.NODE_ENV === "production" ? defaultProdUrl : process.env.NEXTAUTH_URL || defaultProdUrl)
   ).trim();
 
   const cleanBase = baseUrl.replace(/\/+$/, "");
@@ -57,11 +57,7 @@ export function formatWhatsAppAddress(rawNumber) {
 export async function bootstrapTwilioNumbersFromEnv() {
   try {
     await connectDB();
-    const envNumbersString =
-      process.env.TWILIO_PHONE_NUMBERS ||
-      process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER ||
-      process.env.TWILIO_PHONE_NUMBER ||
-      "";
+    const envNumbersString = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER || "";
 
     const envNumbers = envNumbersString
       .split(",")

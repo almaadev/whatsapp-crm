@@ -14,6 +14,7 @@ import { normalizePhone, getPhoneVariations } from "../../shared/utils/phoneUtil
 import { determineConversationRoute, getModelByCategory } from "../../features/chat/services/chatRoutingService.js";
 import { automationQueue, notificationQueue, activityQueue } from "../queues/queueManager.js";
 import cloudinaryService from "../services/cloudinaryService.js";
+import { getStatusCallbackUrl } from "../../features/admin/services/twilioService.js";
 
 const STOP_MESSAGE =
   "You have successfully unsubscribed from our WhatsApp updates.\nYou will no longer receive promotional messages from us.\nIf you wish to receive updates again, simply reply *START*.\nThank you!";
@@ -169,9 +170,7 @@ export const inboundMessageService = {
     const isStartCommand = incomingTextUpper === "START";
 
     const myTwilioNumber = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER;
-    const callbackUrl = process.env.NEXT_PUBLIC_BASE_URL
-      ? `${process.env.NEXT_PUBLIC_BASE_URL}/api/webhook/status`
-      : "https://nonarsenic-nonparous-clotilde.ngrok-free.dev/api/webhook/status";
+    const callbackUrl = getStatusCallbackUrl();
 
     if (isStopCommand) {
       if (customer && customer.isOptedOut === true) {
