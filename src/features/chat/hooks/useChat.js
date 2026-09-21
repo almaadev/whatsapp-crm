@@ -1,9 +1,93 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { connectSocket } from "@/features/chat/services/socketService";
 import { chatService } from "@/features/chat/services/chatService";
 import { useChatStore } from "@/features/chat/stores/chatStore";
 import { isSamePhone } from "@/shared/utils/phoneUtils";
+
+/**
+ * Processes incoming message_status_update payload and updates the Zustand chat store.
+ * Strictly adheres to correlation rules:
+ * 1. Matches by twilioSid or sid
+ * 2. Matches by messageId, id, _id, or tempId
+ * 3. Does NOT blindly overwrite latest outbound message if correlation data (sid/messageId) was provided but did not match
+ * 4. Only falls back to latest outbound message when correlation data is genuinely unavailable
+ *
+ * @param {Object} payload - { sid, status, phone, messageId, branchId }
+ * @param {Object} store - Zustand useChatStore instance
+ */
+export function processStatusUpdate(payload, store = useChatStore) {
+  if (!payload || !payload.status) return;
+  const { sid, status, phone, messageId } = payload;
+
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[CHAT SOCKET] message_status_update received`);
+    console.log(`[CHAT SOCKET] sid=${sid || "N/A"}`);
+    console.log(`[CHAT SOCKET] status=${status}`);
+    console.log(`[CHAT SOCKET] target phone=${phone || "N/A"}`);
+  }
+
+  const state = store.getState();
+  const chats = state.messages || [];
+  const updateMessageStatus = state.updateMessageStatus;
+  if (typeof updateMessageStatus !== "function") return;
+
+  const hasCorrelationData = Boolean(sid || messageId);
+
+  const processChat = (chat) => {
+    if (!chat?.history?.length) return;
+
+    let targetMessage = null;
+
+    if (hasCorrelationData) {
+      // 1. Primary correlation: twilioSid / sid
+      if (sid) {
+        targetMessage = chat.history.find(
+          (msg) => msg.twilioSid === sid || msg.sid === sid
+        );
+      }
+      // 2. Secondary correlation: messageId / tempId / _id / id
+      if (!targetMessage && messageId) {
+        targetMessage = chat.history.find(
+          (msg) =>
+            msg._id === messageId ||
+            msg.id === messageId ||
+            msg.tempId === messageId ||
+            msg.messageId === messageId
+        );
+      }
+      // If correlation data was provided but no message in this chat matched, do NOT blindly update latest outbound
+      if (!targetMessage) return;
+    } else {
+      // Fallback-to-latest-outbound logic ONLY when correlation data is genuinely unavailable
+      targetMessage = chat.history
+        .slice()
+        .reverse()
+        .find((msg) => msg.direction === "OUTBOUND");
+      if (!targetMessage) return;
+    }
+
+    const targetId =
+      targetMessage.tempId || targetMessage._id || targetMessage.id || messageId || sid;
+
+    updateMessageStatus(chat.phone, targetId, status, sid || targetMessage.twilioSid);
+  };
+
+  if (phone) {
+    const matchedChats = chats.filter((c) => isSamePhone(c.phone, phone));
+    if (matchedChats.length > 0) {
+      matchedChats.forEach(processChat);
+    } else if (state.selectedChat && isSamePhone(state.selectedChat.phone, phone)) {
+      processChat(state.selectedChat);
+    }
+  } else {
+    chats.forEach(processChat);
+    if (state.selectedChat && !chats.some((c) => isSamePhone(c.phone, state.selectedChat.phone))) {
+      processChat(state.selectedChat);
+    }
+  }
+}
 
 /**
  * Custom hook for managing the main chat interface logic.
@@ -72,44 +156,23 @@ export function useChat(optionsOrRole) {
     }
   }, [isAuthenticated, isAuthorized, role, setMessages]);
 
-  const handleStatusUpdate = useCallback(({ sid, status, phone }) => {
-    const state = useChatStore.getState();
-
-    const chats = state.messages;
-    const updateMessageStatus = state.updateMessageStatus;
-
-    const processChat = (chat) => {
-      if (!chat.history?.length) return;
-
-      let targetMessage = chat.history.find(
-        (msg) => msg.twilioSid === sid || msg.sid === sid,
-      );
-
-      if (!targetMessage) {
-        targetMessage = chat.history
-          .slice()
-          .reverse()
-          .find((msg) => msg.direction === "OUTBOUND");
-      }
-
-      if (!targetMessage) return;
-
-      const messageId =
-        targetMessage.tempId || targetMessage._id || targetMessage.id;
-
-      updateMessageStatus(chat.phone, messageId, status, sid);
-    };
-
-    if (phone) {
-      const targetChat = chats.find((chat) => isSamePhone(chat.phone, phone));
-
-      if (targetChat) {
-        processChat(targetChat);
-      }
-    } else {
-      chats.forEach(processChat);
-    }
+  const handleStatusUpdate = useCallback((payload) => {
+    processStatusUpdate(payload, useChatStore);
   }, []);
+
+  // Enterprise Lifecycle: Register message_status_update singleton listener once with cleanup
+  useEffect(() => {
+    if (!isAuthenticated || !isAuthorized) return;
+
+    const socket = connectSocket();
+    if (!socket) return;
+
+    socket.on("message_status_update", handleStatusUpdate);
+
+    return () => {
+      socket.off("message_status_update", handleStatusUpdate);
+    };
+  }, [isAuthenticated, isAuthorized, handleStatusUpdate]);
 
   const handleCustomerBranchUpdate = useCallback(
     (data) => {

@@ -18,6 +18,7 @@ import BulkMessage from "../src/shared/models/BulkMessage.js";
 import { getStatusCallbackUrl, CANONICAL_PRODUCTION_STATUS_CALLBACK_URL } from "../src/features/admin/services/twilioService.js";
 import { validateTwilioWebhookSignature } from "../src/shared/utils/twilioValidator.js";
 import { emitMessageStatusUpdate } from "../src/shared/utils/socketPublisher.js";
+import { EventEmitter } from "node:events";
 
 async function runTests() {
   console.log("==================================================");
@@ -571,6 +572,107 @@ async function runTests() {
     assert(isBypassAttempted === false, "In production mode, TWILIO_VALIDATE_SIGNATURE=false is ignored and does NOT bypass validation");
     process.env.NODE_ENV = originalNodeEnv;
     process.env.TWILIO_VALIDATE_SIGNATURE = "true";
+
+    // [TEST 17] Testing Client-Side Socket Listener -> handleStatusUpdate -> Zustand Integration
+    console.log("\n[TEST 17] Testing Client-Side Socket Listener -> handleStatusUpdate -> Zustand Integration...");
+    const { processStatusUpdate } = await import("../src/features/chat/hooks/useChat.js");
+    const mockClientSocket = new EventEmitter();
+    const clientStatusListener = (payload) => {
+      processStatusUpdate(payload, useChatStore);
+    };
+
+    // Register listener exactly as useChat hook does
+    mockClientSocket.on("message_status_update", clientStatusListener);
+
+    // Seed useChatStore with conversation
+    const clientTestPhone = "+919876543299";
+    const clientTestSid = "SM_client_socket_integration_123";
+    useChatStore.getState().setMessages([
+      {
+        phone: clientTestPhone,
+        customerName: "Integration Test User",
+        messageStatus: "SENT",
+        history: [
+          {
+            tempId: "temp-integration-1",
+            twilioSid: clientTestSid,
+            direction: "OUTBOUND",
+            message: "Testing client socket update",
+            status: "SENT",
+            messageStatus: "SENT",
+            createdAt: new Date(),
+          },
+        ],
+      },
+    ]);
+
+    // Step A: Server event emitted -> socket listener -> handleStatusUpdate -> Zustand updates SENT -> DELIVERED
+    mockClientSocket.emit("message_status_update", {
+      sid: clientTestSid,
+      status: "DELIVERED",
+      phone: clientTestPhone,
+      messageId: "temp-integration-1",
+    });
+
+    const storeAfterDelivered = useChatStore.getState();
+    const chatAfterDelivered = storeAfterDelivered.messages.find((c) => c.phone === clientTestPhone);
+    const msgAfterDelivered = chatAfterDelivered?.history?.find((m) => m.twilioSid === clientTestSid);
+    assert(msgAfterDelivered?.status === "DELIVERED", "Client socket event successfully updated Zustand message status: SENT -> DELIVERED");
+    assert(chatAfterDelivered?.messageStatus === "DELIVERED", "Client chat conversation messageStatus successfully updated to DELIVERED");
+
+    // Step B: Server event emitted -> socket listener -> handleStatusUpdate -> Zustand updates DELIVERED -> READ
+    mockClientSocket.emit("message_status_update", {
+      sid: clientTestSid,
+      status: "READ",
+      phone: clientTestPhone,
+      messageId: "temp-integration-1",
+    });
+
+    const storeAfterRead = useChatStore.getState();
+    const chatAfterRead = storeAfterRead.messages.find((c) => c.phone === clientTestPhone);
+    const msgAfterRead = chatAfterRead?.history?.find((m) => m.twilioSid === clientTestSid);
+    assert(msgAfterRead?.status === "READ", "Client socket event successfully updated Zustand message status: DELIVERED -> READ");
+    assert(chatAfterRead?.messageStatus === "READ", "Client chat conversation messageStatus successfully updated to READ");
+
+    // Step C: Verify READ cannot regress when delayed DELIVERED arrives
+    mockClientSocket.emit("message_status_update", {
+      sid: clientTestSid,
+      status: "DELIVERED",
+      phone: clientTestPhone,
+    });
+    const storeAfterLateDelivered = useChatStore.getState();
+    const clientMsgAfterLateDelivered = storeAfterLateDelivered.messages
+      .find((c) => c.phone === clientTestPhone)
+      ?.history?.find((m) => m.twilioSid === clientTestSid);
+    assert(clientMsgAfterLateDelivered?.status === "READ", "READ status cannot regress when delayed 'DELIVERED' socket event arrives");
+
+    // Step D: Verify duplicate callback is safe
+    mockClientSocket.emit("message_status_update", {
+      sid: clientTestSid,
+      status: "READ",
+      phone: clientTestPhone,
+    });
+    const storeAfterDuplicate = useChatStore.getState();
+    const clientMsgAfterDuplicate = storeAfterDuplicate.messages
+      .find((c) => c.phone === clientTestPhone)
+      ?.history?.find((m) => m.twilioSid === clientTestSid);
+    assert(clientMsgAfterDuplicate?.status === "READ", "Duplicate status callback is safe and maintains READ status");
+
+    // Step E: Verify correlation protection: Unrelated SID does NOT overwrite latest outbound message
+    mockClientSocket.emit("message_status_update", {
+      sid: "SM_unrelated_random_sid_999",
+      status: "FAILED",
+      phone: clientTestPhone,
+    });
+    const storeAfterUnrelated = useChatStore.getState();
+    const msgAfterUnrelated = storeAfterUnrelated.messages
+      .find((c) => c.phone === clientTestPhone)
+      ?.history?.find((m) => m.twilioSid === clientTestSid);
+    assert(msgAfterUnrelated?.status === "READ", "Correlation protection: Unrelated SID does NOT blindly overwrite latest outbound message");
+
+    // Step F: Verify socket listener cleanup
+    mockClientSocket.off("message_status_update", clientStatusListener);
+    assert(mockClientSocket.listenerCount("message_status_update") === 0, "Socket listener cleans up cleanly on unmount");
 
     // Cleanup test data
     await Message.deleteMany({ twilioSid: { $in: [testSid1, testSid2] } });

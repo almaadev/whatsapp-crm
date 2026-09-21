@@ -68,9 +68,20 @@ export function validateTwilioWebhookSignature(req, body = {}, canonicalUrlOverr
     "127.0.0.1",
   ].filter(Boolean);
 
+  if (process.env.TWILIO_STATUS_CALLBACK_URL) {
+    try {
+      TRUSTED_DOMAINS.push(new URL(process.env.TWILIO_STATUS_CALLBACK_URL).hostname.toLowerCase());
+    } catch {}
+  }
+  if (process.env.NEXT_PUBLIC_BASE_URL) {
+    try {
+      TRUSTED_DOMAINS.push(new URL(process.env.NEXT_PUBLIC_BASE_URL).hostname.toLowerCase());
+    } catch {}
+  }
+
   const isTrustedHost = TRUSTED_DOMAINS.some(
     (td) => host === td || host.startsWith(`${td}:`) || host.endsWith(`.${td}`)
-  );
+  ) || (!isProduction && (host.includes("ngrok") || host.includes("loca.lt")));
 
   if (isTrustedHost && host) {
     const fullUrl = `${proto}://${host}${urlObj.pathname}${searchStr}`;

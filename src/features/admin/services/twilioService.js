@@ -44,9 +44,15 @@ export function getStatusCallbackUrl() {
   ).trim();
 
   const cleanBase = baseUrl.replace(/\/+$/, "");
-  return cleanBase.endsWith("/api/webhook/status")
+  const resolvedUrl = cleanBase.endsWith("/api/webhook/status")
     ? cleanBase
     : `${cleanBase}/api/webhook/status`;
+
+  if (!isProd && (cleanBase.includes("localhost") || cleanBase.includes("127.0.0.1"))) {
+    console.warn(`⚠️ [TWILIO STATUS CALLBACK] Resolving to localhost (${resolvedUrl}). Twilio cannot reach localhost in development! Please set TWILIO_STATUS_CALLBACK_URL in .env.local to your active ngrok HTTPS endpoint (e.g. TWILIO_STATUS_CALLBACK_URL=https://<your-ngrok-subdomain>.ngrok-free.app/api/webhook/status).`);
+  }
+
+  return resolvedUrl;
 }
 
 export function formatPhoneNumber(rawNumber) {
