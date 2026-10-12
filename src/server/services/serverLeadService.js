@@ -340,6 +340,7 @@ export const serverLeadService = {
       newLeadEntry = await buildFollowUp(body, session, assignedTo);
       updatedLead = await Lead.create({
         customerId: customerDoc._id,
+        phone: cleanPhone || customerDoc.phone || null,
         handledByHistory: currentHandoff ? [currentHandoff] : [],
         leads: [newLeadEntry],
         ...rootFields

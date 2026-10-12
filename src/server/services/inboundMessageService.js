@@ -152,9 +152,25 @@ export const inboundMessageService = {
       }
     }
 
-    const phone = normalizePhone(fromPhone);
-    if (!phone || (!messageText && numMedia === 0)) {
-      return { ignored: true, reason: "No phone or content" };
+    // Extract sender phone across all common Twilio payload fields
+    const rawSender = fromPhone || body.From || body.from || body.WaId || "";
+    const phone = normalizePhone(rawSender);
+
+    if (!phone) {
+      console.warn(
+        JSON.stringify({
+          tag: "[INBOUND-DIAGNOSTIC]",
+          event: "MISSING_SENDER_PHONE",
+          twilioSid: twilioSid || "UNKNOWN",
+          reason: "Sender phone missing or could not be normalized to canonical E.164 format",
+          timestamp: new Date().toISOString(),
+        })
+      );
+      return { ignored: true, reason: "No phone or content", twilioSid };
+    }
+
+    if (!messageText && numMedia === 0) {
+      return { ignored: true, reason: "No message text or media content", phone, twilioSid };
     }
 
     const profileName = rawProfileName || phone || "Unknown";
@@ -234,7 +250,7 @@ export const inboundMessageService = {
       targetCategory = "Direct Lead";
     }
 
-    // 5. Resolve or Create Customer & Lead atomically
+    // 5. Resolve or Create Customer idempotently
     const { customer: resolvedCustomer, isNewCustomer } = await this.findOrCreateCustomer(
       phone,
       profileName,
@@ -242,10 +258,122 @@ export const inboundMessageService = {
     );
     customer = resolvedCustomer;
 
-    const { lead: resolvedLead, isNewLead } = await this.findOrCreateWhatsAppLead(phone, customer);
+    // 6. Build Inbound Message Document(s)
+    const TargetModel = getModelByCategory(targetCategory);
+    const rawInboundMessages = await processInboundMediaItems({
+      phone,
+      messageText,
+      twilioSid,
+      profileName,
+      body,
+      numMedia,
+    });
 
-    // Update customer interaction metrics on existing or newly created customer
-    if (!isNewCustomer) {
+    const inboundMessages = rawInboundMessages.map((msg) => ({
+      ...msg,
+      chatType: targetCategory,
+      receivedOnNumber,
+      senderNumber: receivedOnNumber,
+      branchId,
+      twilioNumberId,
+    }));
+
+    // 7. Message-Level Database Deduplication Check (Twilio SID Idempotency)
+    if (twilioSid && !twilioSid.startsWith("sys_msg_")) {
+      const alreadySaved = await TargetModel.findOne({ twilioSid }).lean();
+      if (alreadySaved) {
+        return { duplicate: true, messageId: alreadySaved._id };
+      }
+    }
+
+    // 8. GUARANTEE MESSAGE PERSISTENCE: Message saved with robust persistence boundary
+    let savedMessages;
+    try {
+      savedMessages = await TargetModel.insertMany(inboundMessages);
+    } catch (insertErr) {
+      if (
+        insertErr.code === 11000 ||
+        insertErr.message?.includes("E11000") ||
+        insertErr.writeErrors?.some((e) => e.code === 11000)
+      ) {
+        const existing = await TargetModel.findOne({ twilioSid }).lean();
+        return { duplicate: true, messageId: existing?._id };
+      }
+      throw insertErr;
+    }
+    const lastSaved = savedMessages[savedMessages.length - 1];
+    console.log(`[INBOUND-SERVICE] message persisted=${lastSaved?._id} | direction=${lastSaved?.direction} | twilioSid=${lastSaved?.twilioSid}`);
+
+    // 9. Lead Resolution & Enrichment (Safely isolated so optional lead errors do not lose persisted message)
+    let resolvedLead = null;
+    let isNewLead = false;
+    let leadEnrichmentError = null;
+
+    try {
+      const leadResult = await this.findOrCreateWhatsAppLead(phone, customer);
+      resolvedLead = leadResult.lead;
+      isNewLead = leadResult.isNewLead;
+    } catch (leadErr) {
+      leadEnrichmentError = leadErr;
+      console.error(
+        JSON.stringify({
+          tag: "[INBOUND-LEAD-ENRICHMENT-ERROR]",
+          event: "LEAD_CREATION_FAILED",
+          twilioSid,
+          phone,
+          error: leadErr.message,
+          code: leadErr.code || "UNKNOWN",
+          timestamp: new Date().toISOString(),
+        })
+      );
+    }
+
+    const resolvedLeadId = resolvedLead?._id
+      ? resolvedLead._id.toString()
+      : customer?.activeLeadId
+      ? customer.activeLeadId.toString()
+      : null;
+
+    console.log(`[INBOUND-SERVICE] customer resolved=${customer?._id}`);
+    console.log(`[INBOUND-SERVICE] lead resolved=${resolvedLeadId}`);
+
+    // 10. Save corresponding Media records for admin tracking & 60-day cleanup
+    for (const savedMsg of savedMessages) {
+      if (savedMsg.media && savedMsg.media.url) {
+        const resolvedName = savedMsg.media.originalFileName || savedMsg.media.originalFilename || (savedMsg.messageType === "document" ? "document.pdf" : "whatsapp_media");
+        await Media.create({
+          messageId: savedMsg._id,
+          customerId: customer?._id || null,
+          leadId: resolvedLeadId || null,
+          phone: savedMsg.phone,
+          senderPhone: savedMsg.senderNumber || receivedOnNumber,
+          recipientPhone: receivedOnNumber,
+          uploadedBy: null,
+          direction: "INBOUND",
+          mediaType: savedMsg.messageType || "image",
+          fileType: savedMsg.messageType || "image",
+          mimeType: savedMsg.media.mimeType || (savedMsg.messageType === "document" ? "application/pdf" : "image/jpeg"),
+          extension: savedMsg.messageType === "document" ? ".pdf" : "",
+          originalFileName: resolvedName,
+          originalFilename: resolvedName,
+          filename: resolvedName,
+          cloudinaryUrl: savedMsg.media.url,
+          secureUrl: savedMsg.media.url,
+          cloudinaryPublicId: savedMsg.media.publicId || "",
+          publicId: savedMsg.media.publicId || "",
+          resourceType: savedMsg.media.resourceType || (savedMsg.messageType === "document" ? "raw" : "image"),
+          fileSize: savedMsg.media.fileSize || 0,
+          status: "ACTIVE",
+          createdAt: savedMsg.timestamp || new Date(),
+          expiresAt: savedMsg.expiresAt || new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+        }).catch((mediaErr) => {
+          console.warn("[InboundMessageService] Media record creation warning:", mediaErr.message);
+        });
+      }
+    }
+
+    // 11. Update customer interaction metrics on existing or newly created customer
+    if (customer) {
       customer.activeRouteCategory = targetCategory;
       customer.lastInteractionAt = new Date();
       customer.unreadCount = (customer.unreadCount || 0) + 1;
@@ -259,10 +387,10 @@ export const inboundMessageService = {
       if (!customer.activeLeadId && resolvedLead?._id) {
         customer.activeLeadId = resolvedLead._id;
       }
-      await customer.save();
+      await customer.save().catch(() => {});
     }
 
-    // 5.1 Enqueue single LEAD_CREATED audit activity ONLY on initial automatic lead creation
+    // 12. Enqueue single LEAD_CREATED audit activity ONLY on initial automatic lead creation
     if (isNewLead && resolvedLead) {
       try {
         await activityQueue.add(
@@ -289,7 +417,7 @@ export const inboundMessageService = {
       }
     }
 
-    // 5.2 Enqueue MESSAGE_RECEIVED audit activity for all incoming messages
+    // 13. Enqueue MESSAGE_RECEIVED audit activity for all incoming messages
     try {
       const safeSid = (twilioSid || String(Date.now())).replace(/[:]/g, "_");
       await activityQueue.add(
@@ -297,8 +425,8 @@ export const inboundMessageService = {
         {
           eventType: ActivityEvents.MESSAGE_RECEIVED,
           entityType: "Message",
-          customerId: customer._id.toString(),
-          leadId: resolvedLead?._id ? resolvedLead._id.toString() : null,
+          customerId: customer?._id ? customer._id.toString() : null,
+          leadId: resolvedLeadId,
           source: ActivitySources.WEBHOOK,
           metadata: { notes: messageText || "" },
         },
@@ -308,95 +436,6 @@ export const inboundMessageService = {
       console.error("[InboundMessageService] Error enqueuing MESSAGE_RECEIVED activity job:", actErr.message);
     }
 
-    const resolvedLeadId = resolvedLead?._id
-      ? resolvedLead._id.toString()
-      : customer?.activeLeadId
-      ? customer.activeLeadId.toString()
-      : null;
-
-    // 6. Build Inbound Message Document(s)
-    const TargetModel = getModelByCategory(targetCategory);
-    const rawInboundMessages = await processInboundMediaItems({
-      phone,
-      messageText,
-      twilioSid,
-      profileName,
-      body,
-      numMedia,
-    });
-
-    const inboundMessages = rawInboundMessages.map((msg) => ({
-      ...msg,
-      chatType: targetCategory,
-      receivedOnNumber,
-      senderNumber: receivedOnNumber,
-      branchId,
-      twilioNumberId,
-    }));
-
-    // 7. Message-Level Database Deduplication Check
-    if (twilioSid && !twilioSid.startsWith("sys_msg_")) {
-      const alreadySaved = await TargetModel.findOne({ twilioSid }).lean();
-      if (alreadySaved) {
-        return { duplicate: true, messageId: alreadySaved._id };
-      }
-    }
-
-    let savedMessages;
-    try {
-      savedMessages = await TargetModel.insertMany(inboundMessages);
-      
-      // Save corresponding Media records for admin tracking & 60-day cleanup
-      for (const savedMsg of savedMessages) {
-        if (savedMsg.media && savedMsg.media.url) {
-          const resolvedName = savedMsg.media.originalFileName || savedMsg.media.originalFilename || (savedMsg.messageType === "document" ? "document.pdf" : "whatsapp_media");
-          await Media.create({
-            messageId: savedMsg._id,
-            customerId: customer?._id || null,
-            leadId: resolvedLeadId || null,
-            phone: savedMsg.phone,
-            senderPhone: savedMsg.senderNumber || receivedOnNumber,
-            recipientPhone: receivedOnNumber,
-            uploadedBy: null,
-            direction: "INBOUND",
-            mediaType: savedMsg.messageType || "image",
-            fileType: savedMsg.messageType || "image",
-            mimeType: savedMsg.media.mimeType || (savedMsg.messageType === "document" ? "application/pdf" : "image/jpeg"),
-            extension: savedMsg.messageType === "document" ? ".pdf" : "",
-            originalFileName: resolvedName,
-            originalFilename: resolvedName,
-            filename: resolvedName,
-            cloudinaryUrl: savedMsg.media.url,
-            secureUrl: savedMsg.media.url,
-            cloudinaryPublicId: savedMsg.media.publicId || "",
-            publicId: savedMsg.media.publicId || "",
-            resourceType: savedMsg.media.resourceType || (savedMsg.messageType === "document" ? "raw" : "image"),
-            fileSize: savedMsg.media.fileSize || 0,
-            status: "ACTIVE",
-            createdAt: savedMsg.timestamp || new Date(),
-            expiresAt: savedMsg.expiresAt || new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
-          }).catch((mediaErr) => {
-            console.warn("[InboundMessageService] Media record creation warning:", mediaErr.message);
-          });
-        }
-      }
-    } catch (insertErr) {
-      if (
-        insertErr.code === 11000 ||
-        insertErr.message?.includes("E11000") ||
-        insertErr.writeErrors?.some((e) => e.code === 11000)
-      ) {
-        const existing = await TargetModel.findOne({ twilioSid }).lean();
-        return { duplicate: true, messageId: existing?._id };
-      }
-      throw insertErr;
-    }
-    const lastSaved = savedMessages[savedMessages.length - 1];
-
-    console.log(`[INBOUND-SERVICE] customer resolved=${customer?._id}`);
-    console.log(`[INBOUND-SERVICE] lead resolved=${resolvedLeadId}`);
-    console.log(`[INBOUND-SERVICE] message persisted=${lastSaved?._id} | direction=${lastSaved?.direction} | twilioSid=${lastSaved?.twilioSid}`);
-
     const resolvedCustomerName =
       customer?.name && isValidDisplayName(customer.name, phone)
         ? customer.name
@@ -404,7 +443,7 @@ export const inboundMessageService = {
         ? profileName
         : phone;
 
-    // 8. Socket.IO Realtime Emission (strictly AFTER MongoDB write)
+    // 14. Socket.IO Realtime Emission (strictly AFTER MongoDB write)
     const categoryEmit = {
       customerId: customer?._id ? customer._id.toString() : undefined,
       phone: customer?.phone || phone,
@@ -464,7 +503,7 @@ export const inboundMessageService = {
       console.error("[InboundMessageService] Socket emission error:", socketErr.message);
     }
 
-    // 9. Enqueue Downstream Jobs
+    // 15. Enqueue Downstream Jobs
     const safeJobSid = (lastSaved?.twilioSid || twilioSid || String(Date.now())).replace(/[:]/g, "_");
 
     // A. Notification Queue Job
@@ -504,7 +543,7 @@ export const inboundMessageService = {
       console.error("[InboundMessageService] Failed to enqueue automation job:", autoQErr.message);
     }
 
-    // 10. Redis Cache Invalidation
+    // 16. Redis Cache Invalidation
     if (redis && redis.status !== "disabled") {
       try {
         await redis.del("chats:all_data");
@@ -512,6 +551,17 @@ export const inboundMessageService = {
       } catch {
         // Non-fatal
       }
+    }
+
+    if (leadEnrichmentError) {
+      return {
+        success: false,
+        partial: true,
+        messagePersisted: true,
+        customerId: customer?._id,
+        leadError: leadEnrichmentError.message,
+        messageId: lastSaved?._id,
+      };
     }
 
     return {
@@ -527,6 +577,10 @@ export const inboundMessageService = {
    * Handles race conditions gracefully via E11000 duplicate key recovery.
    */
   async findOrCreateCustomer(phone, profileName, { branchId = null, receivedOnNumber = null, targetCategory = "Direct Lead" } = {}) {
+    if (!phone || typeof phone !== "string" || !phone.trim()) {
+      throw new Error("[findOrCreateCustomer] Valid phone number is required to create or resolve customer.");
+    }
+
     const phoneVariations = getPhoneVariations(phone);
     let customer = await Customer.findOne({ phone: { $in: phoneVariations } });
 
@@ -591,13 +645,16 @@ export const inboundMessageService = {
       existingLead = await Lead.findById(customer.activeLeadId);
     }
 
-    // Check if lead exists for any phone variation associated with customer
+    // Check if lead exists by phone or any phone variation associated with customer
     if (!existingLead && normalizedPhone) {
-      const variations = getPhoneVariations(normalizedPhone);
-      const relatedCustomers = await Customer.find({ phone: { $in: variations } }).select("_id").lean();
-      if (relatedCustomers.length > 0) {
-        const relatedIds = relatedCustomers.map((c) => c._id);
-        existingLead = await Lead.findOne({ customerId: { $in: relatedIds } });
+      existingLead = await Lead.findOne({ phone: normalizedPhone });
+      if (!existingLead) {
+        const variations = getPhoneVariations(normalizedPhone);
+        const relatedCustomers = await Customer.find({ phone: { $in: variations } }).select("_id").lean();
+        if (relatedCustomers.length > 0) {
+          const relatedIds = relatedCustomers.map((c) => c._id);
+          existingLead = await Lead.findOne({ customerId: { $in: relatedIds } });
+        }
       }
     }
 
@@ -610,7 +667,7 @@ export const inboundMessageService = {
       return { lead: existingLead, isNewLead: false };
     }
 
-    // 2. Not found: Atomically create Lead with customerId
+    // 2. Not found: Atomically create Lead with customerId AND normalizedPhone
     const initialCycle = {
       date: new Date(),
       enquiredFor: "",
@@ -625,6 +682,7 @@ export const inboundMessageService = {
     try {
       const newLead = await Lead.create({
         customerId: customer._id,
+        phone: normalizedPhone || customer.phone || null,
         assignedTo: null,
         associateId: "",
         isClosed: false,
@@ -636,9 +694,12 @@ export const inboundMessageService = {
 
       return { lead: newLead, isNewLead: true };
     } catch (createErr) {
-      // Concurrent webhook request created the Lead simultaneously (E11000 duplicate key on customerId)
+      // Concurrent webhook request created the Lead simultaneously (E11000 duplicate key on customerId or phone)
       if (createErr.code === 11000 || createErr.message?.includes("E11000")) {
-        const raceLead = await Lead.findOne({ customerId: customer._id });
+        let raceLead = await Lead.findOne({ customerId: customer._id });
+        if (!raceLead && normalizedPhone) {
+          raceLead = await Lead.findOne({ phone: normalizedPhone });
+        }
         if (raceLead) {
           if (!customer.activeLeadId || customer.activeLeadId.toString() !== raceLead._id.toString()) {
             customer.activeLeadId = raceLead._id;

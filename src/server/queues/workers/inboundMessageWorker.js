@@ -1,4 +1,4 @@
-import { Worker } from "bullmq";
+import { Worker, UnrecoverableError } from "bullmq";
 import { QUEUE_NAMES, getRedisConnectionOptions } from "../queueManager.js";
 import inboundMessageService from "../../services/inboundMessageService.js";
 import WebhookEvent from "../../../shared/models/WebhookEvent.js";
@@ -47,12 +47,19 @@ export function createInboundMessageWorker() {
           return await inboundMessageService.handleInboundMessage(job.data);
         });
 
-        // Update WebhookEvent to completed
+        // Update WebhookEvent status
         if (twilioSid) {
-          await WebhookEvent.updateOne(
-            { provider: "twilio", eventId: twilioSid },
-            { $set: { status: "completed", processedAt: new Date() } }
-          ).catch(() => {});
+          if (result && result.partial) {
+            await WebhookEvent.updateOne(
+              { provider: "twilio", eventId: twilioSid },
+              { $set: { status: "partially_failed", error: result.leadError || "Lead enrichment failed", processedAt: new Date() } }
+            ).catch(() => {});
+          } else {
+            await WebhookEvent.updateOne(
+              { provider: "twilio", eventId: twilioSid },
+              { $set: { status: "completed", processedAt: new Date() } }
+            ).catch(() => {});
+          }
         }
 
         console.log(`[INBOUND-WORKER] job completed | jobId=${job.id} | twilioSid=${twilioSid}`);
@@ -66,8 +73,23 @@ export function createInboundMessageWorker() {
         if (twilioSid) {
           await WebhookEvent.updateOne(
             { provider: "twilio", eventId: twilioSid },
-            { $set: { status: "failed" } }
+            { $set: { status: "failed", error: error.message } }
           ).catch(() => {});
+        }
+
+        const isDeterministic =
+          error.code === 11000 ||
+          error.name === "ValidationError" ||
+          error.name === "CastError" ||
+          error.message?.includes("E11000") ||
+          error.isDeterministic === true;
+
+        if (isDeterministic) {
+          console.error(
+            `🛑 [INBOUND-WORKER] Deterministic error detected for jobId=${job.id} | twilioSid=${twilioSid}. Halting BullMQ retries:`,
+            error.message
+          );
+          throw new UnrecoverableError(error.message);
         }
 
         throw error;

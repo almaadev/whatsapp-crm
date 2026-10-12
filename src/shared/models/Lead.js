@@ -38,6 +38,7 @@ const HandoffSchema = new mongoose.Schema(
 const LeadSchema = new mongoose.Schema(
   {
     customerId:  { type: mongoose.Schema.Types.ObjectId, ref: "Customer", required: true, unique: true, index: true },
+    phone:       { type: String, default: null, trim: true },
     assignedTo:  { type: String, default: null },
     associateId: { type: String, default: "" },
     handledByHistory: [HandoffSchema], 
@@ -58,6 +59,14 @@ LeadSchema.index({ createdAt: 1 });
 LeadSchema.index({ "leads.date": 1 });
 LeadSchema.index({ associateId: 1, isClosed: 1 });
 LeadSchema.index({ closedById: 1, closedAt: 1 });
+LeadSchema.index(
+  { phone: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { phone: { $type: "string", $gt: "" } },
+    background: true,
+  }
+);
 
 LeadSchema.virtual("latestFollowUp").get(function () {
   return this.leads && this.leads.length > 0 ? this.leads[this.leads.length - 1] : null;

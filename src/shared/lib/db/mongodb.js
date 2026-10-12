@@ -29,11 +29,35 @@ async function connectDB() {
     };
 
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-      // Clean up legacy unique index on branches collection if it exists
       mongoose.connection.once("open", () => {
+        // Clean up legacy unique index on branches collection if it exists
         mongoose.connection.db.collection("branches").dropIndex("code_1").catch((err) => {
           if (err.codeName !== "IndexNotFound" && err.code !== 27) {
             console.warn("Could not drop legacy unique index 'code_1':", err.message);
+          }
+        });
+
+        // Safely migrate legacy unique phone_1 index on leads to partial unique index
+        mongoose.connection.db.collection("leads").indexes().then(async (leadIndexes) => {
+          const oldPhoneIdx = leadIndexes.find(
+            (idx) => idx.name === "phone_1" || (idx.key && idx.key.phone === 1)
+          );
+          if (oldPhoneIdx && oldPhoneIdx.unique && !oldPhoneIdx.partialFilterExpression) {
+            console.log("⚠️ [MongoDB] Detected legacy non-partial unique index 'phone_1' on leads. Migrating to partial unique index...");
+            await mongoose.connection.db.collection("leads").dropIndex(oldPhoneIdx.name);
+            await mongoose.connection.db.collection("leads").createIndex(
+              { phone: 1 },
+              {
+                unique: true,
+                partialFilterExpression: { phone: { $type: "string", $gt: "" } },
+                background: true,
+              }
+            );
+            console.log("✅ [MongoDB] Migrated leads phone_1 index to partial unique index successfully.");
+          }
+        }).catch((err) => {
+          if (err.codeName !== "NamespaceNotFound" && err.code !== 26) {
+            console.warn("Notice checking leads phone index:", err.message);
           }
         });
 
